@@ -1,0 +1,52 @@
+# Environment variables & API keys
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+secrets.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Ignore build and install folders
+build/
+install/
+log/
+.devenv/
+.colcon_workspace
+.vscode/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore other common files
+*.swp
+*.swo
+*.swn
+*~
+
+# reference for development
+reference/
+
+# my own skills for development
+skills/
+
+# Development Documentation
+dev/
+plan/
+work_record/
