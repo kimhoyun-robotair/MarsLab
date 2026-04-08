@@ -1,0 +1,5 @@
+# Ingenuity-class rotorcraft (Phase 1: kinematic only)
+robots:
+  - type: "rotorcraft"
+    urdf_path: "assets/robots/rotorcraft/simple_rotorcraft.urdf"
+    spawn_position: [5.0, 0.0, 3.0]

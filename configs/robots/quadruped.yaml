@@ -1,0 +1,5 @@
+# Unitree Go2 quadruped (perception-ready only, no dynamics claims)
+robots:
+  - type: "quadruped"
+    usd_asset_path: "Isaac/Robots/Unitree/Go2/go2.usd"
+    spawn_position: [-3.0, 0.0, 1.0]

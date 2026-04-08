@@ -501,3 +501,61 @@ PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene_test.py
 
 ### Next Steps
 - Week 7: Rotorcraft + Quadruped
+
+---
+
+## [2026-04-09] Rotorcraft + Quadruped
+
+**Week:** Wk 7 (May 19 -- May 25)
+**Module:** marslab/robots/, configs/robots/, assets/robots/rotorcraft/
+**Type:** Feature
+
+### Original Plan (PLAN.md Week 7)
+- Ingenuity 급 rotorcraft URDF + rotorcraft.py (simplified kinematic) [SHOULD]
+- Go2 quadruped (built-in USD) + quadruped.py [SHOULD]
+- Robot config YAMLs [SHOULD]
+- 산출물: 3 robot types in Mars scene
+
+### Implementation Plan (상세 계획안)
+- Rotorcraft: URDF (box body + 4 rotor disks, 1.8kg) + spawn_rotorcraft() — kinematic only, fix_base=True
+- Quadruped: Go2 built-in USD (`Isaac/Robots/Unitree/Go2/go2.usd`) + spawn_quadruped() via prim reference
+- Go2 에셋 경로: `get_assets_root_path()` + relative path
+- run_scene.py를 robot type별 분기로 확장
+- Integration test: 5개 (rover/rotorcraft/go2 개별 + 공존 + gravity)
+
+### What Was Done
+- Created `assets/robots/rotorcraft/simple_rotorcraft.urdf`: box body (0.3×0.3×0.15m, 1.8kg) + 4 rotor disks (r=0.3), fixed joints.
+- Created `marslab/robots/rotorcraft.py`: `spawn_rotorcraft(stage, config, gravity, atmo_density)` — URDF import, fix_base=True (kinematic), atmo_density는 Phase 2 인터페이스 준비만.
+- Created `marslab/robots/quadruped.py`: `spawn_quadruped(stage, config, gravity)` — `get_assets_root_path()` + USD reference. `_resolve_asset_path()` 헬퍼로 Isaac Sim 내장 에셋 경로 해석.
+- Created `configs/robots/rotorcraft.yaml`, `configs/robots/quadruped.yaml`.
+- Updated `configs/mars_env.yaml`: robots 리스트에 rotorcraft, quadruped 추가 (총 3개).
+- Updated `scripts/run_scene.py`: robot type별 spawn 분기 (rover/rotorcraft/quadruped).
+- Created `scripts/run_multi_robot_test.py`: 5개 integration test.
+- Updated unit tests: `len(robots) == 1` → `== 3` 반영.
+
+### Key Decisions
+- Rotorcraft: `fix_base=True` — 공중에 고정. Phase 1은 perception object로만 사용. 비행 역학 구현 금지.
+- Quadruped: USD prim reference 방식 (`stage.DefinePrim() + GetReferences().AddReference()`). URDF가 아닌 built-in USD 사용.
+- Go2 에셋: `isaacsim.storage.native.get_assets_root_path()`로 Nucleus/로컬 캐시 경로 해석. 미연결 시 fallback 로깅.
+- run_scene.py에서 rotorcraft/quadruped import를 조건부(lazy)로 처리 — GDAL 문제와 동일 패턴.
+
+### Test Results
+- Unit tests: 130 passed, 0 failed.
+- Lint: black + ruff 모두 통과.
+- Integration tests: **사용자 직접 실행 필요** (아래 명령어 참조).
+
+### Integration Test 실행 명령어
+```bash
+# Multi-robot test (5개)
+PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_multi_robot_test.py
+
+# 전체 장면 (3 robots)
+PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene.py
+```
+
+### Blockers / Issues
+- Go2 USD 에셋은 Nucleus 서버 또는 로컬 캐시에서 로드. 네트워크 미연결 시 실패 가능.
+- 결과 대기 중.
+
+### Next Steps
+- 사용자 integration test 결과 확인 후 Week 8 (User Review Gate 1) 진행

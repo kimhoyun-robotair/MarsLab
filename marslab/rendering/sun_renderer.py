@@ -5,7 +5,6 @@ intensity derived from Beer's Law computation.
 Requires Isaac Sim runtime.
 """
 
-
 from pxr import Gf, Sdf, UsdGeom, UsdLux
 
 from marslab.environment.sun_position import SunPosition

@@ -41,10 +41,13 @@ def test_robot_config_spawn_position_wrong_length():
 def test_robot_config_from_mars_env():
     """Robot config loads correctly from mars_env.yaml."""
     config = load_config("configs/mars_env.yaml")
-    assert len(config.robots) == 1
+    # assert len(config.robots) == 1  # now 3 robots
+    assert len(config.robots) == 3
     rover = config.robots[0]
     assert rover.type == "rover"
     assert "simple_rover.urdf" in rover.urdf_path
+    assert config.robots[1].type == "rotorcraft"
+    assert config.robots[2].type == "quadruped"
 
 
 def test_robot_config_both_paths():

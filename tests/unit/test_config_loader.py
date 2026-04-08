@@ -14,7 +14,8 @@ def test_load_config_valid():
     assert c.mars_env.gravity == 3.72
     # assert c.terrain.source == "hirise"  # hirise → procedural로 변경됨
     assert c.terrain.source == "procedural"
-    assert len(c.robots) == 1
+    # assert len(c.robots) == 1  # now 3 robots (rover + rotorcraft + quadruped)
+    assert len(c.robots) == 3
     assert c.robots[0].type == "rover"
 
 

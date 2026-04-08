@@ -36,12 +36,18 @@ rendering:
 robots:
   - type: "rover"
     urdf_path: "assets/robots/rover/simple_rover.urdf"
-    spawn_position: [0.0, 0.0, 0.5]
+    spawn_position: [0.0, 0.0, 1.0]
     sensor_config_paths:
       - "configs/sensors/stereo_rgb.yaml"
       - "configs/sensors/depth_camera.yaml"
       - "configs/sensors/lidar_3d.yaml"
       - "configs/sensors/imu.yaml"
+  - type: "rotorcraft"
+    urdf_path: "assets/robots/rotorcraft/simple_rotorcraft.urdf"
+    spawn_position: [5.0, 0.0, 3.0]
+  - type: "quadruped"
+    usd_asset_path: "Isaac/Robots/Unitree/Go2/go2.usd"
+    spawn_position: [-3.0, 0.0, 1.0]
 
 benchmark:
   annotation_format: "ai4mars"

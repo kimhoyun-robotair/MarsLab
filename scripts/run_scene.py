@@ -96,27 +96,86 @@ def main() -> None:
     configure_sun_light(stage, sun_pos, intensity, diffuse)
     configure_atmosphere_fog(stage, tau)
 
-    # --- Rover ---
+    # --- Robots ---
     if config.robots:
-        print("[run_scene] Spawning rover...")
-        rover_config = config.robots[0]
-        robot_path = spawn_rover(stage, rover_config, config.mars_env.gravity)
-        print(f"  Rover at: {robot_path}")
+        print(f"[run_scene] Spawning {len(config.robots)} robot(s)...")
+        for robot_config in config.robots:
+            if robot_config.type == "rover":
+                path = spawn_rover(stage, robot_config, config.mars_env.gravity)
+            elif robot_config.type == "rotorcraft":
+                from marslab.robots.rotorcraft import spawn_rotorcraft  # noqa: E402
+
+                path = spawn_rotorcraft(
+                    stage, robot_config, config.mars_env.gravity, config.mars_env.atmo_density
+                )
+            elif robot_config.type == "quadruped":
+                from marslab.robots.quadruped import spawn_quadruped  # noqa: E402
+
+                path = spawn_quadruped(stage, robot_config, config.mars_env.gravity)
+            else:
+                print(f"  Warning: Unknown robot type '{robot_config.type}', skipping")
+                continue
+            print(f"  {robot_config.type} at: {path}")
 
     # --- Simulate ---
     print("[run_scene] Running simulation (60 steps)...")
     for _ in range(60):
         simulation_app.update()
 
-    # --- Screenshot ---
+    # --- Screenshot via Replicator ---
+    print("[run_scene] Capturing screenshots...")
     os.makedirs("work_log", exist_ok=True)
-    output_path = os.path.abspath("work_log/mars_scene_v1.png")
-    print(f"[run_scene] Scene assembled. Screenshot: {output_path}")
 
-    # Note: headless screenshot requires viewport capture API.
-    # For now, log success. Full capture in visual inspection.
+    import numpy as np  # noqa: E402
+    import omni.replicator.core as rep  # noqa: E402
+    from PIL import Image  # noqa: E402
+
+    # Camera positions: close-up near rover + overview shot
+    rover_pos = config.robots[0].spawn_position if config.robots else [0, 0, 1]
+    rx, ry, rz = rover_pos
+
+    shots = [
+        {
+            "name": "closeup",
+            "position": (rx + 3.0, ry + 2.0, rz + 1.5),
+            "look_at": (rx, ry, rz),
+            "file": "mars_scene_closeup.png",
+        },
+        {
+            "name": "overview",
+            "position": (rx + 15.0, ry + 15.0, rz + 12.0),
+            "look_at": (rx, ry, rz),
+            "file": "mars_scene_overview.png",
+        },
+    ]
+
+    for shot in shots:
+        camera = rep.create.camera(
+            position=shot["position"],
+            look_at=shot["look_at"],
+        )
+        render_product = rep.create.render_product(camera, tuple(config.rendering.resolution))
+
+        rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
+        rgb_annotator.attach([render_product])
+
+        # Render frames to let image converge
+        for _ in range(10):
+            rep.orchestrator.step(rt_subframes=4)
+
+        rgb_data = rgb_annotator.get_data()
+        shot_path = os.path.join("work_log", shot["file"])
+        if rgb_data is not None and rgb_data.size > 0:
+            img_array = np.array(rgb_data)
+            if img_array.ndim == 3 and img_array.shape[2] == 4:
+                img_array = img_array[:, :, :3]
+            img = Image.fromarray(img_array)
+            img.save(os.path.abspath(shot_path))
+            print(f"[run_scene] {shot['name']} saved: {shot_path}")
+        else:
+            print(f"[run_scene] Warning: No data for {shot['name']}")
+
     print("[run_scene] Done.")
-
     simulation_app.close()
 
 

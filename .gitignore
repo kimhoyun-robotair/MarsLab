@@ -57,3 +57,6 @@ plan/
 work_record/
 codebase-analyzer-workspace/
 내가궁금해서정리하는.md
+marslab.egg-info/
+# ROS2 플러그인 충돌로 인해서 pytest 실행 불가 > scripts/run_integration_test.py로 대체
+tests/integration/test_robot_spawn.py
