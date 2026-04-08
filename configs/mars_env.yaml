@@ -12,11 +12,17 @@ mars_env:
   surface_temp_mean: -60             # Celsius
   sol_duration_seconds: 88642        # 24h 37m 22s
   dust_opacity_range: [0.5, 2.0]     # tau range for domain randomization
+  sun_azimuth_deg: 180               # degrees (0=N, 90=E, 180=S, 270=W)
+  sun_elevation_deg: 45              # degrees above horizon
   seed: 42
 
 terrain:
-  source: "hirise"
-  dem_path: "assets/terrain/dem/jezero_crater.tif"
+  # source: "hirise"
+  # dem_path: "assets/terrain/dem/jezero_crater.tif"
+  source: "procedural"
+  procedural_preset: "crater"
+  terrain_size: [256, 256]
+  terrain_resolution: 1.0
   rock_sfd_k: 0.05                   # CFA = 5%
   rock_diameter_range: [0.20, 3.0]   # meters (< 20cm treated as texture)
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
@@ -29,7 +35,7 @@ rendering:
 
 robots:
   - type: "rover"
-    urdf_path: "assets/robots/rover/perseverance.urdf"
+    urdf_path: "assets/robots/rover/simple_rover.urdf"
     spawn_position: [0.0, 0.0, 0.5]
     sensor_config_paths:
       - "configs/sensors/stereo_rgb.yaml"

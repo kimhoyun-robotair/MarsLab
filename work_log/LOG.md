@@ -191,4 +191,313 @@
 - 없음.
 
 ### Next Steps
-- Week 3: Mars Atmosphere + Lighting (Offline) — sun_position.py, light_intensity.py, diffuse_fraction.py, sky_dome.py
+- (완료) Week 3: Mars Atmosphere + Lighting. 아래 엔트리 참조.
+
+---
+
+## [2026-04-09] Mars Atmosphere + Lighting (Offline)
+
+**Week:** Wk 3 (Apr 21 -- Apr 27)
+**Module:** marslab/environment/, marslab/config/
+**Type:** Feature
+
+### Original Plan (PLAN.md Week 3)
+- sun_position.py: Phase 1은 YAML에서 방위각/고도 직접 지정
+- light_intensity.py: Beer's Law `I = I₀ × exp(-τ / cos(θz))`
+- diffuse_fraction.py: COMIMART 모델 (Vicente-Retortillo et al. 2015)
+- sky_dome.py: τ → 하늘 색상/밝기 계산
+- Unit tests 4개 파일
+- 산출물: 모든 화성 물리 오프라인 테스트 가능. Isaac Sim 의존성 zero.
+
+### Implementation Plan (상세 계획안)
+- Config schema 확장 필요: MarsEnvConfig에 sun_azimuth_deg, sun_elevation_deg 추가
+- 구현 순서: config 확장 → sun_position → light_intensity → diffuse_fraction → sky_dome
+- COMIMART: 논문의 lookup table을 numpy 선형보간으로 근사
+- sky_dome: Bell et al. (2006) 기반 butterscotch 색상 모델, τ에 따라 선형보간
+- 오프라인 시각화: Beer's Law 곡선, COMIMART 곡선, 하늘 색상 swatch, 복사 분해 차트
+
+### What Was Done
+- Extended `marslab/config/schema.py`: MarsEnvConfig에 `sun_azimuth_deg` (0-360, default 180), `sun_elevation_deg` (0-90, default 45) 추가.
+- Updated `configs/mars_env.yaml` with sun position fields.
+- Created `marslab/environment/sun_position.py`:
+  - `SunPosition` dataclass (azimuth_deg, elevation_deg, zenith_angle_rad)
+  - `compute_sun_position()`: Phase 1은 YAML 값 직접 사용, dataclass는 Phase 2와 동일
+- Created `marslab/environment/light_intensity.py`:
+  - `compute_direct_intensity()`: Beer's Law 구현
+  - cos(θz) ≤ 0이면 0 반환 (태양 수평선 아래)
+- Created `marslab/environment/diffuse_fraction.py`:
+  - `compute_diffuse_fraction()`: COMIMART lookup table + np.interp 선형보간
+  - 14개 데이터 포인트 (τ=0.0 ~ 6.0)
+- Created `marslab/environment/sky_dome.py`:
+  - `SkyDomeParams` dataclass (base_color_rgb, brightness, hdri_texture_path)
+  - `compute_sky_dome_params()`: τ에 따른 butterscotch → dusty 색상 보간
+  - HDRI 파일명 τ 범위별 선택 (실제 에셋은 Week 6)
+- Created 4 unit test files (30 tests):
+  - `test_sun_position.py` (7 tests): zenith 공식, 경계값, 범위 검증
+  - `test_light_intensity.py` (8 tests): Beer's Law, Appelbaum 5%, 단조감소
+  - `test_diffuse_fraction.py` (7 tests): COMIMART τ=0.3/1.0 범위, 단조증가
+  - `test_sky_dome.py` (8 tests): butterscotch RGB, brightness, HDRI 선택
+- Created `scripts/visualize_atmosphere.py`: 4개 subplot 시각화
+
+### Key Decisions
+- COMIMART를 다항식이 아닌 lookup + np.interp로 구현: 논문 데이터에 충실, 데이터 포인트 추가 용이.
+- sky_dome 색상에 _CLEAR_SKY_RGB, _DUSTY_SKY_RGB 모듈 상수 사용: 과학적 참조값이라 하드코딩 적절. 추후 필요 시 config로 이동.
+- sun_position Phase 1은 단순 변환만 수행: Phase 2(Ls 기반)에서 함수 시그니처가 바뀌지만 SunPosition dataclass는 동일.
+
+### Test Results
+- Unit tests: 94 passed, 0 failed.
+- Beer's Law: Appelbaum & Flood (1990) 참고값과 5% 이내 ✓
+- COMIMART: τ=0.3 → 0.33 [0.29, 0.38] ✓, τ=1.0 → 0.51 [0.50, 0.53] ✓
+- Sky dome: butterscotch RGB (R=0.77 > G=0.59 > B=0.38, R > 0.6) ✓
+- Lint: black + ruff 모두 통과.
+- Visualization: `work_log/atmosphere_visualization.png` 4개 subplot 생성.
+
+### Blockers / Issues
+- 없음.
+
+### Next Steps
+- Week 4: Rover (Simplified Chassis) + PBR Materials — mesh_builder.py, material_applicator.py, rover.py
+
+---
+
+## [2026-04-09] Week 4 계획: Rover (Simplified Chassis) + PBR Materials
+
+**Week:** Wk 4 (Apr 28 -- May 4)
+**Module:** marslab/terrain/mesh_builder, marslab/terrain/material_applicator, marslab/robots/rover
+**Type:** Feature
+
+### Original Plan (PLAN.md Week 4)
+- material_applicator.py: 지형에 Mars PBR 재질 적용
+- mesh_builder.py: elevation numpy → USD 메시 변환
+- 간소화 로버 URDF (box chassis + 6 wheels, rocker-bogie 없음)
+- rover.py: spawn_rover — URDF→USD 변환 후 spawn
+- convert_urdf.py: URDF→USD 변환 스크립트
+- Unit tests: robot config, materials / Integration test: IMU z=3.72±0.05
+
+### Implementation Plan (상세 계획안)
+
+**핵심 변화: 첫 Isaac Sim 연동.** Week 1-3은 전부 오프라인이었으나, Week 4부터 Isaac Sim 의존 코드 등장.
+
+**Isaac Sim 5.1.0 API 패턴 (조사 결과):**
+- URDF 변환: `omni.kit.commands.execute("URDFParseAndImportFile", ...)`
+- 메시 생성: `pxr.UsdGeom.Mesh.Define(stage, prim_path)`
+- PBR 재질: `isaacsim.core.api.materials.omni_pbr.OmniPBR`
+- 중력 설정: `physics_ctx.set_gravity(-3.72)`
+- 로봇: `isaacsim.core.api.robots.Robot`
+
+**구현 순서:**
+1. 간소화 로버 URDF (box + 6 wheels, ~80줄 XML) — Isaac Sim 불필요
+2. mesh_builder.py — elevation → USD 메시 (UsdGeom.Mesh + collision)
+3. material_applicator.py — OmniPBR로 Mars regolith 재질 적용
+4. rover.py + convert_urdf.py — URDF→USD 변환 및 spawn
+5. Unit tests (offline) — test_robot_config.py, test_materials.py
+6. Integration test (Isaac Sim) — test_robot_spawn.py, IMU z=3.72±0.05
+
+**실행 환경 구분:**
+- 시스템 Python: unit tests (robot config, materials 범위 검증)
+- Isaac Sim Python (`~/isaacsim/python.sh`): mesh_builder, material_applicator, rover, integration tests
+
+**생성 예정 파일 (11개):**
+- `assets/robots/rover/simple_rover.urdf`
+- `configs/robots/rover.yaml`
+- `marslab/robots/__init__.py`, `marslab/robots/rover.py`
+- `marslab/terrain/mesh_builder.py`, `marslab/terrain/material_applicator.py`
+- `scripts/convert_urdf.py`
+- `tests/unit/test_robot_config.py`, `tests/unit/test_materials.py`
+- `tests/integration/__init__.py`, `tests/integration/test_robot_spawn.py`
+
+**주의사항:**
+- `omni.isaac.orbit` 절대 사용 금지 → `isaacsim.core.api` 사용
+- URDF에 collision/inertial 빠지면 물리 시뮬레이션 실패
+- 큰 DEM은 크롭(500x500) 기준으로 테스트
+
+### What Was Done
+- Created `assets/robots/rover/simple_rover.urdf`: box chassis (1.0×0.6×0.3m, 50kg) + 6 cylindrical wheels (r=0.15, 2kg each), continuous joints, collision + inertial 포함.
+- Created `configs/robots/rover.yaml`: 로버 전용 프리셋.
+- Updated `configs/mars_env.yaml`: urdf_path → simple_rover.urdf.
+- Created `marslab/terrain/mesh_builder.py`: elevation numpy → USD 메시 (UsdGeom.Mesh + UsdPhysics.CollisionAPI). Grid cell당 2개 삼각형.
+- Created `marslab/terrain/material_applicator.py`: OmniPBR 재질 (albedo 기반 Mars regolith 색상, roughness=0.8, metallic=0.0).
+- Created `marslab/robots/rover.py`: `spawn_rover()` — URDF import + gravity 설정 + spawn position.
+- Created `scripts/convert_urdf.py`: URDF→USD CLI 변환 유틸리티.
+- Created `scripts/run_integration_test.py`: Isaac Sim headless integration test runner.
+- Created `tests/unit/test_robot_config.py` (7 tests): RobotConfig 유효성 검증.
+- Created `tests/unit/test_materials.py` (5 tests): albedo 범위, regolith 색상 검증.
+- Created `tests/integration/test_robot_spawn.py`: pytest용 (ROS2 플러그인 충돌로 직접 실행 방식 병행).
+
+### Key Decisions
+- Isaac Sim 5.1.0 API: `isaacsim.core.api` 네임스페이스 사용 (`omni.isaac.orbit` 아님).
+- URDF import: `omni.kit.commands.execute("URDFParseAndImportFile")` 패턴.
+- Gravity: `UsdPhysics.Scene`에서 직접 설정 (magnitude=3.72, direction=(0,0,-1)).
+- Integration test를 `scripts/run_integration_test.py`로 분리: ROS2 pytest 플러그인(`launch_testing_ros`)이 Isaac Sim Python 환경과 충돌하여 `pytest` 직접 호출이 불안정. 독립 스크립트로 3개 테스트를 실행하는 방식 채택.
+- Claude Bash에서 Isaac Sim 실행이 환경 문제로 불안정 → 사용자가 직접 터미널에서 실행.
+
+### Test Results
+- Unit tests: 106 passed, 0 failed (시스템 Python).
+- Integration test (사용자 직접 실행):
+  - TEST 1: URDF→USD import → PASSED (`/simple_rover`)
+  - TEST 2: Mars gravity = 3.72 m/s² → PASSED (THE critical test)
+  - TEST 3: 120 step simulation, robot z=1.000 → PASSED
+- URDF→USD 변환: `convert_urdf.py` → PASSED
+- Lint: black + ruff 모두 통과.
+
+### Blockers / Issues
+- ROS2 pytest 플러그인(`launch_testing_ros`)이 Isaac Sim Python 3.11 환경과 충돌 (`pluggy.PluginValidationError`). Integration test를 독립 스크립트로 분리하여 해결.
+- Isaac Sim Python에 marslab을 pip install 할 수 없음 (GDAL 의존성). PYTHONPATH 방식으로 대체.
+
+### Next Steps
+- Week 5: Procedural Terrain + Seed Reproducibility
+
+---
+
+## [2026-04-09] Procedural Terrain + Seed Reproducibility
+
+**Week:** Wk 5 (May 5 -- May 11)
+**Module:** marslab/terrain/procedural_generator, marslab/config/, configs/terrain/
+**Type:** Feature
+
+### Original Plan (PLAN.md Week 5)
+- procedural_generator.py (flat/crater/hills) [SHOULD]
+- 3개 terrain preset YAML [SHOULD]
+- Seed reproducibility 전체 검증 [MUST]
+
+### Implementation Plan (상세 계획안)
+- Config schema 확장: TerrainConfig에 terrain_size, terrain_resolution, procedural_preset 추가
+- 3개 프리셋: flat(평탄+노이즈), crater(포물선+림), hills(가우시안 bump)
+- scipy.ndimage.gaussian_filter로 자연스러운 저주파 노이즈
+- Seed e2e 검증: config→terrain→rocks→environment 전체 파이프라인
+
+### What Was Done
+- Extended `marslab/config/schema.py`: TerrainConfig에 `terrain_size`, `terrain_resolution`, `procedural_preset` 추가. validator: procedural이면 preset 필수.
+- Created `marslab/terrain/procedural_generator.py`:
+  - `generate_terrain(preset, size, resolution, seed)` → (elevation, metadata)
+  - flat: base -2500m + gaussian smoothed noise (~2m std)
+  - crater: flat + 포물선 bowl(depth 20m) + sinusoidal rim(5m)
+  - hills: base + 대진폭 noise(30m) + 5개 gaussian bumps
+  - metadata: dem_loader.py와 동일 포맷
+- Created 3 preset YAMLs: procedural_flat, procedural_crater, procedural_hills
+- Created `tests/unit/test_procedural_generator.py` (14 tests):
+  - shape, dtype, elevation range, metadata 검증
+  - flat 낮은 분산, crater 중앙 최저점, hills > flat 분산
+  - seed 결정론, 다른 seed 다른 출력, 잘못된 preset ValueError
+- Created `tests/unit/test_seed_reproducibility.py` (3 tests) [MUST]:
+  - **전체 파이프라인 seed 결정론**: config→propagate→terrain→rocks→sun→light→diffuse→sky 동일 출력
+  - 다른 master seed → 다른 출력
+  - seed propagation offset 검증
+- Created `scripts/visualize_procedural.py`: 3 프리셋 × 2 (elevation + rocks) 시각화
+- Updated `pyproject.toml`: scipy>=1.10 추가
+- Updated 기존 tests: procedural source에 preset 필수 반영
+
+### Key Decisions
+- gaussian_filter를 Perlin noise 대신 사용: scipy 내장이라 추가 의존성 불필요, seed 재현성 보장.
+- metadata를 dem_loader.py와 동일 포맷으로 반환: 다운스트림(mesh_builder 등)이 소스 구분 없이 동일하게 처리 가능.
+- crater 프로파일: `z = -depth * (1 - (r/R)^2)` 포물선. 실제 Mars crater morphology의 간소화.
+
+### Test Results
+- Unit tests: 130 passed, 0 failed.
+- **Seed e2e [MUST]: PASSED** — 동일 master seed → 전체 파이프라인 byte-identical 출력.
+- Lint: black + ruff 모두 통과.
+- Visualization: `work_log/procedural_terrain_visualization.png` (flat 7,531 / crater 19,890 / hills 11,563 rocks)
+
+### Blockers / Issues
+- 없음.
+
+### Next Steps
+- Week 6: Rendering Integration + Visual Validation (Isaac Sim)
+
+---
+
+## [2026-04-09] Rendering Integration + Visual Validation
+
+**Week:** Wk 6 (May 12 -- May 18)
+**Module:** marslab/rendering/, scripts/run_scene.py
+**Type:** Feature
+
+### Original Plan (PLAN.md Week 6)
+- render_settings.py: RTX path-tracing / ray-tracing 모드 전환
+- sky_renderer.py: 돔 라이트 + HDRI
+- sun_renderer.py: 방향광 (태양)
+- atmosphere_fog.py: τ → 가시거리/안개
+- run_scene.py: 전체 장면 오케스트레이터
+- Integration tests + visual inspection
+- 산출물: 통합 Mars scene v1
+
+### Implementation Plan (상세 계획안)
+- Isaac Sim 5.1.0 rendering API: UsdLux.DomeLight, UsdLux.DistantLight, carb.settings `/rtx/fog/*`
+- rendering/ 모듈 4개 → run_scene.py에서 통합
+- run_scene.py: Week 1-6 전체 모듈을 하나의 장면으로 조립
+- Integration test를 독립 스크립트로 (run_scene_test.py)
+
+### What Was Done
+- Created `marslab/rendering/render_settings.py`: `set_render_mode()` — path_tracing/ray_tracing 전환, carb.settings API.
+- Created `marslab/rendering/sky_renderer.py`: `configure_sky_dome()` — UsdLux.DomeLight + SkyDomeParams 연동.
+- Created `marslab/rendering/sun_renderer.py`: `configure_sun_light()` — UsdLux.DistantLight + XformOp rotation (azimuth/elevation).
+- Created `marslab/rendering/atmosphere_fog.py`: `configure_atmosphere_fog()` — τ → fog density/color via `/rtx/fog/*`.
+- Created `scripts/run_scene.py`: 전체 통합 오케스트레이터 (config→terrain→environment→rendering→rover→simulate).
+- Created `scripts/run_scene_test.py`: 3개 integration test (scene assembly, prim verification, tau fog variation).
+- Created `configs/rendering/path_tracing.yaml`: 렌더링 프리셋.
+- Created `tests/visual_inspection/checklist.md`: V1-V8 시각 검사 항목.
+
+### Key Decisions
+- rendering/ 모듈은 environment/ 출력(SkyDomeParams, SunPosition, intensity, diffuse)을 직접 소비. 의존성 방향: environment → rendering (단방향).
+- Fog: `/rtx/fog/*` 설정 사용. τ → density 선형 매핑 (density = τ × 0.002).
+- Sun direction: XformOp RotateXYZ로 azimuth/elevation 적용. 기본 방향 -Z.
+- HDRI 파일 미존재 시 색상 기반 돔 라이트로 fallback (실제 HDRI 에셋은 추후 추가).
+
+### Test Results
+- Unit tests: 130 passed, 0 failed (regression 없음).
+- Lint: black + ruff 모두 통과.
+- Integration tests: **사용자 직접 실행 필요** (아래 명령어 참조).
+
+### Integration Test 실행 명령어
+```bash
+# 전체 장면 오케스트레이터
+PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene.py
+
+# Integration tests (3개)
+PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene_test.py
+```
+
+### Blockers / Issues
+
+**[해결됨] GDAL import 에러 (Isaac Sim Python에서 run_scene.py 실행 시)**
+
+- **증상:** `PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene.py` 실행 시 `ModuleNotFoundError: No module named 'osgeo'` 에러.
+- **원인:** `run_scene.py`가 파일 상단에서 `from marslab.terrain.dem_loader import load_hirise_dem`을 무조건 import. `dem_loader.py`는 모듈 레벨에서 `from osgeo import gdal`을 실행. Isaac Sim Python(3.11)에는 GDAL이 설치되어 있지 않으므로, procedural terrain을 사용하더라도 import 시점에 에러 발생.
+- **해결:** `dem_loader` import를 조건부(lazy)로 변경. `config.terrain.source == "hirise"`일 때만 함수 내부에서 import하도록 수정.
+  ```python
+  # 변경 전 (파일 상단):
+  from marslab.terrain.dem_loader import load_hirise_dem  # 항상 import → GDAL 필요
+
+  # 변경 후 (분기 내부):
+  if config.terrain.source == "hirise":
+      from marslab.terrain.dem_loader import load_hirise_dem
+      elevation, meta = load_hirise_dem(config.terrain.dem_path)
+  ```
+- **교훈:** Isaac Sim Python 환경에서 실행되는 스크립트는 시스템 Python 전용 라이브러리(GDAL 등)를 top-level import하면 안 됨. 조건부 import 또는 lazy import 패턴 사용 필요.
+
+**[해결됨] mars_env.yaml의 기본 terrain source가 hirise여서 여전히 GDAL import 에러**
+
+- **증상:** lazy import 적용 후에도 동일 에러 발생. `config.terrain.source == "hirise"` 분기를 타기 때문.
+- **원인:** `configs/mars_env.yaml`의 기본 terrain이 `source: "hirise"`로 설정되어 있었음. Isaac Sim Python에서는 GDAL이 없으므로 hirise 분기 자체를 탈 수 없음.
+- **해결:** `mars_env.yaml`의 hirise 설정을 주석 처리하고 procedural로 변경. 기존 hirise 설정은 주석으로 보존.
+  ```yaml
+  # source: "hirise"
+  # dem_path: "assets/terrain/dem/jezero_crater.tif"
+  source: "procedural"
+  procedural_preset: "crater"
+  ```
+- `test_config_loader.py`의 `test_load_config_valid`에서 `source == "hirise"` assertion도 주석 처리 후 `"procedural"` 검증으로 변경.
+
+### Integration Test Results (사용자 실행)
+
+**run_scene.py:**
+- Config 로드 → procedural crater terrain (256×256) → atmosphere (intensity=385.4 W/m², diffuse=0.33) → rendering (path-tracing) → rover spawn → 60 step 시뮬레이션 → 정상 종료.
+- Warning: spp clamped to 32 (기능 영향 없음), wheel mesh fabric 동기화 (무시 가능).
+
+**run_scene_test.py (3/3 passed):**
+- TEST 1: 전체 scene assembly → PASSED
+- TEST 2: Prim 검증 (Terrain, DomeLight, SunLight) → PASSED
+- TEST 3: Tau fog variation (τ=0.3 fog=0.0006, τ=2.0 fog=0.0040) → PASSED
+
+### Next Steps
+- Week 7: Rotorcraft + Quadruped

@@ -1,0 +1,7 @@
+# Path-tracing render settings for data generation
+# Default for synthetic dataset and benchmark rendering
+
+rendering:
+  mode: "path_tracing"
+  sky_dome_hdri_dir: "assets/sky/hdri/"
+  resolution: [1280, 720]

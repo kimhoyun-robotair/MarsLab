@@ -1,0 +1,1 @@
+"""Robot spawning for MarsLab."""

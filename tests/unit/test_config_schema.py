@@ -25,7 +25,7 @@ def test_mars_env_defaults():
 
 def test_terrain_config_procedural():
     """Procedural terrain does not require dem_path."""
-    c = TerrainConfig(source="procedural")
+    c = TerrainConfig(source="procedural", procedural_preset="flat")
     assert c.dem_path is None
 
 
@@ -51,7 +51,7 @@ def test_robot_config_with_usd():
 def test_marslab_config_full():
     """Full MarsLabConfig with all sub-configs."""
     c = MarsLabConfig(
-        terrain=TerrainConfig(source="procedural"),
+        terrain=TerrainConfig(source="procedural", procedural_preset="flat"),
         robots=[RobotConfig(type="rover", urdf_path="test.urdf")],
         benchmark=BenchmarkConfig(),
     )
@@ -61,7 +61,7 @@ def test_marslab_config_full():
 
 def test_benchmark_optional():
     """MarsLabConfig with benchmark=None is valid."""
-    c = MarsLabConfig(terrain=TerrainConfig(source="procedural"))
+    c = MarsLabConfig(terrain=TerrainConfig(source="procedural", procedural_preset="flat"))
     assert c.benchmark is None
 
 

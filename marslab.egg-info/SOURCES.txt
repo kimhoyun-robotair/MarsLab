@@ -9,5 +9,17 @@ marslab.egg-info/top_level.txt
 marslab/config/__init__.py
 marslab/config/loader.py
 marslab/config/schema.py
+marslab/environment/__init__.py
+marslab/environment/diffuse_fraction.py
+marslab/environment/light_intensity.py
+marslab/environment/sky_dome.py
+marslab/environment/sun_position.py
+marslab/robots/__init__.py
+marslab/robots/rover.py
+marslab/terrain/__init__.py
+marslab/terrain/dem_loader.py
+marslab/terrain/material_applicator.py
+marslab/terrain/mesh_builder.py
+marslab/terrain/rock_placer.py
 marslab/utils/__init__.py
 marslab/utils/seed.py

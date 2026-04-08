@@ -37,6 +37,12 @@ class MarsEnvConfig(BaseModel):
     dust_opacity_range: tuple[float, float] = Field(
         default=(0.5, 2.0), description="Tau range for domain randomization"
     )
+    sun_azimuth_deg: float = Field(
+        default=180.0, ge=0.0, le=360.0, description="Sun azimuth in degrees (0=N, 90=E, 180=S)"
+    )
+    sun_elevation_deg: float = Field(
+        default=45.0, ge=0.0, le=90.0, description="Sun elevation above horizon in degrees"
+    )
     seed: int = Field(default=42, ge=0)
 
     @model_validator(mode="after")
@@ -68,6 +74,15 @@ class TerrainConfig(BaseModel):
         default=["soil", "bedrock", "sand", "big_rock"],
         description="AI4Mars-compatible terrain classes",
     )
+    terrain_size: tuple[int, int] = Field(
+        default=(256, 256), description="Procedural terrain size (rows, cols) in pixels"
+    )
+    terrain_resolution: float = Field(
+        default=1.0, ge=0.1, le=10.0, description="Meters per pixel for procedural terrain"
+    )
+    procedural_preset: str | None = Field(
+        default=None, description="Procedural preset: flat, crater, hills"
+    )
     seed: int = Field(default=42, ge=0)
 
     @model_validator(mode="after")
@@ -75,6 +90,8 @@ class TerrainConfig(BaseModel):
         """Validate conditional requirements and range ordering."""
         if self.source == "hirise" and self.dem_path is None:
             raise ValueError("dem_path is required when source is 'hirise'")
+        if self.source == "procedural" and self.procedural_preset is None:
+            raise ValueError("procedural_preset is required when source is 'procedural'")
         if self.rock_diameter_range[0] >= self.rock_diameter_range[1]:
             raise ValueError(
                 f"rock_diameter_range must be (min, max) with min < max, "

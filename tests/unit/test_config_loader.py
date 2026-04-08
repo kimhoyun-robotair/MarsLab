@@ -12,7 +12,8 @@ def test_load_config_valid():
     c = load_config("configs/mars_env.yaml")
     assert isinstance(c, MarsLabConfig)
     assert c.mars_env.gravity == 3.72
-    assert c.terrain.source == "hirise"
+    # assert c.terrain.source == "hirise"  # hirise → procedural로 변경됨
+    assert c.terrain.source == "procedural"
     assert len(c.robots) == 1
     assert c.robots[0].type == "rover"
 
@@ -34,7 +35,7 @@ def test_load_config_invalid_values(tmp_path):
 def test_load_config_empty_yaml(tmp_path):
     """Empty YAML file produces defaults (terrain needs procedural for no dem_path)."""
     empty_yaml = tmp_path / "empty.yaml"
-    empty_yaml.write_text("terrain:\n  source: procedural\n")
+    empty_yaml.write_text("terrain:\n  source: procedural\n  procedural_preset: flat\n")
     c = load_config(str(empty_yaml))
     assert isinstance(c, MarsLabConfig)
     assert c.mars_env.gravity == 3.72
@@ -43,7 +44,7 @@ def test_load_config_empty_yaml(tmp_path):
 def test_propagate_seeds_master():
     """Master seed propagates to all sub-configs."""
     c = MarsLabConfig(
-        terrain=TerrainConfig(source="procedural"),
+        terrain=TerrainConfig(source="procedural", procedural_preset="flat"),
         benchmark=BenchmarkConfig(),
     )
     result = propagate_seeds(c, master_seed=123)
@@ -54,7 +55,7 @@ def test_propagate_seeds_master():
 
 def test_propagate_seeds_deterministic():
     """Same master seed produces identical results."""
-    c = MarsLabConfig(terrain=TerrainConfig(source="procedural"))
+    c = MarsLabConfig(terrain=TerrainConfig(source="procedural", procedural_preset="flat"))
     r1 = propagate_seeds(c, master_seed=42)
     r2 = propagate_seeds(c, master_seed=42)
     assert r1.mars_env.seed == r2.mars_env.seed
@@ -63,7 +64,7 @@ def test_propagate_seeds_deterministic():
 
 def test_propagate_seeds_different():
     """Different master seeds produce different child seeds."""
-    c = MarsLabConfig(terrain=TerrainConfig(source="procedural"))
+    c = MarsLabConfig(terrain=TerrainConfig(source="procedural", procedural_preset="flat"))
     r1 = propagate_seeds(c, master_seed=42)
     r2 = propagate_seeds(c, master_seed=99)
     assert r1.terrain.seed != r2.terrain.seed
@@ -73,7 +74,7 @@ def test_propagate_seeds_uses_existing():
     """Without master_seed, uses mars_env.seed."""
     c = MarsLabConfig(
         mars_env=MarsEnvConfig(seed=100),
-        terrain=TerrainConfig(source="procedural"),
+        terrain=TerrainConfig(source="procedural", procedural_preset="flat"),
     )
     result = propagate_seeds(c)
     assert result.mars_env.seed == 100
