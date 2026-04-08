@@ -1,0 +1,10 @@
+pydantic>=2.0
+pyyaml>=6.0
+numpy>=1.24
+GDAL>=3.8
+
+[dev]
+pytest>=7.0
+black>=24.0
+ruff>=0.4
+matplotlib>=3.5

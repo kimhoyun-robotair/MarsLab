@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: marslab
+Version: 0.1.0
+Summary: Photorealistic Mars simulation platform for planetary robotics research
+License-Expression: Apache-2.0
+Requires-Python: >=3.10
+Requires-Dist: pydantic>=2.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: numpy>=1.24
+Requires-Dist: GDAL>=3.8
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: black>=24.0; extra == "dev"
+Requires-Dist: ruff>=0.4; extra == "dev"
+Requires-Dist: matplotlib>=3.5; extra == "dev"

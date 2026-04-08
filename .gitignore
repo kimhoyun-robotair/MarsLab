@@ -40,6 +40,11 @@ __pycache__/
 *.swn
 *~
 
+# Large terrain data files (downloaded, not committed)
+assets/terrain/dem/*.tif
+assets/terrain/dem/*.npy
+assets/terrain/dem/*.IMG
+
 # reference for development
 reference/
 
@@ -50,3 +55,5 @@ skills/
 dev/
 plan/
 work_record/
+codebase-analyzer-workspace/
+내가궁금해서정리하는.md

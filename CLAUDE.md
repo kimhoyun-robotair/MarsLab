@@ -8,7 +8,7 @@ submission (deadline ~Sep 15, 2026).
 
 **Repository**: `MarsLab/` (Apache 2.0 license)
 **Engine**: Isaac Sim 5.x + Isaac Lab
-**Core Stack**: Python 3.10+, ROS2 Humble, Isaac Sim Extensions, USD/URDF
+**Core Stack**: Python 3.10+, ROS2 Jazzy, Isaac Sim Extensions, USD/URDF
 
 ## User Guidelines (G1-G13)
 

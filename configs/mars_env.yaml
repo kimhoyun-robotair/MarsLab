@@ -1,0 +1,49 @@
+# MarsLab Master Configuration
+# All physical parameters for Mars simulation environment.
+# Reference: PLAN.md Section 3.5
+
+mars_env:
+  gravity: 3.72                      # m/s^2 (IAU standard)
+  atmo_pressure: 610                 # Pa (Viking/MSL mean)
+  atmo_density: 0.020                # kg/m^3
+  dust_optical_depth: 0.3            # tau (clear-ish default)
+  solar_constant_mean: 589           # W/m^2 at 1.52 AU
+  surface_albedo_range: [0.10, 0.40]
+  surface_temp_mean: -60             # Celsius
+  sol_duration_seconds: 88642        # 24h 37m 22s
+  dust_opacity_range: [0.5, 2.0]     # tau range for domain randomization
+  seed: 42
+
+terrain:
+  source: "hirise"
+  dem_path: "assets/terrain/dem/jezero_crater.tif"
+  rock_sfd_k: 0.05                   # CFA = 5%
+  rock_diameter_range: [0.20, 3.0]   # meters (< 20cm treated as texture)
+  semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
+  seed: 42
+
+rendering:
+  mode: "path_tracing"
+  sky_dome_hdri_dir: "assets/sky/hdri/"
+  resolution: [1280, 720]
+
+robots:
+  - type: "rover"
+    urdf_path: "assets/robots/rover/perseverance.urdf"
+    spawn_position: [0.0, 0.0, 0.5]
+    sensor_config_paths:
+      - "configs/sensors/stereo_rgb.yaml"
+      - "configs/sensors/depth_camera.yaml"
+      - "configs/sensors/lidar_3d.yaml"
+      - "configs/sensors/imu.yaml"
+
+benchmark:
+  annotation_format: "ai4mars"
+  dr_axes:
+    - "dust_optical_depth"
+    - "surface_albedo"
+    - "rock_sfd_k"
+    - "sun_elevation"
+    - "camera_trajectory"
+  num_samples: 10000
+  seed: 42

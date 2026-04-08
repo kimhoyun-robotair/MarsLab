@@ -8,7 +8,7 @@ MarsLab은 이종 행성 로보틱스 연구를 위한 오픈소스 사실적 �
 
 **저장소**: `MarsLab/` (Apache 2.0 라이선스)
 **엔진**: Isaac Sim 5.x + Isaac Lab
-**핵심 스택**: Python 3.10+, ROS2 Humble, Isaac Sim Extensions, USD/URDF
+**핵심 스택**: Python 3.10+, ROS2 Jazzy, Isaac Sim Extensions, USD/URDF
 
 ## 사용자 가이드라인 (G1-G13)
 

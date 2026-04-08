@@ -1,0 +1,11 @@
+# Jezero Crater terrain configuration
+# HiRISE DTM: DTEEC_045994_1985_046060_1985
+# Landing site: Mars 2020 Perseverance rover
+
+terrain:
+  source: "hirise"
+  dem_path: "assets/terrain/dem/jezero_crater.tif"
+  rock_sfd_k: 0.05                   # CFA = 5% (moderate rock abundance)
+  rock_diameter_range: [0.20, 3.0]   # meters (< 20cm treated as texture)
+  semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
+  seed: 42
