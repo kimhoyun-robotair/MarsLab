@@ -557,5 +557,167 @@ PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene.py
 - Go2 USD 에셋은 Nucleus 서버 또는 로컬 캐시에서 로드. 네트워크 미연결 시 실패 가능.
 - 결과 대기 중.
 
+### Integration Test Results (사용자 실행)
+
+**run_multi_robot_test.py (5/5 passed):**
+- TEST 1: Rover → PASSED
+- TEST 2: Rotorcraft → PASSED
+- TEST 3: Quadruped (Go2) → PASSED
+- TEST 4: 3개 공존 → PASSED
+- TEST 5: Gravity 3.72 → PASSED
+
+**run_scene.py (3 robots):** 정상 동작, 스크린샷 저장 성공.
+
 ### Next Steps
-- 사용자 integration test 결과 확인 후 Week 8 (User Review Gate 1) 진행
+- Phase A (즉시 수정) → Phase B (핵심 품질 강화)
+
+---
+
+## [2026-04-09] Phase A: 즉시 수정 (G5 위반 해소)
+
+**Week:** Wk 8 (May 26 -- Jun 1) — User Review Gate 1
+**Module:** marslab/rendering/, marslab/config/
+**Type:** Fix
+
+### What Was Done
+
+5-Agent 적대적 토론으로 도출된 품질 강화 계획(`NEW_WEEK_PLAN_KOR.md`)의 Phase A를 수행.
+
+**A1. 렌더링 매직 넘버 YAML 이동:**
+- `sun_renderer.py`: `intensity * 5.0` → `rendering_config.sun_intensity_scale`
+- `sun_renderer.py`: `Gf.Vec3f(1.0, 0.95, 0.85)` → `rendering_config.sun_color`
+- `sun_renderer.py`: `0.35` → `rendering_config.sun_angular_diameter_deg`
+- `sky_renderer.py`: `brightness * 1000.0` → `rendering_config.dome_brightness_scale`
+- `atmosphere_fog.py`: `tau * 0.002` → `rendering_config.fog_density_scale`
+- `atmosphere_fog.py`: `[0.78, 0.62, 0.42]` → `rendering_config.fog_color`
+
+**A2. SPP 클램핑 대응:**
+- `render_settings.py`: 하드코딩 `spp=64` → `rendering_config.spp` (기본값 32)
+- `totalSpp`, `maxBounces`도 YAML 설정으로 이동
+
+**A3. diffuse_fraction DomeLight 적용:**
+- `sky_renderer.py`: `configure_sky_dome()`에 `diffuse_fraction` 파라미터 추가
+- DomeLight intensity = `brightness * dome_brightness_scale * diffuse_fraction`
+- 이전에는 diffuse_fraction을 계산만 하고 사용하지 않았음
+
+**함수 인터페이스 변경:**
+- `set_render_mode(mode)` → `set_render_mode(rendering_config)`
+- `configure_sky_dome(stage, sky_params)` → `configure_sky_dome(stage, sky_params, diffuse_fraction, rendering_config)`
+- `configure_sun_light(stage, sun_pos, intensity, diffuse)` → `configure_sun_light(stage, sun_pos, intensity, diffuse, rendering_config)`
+- `configure_atmosphere_fog(stage, tau)` → `configure_atmosphere_fog(stage, tau, rendering_config)`
+
+**Schema 확장 (RenderingConfig):**
+- 추가 필드: spp, total_spp, max_bounces, sun_intensity_scale, sun_color, sun_angular_diameter_deg, dome_brightness_scale, fog_density_scale, fog_color
+
+### Test Results
+- Unit tests: 130 passed, 0 failed (regression 없음).
+- Lint: black + ruff 모두 통과.
+- G5 위반: 렌더링 모듈 내 **0개** (전부 config로 이동).
+
+### Next Steps
+- Phase B: 핵심 품질 강화 (PBR 텍스처, 바위 3D, HDRI, 지형 개선)
+
+---
+
+## [2026-04-09] Phase B: 핵심 품질 강화
+
+**Module:** marslab/terrain/, marslab/environment/, assets/
+**Type:** Feature (품질 강화)
+
+### What Was Done
+
+**B1. Mars PBR 텍스처 (UV + 텍스처 바인딩):**
+- `mesh_builder.py`: UV 좌표 생성 추가 (planar mapping, uv_scale 파라미터)
+- `mesh_builder.py`: vertex normal 계산 추가 (`np.gradient` 기반)
+- `material_applicator.py`: `texture_dir` 파라미터 추가 — PBR 텍스처 자동 바인딩
+- `_apply_textures()`: albedo.png, normal.png, roughness.png 자동 탐색
+- 1K 절차적 Mars regolith 텍스처 3종 생성 (albedo, normal, roughness)
+- TerrainConfig에 `texture_dir` 필드 추가
+
+**B2. 바위 3D PointInstancer:**
+- 새 파일 `marslab/terrain/rock_instancer.py` 생성
+- `UsdGeom.PointInstancer` + 3개 Sphere prototype (크기 변형)
+- terrain elevation z-보간 (bilinear nearest)
+- 랜덤 yaw 회전 + diameter 기반 scale
+- `run_scene.py`에 rock placement 단계 추가 — 이전에는 rock_placer 미사용
+- semantic label `"big_rock"` 적용
+
+**B3. HDRI 스카이돔:**
+- 2048×1024 절차적 Mars sky PNG 생성 (butterscotch 그라디언트 + 먼지 노이즈 + sun glow)
+- `assets/sky/hdri/mars_sky_clear.png`, `mars_sky_moderate.png`, `mars_sky_dusty.png`
+- `sky_dome.py` 파일 확장자 `.hdr` → `.png` 변경
+
+**B4. 지형 기하학 개선:**
+- 모든 프리셋에 `_add_micro_detail()` 고주파 노이즈 레이어 추가 (0.15m amplitude)
+- 새 프리셋 `rocky_plain` 추가: 3단계 주파수 노이즈 (low 5m + mid 1.5m + high 0.3m) + 15개 bedrock mound
+- rocky_plain std=5.08m — 카메라 근접 시 지형 요철 인지 가능
+
+### Test Results
+- Unit tests: 130 passed, 0 failed.
+- Lint: black + ruff 모두 통과.
+- Isaac Sim integration: **사용자 직접 실행 필요** (아래 명령어).
+
+### Integration Test 실행 명령어
+```bash
+PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene.py
+PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene_test.py
+```
+
+### Blockers / Issues
+
+**[해결됨] OmniPBR.set_texture() API 호환성 문제**
+
+- **증상:** `material.set_texture(path, "normal")` 호출 시 `TypeError: OmniPBR.set_texture() takes 2 positional arguments but 3 were given`
+- **원인:** Isaac Sim 5.1.0의 `OmniPBR.set_texture()` 메서드는 albedo/diffuse 텍스처 경로 1개만 인자로 받음. 두 번째 인자로 텍스처 채널("normal", "roughness")을 지정하는 기능이 없음. Normal map과 roughness map은 `OmniPBR` 래퍼의 범위 밖이며, `UsdShade` shader graph를 직접 조작해야 함.
+- **해결:** MVP에서는 albedo 텍스처만 `set_texture()`로 적용. Normal/roughness는 상수값(roughness=0.8, metallic=0.0)으로 유지. Phase B+ 품질 정제 시 `UsdShade` 직접 조작으로 업그레이드 예정.
+- **교훈:** Isaac Sim API를 사용하기 전에 반드시 prototype 스크립트로 메서드 시그니처를 검증할 것. 특히 `OmniPBR` 같은 편의 래퍼의 기능 범위는 제한적일 수 있음.
+
+### Integration Test Results (사용자 실행)
+
+**run_scene.py:** OmniPBR 에러 수정 후 재실행 — 정상 동작 확인.
+- PBR albedo 텍스처 적용 성공
+- PointInstancer 바위 배치 성공
+- HDRI 스카이돔 로드 성공
+- 스크린샷: `work_log/mars_scene_closeup.png`, `work_log/mars_scene_overview.png`
+
+### Next Steps
+- Phase C: 센서 부착 (RGB, depth, IMU, LiDAR) + DR 검증
+
+---
+
+## [2026-04-09] 세션 종료 상태 요약
+
+### 하루 진행 요약
+
+2026-04-09 하루 동안 Week 1 ~ Week 8 (Phase A + Phase B 포함) 전체를 구현 완료.
+
+| 단계 | 내용 | 상태 |
+|------|------|------|
+| Wk 1 | Config + CI Foundation | ✅ 완료 |
+| Wk 2 | HiRISE DEM + Rock SFD | ✅ 완료 |
+| Wk 3 | Mars Atmosphere + Lighting | ✅ 완료 |
+| Wk 4 | Rover + PBR Materials | ✅ 완료 |
+| Wk 5 | Procedural Terrain + Seed | ✅ 완료 |
+| Wk 6 | Rendering + Scene Integration | ✅ 완료 |
+| Wk 7 | Rotorcraft + Quadruped | ✅ 완료 |
+| Wk 8 | Phase A (매직 넘버 제거) | ✅ 완료 |
+| Wk 8 | Phase B (PBR/Rock/HDRI/Terrain) | ✅ 완료 |
+
+### 테스트 현황
+- Unit tests: **130 passed**, 0 failed (시스템 Python 3.12.3)
+- Integration tests: **11 passed** (사용자 Isaac Sim Python 직접 실행)
+  - run_integration_test.py: 3/3
+  - run_scene_test.py: 3/3
+  - run_multi_robot_test.py: 5/5
+- Lint: black + ruff 모두 통과
+
+### 다음 작업 (미완료)
+1. **Phase C** (16h): 센서 부착 (RGB, depth, IMU, LiDAR) + Domain Randomization 검증
+2. **Week 9-11**: ROS2 bridge, annotation (AI4Mars), benchmark evaluation
+3. **Phase D** (Phase 2 이관): noise models, lens effects, stereo camera, calibration
+4. **품질 잔여**: Normal/roughness 텍스처 UsdShade 직접 적용, 바위 가시성 개선
+
+### 알려진 제한사항
+- OmniPBR 래퍼는 albedo 텍스처만 지원. Normal/roughness는 UsdShade 직접 조작 필요 (Phase B+ 이관)
+- 카메라 거리에서 바위가 잘 보이지 않음 — 카메라 배치/스케일 조정 필요
+- HDRI는 절차적 생성 PNG (실제 HDR 포맷 아님) — 충분한 품질이면 유지, 부족하면 CC0 소싱

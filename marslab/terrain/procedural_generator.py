@@ -31,8 +31,8 @@ def generate_terrain(
     Raises:
         ValueError: If preset is unknown or size/resolution is invalid.
     """
-    if preset not in ("flat", "crater", "hills"):
-        raise ValueError(f"Unknown preset '{preset}', expected: flat, crater, hills")
+    if preset not in ("flat", "crater", "hills", "rocky_plain"):
+        raise ValueError(f"Unknown preset '{preset}', expected: flat, crater, hills, rocky_plain")
     if size[0] <= 0 or size[1] <= 0:
         raise ValueError(f"size must be positive, got {size}")
     if resolution <= 0:
@@ -45,8 +45,10 @@ def generate_terrain(
         elevation = _generate_flat(rng, rows, cols)
     elif preset == "crater":
         elevation = _generate_crater(rng, rows, cols)
-    else:
+    elif preset == "hills":
         elevation = _generate_hills(rng, rows, cols)
+    else:
+        elevation = _generate_rocky_plain(rng, rows, cols)
 
     elevation = elevation.astype(np.float32)
 
@@ -66,13 +68,23 @@ def generate_terrain(
     return elevation, metadata
 
 
+def _add_micro_detail(
+    rng: np.random.Generator, elevation: np.ndarray, amplitude: float = 0.15
+) -> np.ndarray:
+    """Add high-frequency micro-terrain detail for close-up realism."""
+    rows, cols = elevation.shape
+    fine_noise = rng.standard_normal((rows, cols))
+    fine = gaussian_filter(fine_noise, sigma=2.0) * amplitude
+    return elevation + fine
+
+
 def _generate_flat(rng: np.random.Generator, rows: int, cols: int) -> np.ndarray:
-    """Flat desert with low-amplitude noise (~2m variation)."""
+    """Flat desert with low-amplitude noise (~2m variation) + micro detail."""
     base = -2500.0
     noise = rng.standard_normal((rows, cols))
     smooth_noise = gaussian_filter(noise, sigma=10.0)
     smooth_noise = smooth_noise / np.std(smooth_noise) * 2.0
-    return base + smooth_noise
+    return _add_micro_detail(rng, base + smooth_noise)
 
 
 def _generate_crater(rng: np.random.Generator, rows: int, cols: int) -> np.ndarray:
@@ -99,7 +111,7 @@ def _generate_crater(rng: np.random.Generator, rows: int, cols: int) -> np.ndarr
     rim_frac = (dist[rim_mask] - rim_inner) / (rim_outer - rim_inner)
     crater[rim_mask] = rim_height * np.sin(np.pi * rim_frac)
 
-    return base + crater
+    return _add_micro_detail(rng, base + crater)
 
 
 def _generate_hills(rng: np.random.Generator, rows: int, cols: int) -> np.ndarray:
@@ -119,4 +131,36 @@ def _generate_hills(rng: np.random.Generator, rows: int, cols: int) -> np.ndarra
         sigma = rng.uniform(20.0, 50.0)
         bumps += amp * np.exp(-((x_grid - cx) ** 2 + (y_grid - cy) ** 2) / (2 * sigma**2))
 
-    return base + smooth_noise + bumps
+    return _add_micro_detail(rng, base + smooth_noise + bumps)
+
+
+def _generate_rocky_plain(rng: np.random.Generator, rows: int, cols: int) -> np.ndarray:
+    """Rocky plain with medium-scale undulations (0.3-2m) for close-up realism."""
+    base = -2500.0
+
+    # Low-frequency base terrain (~5m variation)
+    raw = rng.standard_normal((rows, cols))
+    low_freq = gaussian_filter(raw, sigma=15.0)
+    low_freq = low_freq / (np.std(low_freq) + 1e-8) * 5.0
+
+    # Medium-frequency rocky undulations (~1.5m)
+    raw2 = rng.standard_normal((rows, cols))
+    mid_freq = gaussian_filter(raw2, sigma=5.0)
+    mid_freq = mid_freq / (np.std(mid_freq) + 1e-8) * 1.5
+
+    # High-frequency micro-roughness (~0.3m)
+    raw3 = rng.standard_normal((rows, cols))
+    high_freq = gaussian_filter(raw3, sigma=1.5)
+    high_freq = high_freq / (np.std(high_freq) + 1e-8) * 0.3
+
+    # Scattered small mounds (like exposed bedrock)
+    y_grid, x_grid = np.mgrid[0:rows, 0:cols]
+    mounds = np.zeros((rows, cols))
+    for _ in range(15):
+        cx = rng.uniform(0, cols)
+        cy = rng.uniform(0, rows)
+        amp = rng.uniform(0.3, 1.5)
+        sigma = rng.uniform(3.0, 8.0)
+        mounds += amp * np.exp(-((x_grid - cx) ** 2 + (y_grid - cy) ** 2) / (2 * sigma**2))
+
+    return base + low_freq + mid_freq + high_freq + mounds

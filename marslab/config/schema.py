@@ -83,6 +83,9 @@ class TerrainConfig(BaseModel):
     procedural_preset: str | None = Field(
         default=None, description="Procedural preset: flat, crater, hills"
     )
+    texture_dir: str | None = Field(
+        default=None, description="Path to PBR texture directory (albedo.png, normal.png, etc.)"
+    )
     seed: int = Field(default=42, ge=0)
 
     @model_validator(mode="after")
@@ -126,6 +129,33 @@ class RenderingConfig(BaseModel):
     sky_dome_hdri_dir: str = Field(default="assets/sky/hdri/")
     resolution: list[int] = Field(
         default=[1280, 720], min_length=2, max_length=2, description="[width, height] in pixels"
+    )
+    spp: int = Field(default=32, ge=1, le=256, description="Samples per pixel per frame")
+    total_spp: int = Field(default=256, ge=1, description="Total accumulated samples")
+    max_bounces: int = Field(default=8, ge=1, le=64, description="Max ray bounces")
+    sun_intensity_scale: float = Field(
+        default=5.0, ge=0.1, description="W/m^2 to Isaac Sim light units scale factor"
+    )
+    sun_color: list[float] = Field(
+        default=[1.0, 0.95, 0.85],
+        min_length=3,
+        max_length=3,
+        description="Sun light RGB color [0-1]",
+    )
+    sun_angular_diameter_deg: float = Field(
+        default=0.35, ge=0.1, le=5.0, description="Sun angular diameter from Mars"
+    )
+    dome_brightness_scale: float = Field(
+        default=1000.0, ge=1.0, description="Sky dome brightness multiplier"
+    )
+    fog_density_scale: float = Field(
+        default=0.002, ge=0.0, description="Tau to fog density conversion factor"
+    )
+    fog_color: list[float] = Field(
+        default=[0.78, 0.62, 0.42],
+        min_length=3,
+        max_length=3,
+        description="Mars dust haze fog color RGB [0-1]",
     )
 
     @model_validator(mode="after")

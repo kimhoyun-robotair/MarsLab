@@ -66,11 +66,11 @@ def compute_sky_dome_params(tau: float, hdri_dir: str) -> SkyDomeParams:
 
     # Select HDRI by tau range (placeholder paths — actual assets in Week 6)
     if tau < 0.5:
-        hdri_name = "mars_sky_clear.hdr"
+        hdri_name = "mars_sky_clear.png"
     elif tau < 1.5:
-        hdri_name = "mars_sky_moderate.hdr"
+        hdri_name = "mars_sky_moderate.png"
     else:
-        hdri_name = "mars_sky_dusty.hdr"
+        hdri_name = "mars_sky_dusty.png"
 
     hdri_path = os.path.join(hdri_dir, hdri_name)
 

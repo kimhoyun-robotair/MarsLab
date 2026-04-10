@@ -2,21 +2,29 @@
 
 Configures RTX fog settings to simulate Mars dust haze based on
 dust optical depth (tau). Higher tau = lower visibility.
+All parameters read from config (G5).
 Requires Isaac Sim runtime.
 """
 
 import carb
 
+from marslab.config.schema import RenderingConfig
 
-def configure_atmosphere_fog(stage, tau: float) -> None:
+
+def configure_atmosphere_fog(
+    stage,
+    tau: float,
+    rendering_config: RenderingConfig,
+) -> None:
     """Configure atmospheric fog based on dust optical depth.
 
     Maps tau to fog density and color to simulate Mars dust haze.
-    Uses RTX fog render settings.
+    All scaling factors and colors from rendering_config (G5).
 
     Args:
         stage: USD stage (unused but kept for API consistency).
         tau: Dust optical depth (>= 0).
+        rendering_config: Rendering configuration with fog parameters.
 
     Raises:
         ValueError: If tau is negative.
@@ -28,12 +36,8 @@ def configure_atmosphere_fog(stage, tau: float) -> None:
 
     settings.set("/rtx/fog/enabled", True)
 
-    # Fog density scales with tau
-    # At tau=0.3 (clear): low density. At tau=3.0 (storm): high density.
-    fog_density = tau * 0.002
-
-    # Mars dust haze color (butterscotch-tinted)
-    fog_color = [0.78, 0.62, 0.42]
+    fog_density = tau * rendering_config.fog_density_scale
+    fog_color = rendering_config.fog_color
 
     settings.set("/rtx/fog/fogDistanceDensity", fog_density)
     settings.set("/rtx/fog/fogHeightDensity", fog_density * 0.5)

@@ -63,10 +63,10 @@ def main() -> None:
         diffuse = compute_diffuse_fraction(tau)
         sky_params = compute_sky_dome_params(tau, "assets/sky/hdri/")
 
-        set_render_mode(config.rendering.mode)
-        configure_sky_dome(stage, sky_params)
-        configure_sun_light(stage, sun_pos, intensity, diffuse)
-        configure_atmosphere_fog(stage, tau)
+        set_render_mode(config.rendering)
+        configure_sky_dome(stage, sky_params, diffuse, config.rendering)
+        configure_sun_light(stage, sun_pos, intensity, diffuse, config.rendering)
+        configure_atmosphere_fog(stage, tau, config.rendering)
 
         if config.robots:
             spawn_rover(stage, config.robots[0], config.mars_env.gravity)

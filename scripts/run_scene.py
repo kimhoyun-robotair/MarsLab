@@ -33,6 +33,8 @@ from marslab.robots.rover import spawn_rover  # noqa: E402
 from marslab.terrain.material_applicator import apply_terrain_material  # noqa: E402
 from marslab.terrain.mesh_builder import build_terrain_mesh  # noqa: E402
 from marslab.terrain.procedural_generator import generate_terrain  # noqa: E402
+from marslab.terrain.rock_instancer import place_rocks_on_terrain  # noqa: E402
+from marslab.terrain.rock_placer import sample_rocks_golombek  # noqa: E402
 
 
 def main() -> None:
@@ -67,8 +69,24 @@ def main() -> None:
 
     build_terrain_mesh(elevation, resolution, stage, "/World/Terrain")
     apply_terrain_material(
-        stage, "/World/Terrain", config.mars_env.surface_albedo_range, config.terrain.seed
+        stage,
+        "/World/Terrain",
+        config.mars_env.surface_albedo_range,
+        config.terrain.seed,
+        texture_dir=config.terrain.texture_dir,
     )
+
+    # --- Rocks ---
+    print("[run_scene] Placing rocks...")
+    area = elevation.shape[0] * resolution * elevation.shape[1] * resolution
+    rocks = sample_rocks_golombek(
+        area_m2=area,
+        k=config.terrain.rock_sfd_k,
+        diameter_range=config.terrain.rock_diameter_range,
+        seed=config.terrain.seed,
+    )
+    place_rocks_on_terrain(stage, rocks, elevation, resolution, seed=config.terrain.seed)
+    print(f"  Placed {len(rocks)} rocks on terrain")
 
     # --- Environment ---
     print("[run_scene] Computing atmosphere...")
@@ -91,10 +109,10 @@ def main() -> None:
 
     # --- Rendering ---
     print("[run_scene] Configuring rendering...")
-    set_render_mode(config.rendering.mode)
-    configure_sky_dome(stage, sky_params)
-    configure_sun_light(stage, sun_pos, intensity, diffuse)
-    configure_atmosphere_fog(stage, tau)
+    set_render_mode(config.rendering)
+    configure_sky_dome(stage, sky_params, diffuse, config.rendering)
+    configure_sun_light(stage, sun_pos, intensity, diffuse, config.rendering)
+    configure_atmosphere_fog(stage, tau, config.rendering)
 
     # --- Robots ---
     if config.robots:

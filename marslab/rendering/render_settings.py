@@ -1,22 +1,25 @@
 """RTX render mode configuration for Isaac Sim.
 
 Switches between path-tracing (data generation) and ray-tracing (interactive).
+All parameters read from config (G5).
 Requires Isaac Sim runtime.
 """
 
 import carb
 
+from marslab.config.schema import RenderingConfig
 
-def set_render_mode(mode: str) -> None:
-    """Configure RTX rendering mode.
+
+def set_render_mode(rendering_config: RenderingConfig) -> None:
+    """Configure RTX rendering mode from config.
 
     Args:
-        mode: Either 'path_tracing' (photorealistic, slow) or
-            'ray_tracing' (real-time, fast).
+        rendering_config: Rendering configuration with mode and quality params.
 
     Raises:
         ValueError: If mode is not recognized.
     """
+    mode = rendering_config.mode
     if mode not in ("path_tracing", "ray_tracing"):
         raise ValueError(f"Unknown render mode '{mode}', expected: path_tracing, ray_tracing")
 
@@ -24,9 +27,9 @@ def set_render_mode(mode: str) -> None:
 
     if mode == "path_tracing":
         settings.set("/rtx/rendermode", "PathTracing")
-        settings.set("/rtx/pathtracing/spp", 64)
-        settings.set("/rtx/pathtracing/totalSpp", 256)
-        settings.set("/rtx/pathtracing/maxBounces", 8)
+        settings.set("/rtx/pathtracing/spp", rendering_config.spp)
+        settings.set("/rtx/pathtracing/totalSpp", rendering_config.total_spp)
+        settings.set("/rtx/pathtracing/maxBounces", rendering_config.max_bounces)
         settings.set("/rtx/pathtracing/optixDenoiser/enabled", True)
     else:
         settings.set("/rtx/rendermode", "RayTracedLighting")

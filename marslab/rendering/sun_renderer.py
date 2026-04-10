@@ -7,6 +7,7 @@ Requires Isaac Sim runtime.
 
 from pxr import Gf, Sdf, UsdGeom, UsdLux
 
+from marslab.config.schema import RenderingConfig
 from marslab.environment.sun_position import SunPosition
 
 
@@ -15,15 +16,18 @@ def configure_sun_light(
     sun_pos: SunPosition,
     intensity: float,
     diffuse_fraction: float,
+    rendering_config: RenderingConfig,
 ) -> None:
     """Configure a directional light representing the Mars sun.
+
+    All scaling factors and colors are read from rendering_config (G5).
 
     Args:
         stage: USD stage.
         sun_pos: Sun position (azimuth, elevation, zenith).
         intensity: Direct beam irradiance in W/m^2 from Beer's Law.
         diffuse_fraction: Fraction of light that is diffuse (0-1).
-            Used to scale dome light contribution.
+        rendering_config: Rendering configuration with sun parameters.
     """
     sun_path = "/World/SunLight"
 
@@ -33,21 +37,15 @@ def configure_sun_light(
 
     sun = UsdLux.DistantLight.Define(stage, sun_path)
 
-    # Scale intensity for Isaac Sim (W/m^2 → light units)
-    sun.GetIntensityAttr().Set(intensity * 5.0)
+    sun.GetIntensityAttr().Set(intensity * rendering_config.sun_intensity_scale)
 
-    # Warm Mars sunlight color
-    sun.GetColorAttr().Set(Gf.Vec3f(1.0, 0.95, 0.85))
+    r, g, b = rendering_config.sun_color
+    sun.GetColorAttr().Set(Gf.Vec3f(r, g, b))
 
-    # Angular diameter of sun from Mars (~0.35 degrees)
-    sun.GetAngleAttr().Set(0.35)
+    sun.GetAngleAttr().Set(rendering_config.sun_angular_diameter_deg)
 
     # Orient light by azimuth and elevation
     xform = UsdGeom.Xformable(sun.GetPrim())
     xform.ClearXformOpOrder()
-
-    # DistantLight default direction is -Z, so we rotate to match sun position
     rot_op = xform.AddRotateXYZOp()
-    # X rotation = -(90 - elevation) to tilt from horizon
-    # Z rotation = azimuth
     rot_op.Set(Gf.Vec3f(-(90.0 - sun_pos.elevation_deg), 0.0, sun_pos.azimuth_deg))

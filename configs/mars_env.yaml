@@ -26,12 +26,22 @@ terrain:
   rock_sfd_k: 0.05                   # CFA = 5%
   rock_diameter_range: [0.20, 3.0]   # meters (< 20cm treated as texture)
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
+  texture_dir: "assets/materials/mars_pbr"  # PBR textures (albedo.png, normal.png, roughness.png)
   seed: 42
 
 rendering:
   mode: "path_tracing"
   sky_dome_hdri_dir: "assets/sky/hdri/"
   resolution: [1280, 720]
+  spp: 32                            # samples per pixel per frame
+  total_spp: 256                     # total accumulated samples
+  max_bounces: 8
+  sun_intensity_scale: 5.0           # W/m^2 → Isaac Sim light units
+  sun_color: [1.0, 0.95, 0.85]      # warm Mars sunlight
+  sun_angular_diameter_deg: 0.35     # sun disk from Mars
+  dome_brightness_scale: 1000.0      # sky dome multiplier
+  fog_density_scale: 0.002           # tau → fog density
+  fog_color: [0.78, 0.62, 0.42]     # Mars dust haze butterscotch
 
 robots:
   - type: "rover"

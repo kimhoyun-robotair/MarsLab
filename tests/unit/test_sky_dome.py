@@ -32,7 +32,7 @@ def test_brightness_decreases_with_tau():
 def test_hdri_path_not_empty():
     sky = compute_sky_dome_params(0.3, "assets/sky/hdri/")
     assert len(sky.hdri_texture_path) > 0
-    assert sky.hdri_texture_path.endswith(".hdr")
+    assert sky.hdri_texture_path.endswith(".png")
 
 
 def test_returns_sky_dome_params():
