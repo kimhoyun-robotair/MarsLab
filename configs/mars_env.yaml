@@ -19,6 +19,7 @@ mars_env:
 terrain:
   # source: "hirise"
   # dem_path: "assets/terrain/dem/jezero_crater.tif"
+  # converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"
   source: "procedural"
   procedural_preset: "crater"
   terrain_size: [256, 256]
@@ -26,7 +27,11 @@ terrain:
   rock_sfd_k: 0.05                   # CFA = 5%
   rock_diameter_range: [0.20, 3.0]   # meters (< 20cm treated as texture)
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
-  texture_dir: "assets/materials/mars_pbr"  # PBR textures (albedo.png, normal.png, roughness.png)
+  texture_dir: "assets/materials/mars_terrain"  # Polyhaven brown_mud_dry (CC0, 2K PBR)
+  rock_color: [0.42, 0.28, 0.20]              # Mars rock reddish-brown
+  rock_roughness: 0.92
+  rock_mesh_dir: "assets/rocks"                # Procedural OBJ meshes (null = Sphere)
+  uv_scale: 16.0                               # Texture tiling (higher = smaller tiles)
   seed: 42
 
 rendering:
@@ -46,7 +51,7 @@ rendering:
 robots:
   - type: "rover"
     urdf_path: "assets/robots/rover/simple_rover.urdf"
-    spawn_position: [0.0, 0.0, 1.0]
+    spawn_position: [0.0, 0.0, 0.16]
     sensor_config_paths:
       - "configs/sensors/stereo_rgb.yaml"
       - "configs/sensors/depth_camera.yaml"
@@ -57,7 +62,7 @@ robots:
     spawn_position: [5.0, 0.0, 3.0]
   - type: "quadruped"
     usd_asset_path: "Isaac/Robots/Unitree/Go2/go2.usd"
-    spawn_position: [-3.0, 0.0, 1.0]
+    spawn_position: [-3.0, 0.0, 0.16]
 
 benchmark:
   annotation_format: "ai4mars"

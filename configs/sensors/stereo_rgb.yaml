@@ -1,0 +1,18 @@
+# Stereo RGB camera sensor configuration.
+# Mounts on rover base_link, forward-facing.
+
+sensor:
+  type: "camera"
+  name: "stereo_rgb"
+  mount_link: "base_link"
+  offset_position: [0.4, 0.0, 0.2]       # meters relative to mount_link
+  offset_orientation: [0.0, 0.0, 0.0]     # euler (roll, pitch, yaw) degrees
+  resolution: [1280, 720]
+  focal_length: 2.12                       # mm
+  horizontal_aperture: 20.955              # mm (35mm film standard)
+  vertical_aperture: 11.7872               # mm (matches 16:9 aspect ratio)
+  clipping_range: [0.1, 100.0]            # near/far in meters
+  enable_depth: false
+  update_rate: 30                          # Hz
+  ros2_topic: "image_raw"                  # sub-topic for ROS2 publish
+  ros2_frame_id: "camera_link"             # TF frame ID

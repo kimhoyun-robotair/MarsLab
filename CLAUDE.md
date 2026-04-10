@@ -60,6 +60,13 @@ code is isolated into separate functions/files clearly marked as integration-onl
 - Docstrings: Google style. Every public class/function must have one.
 - Line length: 100 chars max.
 - Formatter: `black`. Linter: `ruff`.
+- **Every code change must pass all three checks before completion:**
+  ```bash
+  black --check marslab/ scripts/ tests/
+  ruff check marslab/ scripts/ tests/
+  python3 -m pytest tests/unit/ -v
+  ```
+  Run `black marslab/ scripts/ tests/` to auto-format, then `ruff check --fix` for auto-fixable lint.
 - No global state. No singletons except for Isaac Sim app instance.
 
 ### Naming Conventions

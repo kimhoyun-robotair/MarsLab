@@ -52,9 +52,16 @@ def main() -> None:
     # --- Terrain ---
     print("[run_scene] Generating terrain...")
     if config.terrain.source == "hirise":
-        from marslab.terrain.dem_loader import load_hirise_dem  # noqa: E402
+        if config.terrain.converted_dem_dir is not None:
+            from marslab.terrain.dem_loader import load_converted_dem  # noqa: E402
 
-        elevation, meta = load_hirise_dem(config.terrain.dem_path)
+            elevation, meta = load_converted_dem(config.terrain.converted_dem_dir)
+        elif config.terrain.dem_path is not None:
+            from marslab.terrain.dem_loader import load_hirise_dem  # noqa: E402
+
+            elevation, meta = load_hirise_dem(config.terrain.dem_path)
+        else:
+            raise ValueError("HiRISE source requires converted_dem_dir or dem_path")
         resolution = meta["resolution_x"]
     else:
         elevation, meta = generate_terrain(
@@ -67,7 +74,13 @@ def main() -> None:
 
     print(f"  Terrain: {elevation.shape}, resolution={resolution}m/px")
 
-    build_terrain_mesh(elevation, resolution, stage, "/World/Terrain")
+    build_terrain_mesh(
+        elevation,
+        resolution,
+        stage,
+        "/World/Terrain",
+        uv_scale=config.terrain.uv_scale,
+    )
     apply_terrain_material(
         stage,
         "/World/Terrain",
@@ -85,7 +98,16 @@ def main() -> None:
         diameter_range=config.terrain.rock_diameter_range,
         seed=config.terrain.seed,
     )
-    place_rocks_on_terrain(stage, rocks, elevation, resolution, seed=config.terrain.seed)
+    place_rocks_on_terrain(
+        stage,
+        rocks,
+        elevation,
+        resolution,
+        seed=config.terrain.seed,
+        rock_color=config.terrain.rock_color,
+        rock_roughness=config.terrain.rock_roughness,
+        rock_mesh_dir=config.terrain.rock_mesh_dir,
+    )
     print(f"  Placed {len(rocks)} rocks on terrain")
 
     # --- Environment ---
@@ -114,10 +136,41 @@ def main() -> None:
     configure_sun_light(stage, sun_pos, intensity, diffuse, config.rendering)
     configure_atmosphere_fog(stage, tau, config.rendering)
 
+    # --- Compute terrain reference elevation for spawn/camera ---
+    import numpy as np  # noqa: E402
+
+    terrain_rows, terrain_cols = elevation.shape
+    terrain_cx = terrain_cols * resolution / 2.0  # center X in meters
+    terrain_cy = terrain_rows * resolution / 2.0  # center Y in meters
+    terrain_center_elev = float(np.nanmedian(elevation))
+    print(
+        f"  Terrain center: ({terrain_cx:.0f}, {terrain_cy:.0f}), "
+        f"median elev: {terrain_center_elev:.1f}m"
+    )
+
+    def _terrain_z_at(x: float, y: float) -> float:
+        """Query terrain elevation at (x, y) world coords."""
+        c = int(np.clip(x / resolution, 0, terrain_cols - 1))
+        r = int(np.clip(y / resolution, 0, terrain_rows - 1))
+        z = float(elevation[r, c])
+        return 0.0 if np.isnan(z) else z
+
     # --- Robots ---
+    robot_prim_paths = {}  # robot_name → actual prim path from spawn
     if config.robots:
         print(f"[run_scene] Spawning {len(config.robots)} robot(s)...")
-        for robot_config in config.robots:
+        for i, robot_config in enumerate(config.robots):
+            # Adjust spawn Z to terrain surface + config offset
+            sx, sy, sz_offset = robot_config.spawn_position
+            spawn_x = terrain_cx + sx
+            spawn_y = terrain_cy + sy
+            surface_z = _terrain_z_at(spawn_x, spawn_y)
+            robot_config.spawn_position = [spawn_x, spawn_y, surface_z + sz_offset]
+            print(
+                f"  {robot_config.type} spawn: ({spawn_x:.1f}, {spawn_y:.1f}, "
+                f"{surface_z + sz_offset:.1f}) [surface={surface_z:.1f}, offset={sz_offset}]"
+            )
+
             if robot_config.type == "rover":
                 path = spawn_rover(stage, robot_config, config.mars_env.gravity)
             elif robot_config.type == "rotorcraft":
@@ -133,7 +186,66 @@ def main() -> None:
             else:
                 print(f"  Warning: Unknown robot type '{robot_config.type}', skipping")
                 continue
-            print(f"  {robot_config.type} at: {path}")
+
+            robot_name = f"{robot_config.type}_{i}"
+            robot_prim_paths[robot_name] = path
+            print(f"  {robot_config.type} prim: {path}")
+
+            # Attach sensors if configured
+            if robot_config.sensor_config_paths:
+                from marslab.sensors import load_and_attach_sensor  # noqa: E402
+
+                for sensor_path in robot_config.sensor_config_paths:
+                    try:
+                        sensor = load_and_attach_sensor(stage, path, sensor_path)
+                        print(f"    Sensor: {sensor_path} -> {sensor}")
+                    except Exception as e:
+                        print(f"    Warning: sensor failed: {sensor_path}: {e}")
+
+    # --- ROS2 Bridge (optional) ---
+    try:
+        import yaml  # noqa: E402
+
+        from marslab.ros2_bridge.publisher import (  # noqa: E402
+            enable_ros2_bridge,
+            setup_all_publishers,
+            setup_clock_publisher,
+        )
+
+        enable_ros2_bridge()
+        setup_clock_publisher()
+        print("[run_scene] ROS2 bridge enabled, clock publisher active")
+
+        for i, robot_config in enumerate(config.robots):
+            if not robot_config.sensor_config_paths:
+                continue
+            robot_name = f"{robot_config.type}_{i}"
+            actual_robot_path = robot_prim_paths.get(robot_name)
+            if not actual_robot_path:
+                continue
+
+            sensor_prim_paths = {}
+            sensor_configs = {}
+            for sp in robot_config.sensor_config_paths:
+                try:
+                    with open(sp) as f:
+                        cfg = yaml.safe_load(f).get("sensor", {})
+                    sname = cfg.get("name", "")
+                    mount = cfg.get("mount_link", "base_link")
+                    # Use actual robot prim path from spawn
+                    prim = stage.GetPrimAtPath(f"{actual_robot_path}/{mount}/{sname}")
+                    if prim.IsValid():
+                        sensor_prim_paths[sname] = f"{actual_robot_path}/{mount}/{sname}"
+                    else:
+                        sensor_prim_paths[sname] = f"{actual_robot_path}/{sname}"
+                    sensor_configs[sname] = cfg
+                except Exception:
+                    pass
+            if sensor_prim_paths:
+                topics = setup_all_publishers(robot_name, sensor_prim_paths, sensor_configs)
+                print(f"  [ros2] {robot_name}: {len(topics)} topic(s)")
+    except Exception as e:
+        print(f"[run_scene] ROS2 bridge not available (non-fatal): {e}")
 
     # --- Simulate ---
     print("[run_scene] Running simulation (60 steps)...")
@@ -144,13 +256,19 @@ def main() -> None:
     print("[run_scene] Capturing screenshots...")
     os.makedirs("work_log", exist_ok=True)
 
-    import numpy as np  # noqa: E402
     import omni.replicator.core as rep  # noqa: E402
     from PIL import Image  # noqa: E402
 
-    # Camera positions: close-up near rover + overview shot
-    rover_pos = config.robots[0].spawn_position if config.robots else [0, 0, 1]
-    rx, ry, rz = rover_pos
+    # Camera reference point: first robot or terrain center
+    if config.robots:
+        rx, ry, rz = config.robots[0].spawn_position
+    else:
+        rx, ry = terrain_cx, terrain_cy
+        rz = _terrain_z_at(rx, ry)
+
+    # Bird's eye view: look straight down at terrain center
+    terrain_extent = max(terrain_cols, terrain_rows) * resolution
+    bird_eye_height = terrain_center_elev + terrain_extent * 0.8
 
     shots = [
         {
@@ -164,6 +282,12 @@ def main() -> None:
             "position": (rx + 15.0, ry + 15.0, rz + 12.0),
             "look_at": (rx, ry, rz),
             "file": "mars_scene_overview.png",
+        },
+        {
+            "name": "birdseye",
+            "position": (terrain_cx, terrain_cy, bird_eye_height),
+            "look_at": (terrain_cx, terrain_cy, terrain_center_elev),
+            "file": "mars_scene_birdseye.png",
         },
     ]
 
@@ -193,7 +317,25 @@ def main() -> None:
         else:
             print(f"[run_scene] Warning: No data for {shot['name']}")
 
-    print("[run_scene] Done.")
+    # --- Continuous mode for ROS2 topic verification ---
+    if os.environ.get("MARSLAB_PUBLISH") == "1":
+        print("[run_scene] MARSLAB_PUBLISH=1: Running continuously with full Mars scene.")
+        print("  Open another terminal and run:")
+        print("    ros2 topic list")
+        print("    ros2 topic echo /rover_0/stereo_rgb/image_raw --once")
+        print("  Press Ctrl+C to stop.\n")
+        frame = 0
+        try:
+            while simulation_app.is_running():
+                simulation_app.update()
+                frame += 1
+                if frame % 300 == 0:
+                    print(f"  [publish] frame {frame}, sim running...")
+        except KeyboardInterrupt:
+            print("\n[run_scene] Stopped by user.")
+    else:
+        print("[run_scene] Done.")
+
     simulation_app.close()
 
 

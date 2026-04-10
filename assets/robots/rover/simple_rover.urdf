@@ -45,6 +45,7 @@
     <child link="wheel_fl"/>
     <origin xyz="0.35 0.35 -0.15" rpy="1.5708 0 0"/>
     <axis xyz="0 0 1"/>
+    <dynamics damping="0.5" friction="1.0"/>
   </joint>
 
   <!-- Front Right -->
@@ -66,6 +67,7 @@
     <child link="wheel_fr"/>
     <origin xyz="0.35 -0.35 -0.15" rpy="1.5708 0 0"/>
     <axis xyz="0 0 1"/>
+    <dynamics damping="0.5" friction="1.0"/>
   </joint>
 
   <!-- Mid Left -->
@@ -87,6 +89,7 @@
     <child link="wheel_ml"/>
     <origin xyz="0.0 0.35 -0.15" rpy="1.5708 0 0"/>
     <axis xyz="0 0 1"/>
+    <dynamics damping="0.5" friction="1.0"/>
   </joint>
 
   <!-- Mid Right -->
@@ -108,6 +111,7 @@
     <child link="wheel_mr"/>
     <origin xyz="0.0 -0.35 -0.15" rpy="1.5708 0 0"/>
     <axis xyz="0 0 1"/>
+    <dynamics damping="0.5" friction="1.0"/>
   </joint>
 
   <!-- Rear Left -->
@@ -129,6 +133,7 @@
     <child link="wheel_rl"/>
     <origin xyz="-0.35 0.35 -0.15" rpy="1.5708 0 0"/>
     <axis xyz="0 0 1"/>
+    <dynamics damping="0.5" friction="1.0"/>
   </joint>
 
   <!-- Rear Right -->
@@ -150,6 +155,7 @@
     <child link="wheel_rr"/>
     <origin xyz="-0.35 -0.35 -0.15" rpy="1.5708 0 0"/>
     <axis xyz="0 0 1"/>
+    <dynamics damping="0.5" friction="1.0"/>
   </joint>
 
 </robot>

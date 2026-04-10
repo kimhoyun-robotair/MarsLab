@@ -1,0 +1,13 @@
+# IMU sensor configuration.
+# At rest on Mars, z-axis must read 3.72 +/- 0.05 m/s^2.
+# Noise models deferred to Phase D (all zeros in Phase 1).
+
+sensor:
+  type: "imu"
+  name: "imu_sensor"
+  mount_link: "base_link"
+  offset_position: [0.0, 0.0, 0.0]        # center of mass
+  offset_orientation: [0.0, 0.0, 0.0]
+  update_rate: 60                           # Hz (must be <= physics frequency 60Hz)
+  ros2_topic: "data"
+  ros2_frame_id: "imu_link"

@@ -119,10 +119,28 @@ def test_resolution_non_positive():
         RenderingConfig(resolution=[0, 720])
 
 
-def test_hirise_without_dem_path():
-    """HiRISE source requires dem_path."""
+def test_hirise_without_any_path():
+    """HiRISE source requires either dem_path or converted_dem_dir."""
     with pytest.raises(ValidationError):
-        TerrainConfig(source="hirise", dem_path=None)
+        TerrainConfig(source="hirise", dem_path=None, converted_dem_dir=None)
+
+
+def test_hirise_with_converted_dir_only():
+    """HiRISE source is valid with only converted_dem_dir (no dem_path)."""
+    tc = TerrainConfig(source="hirise", converted_dem_dir="assets/terrain/dem/converted")
+    assert tc.converted_dem_dir == "assets/terrain/dem/converted"
+    assert tc.dem_path is None
+
+
+def test_hirise_with_both_paths():
+    """HiRISE source is valid with both dem_path and converted_dem_dir."""
+    tc = TerrainConfig(
+        source="hirise",
+        dem_path="foo.tif",
+        converted_dem_dir="foo_converted",
+    )
+    assert tc.dem_path == "foo.tif"
+    assert tc.converted_dem_dir == "foo_converted"
 
 
 # --- Boundary values ---

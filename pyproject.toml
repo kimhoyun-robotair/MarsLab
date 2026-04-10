@@ -10,6 +10,7 @@ dependencies = [
     "numpy>=1.24",
     "GDAL>=3.8",
     "scipy>=1.10",
+    "trimesh>=4.0",
 ]
 
 [project.optional-dependencies]

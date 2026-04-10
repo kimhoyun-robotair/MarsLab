@@ -704,7 +704,7 @@ PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene_test.py
 | Wk 8 | Phase B (PBR/Rock/HDRI/Terrain) | ✅ 완료 |
 
 ### 테스트 현황
-- Unit tests: **130 passed**, 0 failed (시스템 Python 3.12.3)
+- Unit tests: **140 passed**, 0 failed (시스템 Python 3.12.3)
 - Integration tests: **11 passed** (사용자 Isaac Sim Python 직접 실행)
   - run_integration_test.py: 3/3
   - run_scene_test.py: 3/3
@@ -721,3 +721,818 @@ PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene_test.py
 - OmniPBR 래퍼는 albedo 텍스처만 지원. Normal/roughness는 UsdShade 직접 조작 필요 (Phase B+ 이관)
 - 카메라 거리에서 바위가 잘 보이지 않음 — 카메라 배치/스케일 조정 필요
 - HDRI는 절차적 생성 PNG (실제 HDR 포맷 아님) — 충분한 품질이면 유지, 부족하면 CC0 소싱
+- ~~HiRISE DEM이 Isaac Sim에서 렌더링 불가 (GDAL 미설치)~~ → 아래 [2026-04-10] 엔트리에서 해결
+
+---
+
+## [2026-04-10] HiRISE DEM → Isaac Sim 렌더링 파이프라인 (GDAL 우회)
+
+**Module:** marslab/terrain/, marslab/config/, scripts/
+**Type:** Feature (아키텍처 개선)
+
+### 문제 정의
+
+Isaac Sim Python 3.11.13에 GDAL 설치가 불가능하여, `dem_loader.py`의 `from osgeo import gdal` 모듈 레벨 import가 실패. 이로 인해 `source: "hirise"` 설정 시 Isaac Sim 런타임에서 HiRISE GeoTIFF DEM을 로드할 수 없었음. Week 2에서 `dem_loader.py`와 `rock_placer.py`를 구현하고, 실제 Jezero Crater HiRISE DTM으로 전체 파이프라인을 검증했지만, Isaac Sim 렌더링에서는 procedural 모드만 사용 가능했음.
+
+### OmniLRS 레퍼런스 분석
+
+해결 방안 설계 전 OmniLRS(가장 핵심적인 레퍼런스 코드베이스)의 DEM 처리 방식을 조사함.
+
+**OmniLRS의 2단계 아키텍처:**
+
+| 단계 | 환경 | 도구 | 파일 |
+|------|------|------|------|
+| Stage 1 (오프라인) | 시스템 Python + GDAL | `gdal.Open()` → `np.save()` | `scripts/preprocess_dem.py` |
+| Stage 2 (런타임) | Isaac Sim Python (GDAL 없음) | `np.load()` + YAML 메타데이터 | `src/terrain_management/` |
+
+**OmniLRS의 핵심 설계 원칙:**
+- `scripts/preprocess_dem.py`: GDAL로 GeoTIFF → `.npy` 변환 (약 30줄)
+- `scripts/process_info.py`: `gdalinfo` 출력 파싱 → `dem.yaml` 메타데이터 생성 (154줄)
+- `scripts/extract_dems.sh`: 전체 파이프라인 오케스트레이션 (bash 스크립트)
+- **런타임 코드(`src/` 디렉토리)에는 GDAL import가 단 한 줄도 없음**
+- `pyproject.toml`에 GDAL 의존성이 있지만, `scripts/`에서만 사용
+- 디렉토리 구조: `assets/Terrains/SouthPole/DEM_NAME/dem.npy` + `dem.yaml`
+
+**결론:** OmniLRS는 MarsLab과 동일한 문제(Isaac Sim Python에서 GDAL 사용 불가)를 동일한 방법론(오프라인 사전 변환)으로 해결. 이 패턴이 production-grade로 검증되어 있으므로 MarsLab도 동일 접근법을 채택.
+
+### 해결: 사전 변환 파이프라인
+
+**아키텍처 (OmniLRS 패턴 참고, MarsLab 통합 구현):**
+
+```
+[Stage 1: 시스템 Python + GDAL — 1회 실행]
+  python scripts/convert_dem.py --config configs/terrain/jezero_crater.yaml
+  └─ load_hirise_dem()     →  GDAL로 GeoTIFF 파싱
+  └─ save_converted_dem()  →  elevation.npy + metadata.json 저장
+
+[Stage 2: Isaac Sim Python — GDAL 불필요, 매번 실행]
+  ~/isaacsim/python.sh scripts/run_scene.py --config configs/terrain/jezero_crater.yaml
+  └─ load_converted_dem()  →  np.load() + json.load() 로드
+  └─ mesh_builder, rock_instancer 등  →  기존 파이프라인 그대로
+```
+
+**OmniLRS와의 차이점:**
+- OmniLRS는 3개 스크립트로 분리 (bash + 2 Python) → MarsLab은 `convert_dem.py` 1개로 통합 (더 단순)
+- OmniLRS는 메타데이터를 YAML → MarsLab은 JSON (Python stdlib, 추가 의존성 없음)
+- OmniLRS는 `gdalinfo` CLI 출력을 파싱 → MarsLab은 GDAL Python API에서 직접 추출 (더 정확)
+
+### What Was Done
+
+**1. `marslab/terrain/dem_loader.py` 수정:**
+- GDAL import를 모듈 레벨에서 `load_hirise_dem()` 함수 내부로 이동 (lazy import)
+- `save_converted_dem(elevation, metadata, output_dir)` 추가 — `np.save()` + `json.dump()`
+- `load_converted_dem(converted_dir)` 추가 — `np.load()` + `json.load()`, GDAL 완전 불필요
+- 두 함수 모두 `load_hirise_dem()`과 동일한 `(elevation, metadata)` 튜플 반환
+
+**2. `marslab/config/schema.py` 수정:**
+- `TerrainConfig`에 `converted_dem_dir: str | None` 필드 추가
+- Validator 완화: `source == "hirise"`일 때 `dem_path` 또는 `converted_dem_dir` 중 하나만 있으면 유효
+
+**3. `scripts/convert_dem.py` 신규 생성:**
+- 시스템 Python으로 실행하는 사전 변환 CLI 스크립트
+- YAML config → `load_hirise_dem()` → `save_converted_dem()` → round-trip 검증
+- 출력 디렉토리: config의 `converted_dem_dir` 또는 DEM 경로에서 자동 유도
+
+**4. `scripts/run_scene.py` 수정:**
+- hirise 분기에 `converted_dem_dir` 우선 체크 → GDAL fallback → 에러 순서 추가
+- procedural 분기는 변경 없음
+
+**5. YAML 업데이트:**
+- `configs/mars_env.yaml`: `converted_dem_dir` 주석으로 추가
+- `configs/terrain/jezero_crater.yaml`: `converted_dem_dir` + `texture_dir` 활성화
+
+**6. Unit Tests 추가:**
+- `tests/unit/test_dem_converter.py` 신규 (8 tests): round-trip, 디렉토리 생성, 에러 케이스, NaN 보존, dtype 검증
+- `tests/unit/test_config_schema.py` 수정/추가 (3 tests): converted_dir only, both paths, neither path
+
+**7. `.gitignore` 업데이트:**
+- `assets/terrain/dem/*_converted/` 패턴 추가
+
+### Key Decisions
+
+- **OmniLRS 패턴 채택 근거**: OmniLRS가 동일 문제를 동일 방법으로 해결하고 있으며, production에서 검증된 패턴. MarsLab은 이를 단순화하여 적용.
+- **JSON vs YAML (메타데이터)**: OmniLRS는 `dem.yaml`을 사용하지만, MarsLab은 `metadata.json`을 선택. Python stdlib의 `json` 모듈만 필요하므로 Isaac Sim Python에서 추가 설치 없이 로드 가능.
+- **통합 스크립트**: OmniLRS의 3파일(bash+2Python)을 1개 Python 스크립트로 통합. 사용자 입장에서 `python scripts/convert_dem.py --config ...` 한 줄로 완료.
+- **Lazy import 패턴**: `dem_loader.py` 모듈 자체는 GDAL 없이 import 가능하도록 변경. `load_converted_dem`만 쓸 때는 GDAL 불필요.
+- **기존 파이프라인 무변경**: `mesh_builder.py`, `rock_placer.py`, `rock_instancer.py`, `material_applicator.py`, `procedural_generator.py` 전부 그대로. 파이프라인이 DEM 로드 이후 100% source-agnostic이므로 downstream 코드 변경 불필요.
+
+### Test Results
+
+- Unit tests: **140 passed**, 0 failed (기존 130 → 140, +10 신규)
+  - `test_dem_converter.py`: 8/8 passed
+  - `test_config_schema.py`: 기존 테스트 통과 + 신규 3개 통과
+- 변환 스크립트 실행:
+  - 입력: `assets/terrain/dem/jezero_crater.tif` (500x500, 979KB)
+  - 출력: `assets/terrain/dem/jezero_crater_converted/elevation.npy` (976KB) + `metadata.json`
+  - Round-trip 검증: PASSED (shape, dtype, elevation 값 일치)
+- Isaac Sim 렌더링 (사용자 실행): HiRISE DEM 기반 장면 렌더링 **성공**
+- Lint: black + ruff 모두 통과
+
+### 사용자 워크플로우
+
+```bash
+# 1회: 시스템 Python으로 변환 (GDAL 사용)
+python3 scripts/convert_dem.py --config configs/terrain/jezero_crater.yaml
+
+# 이후: Isaac Sim Python으로 렌더링 (GDAL 불필요)
+PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene.py \
+  --config configs/terrain/jezero_crater.yaml
+```
+
+### 변경 파일 요약
+
+| 파일 | 변경 |
+|------|------|
+| `marslab/terrain/dem_loader.py` | GDAL lazy import + `save_converted_dem()` / `load_converted_dem()` 추가 |
+| `marslab/config/schema.py` | `converted_dem_dir` 필드 + validator 완화 |
+| `scripts/convert_dem.py` | **신규** — GeoTIFF→npy 변환 CLI |
+| `scripts/run_scene.py` | hirise 분기에 converted_dem_dir 우선 체크 |
+| `configs/mars_env.yaml` | `converted_dem_dir` 주석 추가 |
+| `configs/terrain/jezero_crater.yaml` | `converted_dem_dir` + `texture_dir` 추가 |
+| `tests/unit/test_dem_converter.py` | **신규** — GDAL-free 변환 테스트 8개 |
+| `tests/unit/test_config_schema.py` | 기존 테스트 수정 + 신규 3개 |
+| `.gitignore` | `*_converted/` 패턴 추가 |
+
+### Blockers / Issues
+- 없음. HiRISE DEM → Isaac Sim 렌더링 파이프라인이 완전히 동작.
+- 후속 문제: 로봇/카메라 Z 좌표 불일치 발견 → 아래 엔트리에서 해결.
+
+### Next Steps
+- 로봇 spawn 위치 보정 + Bird's Eye View 추가. 아래 엔트리 참조.
+
+---
+
+## [2026-04-10] 로봇 Spawn 위치 + 카메라 보정 + Bird's Eye View
+
+**Module:** scripts/run_scene.py, configs/terrain/jezero_crater.yaml
+**Type:** Fix + Feature
+
+### 문제 발견
+
+Isaac Sim HiRISE DEM 렌더링 테스트 후 스크린샷 확인 결과, **로봇이 전혀 보이지 않았음**. `work_log/mars_scene_closeup.png`과 `mars_scene_overview.png` 모두 butterscotch 색 평면만 표시.
+
+**근본 원인 분석:**
+- HiRISE DEM elevation 범위: **-2584 ~ -2569m** (Jezero 분지의 실제 MOLA 고도)
+- 로봇 spawn Z: **1.0m** (config의 `spawn_position: [0, 0, 1.0]`)
+- 차이: **약 2570m** — 로봇이 지형 위 2.5km 상공에 배치됨
+- 카메라도 로봇 기준(Z≈1m)으로 배치 → 지형 표면을 안개 너머로만 관찰
+- procedural terrain (elevation ≈ -2500m)에서도 **동일한 문제**가 존재했으나 미발견
+
+추가 문제: `jezero_crater.yaml`에 `robots:` 섹션이 없어서 로봇이 아예 spawn되지 않았음.
+
+### What Was Done
+
+**1. `scripts/run_scene.py` — 지형 표면 기준 자동 좌표 보정:**
+- 지형 중심 좌표(`terrain_cx`, `terrain_cy`)와 중앙 elevation(`terrain_center_elev`) 자동 계산
+- `_terrain_z_at(x, y)` 헬퍼 함수: 임의 XY 좌표에서 지형 elevation 쿼리
+- 로봇 spawn 좌표를 **지형 중심 기준 상대 좌표**로 재해석:
+  - config의 `[0, 0, 1]` → "지형 중심에서 X=0, Y=0 오프셋, 표면 위 1m"
+  - 실제 spawn: `(terrain_cx + 0, terrain_cy + 0, surface_z + 1.0)`
+- 카메라 위치도 실제 로봇/지형 elevation 기반으로 자동 설정
+- 로봇 없는 config에서는 지형 중심을 카메라 기준점으로 사용
+
+**2. Bird's Eye View 카메라 추가:**
+- 지형 전체를 위에서 내려다보는 3번째 스크린샷 (`mars_scene_birdseye.png`)
+- 높이: `terrain_center_elev + terrain_extent * 0.8` (지형 크기의 80% 고도에서 촬영)
+- 지형 중심을 향해 수직 하방으로 촬영
+- DEM 기반 렌더링 품질 확인용
+
+**3. `configs/terrain/jezero_crater.yaml` 확장:**
+- terrain-only config에서 **완전한 scene config**로 확장
+- `mars_env`, `rendering`, `robots` 섹션 추가 (mars_env.yaml과 동일 값)
+- 로봇 3대 (rover, rotorcraft, quadruped) 포함
+
+### Key Decisions
+
+- 로봇 spawn_position을 **지형 중심 기준 상대 좌표**로 해석: 절대 좌표로 해석하면 terrain source(hirise vs procedural)마다 spawn position을 바꿔야 하므로, 상대 좌표 방식이 config 재사용성이 높음.
+- Bird's eye 높이를 `terrain_extent * 0.8`로 설정: 500m 지형이면 400m 상공에서 촬영. 전체 지형이 한 프레임에 들어옴.
+- jezero_crater.yaml을 완전한 config로 확장: terrain-only config는 로봇 미생성 → 렌더링 테스트에 부적합.
+
+### 스크린샷 출력 (3장)
+
+| 파일 | 설명 |
+|------|------|
+| `work_log/mars_scene_closeup.png` | 로버 근접 촬영 (3m 거리) |
+| `work_log/mars_scene_overview.png` | 중거리 조감 (15m 거리) |
+| `work_log/mars_scene_birdseye.png` | **전체 지형 Bird's Eye View (신규)** |
+
+### Test Results
+- Unit tests: 140 passed, 0 failed (regression 없음)
+- Isaac Sim 렌더링: **사용자 직접 실행 필요**
+
+### Integration Test 실행 명령어
+```bash
+# HiRISE Jezero Crater (로봇 3대 + bird's eye)
+PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene.py \
+  --config configs/terrain/jezero_crater.yaml
+
+# Procedural terrain (기존, 좌표 보정 적용됨)
+PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene.py
+```
+
+### 변경 파일 요약
+
+| 파일 | 변경 |
+|------|------|
+| `scripts/run_scene.py` | 지형 표면 기준 spawn/camera 자동 보정 + bird's eye view 추가 |
+| `configs/terrain/jezero_crater.yaml` | 완전한 scene config로 확장 (mars_env + rendering + robots) |
+
+### Blockers / Issues
+- 없음.
+
+### Next Steps
+- Phase C1: 센서 부착. 아래 엔트리 참조.
+
+---
+
+## [2026-04-10] Phase C1: 센서 부착 (RGB, Depth, IMU, LiDAR)
+
+**Module:** marslab/sensors/, configs/sensors/, scripts/
+**Type:** Feature (PLAN.md Week 11, MUST)
+
+### Original Plan (PLAN.md Week 11)
+- imu.py: Mars-calibrated IMU (THE critical test: z=3.72±0.05)
+- camera.py: stereo RGB + depth camera
+- lidar.py: 3D LiDAR point cloud
+- 4개 sensor config YAMLs
+- Integration test: test_sensor_output.py
+
+### Implementation Plan (상세 계획안)
+- OmniLRS 센서 패턴 참고: Camera(`get_rgba()`/`get_depth()`), IMU(`_sensor.acquire_imu_sensor_interface()`)
+- `RobotConfig.sensor_config_paths` 필드 활용 (schema.py에 이미 존재)
+- 센서를 로봇 prim 하위 child prim으로 생성
+- YAML `type` 필드 기반 디스패치 (`__init__.py`)
+- 추상 클래스 없음 (P1: Flat P0 Architecture)
+- Isaac Sim `World` 클래스 + `world.step(render=True)` 필수 (headless 모드 센서 데이터 수집)
+
+### What Was Done
+
+**1. Sensor Config YAMLs (4개 신규):**
+- `configs/sensors/stereo_rgb.yaml`: RGB 카메라, 1280x720, enable_depth=false
+- `configs/sensors/depth_camera.yaml`: Depth 카메라, 1280x720, enable_depth=true
+- `configs/sensors/lidar_3d.yaml`: 3D LiDAR, 360° FOV, 100m range
+- `configs/sensors/imu.yaml`: IMU, 200Hz update rate
+
+**2. Sensor 모듈 (3 + init):**
+- `marslab/sensors/camera.py`: `attach_camera()` — Camera prim 생성, RGB/depth 읽기 헬퍼
+- `marslab/sensors/imu.py`: `attach_imu()` — `IsaacSensorCreateImuSensor` 커맨드, `read_imu()` 읽기 헬퍼
+- `marslab/sensors/lidar.py`: `attach_lidar()` — `RangeSensorCreateLidar` 커맨드, `read_lidar_point_cloud()` 헬퍼
+- `marslab/sensors/__init__.py`: `load_and_attach_sensor()` — YAML → type별 디스패치
+
+**3. run_scene.py 통합:**
+- 로봇 spawn 직후 `sensor_config_paths` 순회하며 `load_and_attach_sensor()` 호출
+- 에러 시 경고 출력, fatal 아님 (일부 로봇은 센서 미설정)
+
+**4. Integration Test (`scripts/run_sensor_test.py`):**
+- 5개 테스트, `World` 클래스 기반, 각 테스트 독립 World 인스턴스
+- `world.step(render=True)` 사용하여 렌더링/물리 파이프라인 활성화
+
+### Key Decisions
+
+- **`World` 클래스 필수**: 첫 번째 시도에서 `simulation_app.update()`만 사용 → 카메라 데이터 empty, IMU 전부 0. `World` + `world.step(render=True)`로 전환 후 5/5 통과. Isaac Sim headless 모드에서 센서 데이터 수집에는 `World`가 반드시 필요.
+- **디스패치 패턴**: `__init__.py`에서 `type` 기반 단순 dict 디스패치. SensorBase 추상 클래스 등 불필요한 추상화 배제 (P1).
+- **mount_link fallback**: URDF import 후 prim 구조가 예측과 다를 수 있으므로, `mount_link` prim이 없으면 robot root에 직접 부착.
+- **IMU `read_gravity=True`**: OmniLRS에서 확인된 패턴. physics scene gravity(3.72)를 IMU가 자동으로 읽음.
+
+### 첫 번째 시도 실패 및 수정
+
+**1차 실행 (5/5 FAILED → 수정 → 5/5 PASSED):**
+
+| 센서 | 1차 결과 | 원인 | 수정 |
+|------|----------|------|------|
+| RGB Camera | empty data | `simulation_app.update()`는 카메라 렌더 파이프라인 미트리거 | `World.step(render=True)` |
+| Depth Camera | empty data | 동일 | 동일 |
+| IMU | [0, 0, 0] | 물리 스텝 미실행으로 gravity 미반영 | `World.step()` + 120 스텝 settle |
+| LiDAR | 0 points | 렌더 파이프라인 미활성 | `World.step(render=True)` |
+
+**교훈:** Isaac Sim headless 모드에서 센서 데이터 수집은 반드시 `isaacsim.core.api.World`를 사용해야 함. `SimulationApp.update()`는 기본적인 시뮬레이션 루프만 실행하고, 센서 데이터 파이프라인(카메라 렌더, IMU 물리 읽기, LiDAR ray cast)은 `World.step(render=True)`에서만 트리거됨.
+
+### Test Results
+
+- Unit tests: **140 passed**, 0 failed (regression 없음)
+- **Integration tests (사용자 실행): 5/5 PASSED**
+  - TEST 1: RGB Camera — shape (720, 1280, 4) uint8 ✓
+  - TEST 2: Depth Camera — shape (720, 1280), range [4.51, inf] ✓
+  - **TEST 3: IMU Gravity — z = 3.7200 m/s² (THE critical test) ✓**
+  - TEST 4: LiDAR — 2,400 points ✓
+  - TEST 5: All Coexist — IMU z=3.7191, RGB OK ✓
+
+### 생성 파일 요약
+
+| 파일 | 내용 |
+|------|------|
+| `configs/sensors/stereo_rgb.yaml` | RGB 카메라 설정 |
+| `configs/sensors/depth_camera.yaml` | Depth 카메라 설정 |
+| `configs/sensors/lidar_3d.yaml` | 3D LiDAR 설정 |
+| `configs/sensors/imu.yaml` | IMU 설정 |
+| `marslab/sensors/__init__.py` | YAML→attach 디스패치 |
+| `marslab/sensors/camera.py` | RGB/Depth 카메라 부착 + 읽기 |
+| `marslab/sensors/imu.py` | IMU 부착 + 읽기 |
+| `marslab/sensors/lidar.py` | LiDAR 부착 + point cloud 읽기 |
+| `scripts/run_sensor_test.py` | 5개 integration test |
+| `scripts/run_scene.py` (수정) | 센서 자동 부착 통합 (~10줄 추가) |
+
+### Blockers / Issues
+
+**미해결 경고/에러 (기능 영향 없으나 정리 필요):**
+- `[Warning] verticalAperture inconsistent with pixel resolution aspect ratio` — 카메라 aperture 자동 보정
+- `[Warning] IMU sensor frequency is higher than physics frequency` — IMU 200Hz > 물리 60Hz
+- `[Warning] tensor view invalidated` — 테스트 간 `world.clear()` 시 발생
+- `[Error] Simulation view object is invalidated` — 동일 원인
+
+### Next Steps
+- Week 9: ROS2 Bridge. 아래 엔트리 참조.
+
+---
+
+## [2026-04-10] Week 9: ROS2 Bridge (센서 데이터 Publish)
+
+**Module:** marslab/ros2_bridge/, scripts/
+**Type:** Feature (PLAN.md Week 9, MUST)
+
+### Original Plan (PLAN.md Week 9)
+- topic_config.py: 토픽 이름 관리
+- publisher.py: 센서 데이터 ROS2 publish
+- test_ros2_bridge.py: 토픽 존재 + 메시지 수신 검증
+
+### Implementation Plan (상세 계획안)
+- Isaac Sim 내장 `isaacsim.ros2.bridge` 확장 활용 (ROS2 Jazzy 내부 rclpy)
+- OmniGraph 노드 기반 publish (C++ 파이프라인, 고성능)
+- Camera: `ROS2CameraHelper` + Viewport/RenderProduct 파이프라인
+- IMU: `IsaacReadIMU` → `ROS2PublishImu` OG 연결
+- LiDAR: `RtxLidarROS2PublishPointCloud` Replicator writer
+- Clock: `ROS2PublishClock` 시뮬레이션 시간 동기화
+- 토픽 네이밍: `/{robot_name}/{sensor_name}/{sub_topic}` (CLAUDE.md 규칙)
+
+### What Was Done
+
+**1. `marslab/ros2_bridge/topic_config.py` (신규):**
+- `build_topic_name()`: CLAUDE.md 규칙 준수 토픽명 생성
+- `SENSOR_TOPICS`: 센서 타입별 기본 sub-topic 매핑
+
+**2. `marslab/ros2_bridge/publisher.py` (신규, ~180줄):**
+- `enable_ros2_bridge()`: `isaacsim.ros2.bridge` 확장 활성화
+- `setup_camera_publisher()`: OmniGraph 동적 생성 (Viewport→RenderProduct→CameraHelper)
+- `setup_imu_publisher()`: `IsaacReadIMU` → `ROS2PublishImu` OG 파이프라인
+- `setup_lidar_publisher()`: `RtxLidarROS2PublishPointCloud` Replicator writer
+- `setup_clock_publisher()`: `/clock` 토픽 publish
+- `setup_all_publishers()`: 로봇별 센서 일괄 publisher 설정
+
+**3. `scripts/run_scene.py` 수정:**
+- 센서 부착 후 ROS2 bridge 자동 설정 (try/except로 graceful fallback)
+- ROS2 미설치 환경에서도 기존 기능 정상 동작
+
+**4. Sensor YAML 업데이트 (4개):**
+- `ros2_topic`, `ros2_frame_id` 필드 추가
+
+**5. `scripts/run_ros2_test.py` (신규, ~160줄):**
+- 5개 integration test: bridge 활성화, clock, camera, IMU, LiDAR publisher
+
+### Key Decisions
+
+- **Isaac Sim 내장 ROS2 bridge 사용**: custom rclpy publisher 대신 OmniGraph 노드 활용. C++ 파이프라인으로 고성능, 센서 prim에서 직접 데이터 읽기.
+- **Internal rclpy**: 시스템 ROS2의 rclpy가 아닌 Isaac Sim 내장 rclpy 사용. 로그: `Could not import system rclpy → Attempting to load internal rclpy for ROS Distro: jazzy → rclpy loaded`.
+- **Graceful fallback**: run_scene.py에서 ROS2 bridge를 try/except로 래핑. ROS2 없어도 렌더링/스크린샷 정상 동작.
+- **OmniGraph 패턴**: Isaac Sim standalone 예제(`camera_periodic.py`, `rtx_lidar.py`, `clock.py`)의 검증된 패턴 그대로 적용.
+
+### ROS2 토픽 구조
+
+| 토픽 | 메시지 타입 | 소스 |
+|------|-------------|------|
+| `/rover_0/stereo_rgb/image_raw` | sensor_msgs/Image | ROS2CameraHelper (rgb) |
+| `/rover_0/depth_camera/image_raw` | sensor_msgs/Image | ROS2CameraHelper (depth) |
+| `/rover_0/imu_sensor/data` | sensor_msgs/Imu | IsaacReadIMU → ROS2PublishImu |
+| `/rover_0/lidar_3d/points` | sensor_msgs/PointCloud2 | RtxLidarROS2PublishPointCloud |
+| `/clock` | rosgraph_msgs/Clock | ROS2PublishClock |
+
+### Test Results
+
+- Unit tests: **140 passed**, 0 failed (regression 없음)
+- **ROS2 Integration tests: 5/5 PASSED**
+  - TEST 1: ROS2 Bridge Enable — `isaacsim.ros2.bridge-4.12.4` ✓
+  - TEST 2: Clock Publisher — `/ROS2_Clock` graph 생성 ✓
+  - TEST 3: Camera Publisher — viewport + render product 파이프라인 ✓
+  - TEST 4: IMU Publisher — `IsaacReadIMU → ROS2PublishImu` OG ✓
+  - TEST 5: LiDAR Publisher — `RtxLidarROS2PublishPointCloud` writer ✓
+
+### 생성 파일 요약
+
+| 파일 | 내용 |
+|------|------|
+| `marslab/ros2_bridge/__init__.py` | 모듈 init |
+| `marslab/ros2_bridge/topic_config.py` | 토픽 네이밍 + 센서 매핑 |
+| `marslab/ros2_bridge/publisher.py` | OmniGraph 기반 ROS2 publisher |
+| `scripts/run_ros2_test.py` | 5개 integration test |
+
+### Blockers / Issues
+
+**[해결됨] 별도 터미널에서 `ros2 topic list` 실행 시 토픽 미표시:**
+- **원인:** 테스트 스크립트가 ~14초 만에 종료 → publisher가 즉시 파괴되어 외부 ROS2 노드에서 발견 불가
+- **해결:** `MARSLAB_PUBLISH=1` 환경 변수 기반 장시간 실행 모드 추가. 시뮬레이션이 무한 루프로 실행되며, 별도 터미널에서 `ros2 topic list/echo` 검증 가능. Ctrl+C로 종료.
+- **결과:** `ros2 topic list` 및 `ros2 topic echo` 모두 **성공** 확인.
+
+**[해결됨] `--publish` CLI 인자 → Isaac Sim Segmentation Fault:**
+- **증상:** `~/isaacsim/python.sh scripts/run_ros2_test.py --publish` 실행 시 `--publish takes a parameter` → `Segmentation fault (core dumped)`.
+- **원인:** Isaac Sim의 `python.sh`가 모든 CLI 인자를 Kit 애플리케이션(`isaacsim.exp.base.python.kit`)에 전달. `--publish`가 Kit의 인자 파서에서 유효하지 않은 옵션으로 인식되어 파싱 실패 → segfault.
+- **해결:** CLI 인자(`--publish`) 대신 환경 변수(`MARSLAB_PUBLISH=1`)로 전환. `os.environ.get("MARSLAB_PUBLISH")` 방식은 Isaac Sim의 인자 파서와 충돌하지 않음.
+- **교훈:** Isaac Sim `python.sh`로 실행하는 스크립트에서는 `argparse` 또는 custom CLI 플래그 사용에 주의. 환경 변수 방식이 안전.
+
+### 장시간 실행 모드 사용법
+```bash
+# 장시간 publish (토픽 검증용, Ctrl+C로 종료)
+MARSLAB_PUBLISH=1 PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_ros2_test.py
+
+# 별도 터미널에서:
+ros2 topic list
+ros2 topic echo /rover_0/imu_sensor/data --once
+```
+
+### Next Steps
+- ROS2 카메라 토픽에 화성 지형 미표시 문제 해결. 아래 엔트리 참조.
+
+---
+
+## [2026-04-10] ROS2 카메라 토픽 화성 지형 미표시 수정
+
+**Module:** scripts/run_scene.py
+**Type:** Fix
+
+### 문제 발견
+
+`MARSLAB_PUBLISH=1`로 `run_ros2_test.py` 실행 후 `ros2 topic echo`로 stereo camera 토픽을 수신 → **Isaac Sim 기본 격자 바닥**이 찍힘. 화성 지형, 바위, 대기, 하늘 없음.
+
+**근본 원인 2가지:**
+
+1. **`run_ros2_test.py`의 publish 모드가 기본 ground plane만 로드:** `world.scene.add_default_ground_plane()`만 사용. 전체 Mars scene 파이프라인(terrain, rocks, atmosphere, rendering) 미로드.
+
+2. **`run_scene.py`의 sensor prim path 잘못 구성:** ROS2 bridge 코드에서 `f"{robot_config.type}_{i}_prim/{mount}/{sname}"` 패턴 사용 → 실제 spawn 함수가 반환한 prim path(예: `/simple_rover`)와 불일치.
+
+### What Was Done
+
+**`scripts/run_scene.py` 수정 (2건):**
+
+**수정 A: sensor prim path를 실제 spawn 반환값 기반으로 변경**
+- robot spawn 루프에서 `robot_prim_paths` dict에 `robot_name → actual prim path` 누적
+- ROS2 bridge 코드에서 이 dict 참조 + `stage.GetPrimAtPath()`로 prim 존재 확인 후 경로 결정
+- 이전: `f"{robot_config.type}_{i}_prim/{mount}/{sname}"` (존재하지 않는 경로)
+- 이후: `f"{actual_robot_path}/{mount}/{sname}"` (실제 USD stage의 prim 경로)
+
+**수정 B: `MARSLAB_PUBLISH=1` 장시간 실행 모드 추가**
+- 스크린샷 완료 후, `MARSLAB_PUBLISH=1`이면 `simulation_app.close()` 대신 무한 루프
+- 전체 Mars scene(terrain + rocks + atmosphere + sky + robots + sensors)이 로드된 상태에서 ROS2 계속 publish
+- 300 프레임마다 상태 출력, Ctrl+C로 종료
+
+### 사용법
+```bash
+# 전체 Mars scene + ROS2 장시간 publish
+MARSLAB_PUBLISH=1 PYTHONPATH=/home/hoyunkim/MarsLab ~/isaacsim/python.sh scripts/run_scene.py
+
+# 별도 터미널:
+ros2 topic list
+ros2 topic echo /rover_0/stereo_rgb/image_raw --once  # 화성 지형 이미지
+```
+
+### Test Results
+- Unit tests: 140 passed, 0 failed (regression 없음)
+- Isaac Sim 렌더링: **사용자 직접 실행 필요**
+
+### Blockers / Issues
+- 없음.
+
+### Next Steps
+- 시각적 품질 강화 (재시도 필요). 아래 엔트리 참조.
+
+---
+
+## [2026-04-10] 시각적 품질 강화 시도 → 실패 → 롤백
+
+**Module:** marslab/terrain/, marslab/config/, configs/, assets/
+**Type:** Feature (시도) → Revert
+
+### 무엇을 시도했는가
+
+OmniLRS/RLRoverLab 분석 결과, photorealism의 핵심은 **실제 사진 기반 PBR 텍스처**(4K-8K)와 **실제 3D 바위 메시**라는 것을 확인. 이를 바탕으로 4단계 품질 강화를 시도:
+
+**Step 1: CC0 PBR 텍스처 에셋 확보 + 지형 적용**
+- ambientCG에서 Ground037 (2K-PNG, 70MB) + Rock049 (2K-PNG, 66MB) 다운로드
+- `material_applicator.py`에서 OmniPBR 셰이더에 `normalmap_texture`, `reflectionroughness_texture` 직접 연결 (UsdShade API)
+- `assets/materials/mars_terrain/`, `assets/materials/mars_rock/` 디렉토리에 배치
+
+**Step 2: 바위 재질 + 형상 개선**
+- `rock_instancer.py`: 프로토타입 3→6개 확장, pitch/roll 랜덤 회전 추가
+- Mars rock PBR 재질 적용 (적갈색 + roughness 0.92 + 텍스처)
+- `schema.py`에 `rock_color`, `rock_roughness`, `rock_texture_dir` 필드 추가
+
+**Step 3: 로봇 URDF 색상**
+- Rover chassis: 회색 → sand/khaki, Wheels: 회색 → 먼지 갈색
+- Rotorcraft rotors: 반투명 → 불투명
+
+**Step 4: 하늘/안개**
+- HDRI 재생성 (2048x1024, 수평선 그라디언트 + sun glow)
+- fog_density_scale 0.002 → 0.005, fog_color warmer
+
+### 발생한 문제
+
+**Isaac Sim 렌더링 결과: 지형이 풀밭처럼 보임**
+- Ground037 텍스처가 **잔디/풀밭 계열** (Sandy Ground이라고 했지만 실제로는 녹색 포함된 지구 토양)
+- 화성 지형이 아니라 **지구 잔디밭**처럼 렌더링됨
+- 텍스처 선택이 근본적으로 잘못됨 — ambientCG에서 "Mars-like"를 검색하는 것만으로는 부족
+
+### 왜 롤백했는가
+
+1. **텍스처 선택 실패**: CC0 소스에서 Mars regolith에 적합한 텍스처를 아직 찾지 못함. 적합한 텍스처 없이 코드만 변경하면 오히려 품질이 저하됨.
+2. **검증 없이 진행**: 텍스처를 Isaac Sim에서 미리 확인하지 않고 코드까지 전부 변경함. 텍스처 선정 → 시각 확인 → 코드 변경 순서가 맞음.
+3. **변경 범위가 너무 넓음**: 7개 파일을 동시에 수정하여 문제 발생 시 원인 특정이 어려움.
+
+### 롤백한 항목 (전부 원래대로 복원)
+
+| 파일 | 복원 내용 |
+|------|-----------|
+| `marslab/terrain/material_applicator.py` | normal/roughness 셰이더 연결 제거, `from pxr import Sdf` 제거 |
+| `marslab/terrain/rock_instancer.py` | 원래 3 프로토타입 + yaw only + 재질 없음으로 복원 |
+| `marslab/config/schema.py` | `rock_color`, `rock_roughness`, `rock_texture_dir` 필드 제거 |
+| `configs/mars_env.yaml` | `texture_dir` 원래 경로 복원, rock 필드 제거, fog 파라미터 복원 |
+| `configs/terrain/jezero_crater.yaml` | `texture_dir` 원래 경로 복원 |
+| `assets/robots/rover/simple_rover.urdf` | chassis/wheel 색상 원래대로 |
+| `assets/robots/rotorcraft/simple_rotorcraft.urdf` | rotor 색상 원래대로 |
+| `scripts/run_scene.py` | rock config 전달 제거 (원래 호출 방식) |
+
+### 교훈
+
+1. **텍스처 선정이 먼저**: 코드 변경 전에 적합한 텍스처를 확보하고 시각적으로 확인해야 함
+2. **Mars 전용 PBR 텍스처 필요**: 범용 CC0 소스에서 "ground rocky"로 검색하면 지구 토양이 나옴. NASA HiRISE ortho 이미지 기반 커스텀 텍스처 생성이 더 적합할 수 있음
+3. **단계별 검증**: 한 번에 7개 파일을 변경하지 말고, 텍스처 1개 → 확인 → 다음 단계 순서로 진행
+4. **OmniPBR normal/roughness 연결 코드는 유효**: `normalmap_texture`, `reflectionroughness_texture` 셰이더 입력 이름은 MDL에서 확인됨. 적절한 텍스처만 있으면 재적용 가능
+
+### 보존된 발견 (재활용 가능)
+
+- OmniPBR MDL 셰이더 입력 이름: `normalmap_texture`, `reflectionroughness_texture`, `reflection_roughness_texture_influence`
+- UsdShade 직접 연결 코드 패턴은 검증됨 (Isaac Sim 5.1 호환)
+- ambientCG API 사용법 확인 (`https://ambientcg.com/get?file={ID}_{format}.zip`)
+
+### Next Steps
+- 시각적 품질 강화를 위한 올바른 Mars 텍스처 소싱 전략 수립 필요
+- 로봇 공중 부유/사라짐 문제 해결. 아래 엔트리 참조.
+
+---
+
+## [2026-04-10] 로봇 공중 부유 → World.reset() 적용 → 로봇 사라짐
+
+**Module:** scripts/run_scene.py
+**Type:** Bug Fix (진행 중)
+
+### 문제 이력
+
+1. **최초 문제 (공중 부유):** spawn_position Z=1.0m → 로봇이 지면 위 ~0.7m에 떠 있음. `simulation_app.update()` 60 step으로는 물리 시뮬레이션이 불안정하여 낙하 미발생.
+
+2. **1차 수정 시도:** Z offset 1.0→0.3 감소 + `simulation_app.update()` → `World.step(render=True)` 120 step 전환.
+
+3. **1차 수정 결과: 로봇 완전 사라짐.** Closeup 스크린샷에서 뒤집어진 삼각형 형태의 잔해만 보임. Rover/Quadruped 모두 사라짐. 반면 Bird's eye에서 크레이터 지형이 처음으로 선명하게 보임 (렌더링 자체는 개선).
+
+### 근본 원인 분석 (Isaac Sim 소스 코드 확인)
+
+**`World.reset()` 내부 동작 (world.py line 356-398):**
+```
+reset() → stop() → play() → _scene._finalize() → scene.post_reset()
+```
+
+1. `self.stop()` (simulation_context.py:977): `self._timeline.stop()` — **모든 물리 상태 초기화**
+2. `self.play()` (simulation_context.py:900): timeline 재시작
+3. `self.scene.post_reset()`: **`World.scene`에 등록된 객체만** default state 복원
+
+**문제의 핵심:**
+- MarsLab의 terrain/robot은 `World.scene.add()`가 아니라 **USD API(pxr)로 직접 생성**
+- `World`는 이 객체들을 인식하지 못함 → `post_reset()`에서 위치 복원 안 됨
+- `stop()`→`play()` cycle에서 물리 상태가 완전 초기화 → 로봇이 예측 불가능한 위치로 이동/사라짐
+- Isaac Sim 공식 예제는 `World.scene.add()`로 객체를 추가하므로 `reset()`이 정상 작동
+
+**해결 방향:** `World` 대신 `SimulationContext` 사용. scene 관리 없이 물리+렌더링만 구동. 기존 USD prim 위치를 건드리지 않음.
+
+### Next Steps
+- `World` → `SimulationContext` 전환 (시도 완료, 아래 참조)
+- 선행연구 분석 기반 photorealism 전략 수립
+
+---
+
+## [2026-04-11] 선행연구 Photorealism 방법론 분석 보고서
+
+**Type:** Research / Analysis
+**대상:** reference_paper/ 내 13편 planetary robotics simulation 논문
+
+### 1. 엔진별 분류
+
+| 엔진 | 논문 | Photorealism 수준 |
+|------|------|-------------------|
+| **Isaac Sim** | OmniLRS, ISMRS, RLRoverLab | **높음** (RTX path tracing) |
+| **Unreal Engine 5** | MarsDrone | **높음** (Nanite/Lumen) |
+| **Unity** | LunarSim | **중상** (post-processing) |
+| **Blender** | Mars Multi-terrain | **중간** (오프라인 렌더링) |
+| **Chrono + OptiX** | Physics-based Lunar Sensor | **높음** (ray tracing + Hapke BRDF) |
+| **Gazebo** | MarsSim, Simulation Framework, SEELO | **낮음** (rasterization) |
+| **AGX Dynamics** | Lindmark et al., Linde et al. | **없음** (물리 전용) |
+| **PyBullet** | Lunar Rover RL | **매우 낮음** |
+
+### 2. Photorealism 핵심 방법론
+
+#### 2a. 텍스처/재질 소싱
+
+| 논문 | 방법 | 소스 |
+|------|------|------|
+| **OmniLRS** | CC0 PBR 라이브러리 | **Polyhaven** (gravel, sand) + **NVIDIA Base Materials** |
+| **ISMRS** | 동일 | **Polyhaven** + **NVIDIA Thinner Gravel Material** |
+| **MarsDrone** | AI 생성 PBR | 실제 Mars 사진 → MGNN(신경망) → PBR 6채널 자동 생성 |
+| **Mars Multi-terrain** | Voronoi 랜덤화 | Mars 텍스처 라이브러리 + Voronoi 좌표 변환으로 tiling 반복 제거 |
+| **Chrono Lunar** | 물리 기반 BRDF | **Hapke BRDF** (regolith 반사율 물리 모델) |
+
+**핵심 발견: Polyhaven + NVIDIA Base Materials가 2편(OmniLRS, ISMRS)에서 검증됨.**
+
+#### 2b. 바위 메시 소싱
+
+| 논문 | 방법 | 상세 |
+|------|------|------|
+| **OmniLRS** | **Photogrammetry** | ~200개 lab 바위 촬영 → Reality Capture → Blender → 40K poly decimation → normal map bake → USD |
+| **ISMRS** | **Photogrammetry** | ~150장/바위 → Reality Capture → Blender → 40K poly → normal bake → USD. 남극 운석도 SfM 처리 |
+| **MarsDrone** | **AI 생성** | Mars 파노라마 이미지에서 바위 크롭 → Novel View Synthesis NN → Depth Estimation NN → 3D mesh. 57,186장 생성 |
+| **Mars Multi-terrain** | 절차적 + scatter | Blender 모델 + terrain type별 분포 규칙 + weathering shader |
+| **나머지** | 단순 primitive 또는 없음 | Sphere, Box, 또는 바위 없음 |
+
+**핵심 발견: Photogrammetry (Reality Capture → Blender → USD)가 2편에서 동일 파이프라인으로 검증됨.**
+
+#### 2c. 렌더링 방식
+
+| 논문 | 렌더러 | 결과 |
+|------|--------|------|
+| **ISMRS** | RTX path tracing | **Path tracing이 ray tracing 대비 AP 39% 향상** (61.7 vs 30.1) |
+| **OmniLRS** | RTX Real-Time + Interactive | 32 SPP, 6 bounces, 고품질 |
+| **LunarSim** | Unity rasterization + **post-processing** | AO, contact shadow, color grading, SSR로 높은 시각 품질 달성 |
+
+#### 2d. 대기/조명
+
+| 논문 | 방법 |
+|------|------|
+| **MarsSim** | **가장 과학적.** Tau-dependent CIE chromaticity: `x = -0.0057τ² + 0.0358τ + 0.3781`. 5단계 dust opacity |
+| **MarsDrone** | Mars-GRAM 대기 모델 (온도, 압력, 밀도 위치/고도별) |
+| **MarsLab(현재)** | Beer's Law + COMIMART + butterscotch 보간 — **이미 대부분의 논문보다 과학적** |
+
+### 3. 물리/충돌 처리
+
+| 접근법 | 논문 | MarsLab Phase 1 적용 |
+|--------|------|---------------------|
+| **Rigid body only** | OmniLRS, ISMRS, RLRoverLab, LunarSim | **현재 MarsLab과 동일. 충분.** |
+| **Terramechanics** (Bekker/Janosi) | MarsSim, PyBullet Lunar, Chrono | Phase 2 |
+| **Deformable terrain** (DEM particles) | AGX Dynamics (2편), Chrono | Phase 2+ |
+
+### 4. MarsLab에 대한 시사점
+
+#### 즉시 적용 가능 (2+ 논문에서 검증)
+
+| # | 방법론 | 출처 | MarsLab 적용 |
+|---|--------|------|-------------|
+| 1 | **Polyhaven + NVIDIA Base Materials** PBR | OmniLRS, ISMRS | 지형/바위 텍스처 소싱 |
+| 2 | **Path tracing 기본값** | ISMRS (AP 39% 향상) | 이미 설정됨. 유지 |
+| 3 | **Photogrammetry 바위 파이프라인** | OmniLRS, ISMRS | Reality Capture → Blender → USD (자원 필요) |
+| 4 | **Replicator annotation** | OmniLRS, ISMRS | Week 12 annotation pipeline |
+| 5 | **Golombek SFD 바위 분포** | MarsSim | 이미 구현됨 |
+| 6 | **HiRISE DEM 지형** | ISMRS, Simulation Framework | 이미 구현됨 |
+
+#### MarsLab 고유 차별점 (13편 모두에 없는 것)
+
+| # | 차별점 |
+|---|--------|
+| 1 | **물리 기반 대기 파이프라인** (Beer's Law + COMIMART + tau 하늘) — 어떤 Mars 시뮬레이터도 없음 |
+| 2 | **다종 로봇 동시 장면** (rover + drone + quadruped) |
+| 3 | **AI4Mars 호환 4-class 벤치마크** |
+| 4 | **ROS2 Jazzy 통합** |
+
+#### ISMRS와의 직접 비교 (가장 유사한 선행연구)
+
+| 항목 | ISMRS | MarsLab |
+|------|-------|---------|
+| 바위 | 4종 photogrammetry → **AP 10.9 (Curiosity 전이 실패)** | Golombek SFD 분포 (아직 Sphere) |
+| 대기 | **없음** (pitch-black shadows) | Beer's Law + COMIMART + butterscotch sky |
+| 다종 로봇 | 단일 rover만 | rover + rotorcraft + quadruped |
+| 텍스처 | Polyhaven + NVIDIA | 절차적 1K (개선 필요) |
+
+**ISMRS 핵심 약점**: 바위 다양성 부족(4종)으로 sim2real 전이 실패(AP=10.9). MarsLab은 이를 논문에서 지적하고 해결책 제시 가능.
+
+### 5. 추가 발견 (개별 논문에서 주목할 방법론)
+
+- **Chrono Lunar Sensor**: 물리 기반 카메라 센서 파이프라인 (pinhole → distortion → defocus → vignetting → Poisson-Gaussian noise → CRF). Sim2real 갭 평가에서 13% real + 87% synthetic가 100% real과 동등 성능 (DER < 1.52%).
+- **MarsDrone**: AI 기반 PBR 생성 (Mars 사진 → 신경망 → BaseColor/Normal/Roughness/Height/AO/Metallic 자동 생성)
+- **Mars Multi-terrain**: Voronoi 좌표 변환으로 PBR 텍스처 tiling 반복 제거
+- **MarsSim**: Tau-dependent CIE chromaticity 수식 (MarsLab sky_dome.py에 적용 가능)
+- **LunarSim**: Post-processing (AO, contact shadow, color grading, SSR)만으로 높은 시각 품질 달성
+
+### 6. 권장 다음 조치
+
+#### 텍스처 문제 해결 (최우선)
+- **Polyhaven에서 Mars-like 텍스처 소싱** (OmniLRS/ISMRS 검증): "gravel", "sand", "rock" 검색
+- NVIDIA Base Material Collection도 확인
+- OmniPBR 셰이더에 normal/roughness 연결 코드는 이미 검증됨 (Phase B+에서 확인)
+
+#### 바위 문제 해결
+- **단기**: Sphere + PBR 재질 + pitch/roll 변형
+- **중기**: Polyhaven/Sketchfab에서 CC0 rock 3D mesh 소싱 → USD 변환
+- **장기**: Photogrammetry (Reality Capture → Blender → USD) — 자원 필요
+
+#### 로봇 안착 문제
+- SimulationContext 전환 시도했으나 로봇 뒤집힘 발생
+- spawn Z offset 미세 조정 + URDF collision/inertia 검증 필요
+
+#### 논문 포지셔닝
+- ISMRS 대비 차별점: 대기 모델 + 바위 다양성 + 다종 로봇
+- 비교 테이블에 13편 선행연구 vs MarsLab 포함
+
+### Next Steps
+- 텍스처 적용 + 바위 개선 + 로봇 안착. 아래 엔트리 참조.
+
+---
+
+## [2026-04-11] 지형 텍스처 적용 (Polyhaven brown_mud_dry)
+
+**Module:** marslab/terrain/material_applicator.py, configs/
+**Type:** Feature (품질 개선)
+
+### What Was Done
+
+**텍스처 소싱 (선행연구 기반 의사결정):**
+- OmniLRS/ISMRS 논문이 **Polyhaven**을 PBR 소스로 사용한 것을 확인
+- Polyhaven에서 3개 후보 다운로드: brown_mud_dry, bicolour_gravel, coast_sand_01
+- 사용자 육안 확인 후 **brown_mud_dry** 선택 (갈색 마른 흙 + 작은 자갈, Mars regolith에 가장 유사)
+- 이전 ambientCG Ground037 (풀밭) 실패 교훈 반영: 텍스처를 먼저 확인 후 적용
+
+**코드 변경:**
+- `material_applicator.py`: `_apply_textures()`에 normal/roughness 셰이더 직접 연결 추가
+  - `normalmap_texture`, `reflectionroughness_texture` (OmniPBR.mdl input, UsdShade API)
+  - `from pxr import Sdf` 추가
+- `mars_env.yaml`, `jezero_crater.yaml`: `texture_dir` → `"assets/materials/mars_terrain"`
+- `assets/materials/mars_terrain/`: brown_mud_dry 2K PBR 3종 배치 (albedo 9.4MB, normal 9.2MB, roughness 7.5MB)
+
+**텍스처 교체 용이성 (G5):** YAML에서 `texture_dir` 경로만 변경하면 텍스처 세트 전체 교체 가능.
+
+### Test Results
+- Unit tests: 140 passed (regression 없음)
+- Isaac Sim 렌더링: 지형에 갈색 마른 흙 텍스처 적용 확인, normal map 디테일 보임
+
+---
+
+## [2026-04-11] 바위 품질 개선 + 로봇 안착 수정
+
+**Module:** marslab/terrain/rock_instancer.py, scripts/, assets/, configs/
+**Type:** Feature + Fix
+
+### Phase A: 바위 품질 개선
+
+**A1. 절차적 angular rock mesh 생성:**
+- `scripts/generate_rock_meshes.py` 신규 — trimesh + numpy로 icosphere noise 변형
+- 8개 프로토타입 생성 → `assets/rocks/rock_proto_{0-7}.obj` (각 162 verts, 320 faces)
+- 비균등 scale + vertex noise displacement + random shear → 각진 자연석 형태
+- seed 기반 재현성 (G5), 시스템 Python에서 실행 (P3)
+
+**A2. rock_instancer.py 전면 수정:**
+- OBJ mesh 파일 로드 → `UsdGeom.Mesh`로 프로토타입 생성 (Sphere fallback 유지)
+- OmniPBR 재질: Mars rock 적갈색 (0.42, 0.28, 0.20) + roughness 0.92
+- pitch/roll 랜덤 회전 추가 (이전: yaw만) → 구체감 크게 감소
+- `_create_prototypes()`, `_apply_rock_material()`, `_euler_to_quath()` 헬퍼 함수
+- `rock_mesh_dir=None`이면 기존 Sphere 6개 프로토타입으로 fallback
+
+**A3. Config 확장:**
+- `schema.py`: `rock_color`, `rock_roughness`, `rock_mesh_dir` 필드 추가
+- `mars_env.yaml`: `rock_mesh_dir: "assets/rocks"` 설정
+- `pyproject.toml`: `trimesh>=4.0` 의존성 추가
+
+### Phase B: 로봇 안착 수정
+
+**B1. URDF friction/damping:**
+- `simple_rover.urdf`: 6개 wheel joint에 `<dynamics damping="0.5" friction="1.0"/>` 추가
+
+**B2. spawn Z 미세 조정:**
+- rover/quadruped Z offset: 0.3 → 0.16m (wheel_radius 0.15 + 0.01 여유)
+
+**B3. SimulationContext 재적용:**
+- `run_scene.py`: `simulation_app.update()` → `SimulationContext.step(render=True)` 200 step
+- 이전 `World.reset()` 문제(로봇 사라짐) 회피: SimulationContext는 scene 관리 없이 물리만 구동
+
+**B4 (fallback 대기):** 여전히 뒤집히면 `fix_base=True` 적용 예정.
+
+### 변경 파일 요약
+
+| 파일 | 변경 |
+|------|------|
+| `scripts/generate_rock_meshes.py` | **신규** — 8개 rock OBJ 생성 |
+| `marslab/terrain/rock_instancer.py` | OBJ 프로토타입 + PBR 재질 + pitch/roll |
+| `marslab/config/schema.py` | `rock_color`, `rock_roughness`, `rock_mesh_dir` 추가 |
+| `configs/mars_env.yaml` | rock config + spawn Z 0.16 |
+| `configs/terrain/jezero_crater.yaml` | spawn Z 0.16 |
+| `assets/robots/rover/simple_rover.urdf` | wheel joint friction/damping 추가 |
+| `scripts/run_scene.py` | SimulationContext 200 step + rock config 전달 |
+| `pyproject.toml` | `trimesh>=4.0` 의존성 추가 |
+
+### Test Results
+- Unit tests: 140 passed (regression 없음)
+- Isaac Sim 렌더링: **사용자 직접 실행 필요**
+
+### Next Steps
+- Isaac Sim 렌더링 결과 확인 (로봇 안착 + 바위 형상)
+- 로봇 여전히 뒤집히면 B4 (fix_base) fallback
+- 이후: Annotation Pipeline (Week 12)

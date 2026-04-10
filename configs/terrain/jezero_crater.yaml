@@ -1,11 +1,52 @@
-# Jezero Crater terrain configuration
+# Jezero Crater full scene configuration
 # HiRISE DTM: DTEEC_045994_1985_046060_1985
 # Landing site: Mars 2020 Perseverance rover
+
+mars_env:
+  gravity: 3.72
+  atmo_pressure: 610
+  atmo_density: 0.020
+  dust_optical_depth: 0.3
+  solar_constant_mean: 589
+  surface_albedo_range: [0.10, 0.40]
+  surface_temp_mean: -60
+  sol_duration_seconds: 88642
+  dust_opacity_range: [0.5, 2.0]
+  sun_azimuth_deg: 180
+  sun_elevation_deg: 45
+  seed: 42
 
 terrain:
   source: "hirise"
   dem_path: "assets/terrain/dem/jezero_crater.tif"
+  converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"
   rock_sfd_k: 0.05                   # CFA = 5% (moderate rock abundance)
   rock_diameter_range: [0.20, 3.0]   # meters (< 20cm treated as texture)
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
+  texture_dir: "assets/materials/mars_terrain"
   seed: 42
+
+rendering:
+  mode: "path_tracing"
+  sky_dome_hdri_dir: "assets/sky/hdri/"
+  resolution: [1280, 720]
+  spp: 32
+  total_spp: 256
+  max_bounces: 8
+  sun_intensity_scale: 5.0
+  sun_color: [1.0, 0.95, 0.85]
+  sun_angular_diameter_deg: 0.35
+  dome_brightness_scale: 1000.0
+  fog_density_scale: 0.002
+  fog_color: [0.78, 0.62, 0.42]
+
+robots:
+  - type: "rover"
+    urdf_path: "assets/robots/rover/simple_rover.urdf"
+    spawn_position: [0.0, 0.0, 0.16]  # wheel_radius(0.15) + 0.01
+  - type: "rotorcraft"
+    urdf_path: "assets/robots/rotorcraft/simple_rotorcraft.urdf"
+    spawn_position: [5.0, 0.0, 3.0]
+  - type: "quadruped"
+    usd_asset_path: "Isaac/Robots/Unitree/Go2/go2.usd"
+    spawn_position: [-3.0, 0.0, 0.16]

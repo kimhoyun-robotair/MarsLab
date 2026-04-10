@@ -66,6 +66,10 @@ class TerrainConfig(BaseModel):
 
     source: Literal["hirise", "procedural"] = Field(default="hirise")
     dem_path: str | None = Field(default=None, description="Path to HiRISE DEM GeoTIFF")
+    converted_dem_dir: str | None = Field(
+        default=None,
+        description="Directory containing pre-converted elevation.npy and metadata.json",
+    )
     rock_sfd_k: float = Field(default=0.05, ge=0.001, le=0.15, description="Golombek CFA fraction")
     rock_diameter_range: tuple[float, float] = Field(
         default=(0.20, 3.0), description="Rock diameter range in meters (< 20cm as texture)"
@@ -86,13 +90,23 @@ class TerrainConfig(BaseModel):
     texture_dir: str | None = Field(
         default=None, description="Path to PBR texture directory (albedo.png, normal.png, etc.)"
     )
+    rock_color: tuple[float, float, float] = Field(
+        default=(0.42, 0.28, 0.20), description="Mars rock base color RGB (reddish-brown)"
+    )
+    rock_roughness: float = Field(
+        default=0.92, ge=0.0, le=1.0, description="Rock surface roughness"
+    )
+    rock_mesh_dir: str | None = Field(
+        default=None, description="Rock OBJ mesh directory (null = Sphere fallback)"
+    )
+    uv_scale: float = Field(default=16.0, ge=1.0, description="Texture UV tiling factor")
     seed: int = Field(default=42, ge=0)
 
     @model_validator(mode="after")
     def check_terrain(self) -> "TerrainConfig":
         """Validate conditional requirements and range ordering."""
-        if self.source == "hirise" and self.dem_path is None:
-            raise ValueError("dem_path is required when source is 'hirise'")
+        if self.source == "hirise" and self.dem_path is None and self.converted_dem_dir is None:
+            raise ValueError("dem_path or converted_dem_dir is required when source is 'hirise'")
         if self.source == "procedural" and self.procedural_preset is None:
             raise ValueError("procedural_preset is required when source is 'procedural'")
         if self.rock_diameter_range[0] >= self.rock_diameter_range[1]:

@@ -9,7 +9,7 @@ import os
 
 import numpy as np
 from isaacsim.core.api.materials.omni_pbr import OmniPBR
-from pxr import UsdShade
+from pxr import Sdf, UsdShade
 
 
 def apply_terrain_material(
@@ -69,18 +69,37 @@ def apply_terrain_material(
 
 
 def _apply_textures(material: OmniPBR, texture_dir: str) -> None:
-    """Apply PBR texture files to an OmniPBR material.
+    """Apply full PBR texture set to an OmniPBR material.
 
-    Looks for albedo.png, normal.png, roughness.png in texture_dir.
+    Applies albedo via OmniPBR wrapper, and normal/roughness maps
+    via direct UsdShade shader input (OmniPBR.mdl input names).
+    Texture directory is swappable via YAML config (G5).
 
     Args:
         material: OmniPBR material instance.
-        texture_dir: Directory containing texture files.
+        texture_dir: Directory containing albedo.png, normal.png, roughness.png.
     """
-    # OmniPBR.set_texture() only supports albedo/diffuse texture.
-    # Normal and roughness maps require direct UsdShade graph manipulation
-    # which is deferred to Phase B+ quality refinement.
+    shader = material.shaders_list[0]  # Direct access to UsdShade.Shader
+
+    # Albedo/diffuse texture (via OmniPBR wrapper)
     albedo_path = os.path.join(texture_dir, "albedo.png")
     if os.path.isfile(albedo_path):
         material.set_texture(os.path.abspath(albedo_path))
         material.set_project_uvw(True)
+
+    # Normal map (direct UsdShade — OmniPBR.mdl input: normalmap_texture)
+    normal_path = os.path.join(texture_dir, "normal.png")
+    if os.path.isfile(normal_path):
+        shader.CreateInput("normalmap_texture", Sdf.ValueTypeNames.Asset).Set(
+            Sdf.AssetPath(os.path.abspath(normal_path))
+        )
+
+    # Roughness map (direct UsdShade — OmniPBR.mdl input: reflectionroughness_texture)
+    roughness_path = os.path.join(texture_dir, "roughness.png")
+    if os.path.isfile(roughness_path):
+        shader.CreateInput("reflectionroughness_texture", Sdf.ValueTypeNames.Asset).Set(
+            Sdf.AssetPath(os.path.abspath(roughness_path))
+        )
+        shader.CreateInput("reflection_roughness_texture_influence", Sdf.ValueTypeNames.Float).Set(
+            1.0
+        )

@@ -44,12 +44,18 @@ __pycache__/
 assets/terrain/dem/*.tif
 assets/terrain/dem/*.npy
 assets/terrain/dem/*.IMG
+assets/terrain/dem/*_converted/
 
 # reference for development
 reference/
+reference_paper/
 
 # my own skills for development
 skills/
+
+# Instruction (personal study notes)
+Instruction.md
+instruction/
 
 # Development
 dev/
