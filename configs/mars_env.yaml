@@ -24,23 +24,24 @@ terrain:
   procedural_preset: "crater"
   terrain_size: [256, 256]
   terrain_resolution: 1.0
-  rock_sfd_k: 0.05                   # CFA = 5%
+  rock_sfd_k: 0.012                  # CFA ~1.2% (dev: 844 rocks. production: 0.05 = 15K)
   rock_diameter_range: [0.20, 3.0]   # meters (< 20cm treated as texture)
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
-  texture_dir: "assets/materials/mars_terrain"  # Polyhaven brown_mud_dry (CC0, 2K PBR)
+  texture_dir: "assets/materials/mars_hirise"  # HiRISE Jezero ortho → PBR (4K, NASA)
   rock_color: [0.42, 0.28, 0.20]              # Mars rock reddish-brown
   rock_roughness: 0.92
-  rock_mesh_dir: "assets/rocks"                # Procedural OBJ meshes (null = Sphere)
-  uv_scale: 16.0                               # Texture tiling (higher = smaller tiles)
+  rock_mesh_dir: "assets/rocks"                # Blender OBJ meshes (null = Sphere)
+  rock_texture_dir: "assets/materials/mars_rock" # Rock PBR textures (null = color only)
+  uv_scale: 1.0                                # 1:1 mapping, no tiling (HiRISE ortho matched)
   seed: 42
 
 rendering:
   mode: "path_tracing"
   sky_dome_hdri_dir: "assets/sky/hdri/"
   resolution: [1280, 720]
-  spp: 32                            # samples per pixel per frame
-  total_spp: 256                     # total accumulated samples
-  max_bounces: 8
+  spp: 8                             # samples per pixel per frame (dev: 8, prod: 32)
+  total_spp: 64                      # total accumulated samples (dev: 64, prod: 256)
+  max_bounces: 4                     # ray bounce depth (dev: 4, prod: 8)
   sun_intensity_scale: 5.0           # W/m^2 → Isaac Sim light units
   sun_color: [1.0, 0.95, 0.85]      # warm Mars sunlight
   sun_angular_diameter_deg: 0.35     # sun disk from Mars
@@ -51,7 +52,7 @@ rendering:
 robots:
   - type: "rover"
     urdf_path: "assets/robots/rover/simple_rover.urdf"
-    spawn_position: [0.0, 0.0, 0.16]
+    spawn_position: [0.0, 0.0, 0.30]
     sensor_config_paths:
       - "configs/sensors/stereo_rgb.yaml"
       - "configs/sensors/depth_camera.yaml"
@@ -62,7 +63,7 @@ robots:
     spawn_position: [5.0, 0.0, 3.0]
   - type: "quadruped"
     usd_asset_path: "Isaac/Robots/Unitree/Go2/go2.usd"
-    spawn_position: [-3.0, 0.0, 0.16]
+    spawn_position: [-3.0, 0.0, 0.30]
 
 benchmark:
   annotation_format: "ai4mars"

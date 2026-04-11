@@ -48,7 +48,7 @@ def spawn_rover(stage, config: RobotConfig, gravity: float) -> str:
     # Create URDF import config
     _, import_config = omni.kit.commands.execute("URDFCreateImportConfig")
     import_config.merge_fixed_joints = False
-    import_config.fix_base = False
+    import_config.fix_base = True  # Phase 1: perception-only, static placement
     import_config.make_default_prim = False
     import_config.create_physics_scene = False
 

@@ -99,6 +99,9 @@ class TerrainConfig(BaseModel):
     rock_mesh_dir: str | None = Field(
         default=None, description="Rock OBJ mesh directory (null = Sphere fallback)"
     )
+    rock_texture_dir: str | None = Field(
+        default=None, description="Rock PBR texture directory (null = color only)"
+    )
     uv_scale: float = Field(default=16.0, ge=1.0, description="Texture UV tiling factor")
     seed: int = Field(default=42, ge=0)
 

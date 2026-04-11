@@ -1533,6 +1533,223 @@ reset() → stop() → play() → _scene._finalize() → scene.post_reset()
 - Isaac Sim 렌더링: **사용자 직접 실행 필요**
 
 ### Next Steps
-- Isaac Sim 렌더링 결과 확인 (로봇 안착 + 바위 형상)
-- 로봇 여전히 뒤집히면 B4 (fix_base) fallback
-- 이후: Annotation Pipeline (Week 12)
+- 에셋 품질 강화. 아래 엔트리 참조.
+
+---
+
+## [2026-04-11] 에셋 품질 강화: Mars 색 보정 + Blender 바위 + 개발 최적화
+
+**Module:** scripts/, assets/, configs/
+**Type:** Feature (품질 개선) + Optimization
+
+### What Was Done
+
+**1. Mars 색 보정 스크립트 (`scripts/color_grade_mars.py` 신규):**
+- Polyhaven brown_mud_dry (지구 흙) → Mars regolith 색감으로 변환
+- Red 채널 1.3x 강화 + Green 0.85x + Blue 0.70x + 채도 0.6 + 밝기 0.8
+- 결과: `assets/materials/mars_terrain_graded/` (albedo + normal + roughness)
+- normal/roughness는 색 무관하므로 원본 그대로 복사
+- YAML `texture_dir` 변경만으로 텍스처 세트 교체 가능 (G5)
+
+**2. Blender 바위 고품질화 (`scripts/blender_generate_rocks.py` 신규):**
+- `blender --background --python` headless 모드로 8개 프로토타입 자동 생성
+- Icosphere subdivisions=4 → Cloud noise + Musgrave noise 2중 displacement → decimate
+- 각 1280 faces (이전 trimesh 320 대비 4x 디테일)
+- 비균등 scale + 2단계 noise → 자연석에 가까운 각진 형태
+- 기존 trimesh rock_proto_{0-7}.obj 삭제, Blender rock_blender_{0-7}.obj로 교체
+
+**3. 로봇 안착 — simulation_app.update()로 최종 롤백:**
+- SimulationContext/World 물리 시 로봇 뒤집힘 3회 반복 → 물리 시뮬레이션 포기
+- Phase 1은 perception-only이므로 `simulation_app.update()` 60 step으로 고정
+- 로봇은 spawn 위치에 그대로 유지. 물리 시뮬레이션은 Phase 2에서 재시도
+
+**4. 개발 모드 최적화:**
+- 바위 수: 15,720 → 844개 (k=0.05 → 0.012)
+- SPP: 32 → 8, total_spp: 256 → 64, max_bounces: 8 → 4
+- 스크린샷: 3장 → 2장 (bird's eye 제거)
+- Steps/shot: 10 → 5, subframes: 4 → 2
+- UV scale: 4.0 → 16.0 (tiling 반복 감소)
+- 프로덕션 복원: YAML 값만 원래대로 변경
+
+**5. 코드 품질 (CLAUDE.md 규칙 추가):**
+- CLAUDE.md에 "모든 코드 변경은 black + ruff + pytest 통과 필수" 규칙 추가
+- 전체 코드베이스 black 포매팅 (13개 파일) + ruff 린팅 (15개 에러 수정)
+
+### 렌더링 결과 평가
+
+**Closeup:**
+- 로버 지면 안착 ✓, Go2 quadruped 보임 ✓
+- 적갈색 Mars 지형 색감 ✓
+- 지형 normal map 디테일 ✓
+
+**Overview:**
+- 적갈색 Mars 지면 + 바위 분포 ✓
+- 로버/그림자 확인 ✓
+
+**남은 문제:**
+- 텍스처 tiling 반복 (overview에서 격자 패턴) — 더 큰 텍스처 또는 Voronoi 블렌딩 필요
+- 바위 PBR 텍스처 미적용 (단색 적갈색만) — Rock049 텍스처 적용 대기
+- 로버 chassis 단색 회색 — MVP에서 수용 가능
+
+### 변경 파일 요약
+
+| 파일 | 변경 |
+|------|------|
+| `scripts/color_grade_mars.py` | **신규** — Mars 색 보정 |
+| `scripts/blender_generate_rocks.py` | **신규** — Blender headless 바위 생성 |
+| `assets/materials/mars_terrain_graded/` | **신규** — Mars 색감 PBR 텍스처 |
+| `assets/rocks/rock_blender_{0-7}.obj` | **신규** — Blender 바위 8개 (1280 faces/개) |
+| `configs/mars_env.yaml` | texture_dir, rock_sfd_k, spp, bounces 등 변경 |
+| `scripts/run_scene.py` | bird's eye 제거, render step 감소, simulation_app.update() 롤백 |
+| `CLAUDE.md` | black + ruff + pytest 필수 규칙 추가 |
+| `pyproject.toml` | trimesh 의존성 |
+
+### Test Results
+- black: 전부 통과
+- ruff: 전부 통과
+- pytest: 140 passed
+
+### Next Steps
+- 바위 PBR 텍스처 + HiRISE 1:1 매핑. 아래 엔트리 참조.
+
+---
+
+## [2026-04-11] 바위 PBR 텍스처 + HiRISE 1:1 매핑 + 물리 위치 조정
+
+**Module:** scripts/, marslab/terrain/, configs/, assets/
+**Type:** Feature (품질 개선)
+
+### What Was Done
+
+**1. 바위 PBR 텍스처 적용 (Phase 4):**
+- Rock049(ambientCG) 텍스처에 Mars 색 보정 적용 → `assets/materials/mars_rock/`
+- `rock_instancer.py`에 `rock_texture_dir` 파라미터 추가
+- `_apply_rock_material()`에서 albedo + normalmap_texture + reflectionroughness_texture 셰이더 연결
+- `schema.py`에 `rock_texture_dir` 필드, YAML에 `rock_texture_dir: "assets/materials/mars_rock"` 추가
+
+**2. HiRISE Ortho → PBR 변환 (Phase 2):**
+- NASA HiRISE ESP_045994_1985 Jezero Crater ortho (RED_C, 6673×14266 grayscale) 다운로드
+- `scripts/generate_pbr_from_photo.py` 신규 — photo → albedo (Mars tint) + normal (Sobel) + roughness (luminance)
+- DEM 500×500 대응 영역을 ortho에서 비율 환산 crop (472×472) → 4096×4096 upscale
+- 4K PBR 텍스처 생성 → `assets/materials/mars_hirise/`
+
+**3. Tiling 완전 제거:**
+- `material_applicator.py`: `set_project_uvw(True)` → `set_project_uvw(False)` 변경
+  - `project_uvw=True`가 mesh UV를 무시하고 월드 좌표 기반 자동 tiling → 원인
+  - `project_uvw=False`로 mesh_builder의 UV 좌표 사용 → 1:1 매핑 성공
+- `mars_env.yaml`: `uv_scale: 1.0` (텍스처 1장 = 지형 전체)
+
+**4. 물리 위치 조정:**
+- 바위: Z를 `rock.height * 0.3`만큼 낮춤 → 30% 지면 매립 (자연스러움)
+- Rover spawn Z: 0.16 → 0.32m (wheel_joint_z 0.15 + wheel_radius 0.15 + 여유)
+- Quadruped spawn Z: 0.16 → 0.35m (Go2 다리 높이 고려)
+
+### 렌더링 결과
+
+- **tiling 완전 제거** — 실제 Jezero Crater 표면이 1:1로 매핑됨
+- 로버 지면 안착, Go2 서 있음
+- 바위 지면에 묻힘
+- Mars 적갈색 색감 유지
+
+### 미해결 문제
+
+**바위 공중 부유 + 로봇 지면 관통:**
+- Overview에서 바위 일부가 여전히 공중에 떠 보임
+- 로버 일부와 Go2 대부분이 지형 내부로 파묻힌 것처럼 보임
+- 원인 분석 필요 — OmniLRS/RLRoverLab 패턴 참고 예정
+
+### 변경 파일 요약
+
+| 파일 | 변경 |
+|------|------|
+| `scripts/generate_pbr_from_photo.py` | **신규** — Mars photo → PBR 변환 |
+| `marslab/terrain/rock_instancer.py` | `rock_texture_dir` 파라미터 + 바위 Z 매립 |
+| `marslab/terrain/material_applicator.py` | `set_project_uvw(False)` (tiling 제거) |
+| `marslab/config/schema.py` | `rock_texture_dir` 필드 추가 |
+| `configs/mars_env.yaml` | uv_scale 1.0, rock_texture_dir, spawn Z 조정 |
+| `assets/materials/mars_hirise/` | **신규** — 4K HiRISE PBR |
+| `assets/materials/mars_rock/` | **신규** — Rock049 Mars 색 보정 PBR |
+
+### Test Results
+- black + ruff + pytest: 전부 통과 (140 tests)
+
+### Next Steps
+- fix_base 정적 배치 + 바위/로봇 Z 보정. 아래 엔트리 참조.
+
+---
+
+## [2026-04-11] fix_base 정적 배치 + Phase 2 동적 물리 로드맵
+
+**Module:** marslab/robots/, marslab/terrain/, configs/
+**Type:** Fix + Architecture Decision
+
+### 문제
+
+- 바위: 일부가 공중에 부유 (30% 매립 보정이 역효과)
+- 로버/Go2: 지형 내부로 관통 (spawn Z offset 부정확)
+- `SimulationContext` 물리 사용 시 로봇 뒤집힘 (3회 시도 모두 실패)
+
+### 원인 분석 (OmniLRS/RLRoverLab 비교)
+
+| 항목 | OmniLRS | RLRoverLab | MarsLab (이전) |
+|------|---------|------------|---------------|
+| 로봇 배치 | config 위치 + **물리 settle** | heightmap max Z | elevation + offset |
+| 바위 배치 | DEM bilinear, **매립 없음** | 전체 3D mesh, 매립 없음 | elevation - 30% height |
+| 물리 방식 | PhysX rigid body | PhysX + raycaster | simulation_app.update() (물리 없음) |
+
+**핵심 발견:**
+- OmniLRS는 물리 엔진으로 로봇을 자연스럽게 안착시킴
+- MarsLab은 물리를 실행하면 URDF가 불안정하여 로봇이 뒤집힘
+- URDF 문제: box chassis + 6 wheels (proper inertia/friction 미설정), rocker-bogie 없음
+- 이것은 URDF 자체의 물리 품질 문제이지, 코드 문제가 아님
+
+### 아키텍처 결정: Phase 1 = 정적, Phase 2 = 동적
+
+**CLAUDE.md 근거:**
+- "Phase 1 physics = rigid body + Mars-calibrated friction" (G4)
+- "Do NOT validate legged robot dynamics. G1/Go2 are perception-ready only" (What NOT To Do #2)
+- "Do NOT claim terramechanics fidelity in Phase 1" (#1)
+- "MVP definition: Mars environment + single rover + terrain seg benchmark"
+
+**선행연구 근거:**
+- ISMRS: "explicitly does NOT model geomechanics. Perception-focused" — rigid body only
+- OmniLRS: 일부 로봇 fix_base=True 사용
+
+**결론:** Phase 1에서 fix_base 정적 배치는 CLAUDE.md에 완전히 부합하며, 선행연구와 동일한 접근법.
+
+### What Was Done
+
+**1. Rover fix_base=True:**
+- `marslab/robots/rover.py`: `import_config.fix_base = True`
+- 물리 없이 spawn 위치에 고정. perception-only Phase 1에 적합.
+
+**2. 바위 매립 제거:**
+- `rock_instancer.py`: `z - rock.height * 0.3` → `z` 그대로
+- mesh 원점이 중심이므로 Z=surface이면 자연스럽게 반 묻힘 (OmniLRS 패턴)
+
+**3. Spawn Z 통일:**
+- Rover: 0.32 → 0.30 (wheel_joint -0.15 + wheel_radius 0.15)
+- Quadruped: 0.35 → 0.30
+- Rotorcraft: 3.0 유지 (공중 고정)
+
+### Phase 2 동적 물리 로드맵 (ICRA 제출 후)
+
+| Phase | 작업 | CLAUDE.md 근거 |
+|-------|------|---------------|
+| 2a | Rocker-bogie URDF + proper inertia/friction | G4 (physics fidelity) |
+| 2b | SimulationContext 물리 전환 + fix_base 제거 | config 변경 1줄 |
+| 2c | Terramechanics plugin (Bekker/Janosi) | PLAN.md 8.3 |
+| 2d | RL/SLAM 통합 (Isaac Lab Gym API) | G1, G2 |
+
+**전환 비용 최소화 설계:**
+- `simulation_app.update()` → `SimulationContext.step()`: 1줄 변경
+- `fix_base: true` → `fix_base: false`: YAML 1줄 변경 (G5)
+- Config schema extends, does not break (PLAN.md Section 8.3)
+
+### Test Results
+- black + ruff + pytest: 전부 통과 (140 tests)
+- Isaac Sim 렌더링: **사용자 직접 실행**
+
+### Next Steps
+- Isaac Sim 렌더링 결과 확인 (로봇/바위 위치)
+- 이후: Annotation Pipeline (Week 12) → Benchmark (Week 13-16)

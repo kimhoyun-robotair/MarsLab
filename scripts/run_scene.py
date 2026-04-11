@@ -107,6 +107,7 @@ def main() -> None:
         rock_color=config.terrain.rock_color,
         rock_roughness=config.terrain.rock_roughness,
         rock_mesh_dir=config.terrain.rock_mesh_dir,
+        rock_texture_dir=config.terrain.rock_texture_dir,
     )
     print(f"  Placed {len(rocks)} rocks on terrain")
 
@@ -266,7 +267,6 @@ def main() -> None:
         rx, ry = terrain_cx, terrain_cy
         rz = _terrain_z_at(rx, ry)
 
-    # Bird's eye view: look straight down at terrain center
     terrain_extent = max(terrain_cols, terrain_rows) * resolution
     bird_eye_height = terrain_center_elev + terrain_extent * 0.8
 
@@ -279,7 +279,7 @@ def main() -> None:
         },
         {
             "name": "overview",
-            "position": (rx + 15.0, ry + 15.0, rz + 12.0),
+            "position": (rx + 30.0, ry + 30.0, rz + 28.0),
             "look_at": (rx, ry, rz),
             "file": "mars_scene_overview.png",
         },
@@ -302,8 +302,8 @@ def main() -> None:
         rgb_annotator.attach([render_product])
 
         # Render frames to let image converge
-        for _ in range(10):
-            rep.orchestrator.step(rt_subframes=4)
+        for _ in range(5):
+            rep.orchestrator.step(rt_subframes=2)
 
         rgb_data = rgb_annotator.get_data()
         shot_path = os.path.join("work_log", shot["file"])

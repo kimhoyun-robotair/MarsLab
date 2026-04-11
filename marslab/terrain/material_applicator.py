@@ -85,7 +85,7 @@ def _apply_textures(material: OmniPBR, texture_dir: str) -> None:
     albedo_path = os.path.join(texture_dir, "albedo.png")
     if os.path.isfile(albedo_path):
         material.set_texture(os.path.abspath(albedo_path))
-        material.set_project_uvw(True)
+        material.set_project_uvw(False)  # Use mesh UV coords (uv_scale=1.0 for 1:1)
 
     # Normal map (direct UsdShade — OmniPBR.mdl input: normalmap_texture)
     normal_path = os.path.join(texture_dir, "normal.png")

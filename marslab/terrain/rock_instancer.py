@@ -24,6 +24,7 @@ def place_rocks_on_terrain(
     rock_color: tuple[float, float, float] = (0.42, 0.28, 0.20),
     rock_roughness: float = 0.92,
     rock_mesh_dir: str | None = None,
+    rock_texture_dir: str | None = None,
 ) -> None:
     """Place rocks as 3D instanced primitives on the terrain.
 
@@ -40,6 +41,7 @@ def place_rocks_on_terrain(
         seed: Random seed for rotation randomization.
         rock_color: Mars rock base color RGB from config.
         rock_roughness: Rock surface roughness (0-1) from config.
+        rock_texture_dir: Path to rock PBR textures (None = color only).
         rock_mesh_dir: Path to OBJ mesh files (None = Sphere fallback).
     """
     if not rocks:
@@ -56,7 +58,14 @@ def place_rocks_on_terrain(
     proto_paths = _create_prototypes(stage, proto_container_path, rock_mesh_dir, rng)
 
     # Apply PBR material to all prototypes
-    _apply_rock_material(stage, proto_container_path, proto_paths, rock_color, rock_roughness)
+    _apply_rock_material(
+        stage,
+        proto_container_path,
+        proto_paths,
+        rock_color,
+        rock_roughness,
+        rock_texture_dir,
+    )
 
     # Build instancer data
     positions = []
@@ -69,6 +78,7 @@ def place_rocks_on_terrain(
         row_i = int(np.clip(rock.y / resolution, 0, rows - 1))
         z = float(elev[row_i, col_i])
 
+        # Mesh origin is center, so z=surface → natural half-burial
         positions.append(Gf.Vec3f(rock.x, rock.y, z))
 
         # Random rotation: yaw + pitch + roll for angular appearance
@@ -153,6 +163,7 @@ def _apply_rock_material(
     proto_paths: list[str],
     color: tuple[float, float, float],
     roughness: float,
+    texture_dir: str | None = None,
 ) -> None:
     """Apply Mars rock PBR material to all prototypes."""
     from isaacsim.core.api.materials.omni_pbr import OmniPBR
@@ -162,6 +173,27 @@ def _apply_rock_material(
     material.set_color(np.array(color))
     material.set_reflection_roughness(roughness)
     material.set_metallic_constant(0.0)
+
+    # Apply PBR textures if directory provided
+    if texture_dir and os.path.isdir(texture_dir):
+        shader = material.shaders_list[0]
+        albedo_path = os.path.join(texture_dir, "albedo.png")
+        if os.path.isfile(albedo_path):
+            material.set_texture(os.path.abspath(albedo_path))
+            material.set_project_uvw(True)
+        normal_path = os.path.join(texture_dir, "normal.png")
+        if os.path.isfile(normal_path):
+            shader.CreateInput("normalmap_texture", Sdf.ValueTypeNames.Asset).Set(
+                Sdf.AssetPath(os.path.abspath(normal_path))
+            )
+        roughness_path = os.path.join(texture_dir, "roughness.png")
+        if os.path.isfile(roughness_path):
+            shader.CreateInput("reflectionroughness_texture", Sdf.ValueTypeNames.Asset).Set(
+                Sdf.AssetPath(os.path.abspath(roughness_path))
+            )
+            shader.CreateInput(
+                "reflection_roughness_texture_influence", Sdf.ValueTypeNames.Float
+            ).Set(1.0)
 
     mat_prim = stage.GetPrimAtPath(mat_path)
     if mat_prim.IsValid():
