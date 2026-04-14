@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-MarsLab is an open-source, photorealistic Mars simulation platform for heterogeneous
-planetary robotics research, built on NVIDIA Isaac Sim. Target: ICRA 2027 Seoul
-submission (deadline ~Sep 15, 2026).
+MarsLab is an open-source Mars simulation platform providing standardized mission
+scenarios for planetary/field robotics research, built on NVIDIA Isaac Sim.
+Target: iSpaRo 2026 Regular Paper (8 pages), deadline Jun 16, 2026.
 
 **Repository**: `MarsLab/` (Apache 2.0 license)
 **Engine**: Isaac Sim 5.x + Isaac Lab
@@ -15,14 +15,15 @@ submission (deadline ~Sep 15, 2026).
 These 13 guidelines govern all development decisions. Every feature, module, and task
 must trace back to one or more of these guidelines.
 
-1. **G1: Perceptual Robotics Focus.** MarsLab = photorealistic Mars robot simulator for
-   OD, Seg, SLAM, Nav, Exploration. Phase 1 = OD + Seg + sensor data gen. SLAM/Nav =
-   Phase 2.
-2. **G2: RL is Future Work.** No RL environments, reward functions, or Gym API wrappers
-   in Phase 1.
+1. **G1: Field Robotics Platform.** MarsLab = standardized Mars robotics testing platform
+   for SLAM, Nav, Exploration. v1.0 = 7 mission scenarios + rover + SLAM/Nav2 (iSpaRo 2026).
+   v2.0 = high photorealism. v3.0 = terramechanics + RL.
+2. **G2: RL is Future Work (v3.0).** No RL environments, reward functions, or Gym API wrappers
+   until v3.0.
 3. **G3: No Code Reuse.** Algorithm/flowchart inspiration only from OmniLRS/RLRoverLab.
    No code copying. No naming from reference codebases in MarsLab source.
-4. **G4: Photorealism = Top Priority.** Physics fidelity is secondary (Phase 2).
+4. **G4: Robotics First, Photorealism Later.** v1.0 = good-enough rendering + strong
+   robotics (scenarios, SLAM, Nav2). v2.0 = OmniLRS-level photorealism. v3.0 = terramechanics.
 5. **G5: All Configs in YAML.** Zero hardcoded constants in Python source.
 6. **G6: Extreme Modularity.** Smallest units first, expand incrementally.
 7. **G7: Unit Tests for Everything.** Visual inspection when automated testing impossible.
@@ -42,6 +43,9 @@ Three principles govern all structural decisions:
 No premature abstraction. Start with flat procedural code. Extract classes/patterns
 only when empirical complexity demands it. No plugin systems, no god objects, no
 registration mechanisms in Phase 1.
+**Scope:** P1 applies to MarsLab source code (`marslab/`, `scripts/`, `tests/`).
+The development harness (`.claude/agents/`, `.claude/skills/`) is infrastructure,
+not product code, and is exempt from P1.
 
 **P2: Unidirectional Data Flow.**
 Config -> pure computation modules -> Isaac Sim scene configuration -> native sim loop.
@@ -145,18 +149,17 @@ mars:
 
 ## Priority Tiers
 
-All tasks and features are classified:
+All tasks classified by version (iSpaRo 2026 deadline: Jun 16):
 
-- **MUST:** Required for ICRA 2027 MVP submission. Failure = no paper.
-  Includes: config, terrain (HiRISE + procedural), atmosphere, rendering,
-  rover, sensors, annotation, benchmark evaluation.
-- **SHOULD:** Strengthens paper significantly. Cut only if >1 week behind.
-  Includes: rotorcraft, quadruped, multi-robot, Docker, procedural terrain presets.
-- **COULD:** Nice-to-have. First to defer under time pressure.
-  Includes: humanoid (G1), arXiv preview, advanced DR axes.
+- **v1.0 MUST:** Rover URDF fix, 7 mission scenarios, dynamic atmosphere,
+  SLAM + Nav2 integration, experimental evaluation, 8-page iSpaRo paper.
+- **v1.0 SHOULD:** All 7 scenarios complete. GitHub v1.0.0 release.
+- **v2.0 (post-iSpaRo):** OmniLRS-level photorealism (high-poly rocks, 4K HDRI,
+  anti-tiling, pebble scatter, production SPP).
+- **v3.0 (future):** Terramechanics, RL environments, multi-robot coordination.
 
-MVP definition: Mars environment + single rover + terrain seg benchmark.
-Paper is viable with rover-only. Multi-robot adds strength.
+MVP definition: 3+ scenarios + rover + SLAM + Nav2 + paper.
+Minimum submittable: scenarios 1-3 + dynamic atmosphere + SLAM/Nav2 experiments.
 
 ## Error Handling
 
@@ -202,21 +205,39 @@ Documented in `tests/visual_inspection/checklist.md`. Results logged in work_log
 - `.github/workflows/lint.yaml`: black + ruff on every push/PR.
 - Integration tests: run manually or in GPU-enabled CI (if available).
 
-## Phase 1 Scope (ICRA 2027)
+## Version Scope
+
+### v1.0 (iSpaRo 2026, Current)
 
 **In scope:**
-- Object detection, semantic segmentation on synthetic Mars imagery
-- Sensor data generation (RGB, depth, LiDAR, IMU)
-- Sim2real benchmark: synthetic training -> real Mars image evaluation
-- Multi-robot scene composition (perception-ready)
+- 7 mission scenarios: Basic Mars, Rock-Dense, Crater+Slopes, Canyon, Cave,
+  Spacecraft Landing, Mars Base
+- Rover with dynamic physics (fix_base=False, stable URDF)
+- ROS2 full stack: cmd_vel, TF, odometry, sensors
+- SLAM integration (slam_toolbox or rtabmap)
+- Nav2 autonomous navigation
+- Dynamic atmosphere: time-of-day sun sweep + tau variation
+- Experimental evaluation: SLAM accuracy vs. scenario, SLAM vs. tau
+- 8-page iSpaRo paper
 
-**Explicitly out of scope for Phase 1:**
-- SLAM / autonomous navigation (deferred to Phase 2)
-- Reinforcement learning environments, reward functions, Gym API wrappers
-- Terramechanics (BCM/SCM/DEM) -- rigid body + Mars friction only
-- Legged robot dynamics validation in Mars gravity
-- Mars aerodynamics for rotorcraft (simplified kinematic model only)
-- Ls-based seasonal variation (fixed configurable sun position)
+**Explicitly out of scope for v1.0:**
+- OmniLRS-level photorealism (deferred to v2.0)
+- Terramechanics (deferred to v3.0)
+- RL environments (deferred to v3.0)
+- Multi-robot coordination (future work)
+
+### v2.0 (Post-iSpaRo): High Photorealism
+
+- OmniLRS-level PBR, anti-tiling, 4K HDRI, pebble scatter
+- Photogrammetry rocks, production render settings
+- Sim2Real perception benchmark (AI4Mars)
+
+### v3.0 (Future): High Physical Fidelity
+
+- Terramechanics (Bekker/Janosi)
+- RL environments (Isaac Lab Gym API)
+- Multi-robot coordination
+- Ls-parameterized seasonal variation
 
 ## Work History Log
 
@@ -235,10 +256,10 @@ development history. See PLAN.md Section 7 for the entry template.
 
 ## What NOT To Do
 
-1. **Do NOT claim terramechanics fidelity in Phase 1.** Physics = rigid body +
-   Mars-calibrated friction. No BCM/SCM/DEM. Terramechanics is Phase 2 plugin.
-2. **Do NOT validate legged robot dynamics in Mars gravity.** G1/Go2 are
-   perception-ready only. No locomotion policy transfer claims.
+1. **Do NOT claim terramechanics fidelity in v1.0.** Physics = rigid body +
+   Mars-calibrated friction. No BCM/SCM/DEM. Terramechanics is v3.0 plugin.
+2. **Do NOT chase photorealism in v1.0.** Good-enough rendering + strong robotics.
+   OmniLRS-level photorealism is v2.0. Do not block robotics work for visual polish.
 3. **Do NOT hardcode Mars parameters.** Everything in config YAML.
 4. **Do NOT copy Isaac Sim built-in USD assets into the repo.** Reference by
    asset path.
@@ -285,8 +306,28 @@ development history. See PLAN.md Section 7 for the entry template.
 ## Communication Protocol
 
 When asked to implement a feature:
+0. **Check for active harness.** If `.claude/agents/` exists and the work falls
+   within v1.0 scope (Wk1~Wk6), route the request through the
+   `marslab-dev-orchestrator` skill instead of implementing directly. Single-developer
+   direct mode is reserved for trivial questions, documentation tweaks, and Wk7-8
+   paper writing.
 1. Check which Phase/Week it belongs to. Respect dependency order.
 2. Check if a reference codebase already solved it. Study before reimplementing.
 3. Write config-driven, seed-reproducible code.
 4. Include unit test.
 5. If unsure about Isaac Sim API, say so rather than guessing deprecated APIs.
+
+## 하네스: MarsLab v1.0 개발팀
+
+**목표:** iSpaRo 2026 v1.0 (8주, 2026-04-14 ~ 2026-06-16) 개발을 6명 에이전트 팀으로 병렬 수행.
+
+**트리거:** Wk1~Wk6 범위의 개발 작업 요청 시 `marslab-dev-orchestrator` 스킬을 사용한다. 단순 질문, 문서 오타 수정, Wk7~8 논문 작성은 직접 응답 가능. v2.0(photorealism) / v3.0(terramechanics, RL) 작업은 out-of-scope로 거절.
+
+**팀 실행 모드:** 에이전트 팀 (6명). 모든 Agent 호출은 `model: "opus"`.
+
+**상세 정의:** 에이전트 역할·통신 프로토콜·사용 스킬은 `.claude/agents/` 및 `.claude/skills/` 에 있다. 이 CLAUDE.md는 포인터만 제공한다 (중복 회피).
+
+**변경 이력:**
+| 날짜 | 변경 내용 | 대상 | 사유 |
+|------|----------|------|------|
+| 2026-04-14 | 초기 하네스 구성 (6 agents, 9 skills, 1 orchestrator) | `.claude/` 전체 | iSpaRo v1.0 8주 병렬 개발 체계 구축. Plan: `~/.claude/plans/cheerful-brewing-hammock.md`. |

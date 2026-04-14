@@ -38,10 +38,10 @@ terrain:
 rendering:
   mode: "path_tracing"
   sky_dome_hdri_dir: "assets/sky/hdri/"
-  resolution: [1280, 720]
-  spp: 8                             # samples per pixel per frame (dev: 8, prod: 32)
-  total_spp: 64                      # total accumulated samples (dev: 64, prod: 256)
-  max_bounces: 4                     # ray bounce depth (dev: 4, prod: 8)
+  resolution: [1920, 1080]
+  spp: 32                            # samples per pixel per frame (Phase 1: production)
+  total_spp: 256                     # total accumulated samples (Phase 1: production)
+  max_bounces: 6                     # ray bounce depth (Phase 1: production)
   sun_intensity_scale: 5.0           # W/m^2 → Isaac Sim light units
   sun_color: [1.0, 0.95, 0.85]      # warm Mars sunlight
   sun_angular_diameter_deg: 0.35     # sun disk from Mars
@@ -49,21 +49,21 @@ rendering:
   fog_density_scale: 0.002           # tau → fog density
   fog_color: [0.78, 0.62, 0.42]     # Mars dust haze butterscotch
 
-robots:
-  - type: "rover"
-    urdf_path: "assets/robots/rover/simple_rover.urdf"
-    spawn_position: [0.0, 0.0, 0.30]
-    sensor_config_paths:
-      - "configs/sensors/stereo_rgb.yaml"
-      - "configs/sensors/depth_camera.yaml"
-      - "configs/sensors/lidar_3d.yaml"
-      - "configs/sensors/imu.yaml"
-  - type: "rotorcraft"
-    urdf_path: "assets/robots/rotorcraft/simple_rotorcraft.urdf"
-    spawn_position: [5.0, 0.0, 3.0]
-  - type: "quadruped"
-    usd_asset_path: "Isaac/Robots/Unitree/Go2/go2.usd"
-    spawn_position: [-3.0, 0.0, 0.30]
+# robots: (Phase 1: disabled -- re-enable in Phase 2)
+#   - type: "rover"
+#     urdf_path: "assets/robots/rover/simple_rover.urdf"
+#     spawn_position: [0.0, 0.0, 0.30]
+#     sensor_config_paths:
+#       - "configs/sensors/stereo_rgb.yaml"
+#       - "configs/sensors/depth_camera.yaml"
+#       - "configs/sensors/lidar_3d.yaml"
+#       - "configs/sensors/imu.yaml"
+#   - type: "rotorcraft"
+#     urdf_path: "assets/robots/rotorcraft/simple_rotorcraft.urdf"
+#     spawn_position: [5.0, 0.0, 3.0]
+#   - type: "quadruped"
+#     usd_asset_path: "Isaac/Robots/Unitree/Go2/go2.usd"
+#     spawn_position: [-3.0, 0.0, 0.30]
 
 benchmark:
   annotation_format: "ai4mars"

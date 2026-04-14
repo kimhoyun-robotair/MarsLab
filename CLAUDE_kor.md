@@ -2,9 +2,9 @@
 
 ## 프로젝트 개요
 
-MarsLab은 이종 행성 로보틱스 연구를 위한 오픈소스 사실적 화성 시뮬레이션
-플랫폼으로, NVIDIA Isaac Sim 위에 구축되었다. 목표: ICRA 2027 Seoul 제출
-(마감 ~2026년 9월 15일).
+MarsLab은 행성/필드 로보틱스 연구를 위한 표준화된 미션 시나리오를 제공하는
+오픈소스 화성 시뮬레이션 플랫폼으로, NVIDIA Isaac Sim 위에 구축되었다.
+목표: iSpaRo 2026 Regular Paper (8페이지), 마감 2026년 6월 16일.
 
 **저장소**: `MarsLab/` (Apache 2.0 라이선스)
 **엔진**: Isaac Sim 5.x + Isaac Lab
@@ -15,13 +15,14 @@ MarsLab은 이종 행성 로보틱스 연구를 위한 오픈소스 사실적 �
 다음 13가지 가이드라인이 모든 개발 결정을 지배한다. 모든 기능, 모듈, 태스크는
 이 가이드라인 중 하나 이상에 추적 가능해야 한다.
 
-1. **G1: 인지 로보틱스 중심.** MarsLab = 사실적 화성 로봇 시뮬레이터 (OD, Seg,
-   SLAM, Nav, Exploration). Phase 1 = OD + Seg + 센서 데이터 생성. SLAM/Nav =
-   Phase 2.
-2. **G2: RL은 향후 작업.** Phase 1에 RL 환경, 보상 함수, Gym API wrapper 없음.
+1. **G1: 필드 로보틱스 플랫폼.** MarsLab = SLAM, Nav, Exploration을 위한 표준화된
+   화성 로보틱스 테스트 플랫폼. v1.0 = 7개 미션 시나리오 + 로버 + SLAM/Nav2 (iSpaRo 2026).
+   v2.0 = 고품질 Photorealism. v3.0 = Terramechanics + RL.
+2. **G2: RL은 향후 작업 (v3.0).** v3.0까지 RL 환경, 보상 함수, Gym API wrapper 없음.
 3. **G3: 코드 재사용 금지.** OmniLRS/RLRoverLab에서 알고리즘/흐름도 영감만 허용.
    코드 복사 금지. 참조 코드베이스 유래 명명 금지.
-4. **G4: 사실적 렌더링 = 최우선.** 물리 충실도는 부차적 (Phase 2).
+4. **G4: 로보틱스 우선, Photorealism은 나중.** v1.0 = 충분한 수준 렌더링 + 강력한
+   로보틱스 (시나리오, SLAM, Nav2). v2.0 = OmniLRS급 Photorealism. v3.0 = Terramechanics.
 5. **G5: 모든 설정 YAML로.** Python 소스에 하드코딩된 상수 제로.
 6. **G6: 극단적 모듈성.** 가장 작은 단위부터, 점진적 확장.
 7. **G7: 모든 것에 단위 테스트.** 자동화 불가 시 시각 검수.
@@ -40,6 +41,9 @@ MarsLab은 이종 행성 로보틱스 연구를 위한 오픈소스 사실적 �
 **P1: 평면 P0 아키텍처.**
 조기 추상화 금지. 평면 절차적 코드로 시작. 경험적 복잡도가 요구할 때만 클래스/패턴
 추출. Phase 1에 플러그인 시스템, 만능 객체, 등록 메커니즘 금지.
+**적용 범위:** P1은 MarsLab 소스 코드(`marslab/`, `scripts/`, `tests/`)에 적용된다.
+개발 하네스(`.claude/agents/`, `.claude/skills/`)는 제품 코드가 아닌 인프라 계층이므로
+P1 미적용이다.
 
 **P2: 단방향 데이터 흐름.**
 Config -> 순수 연산 모듈 -> Isaac Sim 씬 구성 -> 네이티브 시뮬레이션 루프.
@@ -135,18 +139,17 @@ mars:
 
 ## 우선순위 등급
 
-모든 태스크와 기능이 분류됨:
+버전별 분류 (iSpaRo 2026 마감: 6/16):
 
-- **MUST:** ICRA 2027 MVP 제출에 필수. 실패 = 논문 없음.
-  포함: config, 지형 (HiRISE + 절차적), 대기, 렌더링, 로버, 센서, 어노테이션,
-  벤치마크 평가.
-- **SHOULD:** 논문을 상당히 강화. 1주 이상 지연 시에만 삭감.
-  포함: 로터크래프트, 사족보행, 다중 로봇, Docker, 절차적 지형 프리셋.
-- **COULD:** 있으면 좋은 수준. 시간 압박 시 최우선 이월 대상.
-  포함: 휴머노이드 (G1), arXiv 프리뷰, 고급 DR 축.
+- **v1.0 MUST:** 로버 URDF 수정, 7개 미션 시나리오, 동적 대기,
+  SLAM + Nav2 통합, 실험 평가, 8페이지 iSpaRo 논문.
+- **v1.0 SHOULD:** 7개 시나리오 전부 완성. GitHub v1.0.0 릴리스.
+- **v2.0 (iSpaRo 이후):** OmniLRS급 Photorealism (고폴리 암석, 4K HDRI,
+  anti-tiling, pebble scatter).
+- **v3.0 (향후):** Terramechanics, RL 환경, 다중 로봇 협조.
 
-MVP 정의: 화성 환경 + 단일 로버 + 지형 분할 벤치마크.
-논문은 로버만으로도 성립. 다중 로봇은 강화 요소.
+MVP 정의: 3+ 시나리오 + 로버 + SLAM + Nav2 + 논문.
+최소 제출 가능: 시나리오 1-3 + 동적 대기 + SLAM/Nav2 실험.
 
 ## 에러 처리
 
@@ -191,21 +194,39 @@ MVP 정의: 화성 환경 + 단일 로버 + 지형 분할 벤치마크.
 - `.github/workflows/lint.yaml`: black + ruff 모든 push/PR에서 실행.
 - 통합 테스트: 수동 실행 또는 GPU 지원 CI (가용 시).
 
-## Phase 1 범위 (ICRA 2027)
+## 버전 범위
+
+### v1.0 (iSpaRo 2026, 현재)
 
 **범위 내:**
-- 합성 화성 이미지에 대한 객체 탐지, 의미론적 분할
-- 센서 데이터 생성 (RGB, depth, LiDAR, IMU)
-- Sim2real 벤치마크: 합성 학습 -> 실제 화성 이미지 평가
-- 다중 로봇 씬 구성 (인지 전용)
+- 7개 미션 시나리오: Basic Mars, Rock-Dense, Crater+Slopes, Canyon, Cave,
+  Spacecraft Landing, Mars Base
+- 동적 물리 로버 (fix_base=False, 안정적 URDF)
+- ROS2 풀 스택: cmd_vel, TF, odometry, 센서
+- SLAM 통합 (slam_toolbox 또는 rtabmap)
+- Nav2 자율 내비게이션
+- 동적 대기: sol 내 태양 이동 + tau 변화
+- 실험 평가: 시나리오별 SLAM 정확도, SLAM vs tau
+- 8페이지 iSpaRo 논문
 
-**Phase 1에서 명시적으로 범위 밖:**
-- SLAM / 자율 내비게이션 (Phase 2로 이월)
-- 강화학습 환경, 보상 함수, Gym API wrapper
-- Terramechanics (BCM/SCM/DEM) -- 강체 + 화성 마찰만
-- 화성 중력에서의 보행 로봇 동역학 검증
-- 로터크래프트 화성 공기역학 (단순화 운동학 모델만)
-- Ls 기반 계절 변동 (고정 설정 가능한 태양 위치)
+**v1.0에서 명시적으로 범위 밖:**
+- OmniLRS급 Photorealism (v2.0으로 이월)
+- Terramechanics (v3.0으로 이월)
+- RL 환경 (v3.0으로 이월)
+- 다중 로봇 협조 (향후 작업)
+
+### v2.0 (iSpaRo 이후): High Photorealism
+
+- OmniLRS급 PBR, anti-tiling, 4K HDRI, pebble scatter
+- Photogrammetry 암석, production 렌더 설정
+- Sim2Real perception 벤치마크 (AI4Mars)
+
+### v3.0 (향후): High Physical Fidelity
+
+- Terramechanics (Bekker/Janosi)
+- RL 환경 (Isaac Lab Gym API)
+- 다중 로봇 협조
+- Ls 파라미터화 계절 변동
 
 ## 작업 이력 로그
 
@@ -224,10 +245,10 @@ MVP 정의: 화성 환경 + 단일 로버 + 지형 분할 벤치마크.
 
 ## 금지 사항
 
-1. **Phase 1에서 terramechanics 충실도를 주장하지 말 것.** 물리 = 강체 + 화성
-   보정 마찰. BCM/SCM/DEM 없음. Terramechanics는 Phase 2 플러그인.
-2. **화성 중력에서 보행 로봇 동역학을 검증하지 말 것.** G1/Go2는 인지 전용.
-   보행 정책 전이 주장 없음.
+1. **v1.0에서 Terramechanics 충실도를 주장하지 말 것.** 물리 = 강체 + 화성
+   보정 마찰. BCM/SCM/DEM 없음. Terramechanics는 v3.0 플러그인.
+2. **v1.0에서 Photorealism을 쫓지 말 것.** 충분한 수준 렌더링 + 강력한 로보틱스.
+   OmniLRS급 Photorealism은 v2.0. 로보틱스 작업을 시각적 폴리시로 차단하지 말 것.
 3. **화성 파라미터를 하드코딩하지 말 것.** 모든 것을 설정 YAML에.
 4. **Isaac Sim 내장 USD 에셋을 저장소에 복사하지 말 것.** 에셋 경로로 참조.
 5. **Phase 1에서 로터크래프트 화성 공기역학을 구현하지 말 것.** 단순화 운동학
@@ -273,9 +294,27 @@ MVP 정의: 화성 환경 + 단일 로버 + 지형 분할 벤치마크.
 ## 커뮤니케이션 프로토콜
 
 기능 구현 요청 시:
+0. **활성화된 하네스 확인.** `.claude/agents/` 가 존재하고 작업이 v1.0 범위(Wk1~Wk6)
+   안이라면, 직접 구현 대신 `marslab-dev-orchestrator` 스킬을 통해 라우팅한다.
+   단일 개발자 직접 모드는 단순 질문, 문서 오타 수정, Wk7~8 논문 작성에만 사용.
 1. 해당 Phase/Week를 확인. 의존성 순서 준수.
 2. 참조 코드베이스가 이미 해결했는지 확인. 재구현 전 연구.
 3. 설정 기반, 시드 재현 가능 코드 작성.
 4. 단위 테스트 포함.
 5. Isaac Sim API에 확신이 없으면, 폐기된 API를 추측하기보다 불확실성을
    명시적으로 밝힐 것.
+
+## 하네스: MarsLab v1.0 개발팀
+
+**목표:** iSpaRo 2026 v1.0 (8주, 2026-04-14 ~ 2026-06-16) 개발을 6명 에이전트 팀으로 병렬 수행.
+
+**트리거:** Wk1~Wk6 범위의 개발 작업 요청 시 `marslab-dev-orchestrator` 스킬을 사용한다. 단순 질문, 문서 오타 수정, Wk7~8 논문 작성은 직접 응답 가능. v2.0(photorealism) / v3.0(terramechanics, RL) 작업은 out-of-scope로 거절.
+
+**팀 실행 모드:** 에이전트 팀 (6명). 모든 Agent 호출은 `model: "opus"`.
+
+**상세 정의:** 에이전트 역할·통신 프로토콜·사용 스킬은 `.claude/agents/` 및 `.claude/skills/` 에 있다. 이 CLAUDE_kor.md는 포인터만 제공한다(중복 회피).
+
+**변경 이력:**
+| 날짜 | 변경 내용 | 대상 | 사유 |
+|------|----------|------|------|
+| 2026-04-14 | 초기 하네스 구성 (에이전트 6, 스킬 9, 오케스트레이터 1) | `.claude/` 전체 | iSpaRo v1.0 8주 병렬 개발 체계 구축. 계획: `~/.claude/plans/cheerful-brewing-hammock.md`. |

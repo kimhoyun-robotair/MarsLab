@@ -1753,3 +1753,86 @@ reset() → stop() → play() → _scene._finalize() → scene.post_reset()
 ### Next Steps
 - Isaac Sim 렌더링 결과 확인 (로봇/바위 위치)
 - 이후: Annotation Pipeline (Week 12) → Benchmark (Week 13-16)
+
+---
+
+## [2026-04-11] Phase 구조 전면 재편: Photorealism-First 3-Phase
+
+**Module:** PLAN.md, PLAN_kor.md, CLAUDE.md, CLAUDE_kor.md, scripts/run_scene.py, configs/mars_env.yaml
+**Type:** Architecture / Plan Change
+
+### 원래 계획
+
+기존 PLAN.md v2.0 (22주 고정 타임라인):
+- Phase 1a (Wk 1-8): Config, terrain, atmosphere, rendering, rover
+- Phase 1b (Wk 9-16): ROS2, multi-robot, sensors, benchmark, annotation
+- Phase 1c (Wk 17-22): Sim2Real experiments, paper, ICRA submission
+
+### 변경 결정 및 근거
+
+**사용자 결정:** OmniLRS 스크린샷 대비 MarsLab 렌더링 품질 격차 확인 후, 데이터 파이프라인보다
+Photorealism을 절대 우선시하는 방향으로 전환. 시간 압박 없음 (고정 마감 제거).
+
+**핵심 변경:**
+1. 모든 로봇을 씬에서 제거 → 순수 Scene Photorealism에만 집중 (Phase 1)
+2. 씬 품질 확보 후 로버 1대에 집중, 동적 물리 + SLAM + Nav2 + YOLO (Phase 2)
+3. Multi-robot + 다수 Perception 알고리즘 → Phase 3A/3B로 분리
+
+### 새 Phase 구조 (PLAN.md v3.0)
+
+| Phase | Focus | 완료 기준 |
+|-------|-------|----------|
+| Foundation (Wk 1-9) | Config, terrain, atmosphere, rendering, robots, sensors, ROS2 | **완료** |
+| **Phase 1: Photorealistic Scene** | 로봇 없이 OmniLRS 동급+ 렌더링 | 사용자 검토 |
+| **Phase 2: Realistic Single Rover** | 동적 물리 + ROS2 + SLAM + Nav2 + YOLO | 사용자 검토 |
+| **Phase 3A: Multi-Robot** | 이종 다중 로봇 확장 | 사용자 검토 |
+| **Phase 3B: Perception Algorithms** | SLAM/Perception 알고리즘 벤치마킹 | 사용자 검토 |
+
+### Plan Mode 계획안 요약
+
+**Phase 1 핵심 작업:**
+- 고폴리 암석 (5K-10K faces, UV, 다중 PBR 텍스처)
+- 지형 material 다양성 + anti-tiling (Perlin noise blend)
+- 4K HDRI sky (sun disk, horizon glow, tau smooth 전환)
+- Pebble scatter (2-20cm 소형 암석 ~5000개)
+- 대기 안개 정밀화 (hardcoded → config, tau 연동)
+- Production 렌더 (SPP 32, total 256, bounces 6, 1920x1080)
+
+**Phase 2 핵심 작업:**
+- Rocker-bogie URDF + fix_base=False 동적 물리
+- ROS2 강력 통합 (TF, odom, cmd_vel)
+- SLAM (rtabmap/slam_toolbox) + Nav2
+- YOLO + SegFormer perception
+
+### What Was Done
+
+- **PLAN.md v3.0:** Section 5.1 Phase Overview 전면 교체, Section 5.2 Wk 10+ 전면 재작성, Section 8 Phase Transition Criteria 전면 교체
+- **PLAN_kor.md:** 동일 변경 한국어 반영
+- **CLAUDE.md:** G1 (Phase 범위 재정의), G4 (Phase별 물리 범위), Priority Tiers (Phase별 분류), Phase Scope (3-Phase 상세), What NOT To Do #1/#2 업데이트
+- **CLAUDE_kor.md:** 동일 변경 한국어 반영
+- **scripts/run_scene.py:** Robot spawn 블록 + ROS2 Bridge 블록 + MARSLAB_PUBLISH 블록 전체 주석 처리, rover import 주석 처리
+- **configs/mars_env.yaml:** robots 섹션 전체 주석 처리, 렌더 설정 production으로 변경 (SPP 32, total 256, bounces 6, 1920x1080)
+- **tests/unit/test_config_loader.py:** robots assertion 주석 처리 + Phase 1 assertion 추가
+- **tests/unit/test_robot_config.py:** robots assertion 주석 처리 + Phase 1 assertion 추가
+
+### Key Decisions
+
+1. **고정 타임라인 제거:** 22주 → 품질 게이트 기반 Phase 전환. 사용자가 시간 압박 없음을 명시.
+2. **ICRA 2027 타겟 제거:** 프로젝트 목표가 논문 제출에서 플랫폼 품질로 전환.
+3. **로봇 전면 제거 (Phase 1):** Scene photorealism에만 집중. 로봇은 품질 확보 후 Phase 2에서 재도입.
+4. **SLAM/Nav2 Phase 2로 승격:** 기존 "Phase 2 (Post-ICRA)" → 현재 "Phase 2 (Scene 품질 확보 후)".
+5. **코드 삭제 대신 주석 처리:** 사용자 요청. 나중에 쉽게 재활성화 가능하도록.
+
+### Test Results
+
+- black --check: 통과 (67 files unchanged)
+- ruff check: 통과 (All checks passed)
+- pytest tests/unit/: **140 passed**, 0 failed
+
+### Next Steps
+
+- Phase 1 실행: 고폴리 암석 생성 (blender_generate_rocks.py 업그레이드)
+- 추가 암석 PBR 텍스처 소싱 + Mars 색보정
+- 지형 anti-tiling + material 다양성
+- 4K HDRI sky 생성
+- Isaac Sim production 렌더 확인 (사용자 실행)

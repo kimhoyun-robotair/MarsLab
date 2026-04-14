@@ -15,8 +15,9 @@ def test_load_config_valid():
     # assert c.terrain.source == "hirise"  # hirise → procedural로 변경됨
     assert c.terrain.source == "procedural"
     # assert len(c.robots) == 1  # now 3 robots (rover + rotorcraft + quadruped)
-    assert len(c.robots) == 3
-    assert c.robots[0].type == "rover"
+    # assert len(c.robots) == 3  # Phase 1: robots disabled in mars_env.yaml
+    # assert c.robots[0].type == "rover"
+    assert len(c.robots) == 0  # Phase 1: no robots
 
 
 def test_load_config_file_not_found():

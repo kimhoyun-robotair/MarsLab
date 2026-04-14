@@ -29,7 +29,8 @@ from marslab.rendering.atmosphere_fog import configure_atmosphere_fog  # noqa: E
 from marslab.rendering.render_settings import set_render_mode  # noqa: E402
 from marslab.rendering.sky_renderer import configure_sky_dome  # noqa: E402
 from marslab.rendering.sun_renderer import configure_sun_light  # noqa: E402
-from marslab.robots.rover import spawn_rover  # noqa: E402
+
+# from marslab.robots.rover import spawn_rover  # noqa: E402  # Phase 1: disabled
 from marslab.terrain.material_applicator import apply_terrain_material  # noqa: E402
 from marslab.terrain.mesh_builder import build_terrain_mesh  # noqa: E402
 from marslab.terrain.procedural_generator import generate_terrain  # noqa: E402
@@ -156,97 +157,101 @@ def main() -> None:
         z = float(elevation[r, c])
         return 0.0 if np.isnan(z) else z
 
-    # --- Robots ---
-    robot_prim_paths = {}  # robot_name → actual prim path from spawn
-    if config.robots:
-        print(f"[run_scene] Spawning {len(config.robots)} robot(s)...")
-        for i, robot_config in enumerate(config.robots):
-            # Adjust spawn Z to terrain surface + config offset
-            sx, sy, sz_offset = robot_config.spawn_position
-            spawn_x = terrain_cx + sx
-            spawn_y = terrain_cy + sy
-            surface_z = _terrain_z_at(spawn_x, spawn_y)
-            robot_config.spawn_position = [spawn_x, spawn_y, surface_z + sz_offset]
-            print(
-                f"  {robot_config.type} spawn: ({spawn_x:.1f}, {spawn_y:.1f}, "
-                f"{surface_z + sz_offset:.1f}) [surface={surface_z:.1f}, offset={sz_offset}]"
-            )
+    # --- Robots (Phase 1: disabled -- re-enable in Phase 2) ---
+    # robot_prim_paths = {}  # robot_name → actual prim path from spawn
+    # if config.robots:
+    #     print(f"[run_scene] Spawning {len(config.robots)} robot(s)...")
+    #     for i, robot_config in enumerate(config.robots):
+    #         # Adjust spawn Z to terrain surface + config offset
+    #         sx, sy, sz_offset = robot_config.spawn_position
+    #         spawn_x = terrain_cx + sx
+    #         spawn_y = terrain_cy + sy
+    #         surface_z = _terrain_z_at(spawn_x, spawn_y)
+    #         robot_config.spawn_position = [spawn_x, spawn_y, surface_z + sz_offset]
+    #         print(
+    #             f"  {robot_config.type} spawn: ({spawn_x:.1f}, {spawn_y:.1f}, "
+    #             f"{surface_z + sz_offset:.1f}) [surface={surface_z:.1f}, offset={sz_offset}]"
+    #         )
+    #
+    #         if robot_config.type == "rover":
+    #             path = spawn_rover(stage, robot_config, config.mars_env.gravity)
+    #         elif robot_config.type == "rotorcraft":
+    #             from marslab.robots.rotorcraft import spawn_rotorcraft  # noqa: E402
+    #
+    #             path = spawn_rotorcraft(
+    #                 stage, robot_config, config.mars_env.gravity, config.mars_env.atmo_density
+    #             )
+    #         elif robot_config.type == "quadruped":
+    #             from marslab.robots.quadruped import spawn_quadruped  # noqa: E402
+    #
+    #             path = spawn_quadruped(stage, robot_config, config.mars_env.gravity)
+    #         else:
+    #             print(f"  Warning: Unknown robot type '{robot_config.type}', skipping")
+    #             continue
+    #
+    #         robot_name = f"{robot_config.type}_{i}"
+    #         robot_prim_paths[robot_name] = path
+    #         print(f"  {robot_config.type} prim: {path}")
+    #
+    #         # Attach sensors if configured
+    #         if robot_config.sensor_config_paths:
+    #             from marslab.sensors import load_and_attach_sensor  # noqa: E402
+    #
+    #             for sensor_path in robot_config.sensor_config_paths:
+    #                 try:
+    #                     sensor = load_and_attach_sensor(stage, path, sensor_path)
+    #                     print(f"    Sensor: {sensor_path} -> {sensor}")
+    #                 except Exception as e:
+    #                     print(f"    Warning: sensor failed: {sensor_path}: {e}")
 
-            if robot_config.type == "rover":
-                path = spawn_rover(stage, robot_config, config.mars_env.gravity)
-            elif robot_config.type == "rotorcraft":
-                from marslab.robots.rotorcraft import spawn_rotorcraft  # noqa: E402
-
-                path = spawn_rotorcraft(
-                    stage, robot_config, config.mars_env.gravity, config.mars_env.atmo_density
-                )
-            elif robot_config.type == "quadruped":
-                from marslab.robots.quadruped import spawn_quadruped  # noqa: E402
-
-                path = spawn_quadruped(stage, robot_config, config.mars_env.gravity)
-            else:
-                print(f"  Warning: Unknown robot type '{robot_config.type}', skipping")
-                continue
-
-            robot_name = f"{robot_config.type}_{i}"
-            robot_prim_paths[robot_name] = path
-            print(f"  {robot_config.type} prim: {path}")
-
-            # Attach sensors if configured
-            if robot_config.sensor_config_paths:
-                from marslab.sensors import load_and_attach_sensor  # noqa: E402
-
-                for sensor_path in robot_config.sensor_config_paths:
-                    try:
-                        sensor = load_and_attach_sensor(stage, path, sensor_path)
-                        print(f"    Sensor: {sensor_path} -> {sensor}")
-                    except Exception as e:
-                        print(f"    Warning: sensor failed: {sensor_path}: {e}")
-
-    # --- ROS2 Bridge (optional) ---
-    try:
-        import yaml  # noqa: E402
-
-        from marslab.ros2_bridge.publisher import (  # noqa: E402
-            enable_ros2_bridge,
-            setup_all_publishers,
-            setup_clock_publisher,
-        )
-
-        enable_ros2_bridge()
-        setup_clock_publisher()
-        print("[run_scene] ROS2 bridge enabled, clock publisher active")
-
-        for i, robot_config in enumerate(config.robots):
-            if not robot_config.sensor_config_paths:
-                continue
-            robot_name = f"{robot_config.type}_{i}"
-            actual_robot_path = robot_prim_paths.get(robot_name)
-            if not actual_robot_path:
-                continue
-
-            sensor_prim_paths = {}
-            sensor_configs = {}
-            for sp in robot_config.sensor_config_paths:
-                try:
-                    with open(sp) as f:
-                        cfg = yaml.safe_load(f).get("sensor", {})
-                    sname = cfg.get("name", "")
-                    mount = cfg.get("mount_link", "base_link")
-                    # Use actual robot prim path from spawn
-                    prim = stage.GetPrimAtPath(f"{actual_robot_path}/{mount}/{sname}")
-                    if prim.IsValid():
-                        sensor_prim_paths[sname] = f"{actual_robot_path}/{mount}/{sname}"
-                    else:
-                        sensor_prim_paths[sname] = f"{actual_robot_path}/{sname}"
-                    sensor_configs[sname] = cfg
-                except Exception:
-                    pass
-            if sensor_prim_paths:
-                topics = setup_all_publishers(robot_name, sensor_prim_paths, sensor_configs)
-                print(f"  [ros2] {robot_name}: {len(topics)} topic(s)")
-    except Exception as e:
-        print(f"[run_scene] ROS2 bridge not available (non-fatal): {e}")
+    # --- ROS2 Bridge (Phase 1: disabled -- re-enable in Phase 2) ---
+    # try:
+    #     import yaml  # noqa: E402
+    #
+    #     from marslab.ros2_bridge.publisher import (  # noqa: E402
+    #         enable_ros2_bridge,
+    #         setup_all_publishers,
+    #         setup_clock_publisher,
+    #     )
+    #
+    #     enable_ros2_bridge()
+    #     setup_clock_publisher()
+    #     print("[run_scene] ROS2 bridge enabled, clock publisher active")
+    #
+    #     for i, robot_config in enumerate(config.robots):
+    #         if not robot_config.sensor_config_paths:
+    #             continue
+    #         robot_name = f"{robot_config.type}_{i}"
+    #         actual_robot_path = robot_prim_paths.get(robot_name)
+    #         if not actual_robot_path:
+    #             continue
+    #
+    #         sensor_prim_paths = {}
+    #         sensor_configs = {}
+    #         for sp in robot_config.sensor_config_paths:
+    #             try:
+    #                 with open(sp) as f:
+    #                     cfg = yaml.safe_load(f).get("sensor", {})
+    #                 sname = cfg.get("name", "")
+    #                 mount = cfg.get("mount_link", "base_link")
+    #                 # Use actual robot prim path from spawn
+    #                 prim = stage.GetPrimAtPath(f"{actual_robot_path}/{mount}/{sname}")
+    #                 if prim.IsValid():
+    #                     sensor_prim_paths[sname] = (
+    #                         f"{actual_robot_path}/{mount}/{sname}"
+    #                     )
+    #                 else:
+    #                     sensor_prim_paths[sname] = f"{actual_robot_path}/{sname}"
+    #                 sensor_configs[sname] = cfg
+    #             except Exception:
+    #                 pass
+    #         if sensor_prim_paths:
+    #             topics = setup_all_publishers(
+    #                 robot_name, sensor_prim_paths, sensor_configs
+    #             )
+    #             print(f"  [ros2] {robot_name}: {len(topics)} topic(s)")
+    # except Exception as e:
+    #     print(f"[run_scene] ROS2 bridge not available (non-fatal): {e}")
 
     # --- Simulate ---
     print("[run_scene] Running simulation (60 steps)...")
@@ -317,24 +322,25 @@ def main() -> None:
         else:
             print(f"[run_scene] Warning: No data for {shot['name']}")
 
-    # --- Continuous mode for ROS2 topic verification ---
-    if os.environ.get("MARSLAB_PUBLISH") == "1":
-        print("[run_scene] MARSLAB_PUBLISH=1: Running continuously with full Mars scene.")
-        print("  Open another terminal and run:")
-        print("    ros2 topic list")
-        print("    ros2 topic echo /rover_0/stereo_rgb/image_raw --once")
-        print("  Press Ctrl+C to stop.\n")
-        frame = 0
-        try:
-            while simulation_app.is_running():
-                simulation_app.update()
-                frame += 1
-                if frame % 300 == 0:
-                    print(f"  [publish] frame {frame}, sim running...")
-        except KeyboardInterrupt:
-            print("\n[run_scene] Stopped by user.")
-    else:
-        print("[run_scene] Done.")
+    # --- Continuous mode for ROS2 topic verification (Phase 1: disabled) ---
+    # if os.environ.get("MARSLAB_PUBLISH") == "1":
+    #     print("[run_scene] MARSLAB_PUBLISH=1: Running continuously with full Mars scene.")
+    #     print("  Open another terminal and run:")
+    #     print("    ros2 topic list")
+    #     print("    ros2 topic echo /rover_0/stereo_rgb/image_raw --once")
+    #     print("  Press Ctrl+C to stop.\n")
+    #     frame = 0
+    #     try:
+    #         while simulation_app.is_running():
+    #             simulation_app.update()
+    #             frame += 1
+    #             if frame % 300 == 0:
+    #                 print(f"  [publish] frame {frame}, sim running...")
+    #     except KeyboardInterrupt:
+    #         print("\n[run_scene] Stopped by user.")
+    # else:
+    #     print("[run_scene] Done.")
+    print("[run_scene] Done.")
 
     simulation_app.close()
 

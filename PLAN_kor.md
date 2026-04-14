@@ -1,9 +1,9 @@
 # PLAN.md -- MarsLab 아키텍처 및 구현 계획
 
-**버전:** 2.0 (최종 -- 13-Agent 적대적 합성)
-**날짜:** 2026-04-07
-**목표:** ICRA 2027 Seoul (마감 ~2026년 9월 15일)
-**기간:** 22주 (4월 7일 -- 9월 15일, 2026)
+**버전:** 4.0 (iSpaRo 2026 — 시나리오 기반 로보틱스 플랫폼)
+**날짜:** 2026-04-14
+**목표:** 다양한 미션 시나리오를 지원하는 표준화된 화성 로보틱스 테스트 플랫폼
+**기간:** 8주 (4/14 -- 6/16, 2026) v1.0 iSpaRo 제출
 **라이선스:** Apache 2.0
 
 **방법론:** 본 계획은 13-agent 적대적 토론 시스템을 통해 생성되었다. Agent 1과 6이
@@ -466,290 +466,174 @@ benchmark:
 
 ## 4. 우선순위 등급 [G10]
 
-모든 태스크와 기능이 분류됨:
+> **참고 (2026-04-14):** iSpaRo 2026 제출 기준으로 재구성 (6/16 마감).
+> 버전 로드맵: v1.0 (시나리오+로보틱스) → v2.0 (Photorealism) → v3.0 (Terramechanics).
 
-- **MUST:** ICRA 2027 MVP 제출에 필수. 실패 = 논문 없음.
-  포함: config, 지형 (HiRISE + 절차적), 대기, 렌더링, 로버, 센서, 어노테이션,
-  벤치마크 평가.
-- **SHOULD:** 논문을 상당히 강화. 1주 이상 지연 시에만 삭감.
-  포함: 로터크래프트, 사족보행, 다중 로봇, Docker, 절차적 지형 프리셋.
-- **COULD:** 있으면 좋은 수준. 시간 압박 시 최우선 이월 대상.
-  포함: 휴머노이드 (G1), arXiv 프리뷰, 고급 DR 축.
+버전별 분류:
 
-**MVP 정의:** 화성 환경 + 단일 로버 + 지형 분할 벤치마크.
-논문은 로버만으로도 성립. 다중 로봇은 강화 요소이나 필수는 아님.
+- **v1.0 MUST (iSpaRo 2026):** 7개 미션 시나리오, 로버 URDF 수정, 동적 대기,
+  SLAM 통합, Nav2 통합, 실험 평가, 8페이지 논문.
+- **v1.0 SHOULD:** 7개 시나리오 전부 완성. GitHub v1.0.0 릴리스.
+- **v2.0 (iSpaRo 이후):** OmniLRS급 Photorealism (고폴리 암석, 4K HDRI, anti-tiling,
+  pebble scatter).
+- **v3.0 (향후):** Terramechanics, RL 환경, 다중 로봇 협조.
 
----
-
-## 5. 구현 계획 (22주)
-
-### 5.1 Phase 개요
-
-| Phase | 주차 | 날짜 | 중점 |
-|-------|------|------|------|
-| Phase 1a | Wk 1-8 | 4/7 -- 5/31 | Config, 지형, 대기, 렌더링, 로버 |
-| Phase 1b | Wk 9-16 | 6/2 -- 7/27 | ROS2, 다중 로봇, 센서, 벤치마크, 어노테이션 |
-| Phase 1c | Wk 17-22 | 7/28 -- 9/15 | Sim2Real 실험, 논문, 제출 |
-
-### 5.2 주차별 구현 (가장 작은 단위부터) [G6]
+**MVP 정의:** 3+ 시나리오 + 로버 + SLAM + Nav2 + 논문.
+최소 제출 가능: 시나리오 1-3 + 동적 대기 + SLAM/Nav2 실험.
 
 ---
 
-#### WEEK 1 (4/7-13): 개발 환경 + Config + CI
+## 5. 구현 계획
+
+### 5.1 버전 로드맵
+
+> **참고 (2026-04-14):** Photorealism-first에서 시나리오 기반 로보틱스 플랫폼으로
+> 전환. 정체성: 렌더러 → 로보틱스 테스트베드. Wk 1-9 완료. v1.0은 iSpaRo 2026 대상.
+
+| 버전 | 대상 | 중점 | 마감 |
+|------|------|------|------|
+| Foundation (Wk 1-9) | -- | Config, 지형, 대기, 렌더링, 로봇, 센서, ROS2 | **완료** |
+| **v1.0** | **iSpaRo 2026** | 7개 미션 시나리오 + 로버 SLAM/Nav2 + 논문 (8p) | **6/16** |
+| v2.0 | iSpaRo 이후 | OmniLRS급 Photorealism | 미정 |
+| v3.0 | 향후 | Terramechanics, RL, 다중 로봇 협조 | 미정 |
+
+### 5.2 Foundation (Wk 1-9, 완료)
+
+Wk 1-9에서 핵심 인프라 구축 완료. git 이력 및 work_log/LOG.md 참조.
+완료: config, HiRISE DEM, 절차적 지형, 대기, 렌더링, 로봇 3종,
+센서 (RGB/depth/IMU/LiDAR), ROS2 bridge, 140 단위 테스트.
+
+### 5.3 v1.0 일정 (8주, 4/14 -- 6/16) [G6]
+
+---
+
+#### WEEK 1 (4/14-20): 로버 URDF 수정 + 이동성 확보
+
+**v1.0 MUST:** 로버 URDF 수정, 7개 미션 시나리오, 동적 대기,
+SLAM + Nav2 통합, 실험 평가, 8페이지 iSpaRo 논문.
 
 | # | 태스크 | 우선순위 | 파일 | 가이드라인 |
 |---|--------|----------|------|-----------|
-| 1 | Isaac Sim 5.x 설치, GPU 확인 | MUST | -- | -- |
-| 2 | 저장소 구조, pyproject.toml, .gitignore 생성 | MUST | pyproject.toml | G6 |
-| 3 | GitHub Actions CI 설정 (단위 테스트 + lint) | MUST | .github/workflows/ | G7 |
-| 4 | seed.py 작성 (set_global_seed) | MUST | marslab/utils/seed.py | G5 |
-| 5 | config schema.py 작성 (pydantic 모델 전체) | MUST | marslab/config/schema.py | G5 |
-| 6 | config loader.py 작성 | MUST | marslab/config/loader.py | G5 |
-| 7 | mars_env.yaml 작성 (전체 설정) | MUST | configs/mars_env.yaml | G5 |
-| 8 | hello_isaac.py 작성 (Isaac Sim 동작 확인) | MUST | scripts/hello_isaac.py | G6 |
-| 9 | config + seed 단위 테스트 작성 | MUST | tests/unit/ | G7 |
+| 1 | 로버 URDF 수정 (오픈소스 채택 또는 재설계) | MUST | assets/robots/rover/ | G4 |
+| 2 | fix_base=False 설정, 지형 위 안착 검증 | MUST | marslab/robots/rover.py | G4 |
+| 3 | run_scene.py 로봇 스폰 주석 해제 | MUST | scripts/run_scene.py | -- |
+| 4 | mars_env.yaml 로봇 주석 해제 | MUST | configs/mars_env.yaml | G5 |
 
-**산출물:** Config 검증 완료, CI 그린, Isaac Sim이 hello_isaac.py 실행.
+**산출물:** 로버가 fix_base=False로 화성 지형 위에서 주행.
 
 ---
 
-#### WEEK 2 (4/14-20): HiRISE 지형 + 암석 배치 (오프라인)
+#### WEEK 2 (4/21-27): 시나리오 1-3 (HiRISE Crop) + ROS2 제어
 
 | # | 태스크 | 우선순위 | 파일 | 가이드라인 |
 |---|--------|----------|------|-----------|
-| 1 | HiRISE DTM 다운로드 (Jezero) | MUST | assets/terrain/dem/ | -- |
-| 2 | dem_loader.py 작성 (GDAL -> numpy) | MUST | marslab/terrain/dem_loader.py | G5,G6 |
-| 3 | rock_placer.py 작성 (Golombek SFD) | MUST | marslab/terrain/rock_placer.py | G5,G6 |
-| 4 | jezero_crater.yaml 작성 | MUST | configs/terrain/ | G5 |
-| 5 | 단위 테스트 작성 | MUST | tests/unit/ | G7 |
+| 1 | 시나리오 1 config: Basic Mars (Jezero 평원 crop) | MUST | configs/scenarios/basic_mars.yaml | G5 |
+| 2 | 시나리오 2 config: Rock-Dense Zone (rock_sfd_k=0.10) | MUST | configs/scenarios/rock_dense.yaml | G5 |
+| 3 | 시나리오 3 config: Crater + Slopes (Jezero rim/delta crop) | MUST | configs/scenarios/crater_slopes.yaml | G5 |
+| 4 | cmd_vel 서브스크라이버: /cmd_vel → 바퀴 제어 | MUST | marslab/ros2_bridge/cmd_vel_subscriber.py (신규) | G6 |
+| 5 | TF 브로드캐스터: odom → base_link → sensor_frames | MUST | marslab/ros2_bridge/tf_broadcaster.py (신규) | G6 |
+| 6 | Odometry 퍼블리셔: 바퀴 인코더 → /odom | MUST | marslab/ros2_bridge/odometry.py (신규) | G6 |
+| 7 | 센서 ROS2 퍼블리셔 재활성화 | MUST | marslab/ros2_bridge/publisher.py | G6 |
 
-**HiRISE DTM 출처:**
-- AWS: `s3://nasa-usgs-mars-hirise-dtms/` (무료, 인증 불필요)
-- 특정 제품: DTEEC_045994_1985_046060_1985 (Jezero Crater)
-- USGS: `astrogeology.usgs.gov/search?pmi-target=mars`
-
-**산출물:** 오프라인 지형 + 암석 파이프라인. 모든 단위 테스트 통과.
+**산출물:** 3개 시나리오 config + /cmd_vel로 로버 원격 제어 가능.
 
 ---
 
-#### WEEK 3 (4/21-27): 화성 대기 + 조명 (오프라인)
+#### WEEK 3 (4/28 -- 5/4): 동적 대기 + SLAM 통합
 
 | # | 태스크 | 우선순위 | 파일 | 가이드라인 |
 |---|--------|----------|------|-----------|
-| 1 | sky_dome.py 작성 (tau -> 색상/밝기) | MUST | marslab/environment/ | G4,G6 |
-| 2 | light_intensity.py 작성 (Beer 법칙) | MUST | marslab/environment/ | G5,G6 |
-| 3 | diffuse_fraction.py 작성 (COMIMART) | MUST | marslab/environment/ | G5,G6 |
-| 4 | sun_position.py 작성 (설정 가능) | MUST | marslab/environment/ | G5,G6 |
-| 5 | 대기 단위 테스트 전체 작성 | MUST | tests/unit/ (4개 파일) | G7 |
+| 1 | 동적 태양 위치: sol 내 방위각 sweep | MUST | marslab/environment/sun_position.py | G5 |
+| 2 | 런타임 tau 변화: scene 수준 tau 변경 | MUST | marslab/environment/sky_dome.py | G5 |
+| 3 | tau 변경 시 fog 자동 업데이트 | MUST | marslab/rendering/atmosphere_fog.py | G5 |
+| 4 | SLAM 통합: slam_toolbox (2D LiDAR) | MUST | ROS2 launch 파일, configs/ | G1 |
+| 5 | 시나리오 1-3에서 SLAM 맵 생성 | MUST | -- | G7 |
 
-**compute_sun_position Phase 1 vs Phase 2:**
-- Phase 1: `compute_sun_position(azimuth_deg, elevation_deg) -> SunPosition`
-  (YAML에서 사용자 설정, 궤도역학 없음)
-- Phase 2: `compute_sun_position(ls, latitude, time_of_sol) -> SunPosition`
-  (Allison & McEwen 2000 Ls 기반 연산)
-- SunPosition dataclass는 Phase 간 변경 없음.
-
-**산출물:** 모든 화성 물리 오프라인 테스트 가능. Isaac Sim 의존성 제로.
+**산출물:** 동적 대기 + 3개 시나리오 SLAM 맵.
 
 ---
 
-#### WEEK 4 (4/28 -- 5/4): 로버 (단순화 차체) + PBR 재질
-
+#### WEEK 4 (5/5-11): Nav2 통합 + 시나리오 4 (협곡)
 | # | 태스크 | 우선순위 | 파일 | 가이드라인 |
 |---|--------|----------|------|-----------|
-| 1 | material_applicator.py 작성 | MUST | marslab/terrain/ | G4,G6 |
-| 2 | mesh_builder.py 작성 (고도 -> USD) | MUST | marslab/terrain/ | G6 |
-| 3 | 단순화 로버 URDF 생성 (박스 차체 + 6바퀴) | MUST | assets/robots/rover/ | G6 |
-| 4 | rover.py 작성 (spawn_rover) | MUST | marslab/robots/ | G6 |
-| 5 | convert_urdf.py 스크립트 작성 | MUST | scripts/ | G6 |
-| 6 | 단위 테스트 (로봇 설정, 재질) | MUST | tests/unit/ | G7 |
-| 7 | test_robot_spawn.py 작성 (통합) | MUST | tests/integration/ | G7 |
+| 1 | Nav2 스택: costmap + planner + controller | MUST | configs/nav2/, launch 파일 | G1 |
+| 2 | Nav2 waypoint following 테스트 | MUST | 테스트 스크립트 | G7 |
+| 3 | structure_loader.py: OBJ/USD 에셋 로드 + scene 배치 | MUST | marslab/terrain/structure_loader.py (신규) | G6 |
+| 4 | 시나리오 4: 협곡 (과학 논문 기반 Blender 메시 + 배치) | SHOULD | configs/scenarios/canyon.yaml, assets/ | G4 |
 
-**로버 URDF 출처:**
-- Wk 4: 단순화 박스 차체 + 6개 원통형 바퀴. 로커보기 없음.
-  목적: URDF->USD 파이프라인, 중력, 지형 상호작용 검증.
-- Wk 14: NASA 3D Resources CAD에서 풀 로커보기 (nasa3d.arc.nasa.gov).
-
-**산출물:** 화성 지형 위의 로버. 화성 중력 확인. PBR 재질 v1.
+**산출물:** Nav2 자율 주행 + 협곡 scene.
 
 ---
 
-#### WEEK 5 (5/5-11): 절차적 지형 + 시드 재현성
+#### WEEK 5 (5/12-18): 시나리오 5-7 (동굴, 우주선, 기지)
 
 | # | 태스크 | 우선순위 | 파일 | 가이드라인 |
 |---|--------|----------|------|-----------|
-| 1 | procedural_generator.py 작성 (flat/crater/hills) | SHOULD | marslab/terrain/ | G5,G6 |
-| 2 | 3개 지형 프리셋 YAML 작성 | SHOULD | configs/terrain/ | G5 |
-| 3 | 병합 충돌 메시 구현 | SHOULD | marslab/terrain/ | G6 |
-| 4 | 모든 모듈에서 시드 재현성 확인 | MUST | tests/ | G5 |
+| 1 | 시나리오 5: 화성 동굴 (Blender 메시 + PointLight 조명) | SHOULD | configs/scenarios/cave.yaml, assets/ | G4 |
+| 2 | 시나리오 6: 우주선 착륙지 (3D 모델 배치) | SHOULD | configs/scenarios/spacecraft.yaml, assets/ | G4 |
+| 3 | 시나리오 7: 화성 기지 (habitat/solar panel 모델) | SHOULD | configs/scenarios/mars_base.yaml, assets/ | G4 |
+| 4 | 동굴 조명 모드: DomeLight 끄기 + PointLight/SpotLight | SHOULD | marslab/rendering/sky_renderer.py | G5 |
 
-**산출물:** 3+ 지형 프리셋. 시드 재현성 단대단 검증.
+**산출물:** 7개 시나리오 scene 전체 완성.
 
 ---
 
-#### WEEK 6 (5/12-18): 렌더링 통합 + 시각 검증
+#### WEEK 6 (5/19-25): 실험 + 데이터 수집
 
 | # | 태스크 | 우선순위 | 파일 | 가이드라인 |
 |---|--------|----------|------|-----------|
-| 1 | render_settings.py 작성 | MUST | marslab/rendering/ | G4 |
-| 2 | sky_renderer.py 작성 (돔 라이트 + HDRI) | MUST | marslab/rendering/ | G4,G6 |
-| 3 | sun_renderer.py 작성 (방향 광원) | MUST | marslab/rendering/ | G4,G6 |
-| 4 | atmosphere_fog.py 작성 (tau -> 가시거리) | MUST | marslab/rendering/ | G4,G6 |
-| 5 | run_scene.py 작성 (전체 씬 오케스트레이터) | MUST | scripts/ | G6 |
-| 6 | 통합 테스트: 전체 씬, 대기 안개 | MUST | tests/integration/ | G7 |
-| 7 | 시각 검수: 화성 vs 달, tau 비교 | MUST | -- | G7 |
+| 1 | SLAM 벤치마크: 전체 시나리오 ATE/RPE 측정 | MUST | 평가 스크립트 | G7 |
+| 2 | Nav2 벤치마크: 성공률, 경로 길이 측정 | MUST | 평가 스크립트 | G7 |
+| 3 | tau 영향 실험: tau 0.3/1.0/2.0/4.0에서 SLAM 정확도 | MUST | -- | G7 |
+| 4 | 논문 figure 생성: 시나리오 스크린샷, 그래프 | MUST | scripts/ | G4 |
 
-**렌더링 모드:** 데이터 생성 기본: RTX Interactive (path-tracing).
+**산출물:** 논문용 실험 테이블 + figure 전체 완성.
 인터랙티브 개발 기본: RTX Real-Time (ray-tracing). 양쪽 항상 지원.
 
-**산출물:** 통합 화성 씬 v1. 실제 화성 사진과 스크린샷 비교.
-
 ---
 
-#### WEEK 7 (5/19-25): 로터크래프트 + 사족보행 로봇
+#### WEEK 7 (5/26 -- 6/1): 논문 작성 (Draft v1)
 
 | # | 태스크 | 우선순위 | 파일 | 가이드라인 |
 |---|--------|----------|------|-----------|
-| 1 | Ingenuity급 로터크래프트 URDF 생성 | SHOULD | assets/robots/rotorcraft/ | G6 |
-| 2 | rotorcraft.py 작성 (단순화 운동학) | SHOULD | marslab/robots/ | G6 |
-| 3 | quadruped.py 작성 (Go2 내장 USD) | SHOULD | marslab/robots/ | G6 |
-| 4 | 로봇 설정 YAML 작성 | SHOULD | configs/robots/ | G5 |
+| 1 | 논문 초안: 8개 섹션 (intro, related work, 아키텍처, 시나리오, 실험, 결론) | MUST | paper/ | G8 |
+| 2 | 데모 영상 (선택, 제출 강화) | SHOULD | -- | -- |
 
-**산출물:** 화성 씬에 3종 로봇 타입.
+**산출물:** 8페이지 논문 초안 완성.
 
 ---
 
-#### WEEK 8 (5/26 -- 6/1): 체크포인트 + 버퍼
-
-**>>> 사용자 검토 게이트 1 <<<** [G10]
+#### WEEK 8 (6/2-16): 논문 수정 + 제출
 
 | # | 태스크 | 우선순위 | 파일 | 가이드라인 |
 |---|--------|----------|------|-----------|
-| 1 | Phase 1a 체크포인트 보고서 | MUST | work_log/LOG.md | G8 |
-| 2 | README.md v1 (설치 가이드 포함) | SHOULD | README.md | -- |
-| 3 | 현재 역량 데모 영상 | SHOULD | -- | -- |
-| 4 | 버퍼: 지연된 MUST 태스크 만회 | MUST | -- | -- |
-| 5 | 스케줄 평가 + 재우선순위화 | MUST | -- | G10 |
+| 1 | 자체 리뷰 기반 논문 수정 | MUST | paper/ | G10 |
+| 2 | 최종 figure, IEEE 형식 준수 | MUST | paper/ | -- |
+| 3 | iSpaRo 2026 제출 | MUST | -- | -- |
+| 4 | GitHub v1.0.0 릴리스 | SHOULD | -- | -- |
 
-**산출물:** 체크포인트 보고서. 사용자 검토. 필요 시 버퍼 소진.
-
----
-
-#### WEEK 9 (6/2-8): ROS2 Bridge
-
-| # | 태스크 | 우선순위 | 파일 | 가이드라인 |
-|---|--------|----------|------|-----------|
-| 1 | topic_config.py 작성 | MUST | marslab/ros2_bridge/ | G6 |
-| 2 | publisher.py 작성 | MUST | marslab/ros2_bridge/ | G6 |
-| 3 | test_ros2_bridge.py 작성 | MUST | tests/integration/ | G7 |
-
-**산출물:** `ros2 topic list/echo`로 ROS2 토픽 검증.
+**>>> v1.0 제출 <<<** [G10]
 
 ---
 
-#### WEEK 10 (6/9-15): 다중 로봇 + 휴머노이드
+### 5.4 v2.0 / v3.0 (iSpaRo 이후, 향후 작업)
 
-| # | 태스크 | 우선순위 | 파일 | 가이드라인 |
-|---|--------|----------|------|-----------|
-| 1 | humanoid.py 작성 (G1 내장 USD) | COULD | marslab/robots/ | G6 |
-| 2 | 독립 네임스페이스 다중 로봇 스폰 | SHOULD | marslab/robots/ | G6 |
-| 3 | FPS 벤치마크: 1/2/3/4 로봇 | SHOULD | -- | -- |
-| 4 | test_multi_robot.py 작성 | SHOULD | tests/integration/ | G7 |
+**v2.0: High Photorealism**
+- OmniLRS급 PBR 텍스처 (4K+, anti-tiling, pebble scatter)
+- Photogrammetry 암석 메시 (5K-40K faces)
+- 4K HDRI 하늘 + smooth tau 보간
+- Production 렌더 설정 (SPP 32+, bounces 6+)
 
-**산출물:** 다중 로봇 데모. G1 인지 전용 (동역학 주장 없음).
+**v3.0: High Physical Fidelity**
+- Terramechanics 플러그인 (Bekker/Janosi)
+- RL 환경 (Isaac Lab Gym API)
+- 다중 로봇 협조
+- Ls 파라미터화 계절 변동
 
----
-
-#### WEEK 11 (6/16-22): 전체 센서 스위트
-
-| # | 태스크 | 우선순위 | 파일 | 가이드라인 |
-|---|--------|----------|------|-----------|
-| 1 | imu.py 작성 (화성 보정 노이즈) | MUST | marslab/sensors/ | G5,G6 |
-| 2 | camera.py 작성 (스테레오 RGB + 깊이) | MUST | marslab/sensors/ | G5,G6 |
-| 3 | lidar.py 작성 | MUST | marslab/sensors/ | G5,G6 |
-| 4 | 센서 설정 YAML 작성 | MUST | configs/sensors/ | G5 |
-| 5 | test_sensor_output.py 작성 | MUST | tests/integration/ | G7 |
-| 6 | **IMU 중력 테스트: z축 = 3.72 +/- 0.05** | MUST | tests/integration/ | G7 |
-
-**산출물:** 4가지 센서 모달리티 ROS2 토픽 퍼블리시. IMU 중력 검증.
 
 ---
 
-#### WEEK 12 (6/23-29): 어노테이션 파이프라인
 
-| # | 태스크 | 우선순위 | 파일 | 가이드라인 |
-|---|--------|----------|------|-----------|
-| 1 | semantic_labeler.py 작성 (AI4Mars 4클래스) | MUST | marslab/terrain/ | G1 |
-| 2 | replicator_setup.py 작성 | MUST | marslab/annotation/ | G6 |
-| 3 | label_converter.py 작성 | MUST | marslab/annotation/ | G1 |
-| 4 | dataset_writer.py 작성 | MUST | marslab/annotation/ | G6 |
-| 5 | 단위 + 통합 어노테이션 테스트 | MUST | tests/ | G7 |
-
-**산출물:** 어노테이션 파이프라인 v1. RGB + 의미론적 레이블 쌍.
-
----
-
-#### WEEK 13 (6/30 -- 7/6): 벤치마크 설계
-
-| # | 태스크 | 우선순위 | 파일 | 가이드라인 |
-|---|--------|----------|------|-----------|
-| 1 | domain_randomizer.py 작성 (5개 DR 축) | MUST | marslab/benchmark/ | G5 |
-| 2 | data_generator.py 작성 (시드 고정 대량 생성) | MUST | marslab/benchmark/ | G1,G5 |
-| 3 | 벤치마크 설정 YAML 작성 | MUST | configs/benchmark/ | G5 |
-| 4 | test_domain_randomizer.py 작성 | MUST | tests/unit/ | G7 |
-
-**산출물:** 벤치마크 프로토콜. 합성 데이터셋 v1 (10K+ 쌍).
-
----
-
-#### WEEK 14 (7/7-13): 로봇 마무리 + 데이터셋 확정
-
-| # | 태스크 | 우선순위 | 파일 | 가이드라인 |
-|---|--------|----------|------|-----------|
-| 1 | 로버 URDF 업그레이드: 풀 로커보기 | SHOULD | assets/robots/rover/ | -- |
-| 2 | 로봇 모델 QA (충돌, 관성, 관절) | MUST | -- | -- |
-| 3 | 합성 데이터셋 완료, train/val/test 분할 | MUST | -- | G5 |
-
-**산출물:** 최종 로봇 모델. 완전한 합성 데이터셋.
-
----
-
-#### WEEK 15 (7/14-20): Docker + 버퍼
-
-| # | 태스크 | 우선순위 | 파일 | 가이드라인 |
-|---|--------|----------|------|-----------|
-| 1 | Dockerfile + docker-compose 작성 | SHOULD | docker/ | -- |
-| 2 | 전체 DR 다양성으로 최종 데이터 생성 | MUST | -- | G5 |
-| 3 | 버퍼: SHOULD 태스크 만회 | -- | -- | -- |
-
-**산출물:** Docker 이미지 v1. 최종 데이터셋.
-
----
-
-#### WEEK 16 (7/21-27): ML 파이프라인 + 평가
-
-**>>> 사용자 검토 게이트 2 <<<** [G10]
-
-| # | 태스크 | 우선순위 | 파일 | 가이드라인 |
-|---|--------|----------|------|-----------|
-| 1 | evaluator.py 작성 (AP, mIoU, F1) | MUST | marslab/benchmark/ | G1 |
-| 2 | run_benchmark.py 스크립트 작성 | MUST | scripts/ | G1 |
-| 3 | 전체 시스템 사용자 검토 | MUST | -- | G10 |
-
-**산출물:** 평가 파이프라인 준비 완료. Phase 1c 사용자 승인.
-
----
-
-#### WEEKS 17-22: 실험 + 논문
-
-| 주차 | 중점 | 우선순위 |
-|------|------|----------|
-| 17 | SegFormer 학습, zero-shot + fine-tune (AI4Mars) | MUST |
-| 18 | 절삭 연구, 다중 로봇 데모, 실패 분석 | MUST/SHOULD |
-| 19 | 논문 초안 v1 (ICRA 6+2 형식) | MUST |
-| 20 | 논문 v2, 3분 영상, 코드 정리 | MUST |
-| 21 | 내부 리뷰, IEEE 형식, 최종 마무리 | MUST |
-| 22 | ICRA 2027 제출 + GitHub v1.0.0 릴리스 | MUST |
 
 ---
 
@@ -850,49 +734,48 @@ benchmark:
 
 ---
 
-## 8. Phase 전환 기준
+## 8. 버전 릴리스 기준
 
-### 8.1 Phase 1a -> Phase 1b (Wk 8 -> Wk 9) [G10]
+> **참고 (2026-04-14):** 버전 기반 릴리스로 재구성.
 
-모두 충족되어야 함:
+### 8.0 Foundation (Wk 1-9) [G10]
 
-- [ ] `marslab/config/` 완전 동작, 검증된 YAML 로딩.
-- [ ] `marslab/environment/` Beer 법칙, 확산 비율, 스카이돔 정상 연산.
-- [ ] `marslab/terrain/` HiRISE DEM 로드, 절차적 지형, Golombek SFD 암석 배치.
-- [ ] `marslab/rendering/` 화성 유사 씬 생성 (버터스카치 하늘, 올바른 그림자).
-- [ ] 로버가 3.72 m/s^2 중력으로 화성 씬에 스폰.
-- [ ] 모든 단위 테스트 통과. 통합 테스트 통과.
-- [ ] 시각 검수 V1-V5 서명 완료.
+**완료 (2026-04-11).** Config, 지형, 대기, 렌더링, 로봇, 센서, ROS2.
 
-### 8.2 Phase 1b -> Phase 1c (Wk 16 -> Wk 17) [G10]
+### 8.1 v1.0 릴리스 기준 (iSpaRo 2026, 6/16) [G10]
 
 모두 충족되어야 함:
 
-- [ ] ROS2 bridge가 모든 센서 데이터를 올바른 토픽으로 퍼블리시.
-- [ ] 다중 로봇 스폰 (3+ 타입) 동시 동작.
-- [ ] 4가지 센서 모달리티 모두 검증.
-- [ ] 어노테이션 파이프라인이 AI4Mars 호환 레이블 생성.
-- [ ] 벤치마크 합성 데이터셋 생성 (10K+ 쌍, 시드 고정 DR).
+- [ ] 로버가 화성 지형 위에서 주행 (fix_base=False, 안정적 물리).
+- [ ] /cmd_vel로 로버 이동 제어. TF 트리 + 오도메트리 퍼블리시.
+- [ ] 3개+ 미션 시나리오 운영 (HiRISE crop 기반, config 구동).
+- [ ] 동적 대기: tau 및 시간에 따라 scene 변화.
+- [ ] SLAM이 최소 2개 시나리오에서 맵 생성 (ATE/RPE 측정).
+- [ ] Nav2가 최소 1개 시나리오에서 waypoint 내비게이션.
+- [ ] 실험 테이블 완성 (SLAM 정확도 vs 시나리오, SLAM vs tau).
+- [ ] 8페이지 iSpaRo 논문 제출.
 
-### 8.3 Phase 1 -> Phase 2 (ICRA 이후) [G2]
-
-모두 충족되어야 함:
-
-- [ ] ICRA 2027 논문 제출.
+**SHOULD (논문 강화, 차단 아님):**
+- [ ] 7개 시나리오 전부 완성 (협곡, 동굴, 우주선, 기지).
+- [ ] 다수 시나리오에서 Nav2 벤치마크.
 - [ ] GitHub v1.0.0 공개 릴리스.
-- [ ] AI4Mars 벤치마크: mIoU > 베이스라인.
-- [ ] Gap 분석으로 부재한 P1/P2 현상 문서화.
-- [ ] 22주 전체 작업 로그 완료. [G8]
 
-**Phase 2 변경 사항:**
-- RL 통합 (Isaac Lab Gym API wrapper). [G2]
-- Terramechanics 플러그인 (데이터 기반). [G4]
-- SLAM/Nav 모듈. [G1]
-- Ls 파라미터화 시간 변동.
+### 8.2 v2.0 릴리스 기준 (iSpaRo 이후) [G4]
 
-**변경되지 않는 사항:**
+- [ ] OmniLRS급 Photorealism (고폴리 암석, 4K HDRI, anti-tiling).
+- [ ] Production 렌더 설정 (SPP 32+, bounces 6+).
+- [ ] Perception 벤치마크: AI4Mars sim2real 전이.
+
+### 8.3 v3.0 릴리스 기준 (향후) [G4]
+
+- [ ] Terramechanics 플러그인 (Bekker/Janosi).
+- [ ] RL 환경 (Isaac Lab Gym API).
+- [ ] 다중 로봇 협조.
+
+**버전 간 변경되지 않는 사항:**
 - Config 스키마 (확장, 파괴 아님). [G5]
-- 모듈 경계. Isaac Sim 코어 엔진. AI4Mars 벤치마크 형식.
+- 모듈 경계. Isaac Sim 코어 엔진.
+- 코딩 표준 및 테스트 요구사항.
 
 ---
 

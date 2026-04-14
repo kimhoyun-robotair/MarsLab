@@ -1,9 +1,9 @@
 # PLAN.md -- MarsLab Architecture & Implementation Plan
 
-**Version:** 2.0 (Final -- 13-Agent Adversarial Synthesis)
-**Date:** 2026-04-07
-**Target:** ICRA 2027 Seoul (deadline ~Sep 15, 2026)
-**Timeline:** 22 weeks (Apr 7 -- Sep 15, 2026)
+**Version:** 4.0 (iSpaRo 2026 — Scenario-Based Robotics Platform)
+**Date:** 2026-04-14
+**Target:** Standardized Mars robotics testing platform with diverse mission scenarios
+**Timeline:** 8 weeks (Apr 14 -- Jun 16, 2026) for v1.0 iSpaRo submission
 **License:** Apache 2.0
 
 **Methodology:** This plan was produced through a 13-agent adversarial debate system.
@@ -538,291 +538,170 @@ benchmark:
 
 ## 4. Priority Tiers [G10]
 
-All tasks and features are classified:
+> **Note (2026-04-14):** Restructured for iSpaRo 2026 submission (Jun 16 deadline).
+> Version roadmap: v1.0 (scenarios + robotics) → v2.0 (photorealism) → v3.0 (terramechanics).
 
-- **MUST:** Required for ICRA 2027 MVP submission. Failure = no paper.
-  Includes: config, terrain (HiRISE + procedural), atmosphere, rendering,
-  rover, sensors, annotation, benchmark evaluation.
-- **SHOULD:** Strengthens paper significantly. Cut only if >1 week behind.
-  Includes: rotorcraft, quadruped, multi-robot, Docker, procedural terrain presets.
-- **COULD:** Nice-to-have. First to defer under time pressure.
-  Includes: humanoid (G1), arXiv preview, advanced DR axes.
+All tasks classified by version:
 
-**MVP definition:** Mars environment + single rover + terrain seg benchmark.
-Paper is viable with rover-only. Multi-robot adds strength but is not required.
+- **v1.0 MUST (iSpaRo 2026):** 7 mission scenarios, rover URDF fix, dynamic atmosphere,
+  SLAM integration, Nav2 integration, experimental evaluation, 8-page paper.
+- **v1.0 SHOULD:** All 7 scenarios complete. Cut to 3-5 if time-pressured.
+- **v2.0 (post-iSpaRo):** High photorealism (OmniLRS-level PBR, 4K HDRI, anti-tiling,
+  pebble scatter, photogrammetry rocks).
+- **v3.0 (future):** Terramechanics (Bekker/Janosi), RL environments, multi-robot coordination.
 
----
-
-## 5. Implementation Plan (22 Weeks)
-
-### 5.1 Phase Overview
-
-| Phase | Weeks | Dates | Focus |
-|-------|-------|-------|-------|
-| Phase 1a | Wk 1-8 | Apr 7 -- May 31 | Config, terrain, atmosphere, rendering, rover |
-| Phase 1b | Wk 9-16 | Jun 2 -- Jul 27 | ROS2, multi-robot, sensors, benchmark, annotation |
-| Phase 1c | Wk 17-22 | Jul 28 -- Sep 15 | Sim2Real experiments, paper, submission |
-
-### 5.2 Week-by-Week (Smallest Unit First) [G6]
+**MVP definition:** 3+ Mars mission scenarios + working rover + SLAM + Nav2 + paper.
+Minimum submittable: scenarios 1-3 + dynamic atmosphere + SLAM/Nav2 experiments.
 
 ---
 
-#### WEEK 1 (Apr 7-13): Dev Environment + Config + CI
+## 5. Implementation Plan
+
+### 5.1 Version Roadmap
+
+> **Note (2026-04-14):** Plan restructured from photorealism-first to
+> scenario-based robotics platform. Identity shift: renderer → robotics testbed.
+> Wk 1-9 completed under original plan. v1.0 schedule below targets iSpaRo 2026.
+
+| Version | Target | Focus | Deadline |
+|---------|--------|-------|----------|
+| Foundation (Wk 1-9) | -- | Config, terrain, atmosphere, rendering, robots, sensors, ROS2 | **COMPLETED** |
+| **v1.0** | **iSpaRo 2026** | 7 mission scenarios + rover SLAM/Nav2 + paper (8 pages) | **Jun 16, 2026** |
+| v2.0 | Post-iSpaRo | High photorealism (OmniLRS-level PBR, HDRI, anti-tiling) | TBD |
+| v3.0 | Future | Terramechanics, RL environments, multi-robot coordination | TBD |
+
+### 5.2 Foundation (Wk 1-9, COMPLETED)
+
+Weeks 1-9 built the core infrastructure. See git history and work_log/LOG.md for details.
+Completed: config, HiRISE DEM, procedural terrain, atmosphere, rendering, 3 robots,
+sensors (RGB/depth/IMU/LiDAR), ROS2 bridge, 140 unit tests.
+
+### 5.3 v1.0 Schedule (8 Weeks, Apr 14 -- Jun 16) [G6]
+
+---
+
+#### WEEK 1 (Apr 14-20): Rover URDF Fix + Mobility
+
+**v1.0 MUST:** Rover URDF fix, 7 mission scenarios, dynamic atmosphere,
+SLAM + Nav2 integration, experimental evaluation, 8-page iSpaRo paper.
 
 | # | Task | Priority | Files | Guideline |
 |---|------|----------|-------|-----------|
-| 1 | Install Isaac Sim 5.x, verify GPU | MUST | -- | -- |
-| 2 | Create repo structure, pyproject.toml, .gitignore | MUST | pyproject.toml | G6 |
-| 3 | Set up GitHub Actions CI (unit tests + lint) | MUST | .github/workflows/ | G7 |
-| 4 | Write seed.py (set_global_seed) | MUST | marslab/utils/seed.py | G5 |
-| 5 | Write config schema.py (all pydantic models) | MUST | marslab/config/schema.py | G5 |
-| 6 | Write config loader.py | MUST | marslab/config/loader.py | G5 |
-| 7 | Write mars_env.yaml (full config) | MUST | configs/mars_env.yaml | G5 |
-| 8 | Write hello_isaac.py (verify Isaac Sim runs) | MUST | scripts/hello_isaac.py | G6 |
-| 9 | Write unit tests for config + seed | MUST | tests/unit/ | G7 |
+| 1 | Fix rover URDF (adopt open-source or redesign for stable physics) | MUST | assets/robots/rover/ | G4 |
+| 2 | Set fix_base=False, verify rover settles on terrain | MUST | marslab/robots/rover.py | G4 |
+| 3 | Re-enable robot spawn in run_scene.py (uncomment) | MUST | scripts/run_scene.py | -- |
+| 4 | Re-enable robots in mars_env.yaml (uncomment) | MUST | configs/mars_env.yaml | G5 |
 
-**Deliverable:** Config validates, CI green, Isaac Sim runs hello_isaac.py.
+**Deliverable:** Rover drives on Mars terrain with fix_base=False.
 
 ---
 
-#### WEEK 2 (Apr 14-20): HiRISE Terrain + Rock Placement (Offline)
+#### WEEK 2 (Apr 21-27): Scenarios 1-3 (HiRISE Crop) + ROS2 Control
 
 | # | Task | Priority | Files | Guideline |
 |---|------|----------|-------|-----------|
-| 1 | Download HiRISE DTM (Jezero) | MUST | assets/terrain/dem/ | -- |
-| 2 | Write dem_loader.py (GDAL -> numpy) | MUST | marslab/terrain/dem_loader.py | G5,G6 |
-| 3 | Write rock_placer.py (Golombek SFD) | MUST | marslab/terrain/rock_placer.py | G5,G6 |
-| 4 | Write jezero_crater.yaml | MUST | configs/terrain/ | G5 |
-| 5 | Write unit tests | MUST | tests/unit/ | G7 |
+| 1 | Scenario 1 config: Basic Mars (Jezero plain crop) | MUST | configs/scenarios/basic_mars.yaml | G5 |
+| 2 | Scenario 2 config: Rock-Dense Zone (rock_sfd_k=0.10) | MUST | configs/scenarios/rock_dense.yaml | G5 |
+| 3 | Scenario 3 config: Crater + Slopes (Jezero rim/delta crop) | MUST | configs/scenarios/crater_slopes.yaml | G5 |
+| 4 | cmd_vel subscriber: /cmd_vel -> wheel control | MUST | marslab/ros2_bridge/cmd_vel_subscriber.py (new) | G6 |
+| 5 | TF broadcaster: odom -> base_link -> sensor_frames | MUST | marslab/ros2_bridge/tf_broadcaster.py (new) | G6 |
+| 6 | Odometry publisher: wheel encoder -> /odom | MUST | marslab/ros2_bridge/odometry.py (new) | G6 |
+| 7 | Re-enable sensor ROS2 publishers | MUST | marslab/ros2_bridge/publisher.py | G6 |
 
-**HiRISE DTM source:**
-- AWS: `s3://nasa-usgs-mars-hirise-dtms/` (free, no auth)
-- Specific product: DTEEC_045994_1985_046060_1985 (Jezero Crater)
-- USGS: `astrogeology.usgs.gov/search?pmi-target=mars`
-- Index: `github.com/roncapat/NASA-Hirise-DTMs-DEMs-index`
-
-**Deliverable:** Offline terrain + rock pipeline. All unit tests pass.
+**Deliverable:** 3 scenario configs + rover teleoperable via /cmd_vel.
 
 ---
 
-#### WEEK 3 (Apr 21-27): Mars Atmosphere + Lighting (Offline)
+#### WEEK 3 (Apr 28 -- May 4): Dynamic Atmosphere + SLAM Integration
 
 | # | Task | Priority | Files | Guideline |
 |---|------|----------|-------|-----------|
-| 1 | Write sky_dome.py (tau -> color/brightness) | MUST | marslab/environment/sky_dome.py | G4,G6 |
-| 2 | Write light_intensity.py (Beer's Law) | MUST | marslab/environment/light_intensity.py | G5,G6 |
-| 3 | Write diffuse_fraction.py (COMIMART) | MUST | marslab/environment/diffuse_fraction.py | G5,G6 |
-| 4 | Write sun_position.py (configurable) | MUST | marslab/environment/sun_position.py | G5,G6 |
-| 5 | Write all atmosphere unit tests | MUST | tests/unit/ (4 files) | G7 |
+| 1 | Dynamic sun position: time-of-sol azimuth sweep | MUST | marslab/environment/sun_position.py | G5 |
+| 2 | Runtime tau variation: scene-level tau change | MUST | marslab/environment/sky_dome.py | G5 |
+| 3 | Fog auto-update on tau change | MUST | marslab/rendering/atmosphere_fog.py | G5 |
+| 4 | SLAM integration: slam_toolbox (2D LiDAR) | MUST | ROS2 launch files, configs/ | G1 |
+| 5 | SLAM map generation on scenarios 1-3 | MUST | -- | G7 |
 
-**compute_sun_position Phase 1 vs Phase 2:**
-- Phase 1: `compute_sun_position(azimuth_deg, elevation_deg) -> SunPosition`
-  (user-configured values from YAML, no orbital mechanics)
-- Phase 2: `compute_sun_position(ls, latitude, time_of_sol) -> SunPosition`
-  (Allison & McEwen 2000 Ls-based computation)
-- The SunPosition dataclass does not change between phases.
-
-**Deliverable:** All Mars physics offline-testable. Zero Isaac Sim dependency.
+**Deliverable:** Dynamic atmosphere + SLAM maps from 3 scenarios.
 
 ---
 
-#### WEEK 4 (Apr 28 -- May 4): Rover (Simplified Chassis) + PBR Materials
+#### WEEK 4 (May 5-11): Nav2 Integration + Scenario 4 (Canyon)
 
 | # | Task | Priority | Files | Guideline |
 |---|------|----------|-------|-----------|
-| 1 | Write material_applicator.py | MUST | marslab/terrain/material_applicator.py | G4,G6 |
-| 2 | Write mesh_builder.py (elevation -> USD) | MUST | marslab/terrain/mesh_builder.py | G6 |
-| 3 | Create simplified rover URDF (box chassis + 6 wheels) | MUST | assets/robots/rover/ | G6 |
-| 4 | Write rover.py (spawn_rover) | MUST | marslab/robots/rover.py | G6 |
-| 5 | Write convert_urdf.py script | MUST | scripts/convert_urdf.py | G6 |
-| 6 | Write unit tests (robot config, materials) | MUST | tests/unit/ | G7 |
-| 7 | Write test_robot_spawn.py (integration) | MUST | tests/integration/ | G7 |
+| 1 | Nav2 stack: costmap + planner + controller | MUST | configs/nav2/, launch files | G1 |
+| 2 | Nav2 waypoint following test | MUST | test scripts | G7 |
+| 3 | structure_loader.py: load OBJ/USD assets into scene | MUST | marslab/terrain/structure_loader.py (new) | G6 |
+| 4 | Scenario 4: Canyon (science-based Blender mesh + placement) | SHOULD | configs/scenarios/canyon.yaml, assets/ | G4 |
 
-**Rover URDF source:**
-- Wk 4: Simplified box chassis + 6 cylindrical wheels. No rocker-bogie.
-  Purpose: validate URDF->USD pipeline, gravity, terrain interaction.
-- Wk 14: Full rocker-bogie from NASA 3D Resources CAD (nasa3d.arc.nasa.gov).
-
-**Deliverable:** Rover on Mars terrain. Mars gravity confirmed. PBR materials v1.
+**Deliverable:** Nav2 autonomous navigation + canyon scene.
 
 ---
 
-#### WEEK 5 (May 5-11): Procedural Terrain + Seed Reproducibility
+#### WEEK 5 (May 12-18): Scenarios 5-7 (Cave, Spacecraft, Base)
 
 | # | Task | Priority | Files | Guideline |
 |---|------|----------|-------|-----------|
-| 1 | Write procedural_generator.py (flat/crater/hills) | SHOULD | marslab/terrain/ | G5,G6 |
-| 2 | Write 3 terrain preset YAMLs | SHOULD | configs/terrain/ | G5 |
-| 3 | Implement merged collision mesh | SHOULD | marslab/terrain/mesh_builder.py | G6 |
-| 4 | Verify seed reproducibility across all modules | MUST | tests/ | G5 |
+| 1 | Scenario 5: Mars Cave (Blender mesh + PointLight lighting) | SHOULD | configs/scenarios/cave.yaml, assets/ | G4 |
+| 2 | Scenario 6: Spacecraft Landing Site (3D model placement) | SHOULD | configs/scenarios/spacecraft.yaml, assets/ | G4 |
+| 3 | Scenario 7: Mars Base (habitat/solar panel models) | SHOULD | configs/scenarios/mars_base.yaml, assets/ | G4 |
+| 4 | Cave lighting mode: DomeLight off + PointLight/SpotLight | SHOULD | marslab/rendering/sky_renderer.py | G5 |
 
-**Deliverable:** 3+ terrain presets. Seed reproducibility verified end-to-end.
+**Deliverable:** All 7 scenario scenes complete.
 
 ---
 
-#### WEEK 6 (May 12-18): Rendering Integration + Visual Validation
+#### WEEK 6 (May 19-25): Experiments + Data Collection
 
 | # | Task | Priority | Files | Guideline |
 |---|------|----------|-------|-----------|
-| 1 | Write render_settings.py | MUST | marslab/rendering/ | G4 |
-| 2 | Write sky_renderer.py (dome light + HDRI) | MUST | marslab/rendering/ | G4,G6 |
-| 3 | Write sun_renderer.py (directional light) | MUST | marslab/rendering/ | G4,G6 |
-| 4 | Write atmosphere_fog.py (tau -> visibility) | MUST | marslab/rendering/ | G4,G6 |
-| 5 | Write run_scene.py (full scene orchestrator) | MUST | scripts/run_scene.py | G6 |
-| 6 | Integration tests: full scene, atmosphere fog | MUST | tests/integration/ | G7 |
-| 7 | Visual inspection: Mars vs lunar, tau comparison | MUST | -- | G7 |
+| 1 | SLAM benchmark: ATE/RPE across all scenarios | MUST | evaluation scripts | G7 |
+| 2 | Nav2 benchmark: success rate, path length across scenarios | MUST | evaluation scripts | G7 |
+| 3 | Tau impact experiment: SLAM accuracy at tau 0.3/1.0/2.0/4.0 | MUST | -- | G7 |
+| 4 | Generate paper figures: scenario screenshots, plots | MUST | scripts/ | G4 |
 
-**Rendering mode:** Default for data generation: RTX Interactive (path-tracing).
-Default for interactive dev: RTX Real-Time (ray-tracing). Both always supported.
-
-**Deliverable:** Integrated Mars scene v1. Screenshot comparison with real Mars.
+**Deliverable:** All experimental tables and figures for paper.
 
 ---
 
-#### WEEK 7 (May 19-25): Rotorcraft + Quadruped
+#### WEEK 7 (May 26 -- Jun 1): Paper Draft v1
 
 | # | Task | Priority | Files | Guideline |
 |---|------|----------|-------|-----------|
-| 1 | Create Ingenuity-class rotorcraft URDF | SHOULD | assets/robots/rotorcraft/ | G6 |
-| 2 | Write rotorcraft.py (simplified kinematic) | SHOULD | marslab/robots/ | G6 |
-| 3 | Write quadruped.py (Go2 from built-in USD) | SHOULD | marslab/robots/ | G6 |
-| 4 | Write robot config YAMLs | SHOULD | configs/robots/ | G5 |
+| 1 | Paper draft: all 8 sections (intro, related work, arch, scenarios, experiments, conclusion) | MUST | paper/ | G8 |
+| 2 | Demo video (optional but strengthens submission) | SHOULD | -- | -- |
 
-**Deliverable:** 3 robot types in Mars scene.
+**Deliverable:** Complete 8-page draft.
 
 ---
 
-#### WEEK 8 (May 26 -- Jun 1): Checkpoint + Buffer
-
-**>>> USER REVIEW GATE 1 <<<** [G10]
+#### WEEK 8 (Jun 2-16): Paper Revision + Submission
 
 | # | Task | Priority | Files | Guideline |
 |---|------|----------|-------|-----------|
-| 1 | Phase 1a checkpoint report | MUST | work_log/LOG.md | G8 |
-| 2 | README.md v1 with installation guide | SHOULD | README.md | -- |
-| 3 | Demo video of current capabilities | SHOULD | -- | -- |
-| 4 | Buffer: catch up on any delayed MUST tasks | MUST | -- | -- |
-| 5 | Schedule assessment + re-prioritization | MUST | -- | G10 |
+| 1 | Paper revision based on self-review | MUST | paper/ | G10 |
+| 2 | Final figures, IEEE format compliance | MUST | paper/ | -- |
+| 3 | Submit to iSpaRo 2026 | MUST | -- | -- |
+| 4 | GitHub v1.0.0 release | SHOULD | -- | -- |
 
-**Deliverable:** Checkpoint report. User reviews. Buffer consumed if needed.
-
----
-
-#### WEEK 9 (Jun 2-8): ROS2 Bridge
-
-| # | Task | Priority | Files | Guideline |
-|---|------|----------|-------|-----------|
-| 1 | Write topic_config.py | MUST | marslab/ros2_bridge/ | G6 |
-| 2 | Write publisher.py | MUST | marslab/ros2_bridge/ | G6 |
-| 3 | Write test_ros2_bridge.py | MUST | tests/integration/ | G7 |
-
-**Deliverable:** ROS2 topics verified with `ros2 topic list/echo`.
+**>>> v1.0 SUBMISSION <<<** [G10]
 
 ---
 
-#### WEEK 10 (Jun 9-15): Multi-Robot + Humanoid
+### 5.4 v2.0 / v3.0 (Post-iSpaRo, Future Work)
 
-| # | Task | Priority | Files | Guideline |
-|---|------|----------|-------|-----------|
-| 1 | Write humanoid.py (G1 from built-in USD) | COULD | marslab/robots/ | G6 |
-| 2 | Multi-robot spawn with independent namespaces | SHOULD | marslab/robots/ | G6 |
-| 3 | FPS benchmark: 1/2/3/4 robots | SHOULD | -- | -- |
-| 4 | Write test_multi_robot.py | SHOULD | tests/integration/ | G7 |
+**v2.0: High Photorealism**
+- OmniLRS-level PBR textures (4K+, anti-tiling, pebble scatter)
+- Photogrammetry rock meshes (5K-40K faces)
+- 4K HDRI sky with smooth tau interpolation
+- Production render settings (SPP 32+, bounces 6+)
 
-**Deliverable:** Multi-robot demo. G1 perception-ready (no dynamics claims).
-
----
-
-#### WEEK 11 (Jun 16-22): Full Sensor Suite
-
-| # | Task | Priority | Files | Guideline |
-|---|------|----------|-------|-----------|
-| 1 | Write imu.py (Mars-calibrated noise) | MUST | marslab/sensors/imu.py | G5,G6 |
-| 2 | Write camera.py (stereo RGB + depth) | MUST | marslab/sensors/camera.py | G5,G6 |
-| 3 | Write lidar.py | MUST | marslab/sensors/lidar.py | G5,G6 |
-| 4 | Write sensor config YAMLs | MUST | configs/sensors/ | G5 |
-| 5 | Write test_sensor_output.py | MUST | tests/integration/ | G7 |
-| 6 | **IMU gravity test: z-axis = 3.72 +/- 0.05** | MUST | tests/integration/ | G7 |
-
-**Deliverable:** 4 sensor modalities on ROS2 topics. IMU gravity verified.
-
----
-
-#### WEEK 12 (Jun 23-29): Annotation Pipeline
-
-| # | Task | Priority | Files | Guideline |
-|---|------|----------|-------|-----------|
-| 1 | Write semantic_labeler.py (AI4Mars 4-class) | MUST | marslab/terrain/ | G1 |
-| 2 | Write replicator_setup.py | MUST | marslab/annotation/ | G6 |
-| 3 | Write label_converter.py | MUST | marslab/annotation/ | G1 |
-| 4 | Write dataset_writer.py | MUST | marslab/annotation/ | G6 |
-| 5 | Unit + integration annotation tests | MUST | tests/ | G7 |
-
-**Deliverable:** Annotation pipeline v1. RGB + semantic label pairs.
-
----
-
-#### WEEK 13 (Jun 30 -- Jul 6): Benchmark Design
-
-| # | Task | Priority | Files | Guideline |
-|---|------|----------|-------|-----------|
-| 1 | Write domain_randomizer.py (5 DR axes) | MUST | marslab/benchmark/ | G5 |
-| 2 | Write data_generator.py (seeded bulk gen) | MUST | marslab/benchmark/ | G1,G5 |
-| 3 | Write benchmark config YAMLs | MUST | configs/benchmark/ | G5 |
-| 4 | Write test_domain_randomizer.py | MUST | tests/unit/ | G7 |
-
-**Deliverable:** Benchmark protocol. Synthetic dataset v1 (10K+ pairs).
-
----
-
-#### WEEK 14 (Jul 7-13): Robot Polish + Dataset Finalization
-
-| # | Task | Priority | Files | Guideline |
-|---|------|----------|-------|-----------|
-| 1 | Upgrade rover URDF: full rocker-bogie | SHOULD | assets/robots/rover/ | -- |
-| 2 | Robot model QA (collision, inertia, joints) | MUST | -- | -- |
-| 3 | Complete synthetic dataset, train/val/test split | MUST | -- | G5 |
-
-**Deliverable:** Final robot models. Complete synthetic dataset.
-
----
-
-#### WEEK 15 (Jul 14-20): Docker + Buffer
-
-| # | Task | Priority | Files | Guideline |
-|---|------|----------|-------|-----------|
-| 1 | Write Dockerfile + docker-compose | SHOULD | docker/ | -- |
-| 2 | Final data generation with full DR diversity | MUST | -- | G5 |
-| 3 | Buffer: catch up on any SHOULD tasks | -- | -- | -- |
-
-**Deliverable:** Docker image v1. Final dataset.
-
----
-
-#### WEEK 16 (Jul 21-27): ML Pipeline + Evaluation
-
-**>>> USER REVIEW GATE 2 <<<** [G10]
-
-| # | Task | Priority | Files | Guideline |
-|---|------|----------|-------|-----------|
-| 1 | Write evaluator.py (AP, mIoU, F1) | MUST | marslab/benchmark/ | G1 |
-| 2 | Write run_benchmark.py script | MUST | scripts/ | G1 |
-| 3 | User review of full system | MUST | -- | G10 |
-
-**Deliverable:** Evaluation pipeline ready. User sign-off for Phase 1c.
-
----
-
-#### WEEKS 17-22: Experiments + Paper
-
-| Week | Focus | Priority |
-|------|-------|----------|
-| 17 | Train SegFormer, zero-shot + fine-tune on AI4Mars | MUST |
-| 18 | Ablation, multi-robot demo, failure analysis | MUST/SHOULD |
-| 19 | Paper draft v1 (ICRA 6+2 format) | MUST |
-| 20 | Paper v2, 3-min video, code cleanup | MUST |
-| 21 | Internal review, IEEE format, final polish | MUST |
-| 22 | SUBMIT ICRA 2027 + GitHub v1.0.0 release | MUST |
+**v3.0: High Physical Fidelity**
+- Terramechanics plugin (Bekker/Janosi)
+- RL environments (Isaac Lab Gym API)
+- Multi-robot coordination
+- Ls-parameterized seasonal variation
 
 ---
 
@@ -952,49 +831,48 @@ history.
 
 ---
 
-## 8. Phase Transition Criteria
+## 8. Version Release Criteria
 
-### 8.1 Phase 1a -> Phase 1b (Wk 8 -> Wk 9) [G10]
+> **Note (2026-04-14):** Restructured for version-based releases.
 
-ALL must be true:
+### 8.0 Foundation (Wk 1-9) [G10]
 
-- [ ] `marslab/config/` fully functional with validated YAML loading.
-- [ ] `marslab/environment/` computes correct Beer's Law, diffuse fraction, sky dome.
-- [ ] `marslab/terrain/` loads HiRISE DEM, procedural terrain, Golombek SFD rocks.
-- [ ] `marslab/rendering/` produces Mars-like scene (butterscotch sky, correct shadows).
-- [ ] Rover spawns in Mars scene with 3.72 m/s^2 gravity.
-- [ ] All unit tests pass. Integration tests pass.
-- [ ] Visual inspection V1-V5 signed off.
+**COMPLETED (2026-04-11).** Config, terrain, atmosphere, rendering, robots, sensors, ROS2.
 
-### 8.2 Phase 1b -> Phase 1c (Wk 16 -> Wk 17) [G10]
+### 8.1 v1.0 Release Criteria (iSpaRo 2026, Jun 16) [G10]
 
 ALL must be true:
 
-- [ ] ROS2 bridge publishes all sensor data on correct topics.
-- [ ] Multi-robot spawn (3+ types) works simultaneously.
-- [ ] All 4 sensor modalities verified.
-- [ ] Annotation pipeline produces AI4Mars-compatible labels.
-- [ ] Benchmark synthetic dataset generated (10K+ pairs) with seed-fixed DR.
+- [ ] Rover drives on Mars terrain (fix_base=False, stable physics).
+- [ ] /cmd_vel controls rover movement. TF tree + odometry publishing.
+- [ ] 3+ mission scenarios operational (HiRISE crop-based, config-driven).
+- [ ] Dynamic atmosphere: tau and time-of-day affect scene.
+- [ ] SLAM generates map in at least 2 scenarios (ATE/RPE measured).
+- [ ] Nav2 performs waypoint navigation in at least 1 scenario.
+- [ ] Experimental tables complete (SLAM accuracy vs. scenario, SLAM vs. tau).
+- [ ] 8-page iSpaRo paper submitted.
 
-### 8.3 Phase 1 -> Phase 2 (Post-ICRA) [G2]
+**SHOULD (strengthens paper but not blocking):**
+- [ ] All 7 scenarios complete (canyon, cave, spacecraft, base).
+- [ ] Nav2 benchmarked across multiple scenarios.
+- [ ] GitHub v1.0.0 public release.
 
-ALL must be true:
+### 8.2 v2.0 Release Criteria (Post-iSpaRo) [G4]
 
-- [ ] ICRA 2027 paper submitted.
-- [ ] GitHub v1.0.0 released publicly.
-- [ ] AI4Mars benchmark: mIoU > baseline.
-- [ ] Gap analysis documents absent P1/P2 phenomena.
-- [ ] Work log complete for all 22 weeks. [G8]
+- [ ] OmniLRS-level photorealism (high-poly rocks, 4K HDRI, anti-tiling).
+- [ ] Production render settings (SPP 32+, bounces 6+).
+- [ ] Perception benchmark: sim2real transfer on AI4Mars.
 
-**What changes in Phase 2:**
-- RL integration (Isaac Lab Gym API wrapper). [G2]
-- Terramechanics plugin (data-driven). [G4]
-- SLAM/Nav modules. [G1]
-- Ls-parameterized temporal variation.
+### 8.3 v3.0 Release Criteria (Future) [G4]
 
-**What does NOT change:**
+- [ ] Terramechanics plugin (Bekker/Janosi).
+- [ ] RL environments (Isaac Lab Gym API).
+- [ ] Multi-robot coordination.
+
+**What does NOT change across versions:**
 - Config schema (extends, does not break). [G5]
-- Module boundaries. Isaac Sim as core engine. AI4Mars benchmark format.
+- Module boundaries. Isaac Sim as core engine.
+- Coding standards and testing requirements.
 
 ---
 
