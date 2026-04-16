@@ -2936,3 +2936,123 @@ scripts/isaac_python.sh scripts/run_scene.py --config configs/mars_env.yaml 2>&1
 - Isaac Sim integration 을 에이전트가 임의 실행
 - 에이전트 팀 자동 호출
 
+---
+
+## 2026-04-16 — Stage 1.5: DriveAPI 수정 + Ackermann Steering Controller
+
+### 주차: Wk1 (Phase 1 Rover Mobility)
+### 모듈: `scripts/phase1/`, `configs/`, `tests/unit/`
+
+### 원래 계획
+
+Stage 1 에서 rover spawn + sensor + OmniGraph + ROS2 토픽 전체 동작 확인 완료.
+이 세션에서는 cmd_vel → 실제 바퀴 구동 문제 해결:
+1. DriveAPI 누락 → drive joints에 velocity-mode DriveAPI 적용
+2. drive_damping 부족 (1000 → 100000) → 바퀴 회전력 확보
+3. skid-steer → Ackermann steering 전환 (rocker-bogie 구조에 적합)
+
+### 구현 계획 (plan mode에서 승인됨)
+
+| 파일 | 상태 | 설명 |
+|------|------|------|
+| `scripts/phase1/ackermann.py` | **신규** | Pure Ackermann 제어 모듈 (Isaac Sim 의존 없음, P3 준수) |
+| `scripts/phase1/run_stage1.py` | 수정 | ackermann import, steer DriveAPI 추가, main loop 교체 |
+| `configs/phase1.yaml` | 수정 | URDF 실측 geometry + steer DriveAPI 파라미터 |
+| `tests/unit/test_ackermann.py` | **신규** | Ackermann 모듈 단위 테스트 (15개) |
+| `tests/unit/test_run_stage1_helpers.py` | 수정 | skid_steer 테스트 주석 처리, config key 업데이트 |
+
+### 수행 내용
+
+1. **DriveAPI 진단 및 수정** (`run_stage1.py`)
+   - 문제: `cmd_vel` 토픽 수신은 되지만 바퀴 회전 없음
+   - 원인: drive joints에 `UsdPhysics.DriveAPI` 미적용 → PhysX가 토크 전달 불가
+   - 수정: 6개 drive joints에 velocity-mode DriveAPI 적용 (stiffness=0, damping>0)
+   - drive_damping 1000→100000, drive_max_force 추가 (1e6 Nm)
+   - 이유: `density=500` collision mesh → 총 질량 수천 kg → 높은 토크 필요
+
+2. **Ackermann steering controller** (`scripts/phase1/ackermann.py`)
+   - 문제: skid-steer (좌우 속도차)로 rocker-bogie 6륜 로버 회전 불가능
+     - lateral slip 극히 제한적 → 직진 일정 거리 후 정지, 회전 이상
+   - 해결: 4-corner Ackermann steering 별도 모듈로 구현
+   - 3가지 모드:
+     - **Straight** (`|w| < 1e-6`): steer=0, vel=v/r uniform
+     - **Point turn** (`v≈0, w≠0`): ICR at rover center
+     - **Ackermann curve**: ICR-based per-wheel steer + velocity
+   - 핵심 수식: `R = v/w`, `steer = atan(x_w / (R - y_w))`, `omega = w * (R - y_w) / r`
+   - 출력: `steer_angles[4]` (LF, LR, RF, RR), `wheel_velocities[6]` (LF, LM, LR, RF, RM, RR)
+
+3. **Config 업데이트** (`configs/phase1.yaml`)
+   - `wheel_track: 2.9` (부정확) 제거 → URDF 실측 geometry:
+     - `wheelbase: 2.26` (front-to-rear axle)
+     - `track_steer: 2.125` (front/rear steerable wheel track)
+     - `track_middle: 2.369` (middle non-steerable wheel track)
+   - Steer DriveAPI 파라미터 추가:
+     - `steer_stiffness: 50000.0` (Nm/rad, position mode)
+     - `steer_damping: 5000.0` (Nm·s/rad)
+     - `steer_max_force: 100000.0` (Nm)
+   - Suspension damping: `suspension_damping: 85.0`
+
+4. **run_stage1.py 통합 변경**
+   - `ackermann_command()` import (sys.path 조작으로 phase1/ 디렉터리 추가)
+   - `skid_steer_targets()` 주석 처리 (G5: 삭제 금지, 주석 처리)
+   - `load_config()` 검증: `wheel_track` → `wheelbase`, `track_steer`, `track_middle`
+   - Steer joints DriveAPI 블록 추가 (position mode: stiffness > 0)
+   - Main loop: `ackermann_command()` → `set_joint_position_targets()` (steer) + `set_joint_velocity_targets()` (drive)
+   - Suspension joints 감쇠 블록 추가
+
+5. **테스트** (`tests/unit/test_ackermann.py`, `test_run_stage1_helpers.py`)
+   - test_ackermann.py: 5 classes, 15 tests
+     - Straight (forward/reverse/zero), Point turn (CCW nonzero/left-back-right-fwd/CW opposite)
+     - Curve (inner slower/all forward/right symmetry/front-rear opposite sign)
+     - Shapes (steer=4, vel=6, float32), Validation (zero wheelbase/negative track/zero radius)
+   - test_run_stage1_helpers.py: skid_steer 테스트 주석 처리, config 테스트 업데이트
+
+### 핵심 결정
+
+| 결정 | 근거 |
+|------|------|
+| Ackermann을 별도 모듈(`ackermann.py`)로 분리 | 사용자 요청: 코드 모듈화. P3 준수: Isaac Sim 의존 없이 오프라인 테스트 가능 |
+| ICR 기반 통합 수식 사용 (모드 분기 최소화) | Straight는 `|w|<eps`로 분기, 나머지는 `R=v/w` 통합 수식으로 point turn + curve 모두 처리 |
+| drive_damping=1e5, drive_max_force=1e6 | density=500 collision mesh → 총 질량 수천 kg → 높은 토크 필요 |
+| `wheel_track: 2.9` 제거 → 3개 실측값 | URDF 킨레매틱 체인 추적: front/rear track ≠ middle track |
+
+### 테스트 결과
+
+```
+black --check:    77 files unchanged ✓
+ruff check:       all checks passed ✓
+pytest tests/unit/: 222 passed, 0 failed (4.98s) ✓
+```
+
+### 미해결 사항 (사용자 통합 테스트 필요)
+
+1. **Steer angle 부호 규약**: 180° X-roll 후 positive steer = left turn 인지 right turn 인지 실물 확인 필요. 반전 필요 시 `steer_angles = -steer_angles` 한 줄 추가.
+2. **Steer/drive 파라미터 튜닝**: steer_stiffness/damping 값은 실제 동작 후 조정 가능.
+3. **Ackermann wheel velocity 근사**: lateral distance 기반 (`omega = w*(R-y)/r`) → corner wheels ~4% 오차. 실용적 범위.
+
+### 사용자 통합 테스트 방법
+
+```bash
+# 터미널 A
+scripts/isaac_python.sh scripts/phase1/run_stage1.py --config configs/phase1.yaml
+
+# 터미널 B
+ros2 run teleop_twist_keyboard teleop_twist_keyboard \
+  --ros-args --remap cmd_vel:=/rover/cmd_vel
+```
+
+PASS 조건:
+- `i` (직진): 지속적 전진 (멈추지 않음)
+- `j`/`l` (회전): corner wheels 조향 회전 관찰 + 부드러운 선회
+- `,` (후진): 정상 후진
+- `k` (정지): 즉시 정지
+
+### 이 세션에서 생성/수정된 파일
+
+- `scripts/phase1/ackermann.py` (신규)
+- `scripts/phase1/run_stage1.py` (수정)
+- `configs/phase1.yaml` (수정)
+- `tests/unit/test_ackermann.py` (신규)
+- `tests/unit/test_run_stage1_helpers.py` (수정)
+- `~/.claude/projects/-home-hoyunkim-MarsLab/memory/feedback_modular_controller.md` (신규)
+

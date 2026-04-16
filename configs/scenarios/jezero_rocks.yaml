@@ -1,7 +1,7 @@
-# Jezero Flat Region Scenario
-# HiRISE DEM crop: west side of Jezero crater, minimal elevation variation
-# Candidate: Flat #1 from analyze_dem_regions.py
-# dz=3.00m, mean_slope=1.97 deg, std=0.62m
+# Jezero Rock-Dense Scenario
+# HiRISE DEM crop: same flat region as jezero_flat (row=180, col=0, 200x200)
+# High-density large rocks for visual verification and rover obstacle testing
+# CFA k=0.08 (~VL1-class density), diameter 0.5-5.0m (large rocks only)
 
 mars_env:
   gravity: 3.72
@@ -30,15 +30,15 @@ mars_env:
 
 terrain:
   source: "hirise"
-  scenario_name: "jezero_flat"
+  scenario_name: "jezero_rocks"
   converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"
   dem_crop:
     row: 180
     col: 0
     height: 200
     width: 200
-  rock_sfd_k: 0
-  rock_diameter_range: [0.20, 3.0]
+  rock_sfd_k: 0.08
+  rock_diameter_range: [0.50, 5.0]
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
   texture_dir: "assets/materials/mars_hirise"
   rock_color: [0.42, 0.28, 0.20]

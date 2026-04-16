@@ -90,16 +90,19 @@ sensors:
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
 
 control:
-  # Simple skid-steer approximation. Stage 1 does NOT model Ackermann
-  # steering or rocker-bogie kinematics; it drives all 6 wheels with
-  # omega_L = (v - w*track/2)/r on the left column and the symmetric
-  # value on the right. Steer joints are held at zero.
+  # Ackermann steering for 6-wheel rocker-bogie rover.
+  # 4 corner steer joints (LF, LR, RF, RR) are actively controlled;
+  # middle wheels (LM, RM) are non-steerable.
+  # Geometry derived from URDF kinematic chain (m2020.urdf).
   wheel_radius: 0.2667            # Perseverance wheel radius (m)
-  wheel_track: 2.9                # approximate L-R wheel separation (m)
+  # wheel_track: 2.9              # REMOVED — replaced by measured geometry below
+  wheelbase: 2.26                 # front-to-rear axle distance (m), URDF measured
+  track_steer: 2.125              # front/rear steerable wheel track (m), URDF measured
+  track_middle: 2.369             # middle non-steerable wheel track (m), URDF measured
   max_linear_velocity: 0.5        # m/s
   max_angular_velocity: 0.5       # rad/s
-  # Drive joints in left-then-right order (order matters: left 3 first,
-  # then right 3 — the skid-steer mapping builds a 6-vector on this layout).
+  # Drive joints — order: left 3 then right 3.
+  # Ackermann controller returns [LF, LM, LR, RF, RM, RR] matching this order.
   drive_joint_names:
     - "LF_DRIVE"
     - "LM_DRIVE"
@@ -107,7 +110,8 @@ control:
     - "RF_DRIVE"
     - "RM_DRIVE"
     - "RR_DRIVE"
-  # Corner steer joints — held at zero position for Stage 1.
+  # Corner steer joints — actively controlled by Ackermann steering.
+  # Order: [LF, LR, RF, RR] — matches ackermann_command() output.
   steer_joint_names:
     - "LF_STEER"
     - "LR_STEER"
@@ -122,6 +126,21 @@ control:
     - "RIGHT_BOGIE"
   # Nm·s/rad. Higher = faster settling. 0 = free oscillation.
   suspension_damping: 85.0
+  # Drive joint damping (Nm·s/rad). Velocity-mode: stiffness=0, damping>0.
+  # Torque = damping * (target_vel - current_vel). Higher = faster response
+  # to cmd_vel. Too high = jittery oscillation.
+  # Must be very high for this rover: density=500 on all collision meshes
+  # yields total mass in the thousands of kg.
+  drive_damping: 100000.0
+  # Maximum torque (Nm) the drive motor can exert. Set high to avoid
+  # PhysX clamping the motor output below what's needed to move the rover.
+  drive_max_force: 1000000.0
+  # Steer joint DriveAPI — position mode (stiffness > 0, damping > 0).
+  # Torque_pos = stiffness * (target_angle - current_angle).
+  # Torque_damp = damping * (0 - current_angular_velocity).
+  steer_stiffness: 50000.0        # Nm/rad — position tracking strength
+  steer_damping: 5000.0           # Nm·s/rad — oscillation suppression
+  steer_max_force: 100000.0       # Nm — maximum steering torque
   # Legacy regex (Stage 1 resolves joints by explicit name list above).
   # left_wheel_joint_regex: ".*(LF|LM|LR|left).*wheel.*"
   # right_wheel_joint_regex: ".*(RF|RM|RR|right).*wheel.*"

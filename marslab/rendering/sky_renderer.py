@@ -48,3 +48,39 @@ def configure_sky_dome(
     # Apply HDRI texture if file exists
     if sky_params.hdri_texture_path and os.path.isfile(sky_params.hdri_texture_path):
         dome.GetTextureFileAttr().Set(sky_params.hdri_texture_path)
+
+
+def update_sky_dome(
+    stage,
+    sky_params: SkyDomeParams,
+    diffuse_fraction: float,
+    rendering_config: RenderingConfig,
+) -> None:
+    """Update an existing dome light's color and intensity.
+
+    Unlike configure_sky_dome(), this function modifies existing USD prim
+    attributes in-place rather than deleting and recreating the prim.
+    This avoids flicker during the dynamic atmosphere render loop.
+
+    Falls back to configure_sky_dome() if the prim does not exist.
+
+    Args:
+        stage: USD stage.
+        sky_params: Updated sky dome parameters.
+        diffuse_fraction: Updated diffuse fraction (0-1).
+        rendering_config: Rendering configuration with dome parameters.
+    """
+    dome_path = "/World/DomeLight"
+    prim = stage.GetPrimAtPath(dome_path)
+
+    if not prim.IsValid():
+        configure_sky_dome(stage, sky_params, diffuse_fraction, rendering_config)
+        return
+
+    dome = UsdLux.DomeLight(prim)
+
+    r, g, b = sky_params.base_color_rgb
+    dome.GetColorAttr().Set(Gf.Vec3f(r, g, b))
+
+    base_intensity = sky_params.brightness * rendering_config.dome_brightness_scale
+    dome.GetIntensityAttr().Set(base_intensity * diffuse_fraction)

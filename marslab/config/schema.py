@@ -95,7 +95,9 @@ class TerrainConfig(BaseModel):
         description="Optional sub-window crop into the loaded DEM. When set, "
         "scenario builders use only this region instead of the full DEM.",
     )
-    rock_sfd_k: float = Field(default=0.05, ge=0.001, le=0.15, description="Golombek CFA fraction")
+    rock_sfd_k: float = Field(
+        default=0.05, ge=0, le=0.15, description="Golombek CFA fraction (0=no rocks)"
+    )
     rock_diameter_range: tuple[float, float] = Field(
         default=(0.20, 3.0), description="Rock diameter range in meters (< 20cm as texture)"
     )

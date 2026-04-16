@@ -1,9 +1,13 @@
 """Unit tests for the pure helpers in ``scripts/phase1/run_stage1.py``.
 
 These tests intentionally exercise only the Isaac-Sim-free helper layer:
-``load_config``, ``clamp``, ``clamp_twist``, ``skid_steer_targets``,
-``resolve_joint_indices``, and ``rpy_to_quat``. The Isaac Sim integration paths in ``main()``
+``load_config``, ``clamp``, ``clamp_twist``, ``resolve_joint_indices``,
+and ``rpy_to_quat``. The Isaac Sim integration paths in ``main()``
 are exercised by the Stage 1 smoke run on the user's workstation.
+
+Ackermann steering tests live in ``test_ackermann.py`` (separate module).
+``skid_steer_targets`` tests are commented out — function was replaced by
+``ackermann.ackermann_command()``.
 """
 
 from __future__ import annotations
@@ -65,49 +69,44 @@ def test_clamp_twist_symmetric_limits():
     assert w == pytest.approx(-0.5)
 
 
-# --- skid_steer_targets -------------------------------------------------
-
-
-def test_skid_steer_forward_only():
-    targets = run_stage1.skid_steer_targets(v=0.5, w=0.0, wheel_track=2.9, wheel_radius=0.2667)
-    assert targets.shape == (6,)
-    assert targets.dtype == np.float32
-    expected = 0.5 / 0.2667
-    np.testing.assert_allclose(targets, np.full(6, expected), rtol=1e-5)
-
-
-def test_skid_steer_in_place_rotation_is_antisymmetric():
-    targets = run_stage1.skid_steer_targets(v=0.0, w=0.4, wheel_track=2.0, wheel_radius=0.25)
-    # left 3 should be negative, right 3 should be positive, equal magnitudes
-    assert np.all(targets[:3] < 0.0)
-    assert np.all(targets[3:] > 0.0)
-    np.testing.assert_allclose(targets[:3], -targets[3:], rtol=1e-5)
-
-
-def test_skid_steer_reverse():
-    targets = run_stage1.skid_steer_targets(v=-0.3, w=0.0, wheel_track=2.9, wheel_radius=0.2667)
-    expected = -0.3 / 0.2667
-    np.testing.assert_allclose(targets, np.full(6, expected), rtol=1e-5)
-
-
-def test_skid_steer_left_right_split_equations():
-    v, w = 0.2, 0.1
-    track, radius = 2.9, 0.2667
-    targets = run_stage1.skid_steer_targets(v=v, w=w, wheel_track=track, wheel_radius=radius)
-    expected_l = (v - w * track / 2.0) / radius
-    expected_r = (v + w * track / 2.0) / radius
-    np.testing.assert_allclose(targets[:3], np.full(3, expected_l), rtol=1e-5)
-    np.testing.assert_allclose(targets[3:], np.full(3, expected_r), rtol=1e-5)
-
-
-def test_skid_steer_invalid_radius_raises():
-    with pytest.raises(ValueError, match="wheel_radius"):
-        run_stage1.skid_steer_targets(v=0.1, w=0.0, wheel_track=2.9, wheel_radius=0.0)
-
-
-def test_skid_steer_invalid_track_raises():
-    with pytest.raises(ValueError, match="wheel_track"):
-        run_stage1.skid_steer_targets(v=0.1, w=0.0, wheel_track=-1.0, wheel_radius=0.25)
+# --- skid_steer_targets (COMMENTED OUT — replaced by ackermann module) ----
+#
+# def test_skid_steer_forward_only():
+#     targets = run_stage1.skid_steer_targets(
+#         v=0.5, w=0.0, wheel_track=2.9, wheel_radius=0.2667
+#     )
+#     assert targets.shape == (6,)
+#     expected = 0.5 / 0.2667
+#     np.testing.assert_allclose(targets, np.full(6, expected), rtol=1e-5)
+#
+# def test_skid_steer_in_place_rotation_is_antisymmetric():
+#     targets = run_stage1.skid_steer_targets(
+#         v=0.0, w=0.4, wheel_track=2.0, wheel_radius=0.25
+#     )
+#     assert np.all(targets[:3] < 0.0)
+#     assert np.all(targets[3:] > 0.0)
+#
+# def test_skid_steer_reverse():
+#     targets = run_stage1.skid_steer_targets(
+#         v=-0.3, w=0.0, wheel_track=2.9, wheel_radius=0.2667
+#     )
+#     expected = -0.3 / 0.2667
+#     np.testing.assert_allclose(targets, np.full(6, expected), rtol=1e-5)
+#
+# def test_skid_steer_left_right_split_equations():
+#     pass  # omitted for brevity
+#
+# def test_skid_steer_invalid_radius_raises():
+#     with pytest.raises(ValueError, match="wheel_radius"):
+#         run_stage1.skid_steer_targets(
+#             v=0.1, w=0.0, wheel_track=2.9, wheel_radius=0.0
+#         )
+#
+# def test_skid_steer_invalid_track_raises():
+#     with pytest.raises(ValueError, match="wheel_track"):
+#         run_stage1.skid_steer_targets(
+#             v=0.1, w=0.0, wheel_track=-1.0, wheel_radius=0.25
+#         )
 
 
 # --- resolve_joint_indices ----------------------------------------------
@@ -152,7 +151,9 @@ VALID_CONFIG = textwrap.dedent("""
         parent_link: "Body_Chassis"
     control:
       wheel_radius: 0.2667
-      wheel_track: 2.9
+      wheelbase: 2.26
+      track_steer: 2.125
+      track_middle: 2.369
       max_linear_velocity: 0.5
       max_angular_velocity: 0.5
       drive_joint_names:

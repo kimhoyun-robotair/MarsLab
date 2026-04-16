@@ -15,6 +15,24 @@ mars_env:
   sun_azimuth_deg: 180               # degrees (0=N, 90=E, 180=S, 270=W)
   sun_elevation_deg: 45              # degrees above horizon
   seed: 42
+  dynamic_atmosphere:
+    enabled: false                   # static atmosphere by default
+    time_scale: 200.0                # real-time-to-sol acceleration factor
+    sun_sweep:
+      start_azimuth_deg: 90          # sunrise (east)
+      end_azimuth_deg: 270           # sunset (west)
+      max_elevation_deg: 60          # noon peak (Jezero 18.4 deg N)
+    tau_profile: "constant"          # "constant" | "ramp" | "sine"
+    tau_constant:
+      base_tau: 0.3
+    tau_ramp:
+      start_tau: 0.3
+      end_tau: 2.0
+    tau_sine:
+      base_tau: 0.5
+      amplitude: 0.3
+      period_fraction: 1.0
+    update_interval_frames: 10       # recompute atmosphere every N frames
 
 terrain:
   # source: "hirise"

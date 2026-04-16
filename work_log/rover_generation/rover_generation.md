@@ -158,6 +158,97 @@ Earth gravity (9.81) 하에서 검증 후 Mars gravity (3.72) 전환은 Stage 2�
 
 ### Next Steps
 
-- Stage 1 ROS2 라운드트립 검증: `ros2 topic list`, `ros2 topic echo`, teleop으로 cmd_vel 전송 → 로버 이동 확인
+- ~~Stage 1 ROS2 라운드트립 검증~~ → 아래 Stage 1.5 참조
+- Mars gravity (3.72) 전환 → IMU z축 검증 (3.72 ± 0.05 m/s²)
+- Scenario 1 (Basic Mars): DEM 지형 + 암석 배치 위에 로버 스폰
+
+---
+
+## [2026-04-16] Phase 1 Stage 1.5: ROS2 라운드트립 검증 + Drive Joint 수정
+
+**Week:** Wk 2 (Apr 14 -- Apr 20)
+**Module:** scripts/phase1/, configs/
+**Type:** Bug Fix
+
+### Original Plan (주차별 개요)
+
+Stage 1 스폰 완료 후 ROS2 전체 라운드트립 검증:
+센서 토픽 발행 확인 + teleop cmd_vel → 로버 물리 이동 확인.
+
+### Implementation Plan (세부 계획)
+
+1. 터미널 A에서 `run_stage1.py` 실행, 터미널 B에서 시스템 ROS2로 토픽 검증
+2. `ros2 topic list` → 8개 토픽 존재 확인
+3. `ros2 topic echo` → IMU, odom, camera, lidar 데이터 수신 확인
+4. `teleop_twist_keyboard` → cmd_vel 전송 → 로버 이동 확인
+5. odom position 변화 확인
+
+### What Was Done
+
+#### ROS2 토픽 검증 결과
+
+| 항목 | 결과 | 비고 |
+|------|------|------|
+| `/rover/cmd_vel` 토픽 존재 | PASS | |
+| `/rover/odom` 토픽 존재 + 데이터 수신 | PASS | |
+| `/rover/imu` 토픽 존재 + 데이터 수신 | PASS | 60Hz+ |
+| `/rover/rgb/image_raw` 토픽 + 데이터 수신 | PASS | |
+| `/rover/depth/image_raw` 토픽 + 데이터 수신 | PASS | |
+| `/rover/lidar/points` 토픽 + 데이터 수신 | PASS | |
+| `/tf` 토픽 존재 | PASS | |
+| cmd_vel → 로버 물리 이동 | **FAIL** | 아래 참조 |
+
+#### Bug Fix — Drive Joint DriveAPI 누락
+
+**증상**: teleop_twist_keyboard → `/rover/cmd_vel` 전송 → rqt에서 sub/pub 파이프라인 확인됨 → 로버 바퀴 안 움직임
+
+**근본 원인**: 6개 drive joints (LF_DRIVE 등)에 `UsdPhysics.DriveAPI`가 설정되지 않음. `articulation.set_joint_velocity_targets()` 호출은 성공하지만, PhysX 엔진이 토크를 가하려면 DriveAPI + damping이 필수. DriveAPI 없는 관절은 velocity target을 무시.
+
+**해결**: suspension joints에서 이미 적용한 동일 패턴을 drive joints에도 적용:
+- `configs/phase1.yaml`: `drive_damping: 1000.0` 추가 (velocity-mode: stiffness=0, damping=1000.0)
+- `scripts/phase1/run_stage1.py`: steer lock 직후, suspension 블록 직전에 drive joints DriveAPI 설정 코드 삽입
+
+```python
+# Velocity control mode:
+# stiffness = 0 → no position tracking
+# damping > 0 → torque = damping * (target_vel - current_vel)
+UsdPhysics.DriveAPI.Apply(joint_prim, "angular")
+joint_prim.CreateAttribute("drive:angular:physics:damping", ...).Set(drive_damping)
+joint_prim.CreateAttribute("drive:angular:physics:stiffness", ...).Set(0.0)
+```
+
+### Key Decisions
+
+| 결정 | 근거 |
+|------|------|
+| `drive_damping: 1000.0` 초기값 | 차체 ~500kg, 바퀴 구동에 충분한 토크 필요. suspension_damping(85.0)은 진동 억제용이라 낮지만 drive는 10배+ |
+| velocity mode (stiffness=0) | cmd_vel은 속도 명령. 위치 추종(stiffness>0)은 불필요 |
+| YAML 파라미터화 | G5 준수: 사용자가 시뮬레이션 중 튜닝 가능 |
+
+### Files Modified
+
+| 파일 | 변경 | 설명 |
+|------|------|------|
+| `configs/phase1.yaml` | 수정 | `drive_damping: 1000.0` 추가 |
+| `scripts/phase1/run_stage1.py` | 수정 | drive joints DriveAPI 설정 블록 삽입 (L491-510) |
+
+### Test Results
+
+- Unit tests: **23 passed**, 0 failed (black, ruff, pytest 전체 통과)
+- Integration: **사용자 검증 대기** — teleop으로 cmd_vel 전송 → 바퀴 회전 + 로버 전진 확인 필요
+
+### Sensor Q&A (사용자 질문 기록)
+
+1. **LiDAR 종류**: RTX LiDAR (`isaacsim.sensors.rtx.LidarRtx`, profile="Example_Rotary")
+2. **센서 위치**: 임의 오프셋 (YAML 지정). URDF의 83개 Frame_* 링크(NavCam, MastCam 등)는 `merge_fixed_joints=True`로 병합되어 소실. 실제 위치 복원은 Stage 2 이후.
+
+### Blockers / Issues
+
+- Drive damping 1000.0 초기값의 적정성은 사용자 통합 테스트 후 확인 필요
+- 바퀴-지면 마찰이 부족하면 DriveAPI가 있어도 슬립 발생 가능 (friction material 추가 필요할 수 있음)
+
+### Next Steps
+
+- 사용자 통합 테스트: teleop → cmd_vel → 로버 이동 확인 + drive_damping 튜닝
 - Mars gravity (3.72) 전환 → IMU z축 검증 (3.72 ± 0.05 m/s²)
 - Scenario 1 (Basic Mars): DEM 지형 + 암석 배치 위에 로버 스폰

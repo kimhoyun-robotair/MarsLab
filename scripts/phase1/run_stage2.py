@@ -155,7 +155,7 @@ def main() -> int:
     from marslab.environment.diffuse_fraction import compute_diffuse_fraction
     from marslab.environment.light_intensity import compute_direct_intensity
     from marslab.environment.sky_dome import compute_sky_dome_params
-    from marslab.environment.sun_position import compute_sun_position
+    from marslab.environment.sun_position import compute_sol_sun_position, compute_sun_position
 
     sun_pos = compute_sun_position(
         azimuth_deg=float(mars_cfg.get("sun_azimuth_deg", 180)),
@@ -228,12 +228,47 @@ def main() -> int:
     )
     print("[run_stage2] Terrain material applied.", flush=True)
 
+    # --- Rock placement (Golombek SFD) ----------------------------------------
+    rock_k = float(terrain_cfg.get("rock_sfd_k", 0))
+    if rock_k > 0:
+        from marslab.terrain.rock_instancer import place_rocks_on_terrain
+        from marslab.terrain.rock_placer import sample_rocks_golombek
+
+        d_range = tuple(terrain_cfg.get("rock_diameter_range", [0.20, 3.0]))
+        area_m2 = float(norm_elevation.shape[0] * resolution * norm_elevation.shape[1] * resolution)
+        rocks = sample_rocks_golombek(
+            area_m2=area_m2,
+            k=rock_k,
+            diameter_range=d_range,
+            seed=int(terrain_cfg.get("seed", 42)),
+        )
+        rock_mesh_dir = terrain_cfg.get("rock_mesh_dir")
+        if rock_mesh_dir:
+            rock_mesh_dir = os.path.join(REPO_ROOT, rock_mesh_dir)
+        rock_texture_dir = terrain_cfg.get("rock_texture_dir")
+        if rock_texture_dir:
+            rock_texture_dir = os.path.join(REPO_ROOT, rock_texture_dir)
+        place_rocks_on_terrain(
+            stage=stage,
+            rocks=rocks,
+            elevation=norm_elevation,
+            resolution=resolution,
+            seed=int(terrain_cfg.get("seed", 42)),
+            rock_color=tuple(terrain_cfg.get("rock_color", [0.42, 0.28, 0.20])),
+            rock_roughness=float(terrain_cfg.get("rock_roughness", 0.92)),
+            rock_mesh_dir=rock_mesh_dir,
+            rock_texture_dir=rock_texture_dir,
+        )
+        print(f"[run_stage2] Placed {len(rocks)} rocks (k={rock_k}).", flush=True)
+    else:
+        print("[run_stage2] Rock placement skipped (rock_sfd_k=0).", flush=True)
+
     # --- Configure atmosphere rendering -------------------------------------
     from marslab.config.schema import RenderingConfig
     from marslab.rendering.atmosphere_fog import configure_atmosphere_fog
     from marslab.rendering.render_settings import set_render_mode
-    from marslab.rendering.sky_renderer import configure_sky_dome
-    from marslab.rendering.sun_renderer import configure_sun_light
+    from marslab.rendering.sky_renderer import configure_sky_dome, update_sky_dome
+    from marslab.rendering.sun_renderer import configure_sun_light, update_sun_light
 
     render_config = RenderingConfig(**rendering_cfg)
     set_render_mode(render_config)
@@ -242,12 +277,73 @@ def main() -> int:
     configure_atmosphere_fog(stage, tau, render_config)
     print("[run_stage2] Atmosphere configured (sun + sky + fog).", flush=True)
 
+    # --- Dynamic atmosphere setup ------------------------------------------
+    dyn_cfg = mars_cfg.get("dynamic_atmosphere", {})
+    dynamic_enabled = bool(dyn_cfg.get("enabled", False))
+
+    if dynamic_enabled:
+        from marslab.environment.tau_profile import compute_tau
+
+        sol_duration = float(mars_cfg.get("sol_duration_seconds", 88642))
+        time_scale = float(dyn_cfg.get("time_scale", 200.0))
+        update_interval = int(dyn_cfg.get("update_interval_frames", 10))
+
+        sun_sweep_cfg = dyn_cfg.get("sun_sweep", {})
+        sweep_start_az = float(sun_sweep_cfg.get("start_azimuth_deg", 90.0))
+        sweep_end_az = float(sun_sweep_cfg.get("end_azimuth_deg", 270.0))
+        sweep_max_el = float(sun_sweep_cfg.get("max_elevation_deg", 60.0))
+
+        tau_profile_name = str(dyn_cfg.get("tau_profile", "constant"))
+        tau_kwargs: Dict[str, float] = {}
+        tau_profile_cfg = dyn_cfg.get(f"tau_{tau_profile_name}", {})
+        if tau_profile_cfg:
+            tau_kwargs.update(tau_profile_cfg)
+
+        print(
+            f"[run_stage2] Dynamic atmosphere ON: time_scale={time_scale}x, "
+            f"tau_profile={tau_profile_name}, update_interval={update_interval}",
+            flush=True,
+        )
+    else:
+        print("[run_stage2] Dynamic atmosphere OFF (static).", flush=True)
+
     # --- Infinite render loop -----------------------------------------------
     world.reset()
     print("[run_stage2] Scene ready. Explore in GUI. Ctrl+C to exit.", flush=True)
+    frame = 0
+    elapsed = 0.0
     try:
         while simulation_app.is_running():
             world.step(render=True)
+            frame += 1
+
+            if dynamic_enabled and frame % update_interval == 0:
+                elapsed += physics_dt * update_interval * time_scale
+                t = (elapsed % sol_duration) / sol_duration
+
+                # Recompute sun position for this time of sol
+                dyn_sun_pos = compute_sol_sun_position(
+                    time_of_sol_fraction=t,
+                    start_azimuth_deg=sweep_start_az,
+                    end_azimuth_deg=sweep_end_az,
+                    max_elevation_deg=sweep_max_el,
+                )
+
+                # Recompute tau
+                dyn_tau = compute_tau(tau_profile_name, t, **tau_kwargs)
+
+                # Recompute irradiance and diffuse fraction
+                dyn_intensity = compute_direct_intensity(
+                    solar_constant, dyn_tau, dyn_sun_pos.zenith_angle_rad
+                )
+                dyn_diffuse = compute_diffuse_fraction(dyn_tau)
+                dyn_sky = compute_sky_dome_params(dyn_tau, hdri_dir)
+
+                # Update renderers in-place (no flicker)
+                update_sun_light(stage, dyn_sun_pos, dyn_intensity, dyn_diffuse, render_config)
+                update_sky_dome(stage, dyn_sky, dyn_diffuse, render_config)
+                configure_atmosphere_fog(stage, dyn_tau, render_config)
+
     except KeyboardInterrupt:
         print("[run_stage2] KeyboardInterrupt -- shutting down.", flush=True)
     finally:

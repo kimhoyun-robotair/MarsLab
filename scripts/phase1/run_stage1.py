@@ -26,7 +26,14 @@ import numpy as np
 import yaml
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PHASE1_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(REPO_ROOT, "configs", "phase1.yaml")
+
+# Ensure scripts/phase1/ is importable for the ackermann module.
+if PHASE1_DIR not in sys.path:
+    sys.path.insert(0, PHASE1_DIR)
+
+from ackermann import ackermann_command  # noqa: E402
 
 
 def load_config(config_path: str) -> Dict[str, Any]:
@@ -64,7 +71,14 @@ def load_config(config_path: str) -> Dict[str, Any]:
     if not isinstance(steer, list) or len(steer) != 4:
         raise ValueError(f"control.steer_joint_names must be a list of 4 names, got {steer!r}")
 
-    for key in ("wheel_radius", "wheel_track", "max_linear_velocity", "max_angular_velocity"):
+    for key in (
+        "wheel_radius",
+        "wheelbase",
+        "track_steer",
+        "track_middle",
+        "max_linear_velocity",
+        "max_angular_velocity",
+    ):
         if key not in control:
             raise ValueError(f"control.{key} missing from config")
         if not isinstance(control[key], (int, float)) or control[key] <= 0:
@@ -89,36 +103,28 @@ def clamp_twist(v: float, w: float, v_max: float, w_max: float) -> Tuple[float, 
     return clamp(v, -v_max, v_max), clamp(w, -w_max, w_max)
 
 
-def skid_steer_targets(v: float, w: float, wheel_track: float, wheel_radius: float) -> np.ndarray:
-    """Return 6 wheel velocity targets [L,L,L,R,R,R] for a twist (v, w).
-
-    Implements the standard skid-steer approximation:
-        omega_L = (v - w * track / 2) / r
-        omega_R = (v + w * track / 2) / r
-
-    The first three entries correspond to the three left wheels, the last
-    three to the right wheels (LF, LM, LR, RF, RM, RR).
-
-    Args:
-        v: Commanded linear velocity (m/s).
-        w: Commanded angular velocity (rad/s, +CCW / +Z).
-        wheel_track: Left-to-right wheel separation (m).
-        wheel_radius: Drive wheel rolling radius (m).
-
-    Returns:
-        ``np.ndarray`` of shape (6,) and dtype float32.
-
-    Raises:
-        ValueError: If ``wheel_radius`` or ``wheel_track`` is non-positive.
-    """
-    if wheel_radius <= 0.0:
-        raise ValueError(f"wheel_radius must be > 0, got {wheel_radius}")
-    if wheel_track <= 0.0:
-        raise ValueError(f"wheel_track must be > 0, got {wheel_track}")
-
-    omega_l = (v - w * wheel_track / 2.0) / wheel_radius
-    omega_r = (v + w * wheel_track / 2.0) / wheel_radius
-    return np.asarray([omega_l, omega_l, omega_l, omega_r, omega_r, omega_r], dtype=np.float32)
+# --- skid_steer_targets: replaced by ackermann.ackermann_command() --------
+# Kept as commented-out reference per G5 (comment out, don't delete).
+#
+# def skid_steer_targets(
+#     v: float, w: float, wheel_track: float, wheel_radius: float
+# ) -> np.ndarray:
+#     """Return 6 wheel velocity targets [L,L,L,R,R,R] for a twist (v, w).
+#
+#     Implements the standard skid-steer approximation:
+#         omega_L = (v - w * track / 2) / r
+#         omega_R = (v + w * track / 2) / r
+#     """
+#     if wheel_radius <= 0.0:
+#         raise ValueError(f"wheel_radius must be > 0, got {wheel_radius}")
+#     if wheel_track <= 0.0:
+#         raise ValueError(f"wheel_track must be > 0, got {wheel_track}")
+#     omega_l = (v - w * wheel_track / 2.0) / wheel_radius
+#     omega_r = (v + w * wheel_track / 2.0) / wheel_radius
+#     return np.asarray(
+#         [omega_l, omega_l, omega_l, omega_r, omega_r, omega_r],
+#         dtype=np.float32,
+#     )
 
 
 def rpy_to_quat(roll: float, pitch: float, yaw: float) -> Tuple[float, float, float, float]:
@@ -477,16 +483,84 @@ def main() -> int:
     steer_indices = resolve_joint_indices(dof_names, steer_joint_names)
 
     wheel_radius = float(control_cfg["wheel_radius"])
-    wheel_track = float(control_cfg["wheel_track"])
+    wheelbase = float(control_cfg["wheelbase"])
+    track_steer = float(control_cfg["track_steer"])
+    track_middle = float(control_cfg["track_middle"])
     v_max = float(control_cfg["max_linear_velocity"])
     w_max = float(control_cfg["max_angular_velocity"])
 
-    # Hold steer joints at zero position for Stage 1 (no Ackermann).
+    # Initialize steer joints at zero before DriveAPI takes over.
     zero_steer = np.zeros(len(steer_indices), dtype=np.float32)
     try:
         articulation.set_joint_positions(zero_steer, joint_indices=np.asarray(steer_indices))
     except Exception as exc:  # noqa: BLE001
-        print(f"[run_stage1] Warning: could not lock steer joints: {exc}", file=sys.stderr)
+        print(
+            f"[run_stage1] Warning: could not init steer joints: {exc}",
+            file=sys.stderr,
+        )
+
+    # Apply DriveAPI to drive joints for velocity control.
+    # Without DriveAPI + damping, set_joint_velocity_targets() has no effect
+    # because PhysX cannot exert torque on joints lacking a drive definition.
+    drive_damping = float(control_cfg.get("drive_damping", 100000.0))
+    drive_max_force = float(control_cfg.get("drive_max_force", 1000000.0))
+    joints_scope = f"{chassis_path}/joints"
+    for jname in drive_joint_names:
+        joint_path = f"{joints_scope}/{jname}"
+        joint_prim = stage.GetPrimAtPath(joint_path)
+        if not joint_prim.IsValid():
+            print(
+                f"[run_stage1] WARNING: drive joint prim not found: {joint_path}",
+                file=sys.stderr,
+            )
+            continue
+        if not joint_prim.HasAPI(UsdPhysics.DriveAPI, "angular"):
+            UsdPhysics.DriveAPI.Apply(joint_prim, "angular")
+        damping_attr = joint_prim.CreateAttribute(
+            "drive:angular:physics:damping", Sdf.ValueTypeNames.Float
+        )
+        damping_attr.Set(drive_damping)
+        stiffness_attr = joint_prim.CreateAttribute(
+            "drive:angular:physics:stiffness", Sdf.ValueTypeNames.Float
+        )
+        stiffness_attr.Set(0.0)  # velocity mode: no position tracking
+        max_force_attr = joint_prim.CreateAttribute(
+            "drive:angular:physics:maxForce", Sdf.ValueTypeNames.Float
+        )
+        max_force_attr.Set(drive_max_force)
+        print(
+            f"[run_stage1] Drive damping {drive_damping}, "
+            f"maxForce {drive_max_force} on {joint_path}"
+        )
+
+    # Apply DriveAPI to steer joints for position control (Ackermann).
+    steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
+    steer_damping = float(control_cfg.get("steer_damping", 5000.0))
+    steer_max_force = float(control_cfg.get("steer_max_force", 100000.0))
+    for jname in steer_joint_names:
+        joint_path = f"{joints_scope}/{jname}"
+        joint_prim = stage.GetPrimAtPath(joint_path)
+        if not joint_prim.IsValid():
+            print(
+                f"[run_stage1] WARNING: steer joint not found: {joint_path}",
+                file=sys.stderr,
+            )
+            continue
+        if not joint_prim.HasAPI(UsdPhysics.DriveAPI, "angular"):
+            UsdPhysics.DriveAPI.Apply(joint_prim, "angular")
+        joint_prim.CreateAttribute("drive:angular:physics:stiffness", Sdf.ValueTypeNames.Float).Set(
+            steer_stiffness
+        )
+        joint_prim.CreateAttribute("drive:angular:physics:damping", Sdf.ValueTypeNames.Float).Set(
+            steer_damping
+        )
+        joint_prim.CreateAttribute("drive:angular:physics:maxForce", Sdf.ValueTypeNames.Float).Set(
+            steer_max_force
+        )
+        print(
+            f"[run_stage1] Steer stiffness {steer_stiffness}, "
+            f"damping {steer_damping} on {joint_path}"
+        )
 
     # Apply damping to suspension joints to suppress post-landing rocking.
     suspension_names = control_cfg.get("suspension_joint_names", [])
@@ -531,17 +605,24 @@ def main() -> int:
 
     # --- Main loop --------------------------------------------------------
     drive_idx_arr = np.asarray(drive_indices, dtype=np.int32)
+    steer_idx_arr = np.asarray(steer_indices, dtype=np.int32)
     print("[run_stage1] Entering main loop. Ctrl+C to exit.", flush=True)
     try:
         while simulation_app.is_running():
             rclpy.spin_once(node, timeout_sec=0.0)
 
             v, w = clamp_twist(latest_twist["v"], latest_twist["w"], v_max, w_max)
-            targets = skid_steer_targets(v, w, wheel_track, wheel_radius)
+            steer_angles, wheel_vels = ackermann_command(
+                v, w, wheelbase, track_steer, track_middle, wheel_radius
+            )
             try:
-                articulation.set_joint_velocity_targets(targets, joint_indices=drive_idx_arr)
+                articulation.set_joint_position_targets(steer_angles, joint_indices=steer_idx_arr)
+                articulation.set_joint_velocity_targets(wheel_vels, joint_indices=drive_idx_arr)
             except Exception as exc:  # noqa: BLE001
-                print(f"[run_stage1] set_joint_velocity_targets failed: {exc}", file=sys.stderr)
+                print(
+                    f"[run_stage1] joint target failed: {exc}",
+                    file=sys.stderr,
+                )
 
             world.step(render=True)
     except KeyboardInterrupt:

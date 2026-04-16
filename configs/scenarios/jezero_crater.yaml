@@ -16,6 +16,17 @@ mars_env:
   sun_azimuth_deg: 180
   sun_elevation_deg: 45
   seed: 42
+  dynamic_atmosphere:
+    enabled: true
+    time_scale: 200.0
+    sun_sweep:
+      start_azimuth_deg: 90
+      end_azimuth_deg: 270
+      max_elevation_deg: 60
+    tau_profile: "constant"
+    tau_constant:
+      base_tau: 0.3
+    update_interval_frames: 10
 
 terrain:
   source: "hirise"
