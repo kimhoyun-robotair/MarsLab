@@ -1,0 +1,52 @@
+# Jezero Crater + Slopes Scenario
+# HiRISE DEM crop: northeast corner of Jezero crater, steepest region
+# dz=12.6m, mean_slope=5.08 deg, max_slope=29.9 deg
+# 44.8% of area > 5 deg, 6.6% > 10 deg — rover will feel the incline
+
+mars_env:
+  gravity: 3.72
+  atmo_pressure: 610
+  atmo_density: 0.020
+  dust_optical_depth: 0.3
+  solar_constant_mean: 589
+  surface_albedo_range: [0.10, 0.40]
+  surface_temp_mean: -60
+  sol_duration_seconds: 88642
+  dust_opacity_range: [0.5, 2.0]
+  sun_azimuth_deg: 180
+  sun_elevation_deg: 45
+  seed: 42
+
+terrain:
+  source: "hirise"
+  scenario_name: "jezero_crater"
+  converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"
+  dem_crop:
+    row: 0
+    col: 300
+    height: 200
+    width: 200
+  rock_sfd_k: 0.012
+  rock_diameter_range: [0.20, 3.0]
+  semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
+  texture_dir: "assets/materials/mars_hirise"
+  rock_color: [0.42, 0.28, 0.20]
+  rock_roughness: 0.92
+  rock_mesh_dir: "assets/rocks"
+  rock_texture_dir: "assets/materials/mars_rock"
+  uv_scale: 1.0
+  seed: 42
+
+rendering:
+  mode: "path_tracing"
+  sky_dome_hdri_dir: "assets/sky/hdri/"
+  resolution: [1920, 1080]
+  spp: 32
+  total_spp: 256
+  max_bounces: 6
+  sun_intensity_scale: 30.0
+  sun_color: [1.0, 0.95, 0.85]
+  sun_angular_diameter_deg: 0.35
+  dome_brightness_scale: 5000.0
+  fog_density_scale: 0.002
+  fog_color: [0.78, 0.62, 0.42]

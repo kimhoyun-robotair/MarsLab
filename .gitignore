@@ -39,6 +39,7 @@ __pycache__/
 *.swo
 *.swn
 *~
+*.txt
 
 # Large terrain data files (downloaded, not committed)
 assets/terrain/dem/*.tif

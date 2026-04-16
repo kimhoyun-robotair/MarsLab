@@ -1,12 +1,217 @@
-"""Terrain mesh builder for Isaac Sim.
+"""DEM elevation grid to 3D terrain mesh converter.
 
-Converts a numpy elevation array into a USD mesh prim with collision,
-UV coordinates for texture mapping, and computed normals.
-Requires Isaac Sim runtime — do NOT import from offline code.
+Converts a 2D numpy elevation array into mesh geometry suitable for
+Isaac Sim rendering and PhysX collision. Designed in two layers per
+P3 (Offline-First Testing):
+
+  Layer 1: ``compute_mesh_arrays()`` — pure numpy, no Isaac Sim.
+           Returns points, normals, face indices, UVs as numpy arrays.
+           Fully unit-testable offline.
+
+  Layer 2: ``build_terrain_mesh()`` — USD writer requiring Isaac Sim.
+           Calls Layer 1 internally, then creates a UsdGeom.Mesh prim
+           with collision.
+
+Triangle winding uses CCW order when viewed from +Z so that PhysX
+collision normals point upward (+Z). This is critical — see work_log
+Wk1 #40 for the root cause of the previous winding bug.
+
+    Correct winding per quad cell:
+        Triangle 1: [i00, i01, i10]  (top-left, top-right, bottom-left)
+        Triangle 2: [i01, i11, i10]  (top-right, bottom-right, bottom-left)
+
+    Proof (flat surface, resolution r):
+        edge1 = p01 - p00 = (+r, 0, 0)
+        edge2 = p10 - p00 = (0, +r, 0)
+        cross(edge1, edge2) = (0, 0, +r^2) → +Z normal ✓
 """
 
 import numpy as np
-from pxr import Gf, Sdf, UsdGeom, UsdPhysics
+
+
+def compute_mesh_arrays(
+    elevation: np.ndarray,
+    resolution: float,
+    uv_scale: float = 1.0,
+) -> dict:
+    """Compute mesh geometry arrays from an elevation grid.
+
+    Pure numpy — no Isaac Sim dependency. Offline-testable.
+
+    The elevation array is normalized so that its minimum value becomes
+    zero. This prevents absolute Mars datum coordinates (~-2518 m) from
+    reaching the physics engine, which caused spawn-z coupling bugs in
+    previous implementations.
+
+    Args:
+        elevation: 2D float32 array of shape (rows, cols) in meters.
+            NaN values are replaced with 0.0 after normalization.
+        resolution: Meters per pixel (grid spacing).
+        uv_scale: UV tiling factor for texture mapping.
+
+    Returns:
+        Dict with keys:
+            ``points``: np.ndarray shape (N, 3) float32
+            ``normals``: np.ndarray shape (N, 3) float32
+            ``face_indices``: list[int] (3 ints per triangle)
+            ``face_counts``: list[int] (all 3s)
+            ``uvs``: np.ndarray shape (N, 2) float32
+            ``normalized_elevation``: np.ndarray shape (rows, cols) float32
+
+    Raises:
+        ValueError: If the elevation grid is too small to form triangles
+            (needs at least 2x2) or resolution is non-positive.
+    """
+    if elevation.ndim != 2:
+        raise ValueError(f"elevation must be 2D, got shape {elevation.shape}")
+    rows, cols = elevation.shape
+    if rows < 2 or cols < 2:
+        raise ValueError(f"elevation must be at least 2x2 to form triangles, got ({rows}, {cols})")
+    if resolution <= 0:
+        raise ValueError(f"resolution must be > 0, got {resolution}")
+
+    # Normalize: shift minimum to zero, replace NaN with 0.
+    elev = elevation.astype(np.float32, copy=True)
+    valid_min = np.nanmin(elev)
+    elev -= valid_min
+    elev = np.nan_to_num(elev, nan=0.0)
+
+    # --- Vertices ---
+    n_verts = rows * cols
+    points = np.empty((n_verts, 3), dtype=np.float32)
+
+    col_indices = np.arange(cols, dtype=np.float32)
+    row_indices = np.arange(rows, dtype=np.float32)
+    col_grid, row_grid = np.meshgrid(col_indices, row_indices)
+
+    points[:, 0] = (col_grid * resolution).ravel()
+    points[:, 1] = (row_grid * resolution).ravel()
+    points[:, 2] = elev.ravel()
+
+    # --- Face indices (CCW winding for +Z normals) ---
+    # For each quad cell (r, c) → (r, c+1) → (r+1, c) → (r+1, c+1):
+    #   Triangle 1: [i00, i01, i10]
+    #   Triangle 2: [i01, i11, i10]
+    n_quads = (rows - 1) * (cols - 1)
+    face_indices = np.empty(n_quads * 6, dtype=np.int32)
+
+    r_idx = np.arange(rows - 1)
+    c_idx = np.arange(cols - 1)
+    rc, cc = np.meshgrid(r_idx, c_idx, indexing="ij")
+    rc = rc.ravel()
+    cc = cc.ravel()
+
+    i00 = rc * cols + cc
+    i01 = rc * cols + (cc + 1)
+    i10 = (rc + 1) * cols + cc
+    i11 = (rc + 1) * cols + (cc + 1)
+
+    # Triangle 1: i00, i01, i10
+    face_indices[0::6] = i00
+    face_indices[1::6] = i01
+    face_indices[2::6] = i10
+    # Triangle 2: i01, i11, i10
+    face_indices[3::6] = i01
+    face_indices[4::6] = i11
+    face_indices[5::6] = i10
+
+    n_faces = n_quads * 2
+    face_counts = [3] * n_faces
+
+    # --- UV coordinates ---
+    uvs = np.empty((n_verts, 2), dtype=np.float32)
+    u_vals = col_indices / max(cols - 1, 1) * uv_scale
+    v_vals = row_indices / max(rows - 1, 1) * uv_scale
+    u_grid, v_grid = np.meshgrid(u_vals, v_vals)
+    uvs[:, 0] = u_grid.ravel()
+    uvs[:, 1] = v_grid.ravel()
+
+    # --- Vertex normals (from gradient) ---
+    normals = _compute_vertex_normals(elev, resolution)
+
+    return {
+        "points": points,
+        "normals": normals,
+        "face_indices": face_indices.tolist(),
+        "face_counts": face_counts,
+        "uvs": uvs,
+        "normalized_elevation": elev,
+    }
+
+
+def _compute_vertex_normals(elevation: np.ndarray, resolution: float) -> np.ndarray:
+    """Compute per-vertex normals from elevation gradients.
+
+    Uses numpy.gradient for central differences. The resulting normals
+    point generally upward (+Z) on typical terrain.
+
+    Args:
+        elevation: 2D float32 normalized elevation array.
+        resolution: Grid spacing in meters.
+
+    Returns:
+        np.ndarray of shape (rows*cols, 3) float32, unit normals.
+    """
+    dy, dx = np.gradient(elevation, resolution)
+    rows, cols = elevation.shape
+    n_verts = rows * cols
+
+    normals = np.empty((n_verts, 3), dtype=np.float32)
+    normals[:, 0] = (-dx).ravel()
+    normals[:, 1] = (-dy).ravel()
+    normals[:, 2] = 1.0
+
+    # Normalize to unit length
+    lengths = np.sqrt(np.sum(normals**2, axis=1, keepdims=True))
+    lengths = np.maximum(lengths, 1e-8)
+    normals /= lengths
+
+    return normals
+
+
+def terrain_z_at(
+    elevation: np.ndarray,
+    resolution: float,
+    x: float,
+    y: float,
+) -> float:
+    """Bilinear interpolation of terrain elevation at world (x, y).
+
+    Pure numpy — no Isaac Sim dependency. Used to compute rover spawn z
+    and rock placement heights.
+
+    Args:
+        elevation: 2D normalized elevation array (z_min=0).
+        resolution: Meters per pixel.
+        x: World x coordinate in meters.
+        y: World y coordinate in meters.
+
+    Returns:
+        Interpolated elevation in meters.
+    """
+    rows, cols = elevation.shape
+    col_f = x / resolution
+    row_f = y / resolution
+
+    # Clamp to grid bounds
+    col_f = max(0.0, min(col_f, cols - 1.0))
+    row_f = max(0.0, min(row_f, rows - 1.0))
+
+    c0 = int(col_f)
+    r0 = int(row_f)
+    c1 = min(c0 + 1, cols - 1)
+    r1 = min(r0 + 1, rows - 1)
+
+    dc = col_f - c0
+    dr = row_f - r0
+
+    z00 = float(elevation[r0, c0])
+    z01 = float(elevation[r0, c1])
+    z10 = float(elevation[r1, c0])
+    z11 = float(elevation[r1, c1])
+
+    z = z00 * (1 - dc) * (1 - dr) + z01 * dc * (1 - dr) + z10 * (1 - dc) * dr + z11 * dc * dr
+    return z
 
 
 def build_terrain_mesh(
@@ -14,110 +219,67 @@ def build_terrain_mesh(
     resolution: float,
     stage,
     prim_path: str,
-    uv_scale: float = 4.0,
-) -> None:
-    """Build a USD terrain mesh from a 2D elevation array.
+    uv_scale: float = 1.0,
+) -> np.ndarray:
+    """Build a USD terrain mesh with collision from an elevation grid.
 
-    Creates a triangulated mesh prim on the given USD stage with
-    physics collision, UV coordinates, and vertex normals.
+    Calls ``compute_mesh_arrays()`` internally, then creates a
+    ``UsdGeom.Mesh`` prim with ``UsdPhysics.CollisionAPI`` and
+    ``UsdPhysics.MeshCollisionAPI`` (approximation="none" for exact
+    triangle collision).
 
     Args:
-        elevation: 2D float array of shape (rows, cols) with height values in meters.
-        resolution: Spatial resolution in meters per pixel.
+        elevation: 2D float32 elevation array (rows, cols) in meters.
+        resolution: Meters per pixel.
         stage: USD stage (from omni.usd.get_context().get_stage()).
-        prim_path: USD prim path for the mesh (e.g., "/World/terrain").
-        uv_scale: UV tiling factor. Higher = more texture repetitions.
+        prim_path: USD prim path for the terrain mesh.
+        uv_scale: UV tiling factor.
 
-    Raises:
-        ValueError: If elevation is not 2D or resolution is not positive.
+    Returns:
+        The normalized elevation array (z_min=0) for use by
+        ``terrain_z_at()`` and rock height sampling.
     """
-    if elevation.ndim != 2:
-        raise ValueError(f"elevation must be 2D, got shape {elevation.shape}")
-    if resolution <= 0:
-        raise ValueError(f"resolution must be > 0, got {resolution}")
+    from pxr import Gf, Sdf, UsdGeom, UsdPhysics, Vt
 
-    rows, cols = elevation.shape
+    mesh_data = compute_mesh_arrays(elevation, resolution, uv_scale)
 
-    # Generate vertices and UV coordinates
-    points = []
-    uvs = []
-    for r in range(rows):
-        for c in range(cols):
-            x = c * resolution
-            y = r * resolution
-            z = float(elevation[r, c])
-            if np.isnan(z):
-                z = 0.0
-            points.append(Gf.Vec3f(x, y, z))
+    points_np = mesh_data["points"]
+    normals_np = mesh_data["normals"]
+    uvs_np = mesh_data["uvs"]
+    face_indices = mesh_data["face_indices"]
+    face_counts = mesh_data["face_counts"]
 
-            # UV: normalized [0,1] * uv_scale for tiling
-            u = (c / max(cols - 1, 1)) * uv_scale
-            v = (r / max(rows - 1, 1)) * uv_scale
-            uvs.append(Gf.Vec2f(u, v))
+    # Convert numpy arrays to USD types
+    points_vt = Vt.Vec3fArray([Gf.Vec3f(float(p[0]), float(p[1]), float(p[2])) for p in points_np])
+    normals_vt = Vt.Vec3fArray(
+        [Gf.Vec3f(float(n[0]), float(n[1]), float(n[2])) for n in normals_np]
+    )
 
-    # Compute vertex normals from elevation gradients
-    normals = _compute_normals(elevation, resolution)
-
-    # Generate triangle indices (2 triangles per grid cell)
-    face_indices = []
-    face_counts = []
-    for r in range(rows - 1):
-        for c in range(cols - 1):
-            i00 = r * cols + c
-            i10 = (r + 1) * cols + c
-            i01 = r * cols + (c + 1)
-            i11 = (r + 1) * cols + (c + 1)
-
-            face_indices.extend([i00, i10, i01])
-            face_counts.append(3)
-
-            face_indices.extend([i01, i10, i11])
-            face_counts.append(3)
-
-    # Create USD mesh prim
+    # Define the mesh prim
     mesh = UsdGeom.Mesh.Define(stage, prim_path)
-    mesh.GetPointsAttr().Set(points)
+    mesh.GetPointsAttr().Set(points_vt)
     mesh.GetFaceVertexIndicesAttr().Set(face_indices)
     mesh.GetFaceVertexCountsAttr().Set(face_counts)
     mesh.GetSubdivisionSchemeAttr().Set("none")
 
-    # Set normals (vertex interpolation)
-    mesh.GetNormalsAttr().Set(normals)
+    # Vertex normals
+    mesh.GetNormalsAttr().Set(normals_vt)
     mesh.SetNormalsInterpolation("vertex")
 
-    # Set UV coordinates as primvar "st"
-    primvar_api = UsdGeom.PrimvarsAPI(mesh.GetPrim())
-    uv_primvar = primvar_api.CreatePrimvar("st", Sdf.ValueTypeNames.Float2Array)
-    uv_primvar.Set(uvs)
-    uv_primvar.SetInterpolation("vertex")
+    # UV coordinates (texture mapping)
+    uv_primvar = UsdGeom.PrimvarsAPI(mesh.GetPrim()).CreatePrimvar(
+        "st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex
+    )
+    uvs_vt = Vt.Vec2fArray([Gf.Vec2f(float(u[0]), float(u[1])) for u in uvs_np])
+    uv_primvar.Set(uvs_vt)
 
-    # Enable collision
-    mesh_prim = stage.GetPrimAtPath(prim_path)
-    UsdPhysics.CollisionAPI.Apply(mesh_prim)
-    UsdPhysics.MeshCollisionAPI.Apply(mesh_prim)
+    # Physics collision (exact triangle mesh, no convex hull)
+    prim = mesh.GetPrim()
+    UsdPhysics.CollisionAPI.Apply(prim)
+    mesh_collision = UsdPhysics.MeshCollisionAPI.Apply(prim)
+    mesh_collision.GetApproximationAttr().Set("none")
 
+    # Semantic label for annotation
+    prim.CreateAttribute("semanticLabel", Sdf.ValueTypeNames.String).Set("soil")
 
-def _compute_normals(elevation: np.ndarray, resolution: float) -> list:
-    """Compute vertex normals from elevation gradients.
-
-    Args:
-        elevation: 2D elevation array (rows, cols).
-        resolution: Meters per pixel.
-
-    Returns:
-        List of Gf.Vec3f normals, one per vertex.
-    """
-    rows, cols = elevation.shape
-    elev = np.nan_to_num(elevation, nan=0.0)
-
-    # Compute gradients (dz/dx, dz/dy)
-    dy, dx = np.gradient(elev, resolution)
-
-    normals = []
-    for r in range(rows):
-        for c in range(cols):
-            n = Gf.Vec3f(-float(dx[r, c]), -float(dy[r, c]), 1.0)
-            n = n.GetNormalized()
-            normals.append(n)
-
-    return normals
+    return mesh_data["normalized_elevation"]

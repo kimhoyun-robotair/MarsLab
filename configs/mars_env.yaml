@@ -42,28 +42,117 @@ rendering:
   spp: 32                            # samples per pixel per frame (Phase 1: production)
   total_spp: 256                     # total accumulated samples (Phase 1: production)
   max_bounces: 6                     # ray bounce depth (Phase 1: production)
-  sun_intensity_scale: 5.0           # W/m^2 → Isaac Sim light units
+  sun_intensity_scale: 30.0          # W/m^2 → Isaac Sim path-tracing units (calibrated 2026-04-16)
   sun_color: [1.0, 0.95, 0.85]      # warm Mars sunlight
   sun_angular_diameter_deg: 0.35     # sun disk from Mars
-  dome_brightness_scale: 1000.0      # sky dome multiplier
+  dome_brightness_scale: 5000.0      # sky dome multiplier (calibrated 2026-04-16 for path-tracing)
   fog_density_scale: 0.002           # tau → fog density
   fog_color: [0.78, 0.62, 0.42]     # Mars dust haze butterscotch
 
-# robots: (Phase 1: disabled -- re-enable in Phase 2)
-#   - type: "rover"
-#     urdf_path: "assets/robots/rover/simple_rover.urdf"
-#     spawn_position: [0.0, 0.0, 0.30]
-#     sensor_config_paths:
-#       - "configs/sensors/stereo_rgb.yaml"
-#       - "configs/sensors/depth_camera.yaml"
-#       - "configs/sensors/lidar_3d.yaml"
-#       - "configs/sensors/imu.yaml"
-#   - type: "rotorcraft"
-#     urdf_path: "assets/robots/rotorcraft/simple_rotorcraft.urdf"
-#     spawn_position: [5.0, 0.0, 3.0]
-#   - type: "quadruped"
-#     usd_asset_path: "Isaac/Robots/Unitree/Go2/go2.usd"
-#     spawn_position: [-3.0, 0.0, 0.30]
+# Wk1 #4 (2026-04-14): rover re-enabled with fix_base=False (dynamic physics).
+# rotorcraft and quadruped remain commented (Wk2+ scope, rover stabilization first).
+robots:
+  - type: "rover"
+    urdf_path: "assets/robots/rover/simple_rover.urdf"
+    # Spawn z offset is relative to terrain surface (see scripts/run_scene.py
+    # _terrain_z_at). Geometry: base_link is a 1.0 x 0.6 x 0.3 box centered
+    # at its origin; wheel joints sit at local z=-0.15 with wheel radius
+    # 0.15, so wheel bottoms are at (spawn_z - 0.30). Offset 0.50 places
+    # wheel bottoms 0.20 m above the terrain, giving the rover a small drop
+    # gap to settle cleanly instead of spawning flush with the surface
+    # (zero margin -> explosive contact reaction on sloped cells). Raise
+    # further if penetration is still observed in the handoff IMU test.
+    # old: 0.30 (replaced 2026-04-14 per code-quality-reviewer C1)
+    spawn_position: [0.0, 0.0, 0.50]
+    sensor_config_paths:
+      - "configs/sensors/stereo_rgb.yaml"
+      - "configs/sensors/depth_camera.yaml"
+      - "configs/sensors/lidar_3d.yaml"
+      - "configs/sensors/imu.yaml"
+    # Wk2 #4 (2026-04-14, task #15): skid-steer drive parameters for cmd_vel
+    # control. Track width = 0.70 m is the distance between left (|y|=0.35)
+    # and right (|y|=-0.35) wheel centers per the
+    # assets/robots/rover/simple_rover.urdf joint origins. Wheel radius
+    # 0.15 m matches the <cylinder radius="0.15"/> collision geometry.
+    # Linear/angular clamps cap cmd_vel at a safe envelope — raise if
+    # SLAM/Nav2 tests want faster traversal. Joint names mirror the URDF.
+    drive:
+      wheel_radius: 0.15
+      track_width: 0.70
+      max_linear_vel: 1.0
+      max_angular_vel: 1.5
+      # Wk2 #7b (task #18): safety watchdog for /cmd_vel drop. If no
+      # Twist arrives within this window, the subscriber zeros all wheel
+      # velocities instead of letting the rover cruise at the last
+      # commanded velocity. 0.5 s matches Nav2's default behavior.
+      cmd_vel_timeout_s: 0.5
+      left_wheel_joints: ["joint_fl", "joint_ml", "joint_rl"]
+      right_wheel_joints: ["joint_fr", "joint_mr", "joint_rr"]
+      # Wk2 #6 (2026-04-14, task #17): diagonal covariance placeholders
+      # for the nav_msgs/Odometry publisher. Order: (x, y, z, roll,
+      # pitch, yaw) for pose_diag and (vx, vy, vz, wx, wy, wz) for
+      # twist_diag. Non-planar axes (z, roll, pitch, vz, wx, wy) are
+      # inflated to 1e6 so SLAM/Nav2 ignore them — a skid-steer rover
+      # has no wheel-encoder estimate of those components. Real numbers
+      # will replace these after Wk3 SLAM experiments.
+      odom_covariance:
+        pose_diag: [1.0e-3, 1.0e-3, 1.0e6, 1.0e6, 1.0e6, 1.0e-2]
+        twist_diag: [1.0e-3, 1.0e-3, 1.0e6, 1.0e6, 1.0e6, 1.0e-2]
+  # DISABLED (wk2_scope): replaced 2026-04-14
+  #  - type: "rotorcraft"
+  #    urdf_path: "assets/robots/rotorcraft/simple_rotorcraft.urdf"
+  #    spawn_position: [5.0, 0.0, 3.0]
+  #  - type: "quadruped"
+  #    usd_asset_path: "Isaac/Robots/Unitree/Go2/go2.usd"
+  #    spawn_position: [-3.0, 0.0, 0.30]
+
+# Wk1 Phase B #23 (2026-04-15, task #23): sensor subsystem + telemetry
+# blocks. The 'sensors.imu' block drives the Wk1 live IMU gravity probe
+# (marslab/sensors/imu_probe.py). target_gz mirrors mars_env.gravity so
+# the probe compares the accelerometer reading against the configured
+# Mars gravity rather than a hardcoded constant -- G5 compliance.
+# tolerance 0.05 m/s^2 matches PLAN.md §6.2 "THE critical test" band of
+# 3.67..3.77. sample_count 20 / settle_steps 50 give a ~1/3 s settle at
+# 60 Hz physics and a 20-sample average that averages out contact
+# oscillation without stalling the smoke loop.
+sensors:
+  imu:
+    sample_count: 20
+    settle_steps: 50
+    target_gz: 3.72
+    tolerance: 0.05
+    # Noise gate added alongside the B6 judgment spec (qa-validator
+    # 2026-04-15). If sample stddev on z exceeds this bound the probe
+    # reports pass=False with reason="stddev_z_excessive" even when
+    # mean_z is on target -- catches the "settle_steps too low"
+    # failure mode where the rover still has contact bounce.
+    stddev_z_max: 0.10
+    # Wk1 Phase B followup (2026-04-15, team-lead design call #1):
+    # URDF link identifiers for the probe mount. Not Mars physical
+    # constants -- they are stage identifiers, but kept in YAML so a
+    # future rover URDF with a different imu mount link can be loaded
+    # without editing Python. The probe falls through from mount_link
+    # to fallback_link when the primary link is missing on the stage.
+    mount_link: "imu_link"
+    fallback_link: "base_link"
+    # Phase C2 (#34, 2026-04-15): IMU ROS2 publisher fields. Read by
+    # marslab.ros2_bridge.imu_node.IMUPublisher. The probe-based
+    # fields above (sample_count/settle_steps/target_gz/tolerance/
+    # stddev_z_max/mount_link/fallback_link) remain in YAML even
+    # though the Phase B run_live_gravity_probe call site is now
+    # commented out -- they still drive the offline
+    # evaluate_gravity_reading unit tests and a future regression
+    # session can re-enable the probe by uncommenting the Hook B
+    # block in scripts/run_scene.py.
+    publish_rate_hz: 100.0
+    frame_id: "imu_link"
+    topic_name: "/{robot_name}/imu/data"
+
+# Wk1 Phase B #22 (2026-04-15, task #22): JSON sink destination for the
+# Wk1 IMU gate payload. Parent directories are auto-created by
+# marslab/telemetry/json_sink.py:write_sink.
+telemetry:
+  json_sink_path: "_workspace/wk1_imu_gate.json"
 
 benchmark:
   annotation_format: "ai4mars"

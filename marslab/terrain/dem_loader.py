@@ -146,3 +146,78 @@ def load_converted_dem(converted_dir: str) -> tuple[np.ndarray, dict]:
         metadata = json.load(f)
 
     return elevation, metadata
+
+
+def crop_dem(
+    elevation: np.ndarray,
+    metadata: dict,
+    row: int,
+    col: int,
+    height: int,
+    width: int,
+) -> tuple[np.ndarray, dict]:
+    """Crop a rectangular window from a loaded DEM.
+
+    Pure-numpy helper used by scenario YAMLs (Wk2 #1-#3, 2026-04-14) to
+    extract specific regions (Jezero plain, rim, delta) from the full
+    HiRISE DEM without reloading the source GeoTIFF. The returned
+    metadata preserves the original ``resolution_x/y`` and ``crs_wkt``
+    but updates ``width``, ``height``, ``origin_x/y`` (shifted by the
+    crop offset in CRS units), and recomputes ``elevation_min/max``
+    for the cropped region.
+
+    Args:
+        elevation: 2D float32 array from ``load_hirise_dem`` or
+            ``load_converted_dem``.
+        metadata: Metadata dict from the same loader.
+        row: Top-left row index of the crop (0-based, inclusive).
+        col: Top-left column index of the crop (0-based, inclusive).
+        height: Number of rows in the crop window.
+        width: Number of columns in the crop window.
+
+    Returns:
+        Tuple ``(cropped_elevation, cropped_metadata)``. The cropped
+        elevation is a *copy* (not a view) so callers may mutate it.
+
+    Raises:
+        ValueError: If the crop window falls outside the source DEM,
+            if height/width are non-positive, or if the resulting
+            crop contains any NaN pixels (since downstream mesh
+            building does not tolerate holes).
+    """
+    if elevation.ndim != 2:
+        raise ValueError(f"elevation must be 2D, got shape {elevation.shape}")
+    if height <= 0 or width <= 0:
+        raise ValueError(f"crop height/width must be > 0, got ({height}, {width})")
+    if row < 0 or col < 0:
+        raise ValueError(f"crop row/col must be >= 0, got ({row}, {col})")
+
+    src_rows, src_cols = elevation.shape
+    if row + height > src_rows or col + width > src_cols:
+        raise ValueError(
+            f"crop window ({row}:{row + height}, {col}:{col + width}) "
+            f"exceeds DEM bounds ({src_rows}, {src_cols})"
+        )
+
+    cropped = np.array(elevation[row : row + height, col : col + width], dtype=np.float32)
+    if np.isnan(cropped).any():
+        raise ValueError(
+            f"cropped region contains {int(np.isnan(cropped).sum())} NaN pixel(s); "
+            f"choose a crop window fully inside valid data"
+        )
+
+    res_x = float(metadata.get("resolution_x", 1.0))
+    res_y = float(metadata.get("resolution_y", 1.0))
+    origin_x = float(metadata.get("origin_x", 0.0))
+    origin_y = float(metadata.get("origin_y", 0.0))
+
+    cropped_meta = dict(metadata)
+    cropped_meta["width"] = int(width)
+    cropped_meta["height"] = int(height)
+    cropped_meta["origin_x"] = origin_x + col * res_x
+    cropped_meta["origin_y"] = origin_y - row * res_y
+    cropped_meta["elevation_min"] = float(cropped.min())
+    cropped_meta["elevation_max"] = float(cropped.max())
+    cropped_meta["crop_source_shape"] = [int(src_rows), int(src_cols)]
+    cropped_meta["crop_offset"] = [int(row), int(col)]
+    return cropped, cropped_meta

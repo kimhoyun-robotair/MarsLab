@@ -1,0 +1,127 @@
+# Phase 1 Stage 1 configuration.
+#
+# Scope: spawn a URDF-based rover on a flat ground plane, enable the
+# Isaac Sim ROS 2 bridge, publish sensor topics, and accept cmd_vel
+# commands. No DEM, no rocks, no atmosphere, no walker probes.
+#
+# Gravity is parameterised so the same pipeline can be reused with
+# Mars gravity (3.72) once Stage 1 is fully green on Earth gravity.
+
+physics:
+  # Earth gravity until Stage 1 is fully verified. Switch to 3.72 for
+  # Mars once cmd_vel + ROS2 topics + odom round-trip all work.
+  gravity: 9.81
+  time_step: 0.01667   # 60 Hz physics
+  rendering_dt: 0.01667
+
+rover:
+  # Runtime loads the USD produced by the one-shot converter
+  # scripts/phase1/convert_urdf_to_usd.py. Stage 1+ runtime MUST NOT
+  # re-run URDF import.
+  usd_path: "assets/robots/rover/m2020.usd"
+  # URDF source is consumed only by the offline converter.
+  urdf_source_path: "reference/m2020-urdf-models/rover/m2020.urdf"
+  prim_path: "/World/Rover"
+  # After 180° X-flip the model's lowest point (wheel bottom) sits at
+  # local z≈+0.26. spawn z=-0.0 → world z≈0.26 → ~0.26m gentle drop.
+  spawn_position: [0.0, 0.0, 0.0]
+  # 180° roll: USD geometry is baked upside-down (glTF Y-up → USD Z-up
+  # conversion leaves mast at Z-bottom, wheels at Z-top). pi rad X-rotation
+  # flips the model upright.
+  spawn_orientation_rpy: [3.14159, 0.0, 0.0]
+  # The urdf_* flags below are consumed by the offline converter only.
+  # merge_fixed_joints=False keeps every URDF link visible as a prim
+  # so sensors can attach to named frames.
+  # Center-of-mass forward offset (meters, URDF body-frame X-axis).
+  # Compensates for uniform-density collision-hull bias that makes
+  # the rear heavier than the front. Positive X = rover front.
+  # Tune visually: increase X if rear still sags, decrease if front dips.
+  # 후면이 무거우면 x를 증가시키고 전면이 무거우면 x를 감소시키기
+  com_offset: [0.2, 0.0, 0.0]
+  # Angular damping on the chassis rigid body (rad/s decay).
+  # Suppresses whole-body rotational oscillation after landing.
+  angular_damping: 12.0
+  # The urdf_* flags below are consumed by the offline converter only.
+  urdf_merge_fixed_joints: false
+  # fix_base=False lets the rover fall onto the ground under gravity.
+  urdf_fix_base: false
+  urdf_self_collision: false
+  urdf_create_physics_scene: false
+
+ros2:
+  namespace: "rover"
+  # Topics (relative to namespace).
+  topics:
+    cmd_vel: "cmd_vel"
+    imu: "imu"
+    odom: "odom"
+    rgb: "rgb/image_raw"
+    depth: "depth/image_raw"
+    lidar: "lidar/points"
+  # Publish rates in Hz. Used when wiring render products / action graph.
+  rates:
+    imu: 100
+    odom: 50
+    rgb: 30
+    depth: 30
+    lidar: 10
+
+sensors:
+  # NASA JPL m2020 URDF has no `base_link`; the articulation root after
+  # sanitizer removes the dummy ground link is `Body_Chassis`.
+  camera:
+    parent_link: "Body_Chassis"
+    local_translation: [0.3, 0.0, 0.4]
+    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+    resolution: [640, 480]
+    focal_length: 24.0
+    clipping_range: [0.1, 1000.0]
+
+  lidar:
+    parent_link: "Body_Chassis"
+    local_translation: [0.0, 0.0, 0.5]
+    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+    # RTX Lidar profile name shipped with Isaac Sim.
+    profile: "Example_Rotary"
+
+  imu:
+    parent_link: "Body_Chassis"
+    local_translation: [0.0, 0.0, 0.2]
+    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+
+control:
+  # Simple skid-steer approximation. Stage 1 does NOT model Ackermann
+  # steering or rocker-bogie kinematics; it drives all 6 wheels with
+  # omega_L = (v - w*track/2)/r on the left column and the symmetric
+  # value on the right. Steer joints are held at zero.
+  wheel_radius: 0.2667            # Perseverance wheel radius (m)
+  wheel_track: 2.9                # approximate L-R wheel separation (m)
+  max_linear_velocity: 0.5        # m/s
+  max_angular_velocity: 0.5       # rad/s
+  # Drive joints in left-then-right order (order matters: left 3 first,
+  # then right 3 — the skid-steer mapping builds a 6-vector on this layout).
+  drive_joint_names:
+    - "LF_DRIVE"
+    - "LM_DRIVE"
+    - "LR_DRIVE"
+    - "RF_DRIVE"
+    - "RM_DRIVE"
+    - "RR_DRIVE"
+  # Corner steer joints — held at zero position for Stage 1.
+  steer_joint_names:
+    - "LF_STEER"
+    - "LR_STEER"
+    - "RF_STEER"
+    - "RR_STEER"
+  # Rocker-bogie suspension joints — damped to suppress post-landing rocking.
+  suspension_joint_names:
+    - "CENTER_DIFFERENTIAL"
+    - "LEFT_DIFFERENTIAL"
+    - "RIGHT_DIFFERENTIAL"
+    - "LEFT_BOGIE"
+    - "RIGHT_BOGIE"
+  # Nm·s/rad. Higher = faster settling. 0 = free oscillation.
+  suspension_damping: 85.0
+  # Legacy regex (Stage 1 resolves joints by explicit name list above).
+  # left_wheel_joint_regex: ".*(LF|LM|LR|left).*wheel.*"
+  # right_wheel_joint_regex: ".*(RF|RM|RR|right).*wheel.*"

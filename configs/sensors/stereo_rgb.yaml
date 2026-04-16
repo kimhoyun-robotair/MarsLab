@@ -13,6 +13,14 @@ sensor:
   vertical_aperture: 11.7872               # mm (matches 16:9 aspect ratio)
   clipping_range: [0.1, 100.0]            # near/far in meters
   enable_depth: false
+  # Wk2 (2026-04-14, per slam-nav-integrator request in ros2_topic_spec reply):
+  # stereo baseline in meters for the CameraInfo.P[0,3] projection entry.
+  # Right-camera P[0,3] = -fx * baseline_m so slam_toolbox / Nav2 can recover
+  # depth from disparity. Left-camera P[0,3] = 0. Standard MER-class 20 cm
+  # baseline; adjust per the Wk3 stereo calibration pass if needed. Kept on
+  # the sensor YAML (not on a downstream launch file) so Wk2 #7's sensor
+  # re-enable commit can read it without modifying this file.
+  baseline_m: 0.20
   update_rate: 30                          # Hz
   ros2_topic: "image_raw"                  # sub-topic for ROS2 publish
   ros2_frame_id: "camera_link"             # TF frame ID
