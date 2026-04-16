@@ -1,0 +1,68 @@
+# Procedural Canyon Scenario (Corridor)
+# Synthetic canyon: steep walls on both sides, traversable floor in the center
+# Floor width ~30m, total canyon width ~80m, depth ~40m
+# Small craters on floor for obstacle avoidance
+# Purpose: navigation, exploration, SLAM, traversability in confined corridor
+
+mars_env:
+  gravity: 3.72
+  atmo_pressure: 610
+  atmo_density: 0.020
+  dust_optical_depth: 0.3
+  solar_constant_mean: 589
+  surface_albedo_range: [0.10, 0.40]
+  surface_temp_mean: -60
+  sol_duration_seconds: 88642
+  dust_opacity_range: [0.5, 2.0]
+  sun_azimuth_deg: 180
+  sun_elevation_deg: 45
+  seed: 42
+  dynamic_atmosphere:
+    enabled: true
+    time_scale: 200.0
+    sun_sweep:
+      start_azimuth_deg: 90
+      end_azimuth_deg: 270
+      max_elevation_deg: 60
+    tau_profile: "constant"
+    tau_constant:
+      base_tau: 0.3
+    update_interval_frames: 10
+
+terrain:
+  source: "procedural"
+  scenario_name: "procedural_canyon"
+  procedural_preset: "canyon"
+  terrain_size: [300, 300]
+  terrain_resolution: 1.0
+  seed: 42
+  canyon_depth: 40.0
+  canyon_floor_width: 30.0
+  canyon_total_width: 80.0
+  canyon_curvature: 0.3
+  canyon_craters: 2
+  canyon_crater_radius_range: [5, 15]
+  canyon_crater_depth_range: [2, 6]
+  rock_sfd_k: 0.008
+  rock_diameter_range: [0.10, 1.5]
+  semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
+  texture_dir: "assets/materials/mars_hirise"
+  rock_color: [0.42, 0.28, 0.20]
+  rock_roughness: 0.92
+  rock_mesh_dir: "assets/rocks"
+  rock_texture_dir: "assets/materials/mars_rock"
+  uv_scale: 1.0
+
+rendering:
+  mode: "path_tracing"
+  sky_dome_hdri_dir: "assets/sky/hdri/"
+  resolution: [1920, 1080]
+  spp: 32
+  total_spp: 256
+  max_bounces: 6
+  sun_intensity_scale: 30.0
+  sun_color: [1.0, 0.95, 0.85]
+  sun_angular_diameter_deg: 0.35
+  dome_brightness_scale: 5000.0
+  fog_density_scale: 0.002
+  fog_color: [0.78, 0.62, 0.42]

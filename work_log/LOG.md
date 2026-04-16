@@ -3056,3 +3056,119 @@ PASS 조건:
 - `tests/unit/test_run_stage1_helpers.py` (수정)
 - `~/.claude/projects/-home-hoyunkim-MarsLab/memory/feedback_modular_controller.md` (신규)
 
+---
+
+## 2026-04-16 — Stage 1.6: Ackermann Controller 고도화 (DriveAPI 타이밍 + 부호 + 유클리드)
+
+### 주차: Wk1 (Phase 1 Rover Mobility)
+### 모듈: `scripts/phase1/`, `configs/`, `tests/unit/`
+
+### 원래 계획
+
+Stage 1.5에서 Ackermann steering controller를 구현했으나 **동일 문제 지속**:
+직진 후 정지, 회전 이상. 근본 원인 3가지를 조사를 통해 식별하고 수정.
+
+### 구현 계획 (plan mode에서 승인됨)
+
+근본 원인 3가지:
+1. **RC1: DriveAPI 타이밍**: `world.reset()` 후 USD 속성으로 설정한 DriveAPI가
+   이미 캐시된 PhysX physics view에 반영되지 않음 → 실질적으로 damping=0
+2. **RC2: Steer 부호 반전**: 180° X-roll 후 steer Z-axis 방향 역전
+3. **RC3: Wheel velocity 근사 오차**: Y-성분만 사용 → 유클리드 거리 필요
+
+### 수행 내용
+
+1. **DriveAPI → `set_gains()` API 전환** (`run_stage1.py`)
+   - 기존 L502-590 (USD `CreateAttribute` 기반 DriveAPI 블록 3개) 전체 주석 처리
+   - 대체: `articulation.set_gains(kps, kds)` — PhysX 텐서에 직접 기록
+   - physics handle warmup: `world.step()` 5회 후 gains 설정
+   - `set_effort_modes("acceleration")` — 질량 자동 보상 (density=500 → 수천 kg)
+   - `set_max_efforts()` — 토크/가속도 제한
+   - Readback verification: `get_gains()`로 실제 적용값 출력
+   - Drive + steer + suspension 모두 단일 `set_gains()` 호출로 통합
+
+2. **`negate_steer` 플래그** (`run_stage1.py`, `phase1.yaml`)
+   - `phase1.yaml`에 `negate_steer: true` 추가
+   - Main loop에서 `steer_angles = -steer_angles` 적용
+   - 180° X-roll로 인한 steer Z-axis 반전 보상
+
+3. **진단 로깅 모드** (`run_stage1.py`, `phase1.yaml`)
+   - `phase1.yaml`에 `debug_logging: false` 추가
+   - true 설정 시 매 1초(60 step)마다 출력:
+     - twist (v, w), steer_cmd, steer_actual, drive_cmd, drive_actual
+   - 부호 규약 검증 및 튜닝에 사용
+
+4. **유클리드 거리 기반 wheel velocity** (`ackermann.py`)
+   - 기존: `omega = w * (R - y_w) / r` (Y-성분만, ~4% 오차)
+   - 변경: `dist = sqrt(x_w² + (R-y_w)²)`, `omega = copysign(1, w*dy) * |w| * dist / r`
+   - NVIDIA 내장 AckermannController와 동일한 접근법
+   - 중간 바퀴(x_w=0)는 기존과 동일, 전후 바퀴는 ICR까지 실제 거리 반영
+
+5. **Config 추가** (`phase1.yaml`)
+   - `drive_type: "acceleration"` — force → acceleration 전환
+   - `negate_steer: true`
+   - `debug_logging: false`
+
+6. **테스트 추가** (`test_ackermann.py`, `test_run_stage1_helpers.py`)
+   - `TestAckermannEuclidean` 클래스 3개 테스트 추가:
+     - `test_front_rear_faster_than_middle_on_curve`
+     - `test_middle_wheels_same_as_linear_approx`
+     - `test_point_turn_front_faster_than_middle`
+   - `VALID_CONFIG`에 새 키 3개 추가
+
+### 핵심 결정
+
+| 결정 | 근거 |
+|------|------|
+| USD DriveAPI → `set_gains()` | PhysX physics view가 world.reset() 시점에 USD를 캐시하므로, 이후 USD 변경은 반영 안 됨. `set_gains()`는 PhysX 텐서에 직접 기록. Isaac Sim 5.1.0 소스 확인: `articulation.py:2974` |
+| drive_type: "acceleration" | density=500 collision mesh → 총 질량 수천 kg. "acceleration" 모드는 질량/관성을 자동 보상하여 튜닝 용이 |
+| negate_steer 플래그 | 180° X-roll 후 steer joint local Z가 world Z-down이 되어 부호 반전. YAML 플래그로 실험적 전환 가능 |
+| 유클리드 거리 | NVIDIA AckermannController (isaacsim.robot.wheeled_robots L243-261)도 동일 접근. 전후 바퀴 velocity 정확도 향상 |
+
+### 테스트 결과
+
+```
+black --check:    79 files unchanged ✓
+ruff check:       all checks passed ✓
+pytest tests/unit/: 225 passed, 0 failed (4.96s) ✓
+  - test_ackermann.py: 18 passed (기존 15 + 신규 3)
+  - test_run_stage1_helpers.py: 17 passed
+```
+
+### 사용자 통합 테스트 방법
+
+**1단계: 진단 모드로 부호 확인**
+```yaml
+# phase1.yaml에서:
+debug_logging: true
+```
+```bash
+scripts/isaac_python.sh scripts/phase1/run_stage1.py --config configs/phase1.yaml
+# 다른 터미널:
+ros2 topic pub --once /rover/cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.1}, angular: {z: 0.0}}"
+```
+→ `[DIAG]` 출력에서 `drive_act` 양수 확인, `steer_act` ≈ 0 확인
+
+**2단계: teleop 주행 테스트**
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard \
+  --ros-args --remap cmd_vel:=/rover/cmd_vel
+```
+
+**문제 시 튜닝:**
+| 증상 | 조치 |
+|------|------|
+| 여전히 정지 | Gain readback에서 kd=0이면 warmup step 증가 |
+| 직진 방향 반대 | wheel_vels = -wheel_vels 추가 |
+| 조향 방향 반대 | negate_steer: false로 전환 |
+| 조향 떨림 | steer_damping 2배 증가 |
+
+### 이 세션에서 수정된 파일
+
+- `scripts/phase1/run_stage1.py` (USD DriveAPI → set_gains, negate_steer, debug_logging)
+- `scripts/phase1/ackermann.py` (유클리드 거리 기반 wheel velocity)
+- `configs/phase1.yaml` (drive_type, negate_steer, debug_logging 추가)
+- `tests/unit/test_ackermann.py` (TestAckermannEuclidean 3개 추가)
+- `tests/unit/test_run_stage1_helpers.py` (VALID_CONFIG 업데이트)
+

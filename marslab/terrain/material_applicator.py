@@ -68,6 +68,55 @@ def apply_terrain_material(
             binding.Bind(UsdShade.Material(mat_prim))
 
 
+def apply_cave_material(
+    stage,
+    mesh_prim_path: str,
+    albedo_range: tuple[float, float] = (0.05, 0.15),
+    seed: int = 42,
+    texture_dir: str | None = None,
+) -> None:
+    """Apply dark basalt PBR material for cave interior surfaces.
+
+    Cave walls/ceiling use much darker albedo than surface terrain
+    (unoxidized basalt). Color is gray-black instead of reddish-brown.
+
+    Args:
+        stage: USD stage.
+        mesh_prim_path: Path to the cave mesh prim.
+        albedo_range: (min, max) albedo for dark basalt (0.05-0.15).
+        seed: Random seed for albedo sampling.
+        texture_dir: Optional path to PBR texture directory.
+    """
+    if albedo_range[0] >= albedo_range[1]:
+        raise ValueError(f"albedo_range must be (min, max), got {albedo_range}")
+    if not (0.0 <= albedo_range[0] <= 1.0 and 0.0 <= albedo_range[1] <= 1.0):
+        raise ValueError(f"albedo values must be in [0, 1], got {albedo_range}")
+
+    rng = np.random.default_rng(seed)
+    albedo = rng.uniform(albedo_range[0], albedo_range[1])
+
+    # Cave interior: gray-black basalt (not reddish — unoxidized)
+    color = np.array([albedo * 1.2, albedo * 1.0, albedo * 0.9])
+    color = np.clip(color, 0.0, 1.0)
+
+    material_path = mesh_prim_path + "/cave_material"
+    material = OmniPBR(prim_path=material_path, name="cave_basalt")
+    material.set_color(color)
+    material.set_reflection_roughness(0.85)
+    material.set_metallic_constant(0.0)
+
+    if texture_dir and os.path.isdir(texture_dir):
+        _apply_textures(material, texture_dir)
+
+    mesh_prim = stage.GetPrimAtPath(mesh_prim_path)
+    if mesh_prim.IsValid():
+        UsdShade.MaterialBindingAPI.Apply(mesh_prim)
+        binding = UsdShade.MaterialBindingAPI(mesh_prim)
+        mat_prim = stage.GetPrimAtPath(material_path)
+        if mat_prim.IsValid():
+            binding.Bind(UsdShade.Material(mat_prim))
+
+
 def _apply_textures(material: OmniPBR, texture_dir: str) -> None:
     """Apply full PBR texture set to an OmniPBR material.
 

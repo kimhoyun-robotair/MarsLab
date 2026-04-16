@@ -8,9 +8,9 @@
 # Mars gravity (3.72) once Stage 1 is fully green on Earth gravity.
 
 physics:
-  # Earth gravity until Stage 1 is fully verified. Switch to 3.72 for
-  # Mars once cmd_vel + ROS2 topics + odom round-trip all work.
-  gravity: 9.81
+  # Mars gravity (3.72 m/s²). Stage 1.11 verified Earth gravity driving;
+  # switched to Mars gravity in Stage 1.12.
+  gravity: 3.72
   time_step: 0.01667   # 60 Hz physics
   rendering_dt: 0.01667
 
@@ -41,6 +41,11 @@ rover:
   # Angular damping on the chassis rigid body (rad/s decay).
   # Suppresses whole-body rotational oscillation after landing.
   angular_damping: 12.0
+  # Linear damping on the chassis rigid body.
+  # PhysX formula: velocity *= max(0, 1 - damping * dt).
+  # At 60Hz: 0.5 → 0.83% loss/step → ~61% retained after 1s.
+  # WARNING: 10.0 caused 16.7% loss/step → driving failure after ~7s.
+  linear_damping: 0.5
   # The urdf_* flags below are consumed by the offline converter only.
   urdf_merge_fixed_joints: false
   # fix_base=False lets the rover fall onto the ground under gravity.
@@ -69,24 +74,29 @@ ros2:
 sensors:
   # NASA JPL m2020 URDF has no `base_link`; the articulation root after
   # sanitizer removes the dummy ground link is `Body_Chassis`.
+  #
+  # Z-sign convention: rover spawns with 180° X-roll (spawn_orientation_rpy
+  # = [π, 0, 0]). In Body_Chassis local frame, Z- = UP (toward mast),
+  # Z+ = DOWN (toward ground). Use negative Z to place sensors above chassis.
   camera:
     parent_link: "Body_Chassis"
-    local_translation: [0.3, 0.0, 0.4]
-    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+    local_translation: [0.3, 0.0, -2.1]   # ~2.1m above chassis (above RSM mast top)
+    # 180° roll cancels the rover's X-roll spawn so the camera sees upright.
+    local_orientation_rpy_deg: [180.0, 0.0, 0.0]
     resolution: [640, 480]
     focal_length: 24.0
     clipping_range: [0.1, 1000.0]
 
   lidar:
     parent_link: "Body_Chassis"
-    local_translation: [0.0, 0.0, 0.5]
+    local_translation: [0.3, 0.0, -0.5]    # chassis-front, obstacle-height for SLAM
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     # RTX Lidar profile name shipped with Isaac Sim.
     profile: "Example_Rotary"
 
   imu:
     parent_link: "Body_Chassis"
-    local_translation: [0.0, 0.0, 0.2]
+    local_translation: [0.0, 0.0, 0.0]    # chassis center (MEDA IMU location)
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
 
 control:
@@ -124,14 +134,17 @@ control:
     - "RIGHT_DIFFERENTIAL"
     - "LEFT_BOGIE"
     - "RIGHT_BOGIE"
-  # Nm·s/rad. Higher = faster settling. 0 = free oscillation.
-  suspension_damping: 85.0
-  # Drive joint damping (Nm·s/rad). Velocity-mode: stiffness=0, damping>0.
-  # Torque = damping * (target_vel - current_vel). Higher = faster response
-  # to cmd_vel. Too high = jittery oscillation.
-  # Must be very high for this rover: density=500 on all collision meshes
-  # yields total mass in the thousands of kg.
-  drive_damping: 100000.0
+  # Suspension damping (acceleration-mode units).
+  # Must allow rocker-bogie to articulate for load distribution.
+  # 500 in acceleration mode froze suspension → LF overload → drive failure.
+  # 50 allows suspension travel while still damping post-spawn bounce.
+  suspension_damping: 50.0
+  # Drive joint damping (acceleration-mode units). Velocity-mode: stiffness=0, damping>0.
+  # In "acceleration" drive_type, PhysX auto-compensates for mass/inertia,
+  # so this is effectively an acceleration gain, NOT raw Nm·s/rad.
+  # 100000 → wheelie. 10000 → friction cone exceeded after ~7s.
+  # 1000 → accel = 1000 * 0.375 = 375 rad/s², safe within friction cone.
+  drive_damping: 1000.0
   # Maximum torque (Nm) the drive motor can exert. Set high to avoid
   # PhysX clamping the motor output below what's needed to move the rover.
   drive_max_force: 1000000.0
@@ -141,6 +154,36 @@ control:
   steer_stiffness: 50000.0        # Nm/rad — position tracking strength
   steer_damping: 5000.0           # Nm·s/rad — oscillation suppression
   steer_max_force: 100000.0       # Nm — maximum steering torque
+  # Drive type: "acceleration" auto-compensates for mass/inertia (recommended
+  # for heavy rovers). "force" uses raw Nm values.
+  drive_type: "acceleration"
+  # Sign convention compensation for 180° X-roll spawn orientation.
+  # The URDF steer joints have axis Z-up; after pi X-roll, local Z-up
+  # becomes world Z-down, inverting the steer direction.
+  # true = negate steer_angles before applying to articulation.
+  negate_steer: true
+  # Wheel velocity target ramp rate (rad/s²). Limits per-step change to
+  # prevent instantaneous impulse that saturates the friction cone.
+  # 0.5 → 0→0.375 rad/s in ~0.75 s. Set 0 to disable ramp (instant jump).
+  max_wheel_accel_rate: 0.5
+  # Maximum steer angle (rad). Real rovers have mechanical stops; the
+  # Ackermann controller can request arbitrarily large angles for tight
+  # turns (R < wheelbase/2), which causes rocker-bogie leg collision.
+  # 0.7 rad ≈ 40° — allows point-turns and moderate curves while
+  # preventing the 87°+ angles that fold the suspension.
+  max_steer_angle: 0.7
+  # Steer angle ramp rate (rad/s). Limits per-step change in steer
+  # targets to prevent instantaneous snap-back (e.g. cmd_vel goes to 0
+  # while wheels are still spinning → sudden lateral impulse).
+  steer_ramp_rate: 2.0
+  # Deceleration multiplier for drive velocity ramp. When the target
+  # magnitude is lower than the current magnitude (braking), the
+  # per-step limit is multiplied by this factor. 1.0 = symmetric,
+  # 3.0 = 3× faster braking than acceleration.
+  decel_multiplier: 3.0
+  # Per-step diagnostic logging (prints steer/drive targets + actuals
+  # once per second at 60 Hz). Useful for empirical sign/tuning checks.
+  debug_logging: True
   # Legacy regex (Stage 1 resolves joints by explicit name list above).
   # left_wheel_joint_regex: ".*(LF|LM|LR|left).*wheel.*"
   # right_wheel_joint_regex: ".*(RF|RM|RR|right).*wheel.*"

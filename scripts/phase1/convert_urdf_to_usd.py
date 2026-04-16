@@ -35,6 +35,10 @@ DEFAULT_USD = os.path.join(REPO_ROOT, "assets", "robots", "rover", "m2020.usd")
 
 _DBL_MAX_RE = r"-?1\.79769e\+308"
 
+# Continuous-rotation joints (drive wheels) need effectively unlimited limits.
+# ±3.14159 caused wheels to lock at 180° rotation. ±1e6 is safe for PhysX
+# float32 while allowing millions of revolutions.
+_DRIVE_JOINT_NAMES = {"LF_DRIVE", "LM_DRIVE", "LR_DRIVE", "RF_DRIVE", "RM_DRIVE", "RR_DRIVE"}
 _LIMIT_REPLACEMENTS = [
     (re.compile(rf'lower="{_DBL_MAX_RE}"'), 'lower="-3.14159"'),
     (re.compile(rf'upper="{_DBL_MAX_RE}"'), 'upper="3.14159"'),
@@ -74,6 +78,27 @@ def sanitize_urdf(source_path: str) -> str:
         f"[sanitize] replaced {total_dblmax_replaced} DBL_MAX tokens "
         f"across {limit_count} limits"
     )
+
+    # Widen limits for continuous-rotation drive joints. The global pass
+    # above clamped all DBL_MAX to ±pi which is correct for steer/suspension
+    # but locks drive wheels after 180°. Override with ±1e6.
+    _DRIVE_JOINT_RE = re.compile(
+        r'(<joint\s+name="(?:' + "|".join(_DRIVE_JOINT_NAMES) + r')"[^>]*>)' r"(.*?)" r"(</joint>)",
+        re.DOTALL,
+    )
+    drive_widen_count = 0
+
+    def _widen_drive_limits(m: re.Match) -> str:
+        nonlocal drive_widen_count
+        body = m.group(2)
+        body = re.sub(r'lower="-3\.14159"', 'lower="-1000000"', body)
+        body = re.sub(r'upper="3\.14159"', 'upper="1000000"', body)
+        drive_widen_count += 1
+        return m.group(1) + body + m.group(3)
+
+    content = _DRIVE_JOINT_RE.sub(_widen_drive_limits, content)
+    if drive_widen_count:
+        print(f"[sanitize] widened drive joint limits to +/-1e6 ({drive_widen_count} joints)")
 
     content, root_removed = _JOINT_ROOT_RE.subn("", content)
     if root_removed:

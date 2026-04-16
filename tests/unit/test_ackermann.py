@@ -114,6 +114,36 @@ class TestAckermannCurve:
         ), f"RF ({steer[2]}) and RR ({steer[3]}) should have opposite signs"
 
 
+class TestAckermannEuclidean:
+    """Euclidean distance-based wheel velocity properties."""
+
+    def test_front_rear_faster_than_middle_on_curve(self) -> None:
+        """Front/rear wheels are farther from ICR than middle → faster."""
+        _, vel = ackermann_command(2.0, 0.5, WB, TS, TM, R)
+        # LF (front, x_w != 0) should be faster than LM (middle, x_w = 0)
+        # on the same (left) side, because LF has longitudinal offset.
+        assert abs(vel[0]) > abs(
+            vel[1]
+        ), f"LF ({abs(vel[0]):.4f}) should be faster than LM ({abs(vel[1]):.4f})"
+
+    def test_middle_wheels_same_as_linear_approx(self) -> None:
+        """Middle wheels (x_w=0): Euclidean reduces to |w*(R-y_w)/r|."""
+        _, vel = ackermann_command(2.0, 0.5, WB, TS, TM, R)
+        v, w = 2.0, 0.5
+        r_turn = v / w
+        # LM: y_w = +TM/2
+        expected_lm = w * (r_turn - TM / 2.0) / R
+        np.testing.assert_almost_equal(vel[1], expected_lm, decimal=4)
+
+    def test_point_turn_front_faster_than_middle(self) -> None:
+        """Point turn: front/rear wheels farther from center → faster."""
+        _, vel = ackermann_command(0.0, 1.0, WB, TS, TM, R)
+        # LF (has x-offset from ICR) should be faster than LM (no x-offset)
+        assert abs(vel[0]) > abs(
+            vel[1]
+        ), f"LF ({abs(vel[0]):.4f}) should be faster than LM ({abs(vel[1]):.4f})"
+
+
 class TestAckermannShapes:
     """Output shape and dtype."""
 

@@ -93,3 +93,80 @@ def test_metadata_resolution():
     assert meta["resolution_y"] == 2.5
     assert meta["width"] == 64
     assert meta["height"] == 64
+
+
+# --- Canyon preset tests ---
+
+CANYON_PARAMS = {
+    "canyon_depth": 40.0,
+    "canyon_floor_width": 30.0,
+    "canyon_total_width": 80.0,
+    "canyon_curvature": 0.3,
+    "canyon_craters": 2,
+    "canyon_crater_radius_range": [5, 15],
+    "canyon_crater_depth_range": [2, 6],
+}
+
+
+def test_canyon_output_shape():
+    elev, _ = generate_terrain("canyon", (300, 300), 1.0, 42, kwargs=CANYON_PARAMS)
+    assert elev.shape == (300, 300)
+    assert elev.dtype == np.float32
+
+
+def test_canyon_no_nan():
+    elev, _ = generate_terrain("canyon", (300, 300), 1.0, 42, kwargs=CANYON_PARAMS)
+    assert np.isnan(elev).sum() == 0
+
+
+def test_canyon_has_valley():
+    """Center columns are lower than edge columns (canyon carved in)."""
+    elev, _ = generate_terrain("canyon", (300, 300), 1.0, 42, kwargs=CANYON_PARAMS)
+    center_band = elev[:, 120:180].mean()
+    left_edge = elev[:, :30].mean()
+    right_edge = elev[:, 270:].mean()
+    assert center_band < left_edge
+    assert center_band < right_edge
+
+
+def test_canyon_depth_matches_config():
+    """Elevation range is close to configured canyon_depth."""
+    elev, _ = generate_terrain("canyon", (300, 300), 1.0, 42, kwargs=CANYON_PARAMS)
+    dz = elev.max() - elev.min()
+    # dz should be at least canyon_depth (40m), with some extra from noise/craters
+    assert dz >= CANYON_PARAMS["canyon_depth"] * 0.8
+    assert dz <= CANYON_PARAMS["canyon_depth"] * 2.0
+
+
+def test_canyon_floor_traversable():
+    """Canyon floor area has low slope (mostly < 15 deg)."""
+    elev, _ = generate_terrain("canyon", (300, 300), 1.0, 42, kwargs=CANYON_PARAMS)
+    dy, dx = np.gradient(elev, 1.0)
+    slope = np.degrees(np.arctan(np.sqrt(dx**2 + dy**2)))
+    # Floor is roughly the central band
+    floor_slope = slope[:, 130:170]
+    traversable_pct = (floor_slope < 15).sum() / floor_slope.size * 100
+    assert traversable_pct > 50, f"Floor traversable only {traversable_pct:.0f}%"
+
+
+def test_canyon_walls_steep():
+    """Canyon walls have steep slopes (> 30 deg)."""
+    elev, _ = generate_terrain("canyon", (300, 300), 1.0, 42, kwargs=CANYON_PARAMS)
+    dy, dx = np.gradient(elev, 1.0)
+    slope = np.degrees(np.arctan(np.sqrt(dx**2 + dy**2)))
+    # Some pixels must exceed 30 deg (walls)
+    steep_pct = (slope >= 30).sum() / slope.size * 100
+    assert steep_pct > 5, f"Only {steep_pct:.0f}% steep — walls too gentle"
+
+
+def test_canyon_seed_determinism():
+    e1, _ = generate_terrain("canyon", (200, 200), 1.0, 42, kwargs=CANYON_PARAMS)
+    e2, _ = generate_terrain("canyon", (200, 200), 1.0, 42, kwargs=CANYON_PARAMS)
+    assert np.array_equal(e1, e2)
+
+
+def test_canyon_default_params():
+    """Canyon works with empty params (all defaults)."""
+    elev, _ = generate_terrain("canyon", (200, 200), 1.0, 42, kwargs={})
+    assert elev.shape == (200, 200)
+    assert not np.isnan(elev).any()

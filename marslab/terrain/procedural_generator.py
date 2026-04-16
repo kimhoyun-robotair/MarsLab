@@ -14,6 +14,7 @@ def generate_terrain(
     size: tuple[int, int],
     resolution: float,
     seed: int,
+    kwargs: dict | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a procedural Mars terrain elevation map.
 
@@ -31,12 +32,17 @@ def generate_terrain(
     Raises:
         ValueError: If preset is unknown or size/resolution is invalid.
     """
-    if preset not in ("flat", "crater", "hills", "rocky_plain"):
-        raise ValueError(f"Unknown preset '{preset}', expected: flat, crater, hills, rocky_plain")
+    if preset not in ("flat", "crater", "hills", "rocky_plain", "canyon"):
+        raise ValueError(
+            f"Unknown preset '{preset}', expected: flat, crater, hills, rocky_plain, canyon"
+        )
     if size[0] <= 0 or size[1] <= 0:
         raise ValueError(f"size must be positive, got {size}")
     if resolution <= 0:
         raise ValueError(f"resolution must be > 0, got {resolution}")
+
+    if kwargs is None:
+        kwargs = {}
 
     rng = np.random.default_rng(seed)
     rows, cols = size
@@ -47,6 +53,8 @@ def generate_terrain(
         elevation = _generate_crater(rng, rows, cols)
     elif preset == "hills":
         elevation = _generate_hills(rng, rows, cols)
+    elif preset == "canyon":
+        elevation = _generate_canyon(rng, rows, cols, resolution, kwargs)
     else:
         elevation = _generate_rocky_plain(rng, rows, cols)
 
@@ -132,6 +140,126 @@ def _generate_hills(rng: np.random.Generator, rows: int, cols: int) -> np.ndarra
         bumps += amp * np.exp(-((x_grid - cx) ** 2 + (y_grid - cy) ** 2) / (2 * sigma**2))
 
     return _add_micro_detail(rng, base + smooth_noise + bumps)
+
+
+def _generate_canyon(
+    rng: np.random.Generator,
+    rows: int,
+    cols: int,
+    resolution: float,
+    params: dict,
+) -> np.ndarray:
+    """Procedural canyon with walls, traversable floor, and small craters.
+
+    Generates a winding canyon carved into a flat plain. The canyon has
+    steep walls (50-70 deg) flanking a traversable floor (<5 deg), with
+    optional small craters on the floor for obstacle avoidance testing.
+
+    Args:
+        rng: Numpy random generator.
+        rows: Number of rows (pixels).
+        cols: Number of columns (pixels).
+        resolution: Meters per pixel.
+        params: Canyon configuration dict with keys:
+            canyon_depth, canyon_floor_width, canyon_total_width,
+            canyon_curvature, canyon_craters, canyon_crater_radius_range,
+            canyon_crater_depth_range.
+    """
+    depth = float(params.get("canyon_depth", 40.0))
+    floor_width = float(params.get("canyon_floor_width", 30.0))
+    total_width = float(params.get("canyon_total_width", 80.0))
+    curvature = float(params.get("canyon_curvature", 0.3))
+    n_craters = int(params.get("canyon_craters", 2))
+    crater_r_range = params.get("canyon_crater_radius_range", [5.0, 15.0])
+    crater_d_range = params.get("canyon_crater_depth_range", [2.0, 6.0])
+
+    base = -2500.0
+
+    # Low-frequency base terrain noise (subtle, ~1m)
+    noise = rng.standard_normal((rows, cols))
+    base_noise = gaussian_filter(noise, sigma=15.0)
+    base_noise = base_noise / (np.std(base_noise) + 1e-8) * 1.0
+
+    elevation = np.full((rows, cols), base, dtype=np.float64) + base_noise
+
+    # Canyon centerline: sinusoidal curve along the row axis (N-S)
+    # Centerline column position as function of row
+    row_coords = np.arange(rows) * resolution
+    center_col_m = (cols / 2.0) * resolution  # center of map in meters
+
+    # Generate smooth curvature using low-frequency sinusoids
+    freq1 = 2.0 * np.pi / (rows * resolution)
+    freq2 = 2.0 * np.pi / (rows * resolution) * 2.3
+    phase1 = rng.uniform(0, 2 * np.pi)
+    phase2 = rng.uniform(0, 2 * np.pi)
+    amplitude = curvature * (cols * resolution) * 0.15
+
+    centerline_m = (
+        center_col_m
+        + amplitude * np.sin(freq1 * row_coords + phase1)
+        + amplitude * 0.3 * np.sin(freq2 * row_coords + phase2)
+    )
+
+    # Build distance-to-centerline map
+    y_grid, x_grid = np.mgrid[0:rows, 0:cols]
+    x_m = x_grid.astype(np.float64) * resolution
+    centerline_2d = centerline_m[y_grid]
+    dist = np.abs(x_m - centerline_2d)
+
+    # Canyon profile parameters (in meters)
+    floor_half = floor_width / 2.0
+    rim_half = total_width / 2.0
+    wall_width = rim_half - floor_half
+
+    # Smoothstep function: 3t^2 - 2t^3
+    def smoothstep(t: np.ndarray) -> np.ndarray:
+        t_clamped = np.clip(t, 0.0, 1.0)
+        return t_clamped * t_clamped * (3.0 - 2.0 * t_clamped)
+
+    # Apply canyon profile
+    # Inside floor: full depth
+    floor_mask = dist < floor_half
+    elevation[floor_mask] = base - depth + base_noise[floor_mask] * 0.3
+
+    # Wall transition: smoothstep from floor to rim
+    wall_mask = (dist >= floor_half) & (dist < rim_half)
+    if wall_width > 0:
+        t = (dist[wall_mask] - floor_half) / wall_width
+        wall_height = depth * smoothstep(t)
+        elevation[wall_mask] = base - depth + wall_height + base_noise[wall_mask] * 0.2
+
+    # Add wall roughness (medium frequency noise on walls only)
+    wall_noise = rng.standard_normal((rows, cols))
+    wall_noise = gaussian_filter(wall_noise, sigma=3.0)
+    wall_noise = wall_noise / (np.std(wall_noise) + 1e-8) * 1.5
+    elevation[wall_mask] += wall_noise[wall_mask]
+
+    # Small craters on canyon floor
+    floor_rows = np.where(floor_mask.any(axis=1))[0]
+    if len(floor_rows) > 0 and n_craters > 0:
+        for _ in range(n_craters):
+            cr_row = rng.choice(floor_rows)
+            floor_cols_at_row = np.where(floor_mask[cr_row])[0]
+            if len(floor_cols_at_row) == 0:
+                continue
+            cr_col = rng.choice(floor_cols_at_row)
+            cr_radius = rng.uniform(crater_r_range[0], crater_r_range[1])
+            cr_depth = rng.uniform(crater_d_range[0], crater_d_range[1])
+            cr_rim_h = cr_depth * 0.2
+
+            cr_dist = np.sqrt(
+                ((x_grid - cr_col) * resolution) ** 2 + ((y_grid - cr_row) * resolution) ** 2
+            )
+            cr_inside = cr_dist < cr_radius
+            crater_profile = np.zeros_like(elevation)
+            crater_profile[cr_inside] = -cr_depth * (1.0 - (cr_dist[cr_inside] / cr_radius) ** 2)
+            # Rim
+            cr_rim_mask = (cr_dist >= cr_radius) & (cr_dist < cr_radius * 1.3)
+            rim_frac = (cr_dist[cr_rim_mask] - cr_radius) / (cr_radius * 0.3)
+            crater_profile[cr_rim_mask] = cr_rim_h * np.sin(np.pi * rim_frac)
+            elevation += crater_profile
+
+    return _add_micro_detail(rng, elevation).astype(np.float32)
 
 
 def _generate_rocky_plain(rng: np.random.Generator, rows: int, cols: int) -> np.ndarray:

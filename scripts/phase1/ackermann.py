@@ -108,18 +108,43 @@ def ackermann_command(
         else:
             steer_angles[i] = float(np.arctan(x_w / dy))
 
-    # Drive wheel lateral positions — order: [LF, LM, LR, RF, RM, RR].
-    drive_y = [
-        +half_ts,  # LF
-        +half_tm,  # LM
-        +half_ts,  # LR
-        -half_ts,  # RF
-        -half_tm,  # RM
-        -half_ts,  # RR
+    # ----- OLD: Y-only wheel velocity (commented out) -----
+    # Linear proportionality: omega = w * (R - y_w) / wheel_radius.
+    # Under-estimates outer wheel velocity for large steer angles because
+    # it ignores the longitudinal offset (x_w) of front/rear wheels.
+    # drive_y = [
+    #     +half_ts,  # LF
+    #     +half_tm,  # LM
+    #     +half_ts,  # LR
+    #     -half_ts,  # RF
+    #     -half_tm,  # RM
+    #     -half_ts,  # RR
+    # ]
+    # wheel_velocities = np.zeros(6, dtype=np.float32)
+    # for i, y_w in enumerate(drive_y):
+    #     wheel_velocities[i] = float(w) * (R - y_w) / wheel_radius
+    # ----- END OLD -----
+
+    # Euclidean distance to ICR — matches NVIDIA AckermannController
+    # approach (isaacsim.robot.wheeled_robots).  ICR sits at (0, R).
+    # Each wheel at (x_w, y_w) has distance sqrt(x_w^2 + (R-y_w)^2).
+    # Sign: w*(R-y_w) determines forward vs backward wheel rotation.
+    # For middle wheels (x_w=0), this reduces to the original formula.
+    drive_xy = [
+        (+half_wb, +half_ts),  # LF
+        (0.0, +half_tm),  # LM
+        (-half_wb, +half_ts),  # LR
+        (+half_wb, -half_ts),  # RF
+        (0.0, -half_tm),  # RM
+        (-half_wb, -half_ts),  # RR
     ]
 
     wheel_velocities = np.zeros(6, dtype=np.float32)
-    for i, y_w in enumerate(drive_y):
-        wheel_velocities[i] = float(w) * (R - y_w) / wheel_radius
+    for i, (x_w, y_w) in enumerate(drive_xy):
+        dy = R - y_w
+        dist = np.sqrt(x_w**2 + dy**2)
+        # copysign gives the correct forward/backward direction:
+        # w*dy > 0 ⟹ wheel rolls forward, w*dy < 0 ⟹ backward.
+        wheel_velocities[i] = float(np.copysign(1.0, w * dy)) * abs(w) * dist / wheel_radius
 
     return steer_angles, wheel_velocities

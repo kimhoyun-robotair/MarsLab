@@ -82,12 +82,39 @@ def load_terrain_elevation(
     resolution = float(terrain_cfg.get("terrain_resolution", 1.0))
 
     if source == "procedural":
-        from marslab.terrain.procedural_generator import generate_terrain
-
         preset = terrain_cfg.get("procedural_preset", "flat")
         size = tuple(terrain_cfg.get("terrain_size", [256, 256]))
         seed = int(terrain_cfg.get("seed", 42))
-        elevation, metadata = generate_terrain(preset, size, resolution, seed)
+
+        if preset == "cave":
+            # Cave returns surface elevation only; 3D mesh built later
+            from marslab.terrain.cave_generator import generate_cave_mesh
+
+            cave_cfg = terrain_cfg.get("cave", {})
+            # wall_albedo_range is a material param, not geometry — exclude from mesh gen
+            geom_cfg = {k: v for k, v in cave_cfg.items() if k != "wall_albedo_range"}
+            cave_data = generate_cave_mesh(
+                domain_size=size,
+                resolution=resolution,
+                seed=seed,
+                **geom_cfg,
+            )
+            elevation = cave_data["surface_elevation"]
+            metadata = cave_data["metadata"]
+            # Stash cave_data in terrain_cfg for scene building stage
+            terrain_cfg["_cave_data"] = cave_data
+        else:
+            from marslab.terrain.procedural_generator import generate_terrain
+
+            # Collect preset-specific params (e.g. canyon_depth, canyon_floor_width)
+            preset_params = {k: v for k, v in terrain_cfg.items() if k.startswith("canyon_")}
+            elevation, metadata = generate_terrain(
+                preset,
+                size,
+                resolution,
+                seed,
+                kwargs=preset_params,
+            )
 
     elif source == "hirise":
         from marslab.terrain.dem_loader import crop_dem, load_converted_dem
@@ -200,35 +227,93 @@ def main() -> int:
 
     stage = omni.usd.get_context().get_stage()
 
-    # --- Build terrain mesh -------------------------------------------------
-    from marslab.terrain.mesh_builder import build_terrain_mesh
+    # --- Build terrain / cave mesh -------------------------------------------
+    is_cave = terrain_cfg.get("procedural_preset") == "cave"
 
-    uv_scale = float(terrain_cfg.get("uv_scale", 1.0))
-    terrain_prim_path = "/World/Terrain"
-    norm_elevation = build_terrain_mesh(elevation, resolution, stage, terrain_prim_path, uv_scale)
-    print(
-        f"[run_stage2] Terrain mesh: {terrain_prim_path}, "
-        f"normalized z=[{norm_elevation.min():.2f}, {norm_elevation.max():.2f}]",
-        flush=True,
-    )
+    if is_cave:
+        # Cave: 3D mesh pipeline (bypasses heightmap-to-mesh)
+        from marslab.terrain.cave_mesh_builder import build_cave_scene
+        from marslab.terrain.material_applicator import apply_cave_material
 
-    # --- Apply terrain material (PBR) ---------------------------------------
-    from marslab.terrain.material_applicator import apply_terrain_material
+        cave_data = terrain_cfg["_cave_data"]
+        norm_elevation = build_cave_scene(cave_data, stage)
+        print(
+            f"[run_stage2] Cave scene built: "
+            f"tube={len(cave_data['tube_mesh'].vertices)} verts, "
+            f"skylights={len(cave_data['skylight_positions'])}, "
+            f"breakdown={len(cave_data['breakdown_positions'])} blocks",
+            flush=True,
+        )
 
-    albedo_range = tuple(mars_cfg.get("surface_albedo_range", [0.10, 0.40]))
-    texture_dir = terrain_cfg.get("texture_dir")
-    if texture_dir:
-        texture_dir = os.path.join(REPO_ROOT, texture_dir)
-    apply_terrain_material(
-        stage,
-        terrain_prim_path,
-        albedo_range=albedo_range,
-        seed=int(terrain_cfg.get("seed", 42)),
-        texture_dir=texture_dir,
-    )
-    print("[run_stage2] Terrain material applied.", flush=True)
+        # Cave-specific materials
+        cave_cfg = terrain_cfg.get("cave", {})
+        cave_albedo = tuple(cave_cfg.get("wall_albedo_range", [0.05, 0.15]))
+        cave_seed = int(terrain_cfg.get("seed", 42))
+        apply_cave_material(stage, "/World/Cave/Tube", cave_albedo, cave_seed)
+        apply_cave_material(stage, "/World/Cave/Floor", cave_albedo, cave_seed + 1)
+        for i in range(len(cave_data["skylight_meshes"])):
+            apply_cave_material(
+                stage,
+                f"/World/Cave/Skylight_{i}",
+                cave_albedo,
+                cave_seed + 2 + i,
+            )
 
-    # --- Rock placement (Golombek SFD) ----------------------------------------
+        # Surface gets standard Mars terrain material
+        from marslab.terrain.material_applicator import apply_terrain_material
+
+        surface_albedo = tuple(mars_cfg.get("surface_albedo_range", [0.10, 0.40]))
+        texture_dir = terrain_cfg.get("texture_dir")
+        if texture_dir:
+            texture_dir = os.path.join(REPO_ROOT, texture_dir)
+        apply_terrain_material(
+            stage,
+            "/World/Cave/Surface",
+            albedo_range=surface_albedo,
+            seed=cave_seed,
+            texture_dir=texture_dir,
+        )
+        print("[run_stage2] Cave materials applied.", flush=True)
+        # Cave lighting: sun/sky/fog stay on (same as other scenarios).
+        # Tube shell + surface cap physically block sunlight; skylight
+        # holes let natural light into the tube interior.
+
+    else:
+        # Standard heightmap pipeline (Scenario 1-4)
+        from marslab.terrain.mesh_builder import build_terrain_mesh
+
+        uv_scale = float(terrain_cfg.get("uv_scale", 1.0))
+        terrain_prim_path = "/World/Terrain"
+        norm_elevation = build_terrain_mesh(
+            elevation,
+            resolution,
+            stage,
+            terrain_prim_path,
+            uv_scale,
+        )
+        print(
+            f"[run_stage2] Terrain mesh: {terrain_prim_path}, "
+            f"normalized z=[{norm_elevation.min():.2f}, {norm_elevation.max():.2f}]",
+            flush=True,
+        )
+
+        # Apply terrain material (PBR)
+        from marslab.terrain.material_applicator import apply_terrain_material
+
+        albedo_range = tuple(mars_cfg.get("surface_albedo_range", [0.10, 0.40]))
+        texture_dir = terrain_cfg.get("texture_dir")
+        if texture_dir:
+            texture_dir = os.path.join(REPO_ROOT, texture_dir)
+        apply_terrain_material(
+            stage,
+            terrain_prim_path,
+            albedo_range=albedo_range,
+            seed=int(terrain_cfg.get("seed", 42)),
+            texture_dir=texture_dir,
+        )
+        print("[run_stage2] Terrain material applied.", flush=True)
+
+    # --- Rock placement (Golombek SFD) — both cave and standard -----------
     rock_k = float(terrain_cfg.get("rock_sfd_k", 0))
     if rock_k > 0:
         from marslab.terrain.rock_instancer import place_rocks_on_terrain
@@ -281,10 +366,10 @@ def main() -> int:
     dyn_cfg = mars_cfg.get("dynamic_atmosphere", {})
     dynamic_enabled = bool(dyn_cfg.get("enabled", False))
 
-    if dynamic_enabled:
-        from marslab.environment.tau_profile import compute_tau
+    sol_duration = float(mars_cfg.get("sol_duration_seconds", 88642))
+    update_interval = 10  # default
 
-        sol_duration = float(mars_cfg.get("sol_duration_seconds", 88642))
+    if dynamic_enabled:
         time_scale = float(dyn_cfg.get("time_scale", 200.0))
         update_interval = int(dyn_cfg.get("update_interval_frames", 10))
 
@@ -305,7 +390,36 @@ def main() -> int:
             flush=True,
         )
     else:
+        time_scale = 200.0
+        sweep_start_az = 90.0
+        sweep_end_az = 270.0
+        sweep_max_el = 60.0
         print("[run_stage2] Dynamic atmosphere OFF (static).", flush=True)
+
+    # --- Shared atmosphere state (GUI ↔ render loop) -----------------------
+    atmosphere_state: Dict[str, Any] = {
+        "tau": tau,
+        "sun_mode": "auto" if dynamic_enabled else "manual",
+        "sun_azimuth_deg": float(mars_cfg.get("sun_azimuth_deg", 180)),
+        "sun_elevation_deg": float(mars_cfg.get("sun_elevation_deg", 45)),
+        "time_of_sol": 0.0,
+        "direct_intensity": direct_intensity,
+        "diffuse_fraction": diffuse_frac,
+    }
+
+    # --- Interactive atmosphere panel (GUI only) ---------------------------
+    atmo_panel = None
+    if not args.headless:
+        try:
+            from marslab.gui.atmosphere_panel import AtmospherePanel
+
+            atmo_panel = AtmospherePanel(atmosphere_state)
+            print("[run_stage2] Atmosphere control panel created.", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"[run_stage2] GUI panel unavailable ({exc}), using YAML config.",
+                flush=True,
+            )
 
     # --- Infinite render loop -----------------------------------------------
     world.reset()
@@ -317,32 +431,55 @@ def main() -> int:
             world.step(render=True)
             frame += 1
 
-            if dynamic_enabled and frame % update_interval == 0:
-                elapsed += physics_dt * update_interval * time_scale
-                t = (elapsed % sol_duration) / sol_duration
+            if frame % update_interval == 0:
+                # Read tau from shared state (GUI slider or config default)
+                current_tau = atmosphere_state["tau"]
 
-                # Recompute sun position for this time of sol
-                dyn_sun_pos = compute_sol_sun_position(
-                    time_of_sol_fraction=t,
-                    start_azimuth_deg=sweep_start_az,
-                    end_azimuth_deg=sweep_end_az,
-                    max_elevation_deg=sweep_max_el,
-                )
+                if atmosphere_state["sun_mode"] == "auto" and dynamic_enabled:
+                    # Auto sweep: advance simulation time
+                    elapsed += physics_dt * update_interval * time_scale
+                    t = (elapsed % sol_duration) / sol_duration
+                    atmosphere_state["time_of_sol"] = t
 
-                # Recompute tau
-                dyn_tau = compute_tau(tau_profile_name, t, **tau_kwargs)
+                    dyn_sun_pos = compute_sol_sun_position(
+                        time_of_sol_fraction=t,
+                        start_azimuth_deg=sweep_start_az,
+                        end_azimuth_deg=sweep_end_az,
+                        max_elevation_deg=sweep_max_el,
+                    )
+                    # Sync state for panel display
+                    atmosphere_state["sun_azimuth_deg"] = dyn_sun_pos.azimuth_deg
+                    atmosphere_state["sun_elevation_deg"] = dyn_sun_pos.elevation_deg
+
+                elif atmosphere_state["sun_mode"] == "manual":
+                    # Manual: use slider values from shared state
+                    dyn_sun_pos = compute_sun_position(
+                        azimuth_deg=atmosphere_state["sun_azimuth_deg"],
+                        elevation_deg=max(0.5, min(89.5, atmosphere_state["sun_elevation_deg"])),
+                    )
+                else:
+                    # Static mode, no dynamic enabled — skip updates
+                    continue
 
                 # Recompute irradiance and diffuse fraction
                 dyn_intensity = compute_direct_intensity(
-                    solar_constant, dyn_tau, dyn_sun_pos.zenith_angle_rad
+                    solar_constant, current_tau, dyn_sun_pos.zenith_angle_rad
                 )
-                dyn_diffuse = compute_diffuse_fraction(dyn_tau)
-                dyn_sky = compute_sky_dome_params(dyn_tau, hdri_dir)
+                dyn_diffuse = compute_diffuse_fraction(current_tau)
+                dyn_sky = compute_sky_dome_params(current_tau, hdri_dir)
+
+                # Update shared state for panel readout
+                atmosphere_state["direct_intensity"] = dyn_intensity
+                atmosphere_state["diffuse_fraction"] = dyn_diffuse
 
                 # Update renderers in-place (no flicker)
                 update_sun_light(stage, dyn_sun_pos, dyn_intensity, dyn_diffuse, render_config)
                 update_sky_dome(stage, dyn_sky, dyn_diffuse, render_config)
-                configure_atmosphere_fog(stage, dyn_tau, render_config)
+                configure_atmosphere_fog(stage, current_tau, render_config)
+
+                # Refresh panel status labels
+                if atmo_panel is not None:
+                    atmo_panel.update_display()
 
     except KeyboardInterrupt:
         print("[run_stage2] KeyboardInterrupt -- shutting down.", flush=True)

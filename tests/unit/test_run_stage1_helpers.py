@@ -168,6 +168,9 @@ VALID_CONFIG = textwrap.dedent("""
         - LR_STEER
         - RF_STEER
         - RR_STEER
+      drive_type: "acceleration"
+      negate_steer: true
+      debug_logging: false
     """).strip()
 
 
