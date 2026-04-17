@@ -771,6 +771,25 @@ def main() -> int:
     )
     lidar.initialize()
 
+    # 2D LiDAR (LaserScan) — optional, mirrors the 3D LiDAR pipeline.
+    # config_file_name receives the Isaac-Sim bundled profile *name* only
+    # (e.g. "Example_Rotary_2D"), never a filesystem path (§10.8 regression).
+    lidar_2d_cfg = sensors_cfg.get("lidar_2d")
+    lidar_2d_prim_path = None
+    if lidar_2d_cfg is not None:
+        lidar_2d_prim_path = f"{rigid_body_path}/stage1_lidar_2d"
+        lidar_2d = LidarRtx(  # noqa: F841  (handle kept alive for extension lifetime)
+            prim_path=lidar_2d_prim_path,
+            config_file_name=lidar_2d_cfg["profile"],
+            translation=np.asarray(lidar_2d_cfg["local_translation"], dtype=np.float32),
+        )
+        lidar_2d.initialize()
+        print(
+            f"[run_stage3_mono] 2D LiDAR attached at {lidar_2d_prim_path} "
+            f"profile='{lidar_2d_cfg['profile']}'",
+            flush=True,
+        )
+
     imu_prim_path = f"{rigid_body_path}/stage1_imu"
     imu = IMUSensor(
         prim_path=imu_prim_path,
@@ -792,75 +811,103 @@ def main() -> int:
 
     graph_path = "/World/Stage1ROS2Graph"
     keys = og.Controller.Keys
+    create_nodes = [
+        ("OnTick", "omni.graph.action.OnPlaybackTick"),
+        ("ReadSimTime", "isaacsim.core.nodes.IsaacReadSimulationTime"),
+        ("PubClock", "isaacsim.ros2.bridge.ROS2PublishClock"),
+        # ComputeOdom + PubOdom removed — odometry via rclpy below.
+        ("PubTF", "isaacsim.ros2.bridge.ROS2PublishRawTransformTree"),
+        ("ReadIMU", "isaacsim.sensors.physics.IsaacReadIMU"),
+        ("PubIMU", "isaacsim.ros2.bridge.ROS2PublishImu"),
+        ("RPCamera", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
+        ("CamRGB", "isaacsim.ros2.bridge.ROS2CameraHelper"),
+        # Separate render product for depth to avoid buffer conflict
+        # with RGB sharing the same render product.
+        ("RPDepth", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
+        ("CamDepth", "isaacsim.ros2.bridge.ROS2CameraHelper"),
+        ("RPLidar", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
+        ("LidarHelper", "isaacsim.ros2.bridge.ROS2RtxLidarHelper"),
+    ]
+    connect_edges = [
+        ("OnTick.outputs:tick", "PubClock.inputs:execIn"),
+        ("ReadSimTime.outputs:simulationTime", "PubClock.inputs:timeStamp"),
+        ("OnTick.outputs:tick", "PubTF.inputs:execIn"),
+        ("ReadSimTime.outputs:simulationTime", "PubTF.inputs:timeStamp"),
+        ("OnTick.outputs:tick", "ReadIMU.inputs:execIn"),
+        ("ReadIMU.outputs:execOut", "PubIMU.inputs:execIn"),
+        ("ReadIMU.outputs:angVel", "PubIMU.inputs:angularVelocity"),
+        ("ReadIMU.outputs:linAcc", "PubIMU.inputs:linearAcceleration"),
+        ("ReadIMU.outputs:orientation", "PubIMU.inputs:orientation"),
+        ("ReadSimTime.outputs:simulationTime", "PubIMU.inputs:timeStamp"),
+        # RGB: RPCamera → CamRGB
+        ("OnTick.outputs:tick", "RPCamera.inputs:execIn"),
+        ("RPCamera.outputs:execOut", "CamRGB.inputs:execIn"),
+        ("RPCamera.outputs:renderProductPath", "CamRGB.inputs:renderProductPath"),
+        # Depth: separate RPDepth → CamDepth
+        ("OnTick.outputs:tick", "RPDepth.inputs:execIn"),
+        ("RPDepth.outputs:execOut", "CamDepth.inputs:execIn"),
+        ("RPDepth.outputs:renderProductPath", "CamDepth.inputs:renderProductPath"),
+        # LiDAR
+        ("OnTick.outputs:tick", "RPLidar.inputs:execIn"),
+        ("RPLidar.outputs:execOut", "LidarHelper.inputs:execIn"),
+        ("RPLidar.outputs:renderProductPath", "LidarHelper.inputs:renderProductPath"),
+    ]
+    set_values = [
+        ("PubClock.inputs:topicName", "/clock"),
+        # Articulation joint TF on a separate topic to avoid conflict
+        # with the manual odom→base_link publisher on /tf.
+        ("PubTF.inputs:topicName", "/tf_raw"),
+        ("ReadIMU.inputs:imuPrim", [imu_prim_path]),
+        ("PubIMU.inputs:topicName", ns_topic(topics["imu"])),
+        ("PubIMU.inputs:frameId", "imu_link"),
+        ("RPCamera.inputs:cameraPrim", [camera_prim_path]),
+        ("RPCamera.inputs:width", int(camera_cfg["resolution"][0])),
+        ("RPCamera.inputs:height", int(camera_cfg["resolution"][1])),
+        ("CamRGB.inputs:type", "rgb"),
+        ("CamRGB.inputs:topicName", ns_topic(topics["rgb"])),
+        ("CamRGB.inputs:frameId", "camera_link"),
+        ("RPDepth.inputs:cameraPrim", [camera_prim_path]),
+        ("RPDepth.inputs:width", int(camera_cfg["resolution"][0])),
+        ("RPDepth.inputs:height", int(camera_cfg["resolution"][1])),
+        ("CamDepth.inputs:type", "depth"),
+        ("CamDepth.inputs:topicName", ns_topic(topics["depth"])),
+        ("CamDepth.inputs:frameId", "camera_link"),
+        ("RPLidar.inputs:cameraPrim", [lidar_prim_path]),
+        ("LidarHelper.inputs:topicName", ns_topic(topics["lidar"])),
+        ("LidarHelper.inputs:frameId", "lidar_link"),
+        ("LidarHelper.inputs:type", "point_cloud"),
+    ]
+
+    # 2D LiDAR OmniGraph additions — same pattern as 3D LiDAR with
+    # type="laser_scan" and its own render product.  `topics["scan"]` and
+    # `sensors.lidar_2d` come from rover_m2020.yaml; if either is absent
+    # the block is skipped and the rest of the graph is unaffected.
+    if lidar_2d_cfg is not None and "scan" in topics:
+        create_nodes += [
+            ("RPLidar2D", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
+            ("LidarHelper2D", "isaacsim.ros2.bridge.ROS2RtxLidarHelper"),
+        ]
+        connect_edges += [
+            ("OnTick.outputs:tick", "RPLidar2D.inputs:execIn"),
+            ("RPLidar2D.outputs:execOut", "LidarHelper2D.inputs:execIn"),
+            (
+                "RPLidar2D.outputs:renderProductPath",
+                "LidarHelper2D.inputs:renderProductPath",
+            ),
+        ]
+        set_values += [
+            ("RPLidar2D.inputs:cameraPrim", [lidar_2d_prim_path]),
+            ("LidarHelper2D.inputs:topicName", ns_topic(topics["scan"])),
+            ("LidarHelper2D.inputs:frameId", "scan_frame"),
+            ("LidarHelper2D.inputs:type", "laser_scan"),
+        ]
+
     graph_handle, _nodes, _prims, _info = og.Controller.edit(
         {"graph_path": graph_path, "evaluator_name": "execution"},
         {
-            keys.CREATE_NODES: [
-                ("OnTick", "omni.graph.action.OnPlaybackTick"),
-                ("ReadSimTime", "isaacsim.core.nodes.IsaacReadSimulationTime"),
-                ("PubClock", "isaacsim.ros2.bridge.ROS2PublishClock"),
-                # ComputeOdom + PubOdom removed — odometry via rclpy below.
-                ("PubTF", "isaacsim.ros2.bridge.ROS2PublishRawTransformTree"),
-                ("ReadIMU", "isaacsim.sensors.physics.IsaacReadIMU"),
-                ("PubIMU", "isaacsim.ros2.bridge.ROS2PublishImu"),
-                ("RPCamera", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
-                ("CamRGB", "isaacsim.ros2.bridge.ROS2CameraHelper"),
-                # Separate render product for depth to avoid buffer conflict
-                # with RGB sharing the same render product.
-                ("RPDepth", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
-                ("CamDepth", "isaacsim.ros2.bridge.ROS2CameraHelper"),
-                ("RPLidar", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
-                ("LidarHelper", "isaacsim.ros2.bridge.ROS2RtxLidarHelper"),
-            ],
-            keys.CONNECT: [
-                ("OnTick.outputs:tick", "PubClock.inputs:execIn"),
-                ("ReadSimTime.outputs:simulationTime", "PubClock.inputs:timeStamp"),
-                ("OnTick.outputs:tick", "PubTF.inputs:execIn"),
-                ("ReadSimTime.outputs:simulationTime", "PubTF.inputs:timeStamp"),
-                ("OnTick.outputs:tick", "ReadIMU.inputs:execIn"),
-                ("ReadIMU.outputs:execOut", "PubIMU.inputs:execIn"),
-                ("ReadIMU.outputs:angVel", "PubIMU.inputs:angularVelocity"),
-                ("ReadIMU.outputs:linAcc", "PubIMU.inputs:linearAcceleration"),
-                ("ReadIMU.outputs:orientation", "PubIMU.inputs:orientation"),
-                ("ReadSimTime.outputs:simulationTime", "PubIMU.inputs:timeStamp"),
-                # RGB: RPCamera → CamRGB
-                ("OnTick.outputs:tick", "RPCamera.inputs:execIn"),
-                ("RPCamera.outputs:execOut", "CamRGB.inputs:execIn"),
-                ("RPCamera.outputs:renderProductPath", "CamRGB.inputs:renderProductPath"),
-                # Depth: separate RPDepth → CamDepth
-                ("OnTick.outputs:tick", "RPDepth.inputs:execIn"),
-                ("RPDepth.outputs:execOut", "CamDepth.inputs:execIn"),
-                ("RPDepth.outputs:renderProductPath", "CamDepth.inputs:renderProductPath"),
-                # LiDAR
-                ("OnTick.outputs:tick", "RPLidar.inputs:execIn"),
-                ("RPLidar.outputs:execOut", "LidarHelper.inputs:execIn"),
-                ("RPLidar.outputs:renderProductPath", "LidarHelper.inputs:renderProductPath"),
-            ],
-            keys.SET_VALUES: [
-                ("PubClock.inputs:topicName", "/clock"),
-                # Articulation joint TF on a separate topic to avoid conflict
-                # with the manual odom→base_link publisher on /tf.
-                ("PubTF.inputs:topicName", "/tf_raw"),
-                ("ReadIMU.inputs:imuPrim", [imu_prim_path]),
-                ("PubIMU.inputs:topicName", ns_topic(topics["imu"])),
-                ("PubIMU.inputs:frameId", "imu_link"),
-                ("RPCamera.inputs:cameraPrim", [camera_prim_path]),
-                ("RPCamera.inputs:width", int(camera_cfg["resolution"][0])),
-                ("RPCamera.inputs:height", int(camera_cfg["resolution"][1])),
-                ("CamRGB.inputs:type", "rgb"),
-                ("CamRGB.inputs:topicName", ns_topic(topics["rgb"])),
-                ("CamRGB.inputs:frameId", "camera_link"),
-                ("RPDepth.inputs:cameraPrim", [camera_prim_path]),
-                ("RPDepth.inputs:width", int(camera_cfg["resolution"][0])),
-                ("RPDepth.inputs:height", int(camera_cfg["resolution"][1])),
-                ("CamDepth.inputs:type", "depth"),
-                ("CamDepth.inputs:topicName", ns_topic(topics["depth"])),
-                ("CamDepth.inputs:frameId", "camera_link"),
-                ("RPLidar.inputs:cameraPrim", [lidar_prim_path]),
-                ("LidarHelper.inputs:topicName", ns_topic(topics["lidar"])),
-                ("LidarHelper.inputs:frameId", "lidar_link"),
-                ("LidarHelper.inputs:type", "point_cloud"),
-            ],
+            keys.CREATE_NODES: create_nodes,
+            keys.CONNECT: connect_edges,
+            keys.SET_VALUES: set_values,
         },
     )
     print(f"[run_stage3_mono] Built OmniGraph at {graph_path}", flush=True)
@@ -1133,6 +1180,8 @@ def main() -> int:
             ("lidar_link", lidar_cfg["local_translation"]),
             ("imu_link", imu_cfg["local_translation"]),
         ]
+        if lidar_2d_cfg is not None:
+            sensor_tf_configs.append(("scan_frame", lidar_2d_cfg["local_translation"]))
         static_transforms = []
         for child_frame, local_t in sensor_tf_configs:
             tf_msg = TransformStamped()

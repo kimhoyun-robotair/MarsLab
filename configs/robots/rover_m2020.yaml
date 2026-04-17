@@ -49,12 +49,14 @@ ros2:
     rgb: "rgb/image_raw"
     depth: "depth/image_raw"
     lidar: "lidar/points"
+    scan: "scan"                 # 2D LaserScan for slam_toolbox / Nav2
   rates:
     imu: 100
     odom: 50
     rgb: 30
     depth: 30
     lidar: 10
+    scan: 30                     # Example_Rotary_2D scanRateBaseHz = 30 Hz
 
 sensors:
   camera:
@@ -70,6 +72,17 @@ sensors:
     local_translation: [0.3, 0.0, -0.5]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     profile: "Example_Rotary"
+
+  # 2D LaserScan sensor for slam_toolbox / Nav2.  Clones the RTX Lidar
+  # pipeline used by ``lidar_3d``; only the bundled profile and mount
+  # height differ (0.25 m below the 3D lidar).  Profile is the Isaac
+  # Sim bundled ``Example_Rotary_2D`` (single emitter, elevation -2°,
+  # 30 Hz rotation) — reference by *name* only (see §10.8).
+  lidar_2d:
+    parent_link: "Body_Chassis"
+    local_translation: [0.3, 0.0, -0.25]
+    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+    profile: "Example_Rotary_2D"
 
   imu:
     parent_link: "Body_Chassis"
