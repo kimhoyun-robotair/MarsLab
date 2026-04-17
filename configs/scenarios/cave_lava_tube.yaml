@@ -68,7 +68,7 @@ terrain:
   uv_scale: 1.0
 
 rendering:
-  mode: "path_tracing"
+  mode: "ray_tracing"
   sky_dome_hdri_dir: "assets/sky/hdri/"
   resolution: [1920, 1080]
   spp: 32
@@ -82,3 +82,25 @@ rendering:
   dome_brightness_scale: 5000.0
   fog_density_scale: 0.002
   fog_color: [0.78, 0.62, 0.42]
+
+rover:
+  enabled: true
+  base_config: "configs/robots/rover_m2020.yaml"
+  # Cave scenario: the procedural tube generator returns a *ceiling*
+  # elevation grid, so dem_relative would drop the rover onto the
+  # ceiling surface.  Use absolute spawn targeting the centre of the
+  # first skylight aperture where natural light reaches the tube
+  # floor.  Z is set below the nominal floor level of the cave
+  # (tube_width_m=200 × tube_height_ratio=0.5 ⇒ height≈100 m beneath
+  # the ceiling surface ≈ -50 m in world frame).  A z_offset of 0.5 m
+  # above the expected floor keeps the wheels clear of breakdown
+  # debris on landing.
+  spawn:
+    mode: "absolute"
+    xy: [0.0, 0.0]
+    z: -49.5
+    orientation_rpy: [3.14159, 0.0, 0.785398]  # face +X+Y along tube axis (45° bearing)
+  sensors:
+    # Increase depth clip range so RGB camera captures distant tube wall.
+    camera:
+      clipping_range: [0.1, 500.0]

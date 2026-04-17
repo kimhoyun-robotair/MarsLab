@@ -54,7 +54,7 @@ terrain:
   uv_scale: 1.0
 
 rendering:
-  mode: "path_tracing"
+  mode: "ray_tracing"
   sky_dome_hdri_dir: "assets/sky/hdri/"
   resolution: [1920, 1080]
   spp: 32
@@ -66,3 +66,17 @@ rendering:
   dome_brightness_scale: 5000.0
   fog_density_scale: 0.002
   fog_color: [0.78, 0.62, 0.42]
+
+rover:
+  enabled: true
+  base_config: "configs/robots/rover_m2020.yaml"
+  # Canyon centreline runs along the DEM row axis (N-S) with the
+  # floor at X≈0.  Spawn 10 m inside the southern rim on the floor,
+  # facing +Y so the rover can traverse the entire corridor.
+  # Domain 300 m × 300 m ⇒ south edge at Y=-150, so Y=-140 gives
+  # a safe margin.
+  spawn:
+    mode: "dem_relative"
+    xy: [0.0, -140.0]
+    z_offset: 0.4
+    orientation_rpy: [3.14159, 0.0, 1.570796]  # yaw=+90° ⇒ face +Y

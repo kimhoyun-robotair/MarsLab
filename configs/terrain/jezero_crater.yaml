@@ -27,7 +27,7 @@ terrain:
   seed: 42
 
 rendering:
-  mode: "path_tracing"
+  mode: "ray_tracing"
   sky_dome_hdri_dir: "assets/sky/hdri/"
   resolution: [1280, 720]
   spp: 32

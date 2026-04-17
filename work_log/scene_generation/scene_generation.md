@@ -1481,3 +1481,18 @@ Scenario 1-5 (Cave 포함) 전체 scene 파이프라인 구현 및 시각 검증
 다음 단계: 로버 + scene 통합 (별도 세션에서 진행).
 
 Scenario 6 (Spacecraft), 7 (Mars Base)은 사실적 3D 에셋 소싱 후 별도 진행.
+
+---
+
+## [2026-04-17] Stage 3 통합: Scene + Rover 결합
+
+Stage 2 에서 완성된 scene 파이프라인이 Stage 3 `scripts/phase1/run_stage3.py` 에서 재사용되어 rover 와 한 월드에 공존한다.
+
+### 통합 지점
+- **elevation loader 모듈화:** `run_stage2.py` L67~144 의 HiRISE/procedural/cave 분기 로직이 `marslab/terrain/elevation_loader.py::load_terrain_elevation` 으로 이관. 기존 Stage 2 경로는 유지하되 Stage 3는 이 모듈을 호출.
+- **terrain center shift:** `compute_mesh_arrays` 는 SW-corner 앵커지만 scenario_loader 의 `dem_center` 스폰은 world origin 을 DEM 중심으로 가정. run_stage3 는 `_center_terrain_prim(stage, path, elevation, resolution)` 에서 USD TranslateOp 만 적용해 메쉬 테스트·Stage 2 호환성 유지.
+- **atmosphere 통합:** `_configure_atmosphere` (run_stage3) 가 Stage 2 의 sun position / Beer's law / COMIMART diffuse / butterscotch sky dome / exponential fog 를 재호출.
+- **5개 시나리오 YAML 확장:** `jezero_flat.yaml`, `jezero_rocks.yaml`, `jezero_crater.yaml`, `cerberus_canyon.yaml`, `cave_lava_tube.yaml` 에 `rover:` 블록 신규 추가. 각 시나리오가 필요로 하는 스폰 모드(`dem_center` / `dem_relative` / `absolute`) 와 2D LiDAR 프로파일 지정.
+
+### 시나리오 6~7 상태
+- Spacecraft (scenario 6), Mars Base (scenario 7) 은 현 세션 out-of-scope. run_stage3 파이프라인은 `terrain.source` + `base_config` include 구조만으로 즉시 재사용 가능하므로, 에셋 소싱 세션에서 YAML 추가만으로 기동 가능.

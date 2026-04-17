@@ -1,0 +1,120 @@
+# NASA JPL Perseverance (M2020) rover — common base configuration.
+#
+# This file is consumed by Stage 3 scenarios via
+# ``configs/scenarios/<name>.yaml``  ->  rover.base_config .
+# The scenario loader deep-merges the scenario's ``rover:`` block onto
+# these defaults (scenario wins on leaf conflicts).
+#
+# Blocks here mirror the legacy ``configs/phase1.yaml`` rover block
+# verbatim so Stage 1 and Stage 3 share identical physics/sensors/
+# control tuning.  Do NOT put per-scenario tweaks here — put them in
+# the scenario YAML instead.
+
+usd_path: "assets/robots/rover/m2020.usd"
+urdf_source_path: "reference/m2020-urdf-models/rover/m2020.urdf"
+prim_path: "/World/Rover"
+
+# Stage-1 spawn pose is a fallback only; Stage-3 scenarios override
+# via the ``spawn:`` block below.  The 180° X-roll keeps the USD
+# upright after the glTF Y-up -> USD Z-up conversion.
+spawn_position: [0.0, 0.0, 0.0]
+spawn_orientation_rpy: [3.14159, 0.0, 0.0]
+
+# Default Stage-3 spawn spec.  Scenarios override mode / xy / z_offset
+# to land the rover at a scenario-appropriate starting point.
+spawn:
+  mode: "dem_center"
+  xy: [0.0, 0.0]
+  z_offset: 0.5
+  orientation_rpy: [3.14159, 0.0, 0.0]
+
+# Chassis mass-bias compensation (see phase1.yaml comments).
+com_offset: [0.2, 0.0, 0.0]
+angular_damping: 12.0
+linear_damping: 0.5
+
+# Offline URDF-to-USD converter flags.  Runtime must NOT re-run URDF
+# import; these are consumed only by scripts/phase1/convert_urdf_to_usd.py.
+urdf_merge_fixed_joints: false
+urdf_fix_base: false
+urdf_self_collision: false
+urdf_create_physics_scene: false
+
+ros2:
+  namespace: "rover"
+  topics:
+    cmd_vel: "cmd_vel"
+    imu: "imu"
+    odom: "odom"
+    rgb: "rgb/image_raw"
+    depth: "depth/image_raw"
+    lidar: "lidar/points"
+  rates:
+    imu: 100
+    odom: 50
+    rgb: 30
+    depth: 30
+    lidar: 10
+
+sensors:
+  camera:
+    parent_link: "Body_Chassis"
+    local_translation: [0.3, 0.0, -2.1]
+    local_orientation_rpy_deg: [180.0, 0.0, 0.0]
+    resolution: [640, 480]
+    focal_length: 24.0
+    clipping_range: [0.1, 1000.0]
+
+  lidar_3d:
+    parent_link: "Body_Chassis"
+    local_translation: [0.3, 0.0, -0.5]
+    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+    profile: "Example_Rotary"
+
+  imu:
+    parent_link: "Body_Chassis"
+    local_translation: [0.0, 0.0, 0.0]
+    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+
+control:
+  # Geometry derived from URDF kinematic chain (m2020.urdf).
+  wheel_radius: 0.2667
+  wheelbase: 2.26
+  track_steer: 2.125
+  track_middle: 2.369
+  max_linear_velocity: 0.5
+  max_angular_velocity: 0.5
+
+  drive_joint_names:
+    - "LF_DRIVE"
+    - "LM_DRIVE"
+    - "LR_DRIVE"
+    - "RF_DRIVE"
+    - "RM_DRIVE"
+    - "RR_DRIVE"
+  steer_joint_names:
+    - "LF_STEER"
+    - "LR_STEER"
+    - "RF_STEER"
+    - "RR_STEER"
+  suspension_joint_names:
+    - "CENTER_DIFFERENTIAL"
+    - "LEFT_DIFFERENTIAL"
+    - "RIGHT_DIFFERENTIAL"
+    - "LEFT_BOGIE"
+    - "RIGHT_BOGIE"
+
+  suspension_damping: 50.0
+  drive_damping: 1000.0
+  drive_max_force: 1000000.0
+  steer_stiffness: 50000.0
+  steer_damping: 5000.0
+  steer_max_force: 100000.0
+  drive_type: "acceleration"
+
+  negate_steer: true
+  max_wheel_accel_rate: 0.5
+  max_steer_angle: 0.7
+  steer_ramp_rate: 2.0
+  decel_multiplier: 3.0
+  debug_logging: false

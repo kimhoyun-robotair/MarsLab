@@ -3172,3 +3172,84 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - `tests/unit/test_ackermann.py` (TestAckermannEuclidean 3개 추가)
 - `tests/unit/test_run_stage1_helpers.py` (VALID_CONFIG 업데이트)
 
+
+---
+
+## [2026-04-17] Stage 3: Rover × Scene 통합 + SLAM + Nav2
+
+**모듈:** `marslab/robots/`, `marslab/sensors/`, `marslab/ros2_bridge/`, `marslab/config/`, `marslab/terrain/`, `scripts/phase1/run_stage3.py`, `launch/`, `configs/slam/`, `configs/nav2/`
+**Plan 참조:** `~/.claude/plans/phase-1-rover-gentle-mitten.md` (옵션 B: 통합 + SLAM + Nav2 + 2D LiDAR).
+
+### 원래 계획 개요 (해당 Plan에서 발췌)
+- Stage 1(run_stage1) rover 스택과 Stage 2(run_stage2) scene 스택을 합쳐 `scripts/phase1/run_stage3.py` 신규 진입점 제공.
+- 2D RTX LiDAR를 rover rig에 추가하고 OmniGraph `ROS2RtxLidarHelper(type="laser_scan")`로 `/rover/scan` 발행.
+- 시나리오 5개(flat/rocks/crater/canyon/cave)에 `rover:` 블록 추가 — `configs/robots/rover_m2020.yaml` base를 deep merge.
+- slam_toolbox(async) + Nav2(NavFn + RegulatedPurePursuit) 런치 파일과 시나리오별 오버레이 params 작성.
+- `/tf` vs `/tf_raw` 이원화는 **유지** (사용자 지시: "TF는 건들지마"). PubTF OmniGraph 노드는 articulation joint TF를 `/tf_raw`로 내보내고, rclpy odom publisher가 `odom→base_link`를 `/tf`로 발행. SLAM/Nav2는 `/tf` 스트림을 소비.
+- v2.0 photorealism·시나리오 6~7·대량 벤치마크·논문 figure는 out-of-scope.
+
+### 수행 내용
+
+**T1~T4 Day 1 (pure Python)**
+- `marslab/robots/rover_control.py` — 기존 `scripts/phase1/ackermann.py` + `run_stage1` 인라인 ramp 로직을 모아 `ackermann_command` / `ramp_wheel_velocities` / `ramp_steer_angles` / `clamp_steer_angles` 공개.
+- `scripts/phase1/ackermann.py` — thin re-export (`from marslab.robots.rover_control import *`)로 축소하되 삭제하지 않음(주석 처리 원칙).
+- `marslab/config/scenario_loader.py` — `load_scenario_config` (deep merge, base include), `resolve_spawn_pose` (`absolute` / `dem_center` / `dem_relative` + bilinear sampling) + 17개 단위 테스트.
+- `marslab/terrain/elevation_loader.py` — `load_terrain_elevation` (HiRISE/procedural/cave 분기) + 12개 단위 테스트.
+- `marslab/ros2_bridge/odometry_publisher.py` pure 헬퍼 (`quat_inverse`, `quat_multiply`, `quat_rotate_vec`, `compute_odom_delta`, `world_twist_to_body`) + 쿼터니언 단위 테스트.
+
+**T5 Day 2**
+- `configs/robots/rover_m2020.yaml` — `phase1.yaml` 의 rover/sensors/control/ros2 블록을 그대로 복제 (기존 `phase1.yaml` 보존, Stage 1 호환용).
+- 5개 시나리오 YAML (`jezero_flat.yaml`, `jezero_rocks.yaml`, `jezero_crater.yaml`, `cerberus_canyon.yaml`, `cave_lava_tube.yaml`)에 `rover:` 블록 추가. `spawn.mode`, `z_offset`, `lidar_2d` profile 등 시나리오별 조정 포함.
+
+**T6~T8 Day 3~4 (Isaac Sim-side 모듈)**
+- `marslab/robots/rover.py` — `spawn_rover`, `apply_spawn_pose`, `apply_mass_properties`, `find_rigid_body_path`, `configure_drives`, `reinforce_pd_gains` 이식. DriveAPI는 USD 쓰기 + post-reset `set_gains` PhysX tensor 강화 2-단계.
+- `marslab/sensors/rover_rig.py` — `attach_rover_sensor_rig` 에 Camera / 3D LiDAR / IMU + **2D LiDAR** 부착. 180° X-roll body frame 보정.
+- `marslab/ros2_bridge/sensor_graph.py` — OmniGraph 빌더. 노드/커넥션/set-value 모두 pure-Python 빌더(`_build_create_nodes`, `_build_connections`, `_build_set_values`)로 분리해 offline 테스트 가능.
+  - `PubTF.inputs:topicName = "/tf_raw"` 고정 (TF 분리 유지).
+  - `Lidar2DHelper.inputs:type = "laser_scan"` when `lidar_2d_prim_path is not None`.
+- `marslab/ros2_bridge/cmd_vel_subscriber.py` / `tf_broadcaster.py` / `odometry_publisher.py` / `__init__.py` — rclpy 기반 런타임. `BridgeContext`, `OdometryPublisherContext` dataclass 로 상태 캡슐화.
+- 10개 ros2_bridge 구조 테스트 추가 (`tests/unit/test_ros2_bridge_structure.py`).
+
+**T9 Day 4 — run_stage3.py**
+- `scripts/phase1/run_stage3.py` (~450 라인). CLI: `--config`, `--headless`, `--no-rover`, `--no-ros2`, `--spawn-override`.
+- 오케스트레이션 순서: scenario load → elevation → spawn resolve → SimulationApp boot → terrain 빌드 (+ `_center_terrain_prim` USD Translate로 mesh center를 world origin에 정렬) → rocks → atmosphere → rover spawn → rig 부착 → drive 설정 → `world.reset()` → warmup + timeline play → `reinforce_pd_gains` → OmniGraph → `init_rclpy_side` → main loop.
+- Main loop: cmd_vel → `ackermann_command` → `clamp_steer_angles` / ramp 헬퍼 → `articulation.set_joint_*_targets` → `rclpy.spin_once(timeout=0)` → `publish_odometry`.
+- Cleanup: rclpy shutdown + `simulation_app.close()` + `os._exit(0)` fallback.
+
+**T10 Day 5 — 2D LiDAR**
+- `marslab/sensors/lidar_2d.py` — `_resolve_profile` (builtin 이름 passthrough / 절대 경로 / repo-relative / 기본 자산 fallback), `attach_lidar_2d` (`LidarRtx` lazy import), pure `build_mars_tuned_profile` 팩토리.
+- `assets/sensors/rtx_scan_2d.json` — Mars-tuned 프로파일 (rotary, 0.1–25 m, 40 Hz, 57600 reports/s, 단일 emitter/channel, 0.25°/ray).
+- 11개 단위 테스트 (`tests/unit/test_lidar_2d.py`).
+
+**T11 Day 7 — slam_toolbox**
+- `launch/slam_toolbox.launch.py` — async_slam_toolbox_node + 시나리오 오버레이 merge (params_file 체인 last-wins) + `use_sim_time=true`.
+- `configs/slam/slam_toolbox_async.yaml` + 시나리오별 오버레이 5개(`*_flat/rocks/crater/canyon/cave.yaml`). cave 오버레이는 `max_laser_range=15 m`로 축소해 스카이라이트 clearing 방지.
+
+**T12 Day 9 — Nav2**
+- `configs/nav2/nav2_params.yaml` (controller/planner/bt_navigator/waypoint_follower/velocity_smoother/behavior_server + local/global costmap). RegulatedPurePursuit (Ackermann-친화), NavFn planner, ObstacleLayer(`/rover/scan`) + VoxelLayer(`/rover/lidar/points`).
+- 시나리오별 오버레이 5개 (`nav2_{flat,rocks,crater,canyon,cave}.yaml`): 속도·인플레이션·lookahead 튜닝.
+- 웨이포인트 5개 (`configs/nav2/waypoints/{scenario}.yaml`): 3~4 포즈.
+- `launch/marslab_slam_nav.launch.py` — slam_toolbox include + Nav2 lifecycle 노드 7개. `cmd_vel → /rover/cmd_vel` remap 필수.
+- `scripts/eval/nav2_waypoint_runner.py` — `BasicNavigator.followWaypoints` 래퍼, 결과 JSON을 `out/nav2_smoke/<scenario>.json`에 기록.
+- 10개 단위 테스트 (`tests/unit/test_nav2_waypoint_runner.py`) — yaw→quat, 5개 시나리오 YAML schema 검증.
+
+### 검증
+- `black --check marslab/ scripts/ tests/ launch/` 106 files clean.
+- `ruff check marslab/ scripts/ tests/ launch/` — All checks passed.
+- `python3 -m pytest tests/unit/ -q` — **365 passed, 1 warning**. (Stage 1/2 기존 226 + 2D LiDAR 11 + ros2_bridge structure 10 + scenario_loader 17 + elevation_loader 12 + odometry math + Nav2 waypoint 10 등.)
+- Isaac Sim integration smoke (`scripts/phase1/run_stage3.py --config configs/scenarios/jezero_flat.yaml`) — 사용자 수동 실행 예정 (MEMORY: "Isaac Sim integration test는 사용자가 직접 실행").
+
+### 핵심 설계 결정
+- **TF 이원화 유지:** PubTF → `/tf_raw`, rclpy odom → `/tf`. slam_toolbox·Nav2가 `/tf`만 소비하므로 articulation joint 스팸과 충돌 없음.
+- **Terrain center shift:** `compute_mesh_arrays` 는 SW-corner 앵커라 `resolve_spawn_pose("dem_center")` 가 가정하는 중심 좌표계와 어긋난다. 테스트/기존 동작 보존 위해 USD prim 수준의 `_center_terrain_prim` 으로 평행이동만 적용.
+- **시나리오 6(Spacecraft), 7(Mars Base)** — 이번 세션 out-of-scope. 파이프라인은 base_config include + `terrain.source` 구조로 즉시 재사용 가능 (에셋 소싱 후 재개).
+
+### 생성/수정 파일 요약
+- **신규:** `marslab/config/scenario_loader.py`, `marslab/terrain/elevation_loader.py`, `marslab/robots/rover.py`, `marslab/robots/rover_control.py`, `marslab/sensors/rover_rig.py`, `marslab/sensors/lidar_2d.py`, `marslab/ros2_bridge/{__init__.py, sensor_graph.py, cmd_vel_subscriber.py, odometry_publisher.py, tf_broadcaster.py}`, `scripts/phase1/run_stage3.py`, `scripts/eval/nav2_waypoint_runner.py`, `configs/robots/rover_m2020.yaml`, `assets/sensors/rtx_scan_2d.json`, `configs/slam/*.yaml` (6), `configs/nav2/*.yaml` (6) + `configs/nav2/waypoints/*.yaml` (5), `launch/slam_toolbox.launch.py`, `launch/marslab_slam_nav.launch.py`, 단위 테스트 6종.
+- **수정(비파괴):** `scripts/phase1/ackermann.py` (thin re-export), 5개 시나리오 YAML (rover 블록 추가), `configs/phase1.yaml` (Stage 1 호환용 유지), `tests/unit/test_ackermann.py` / `test_run_stage1_helpers.py` (회귀 유지).
+
+### 후속 과제
+- Isaac Sim smoke 수동 실행(flat → rocks → crater → canyon → cave).
+- slam_toolbox ros-humble-slam-toolbox apt 설치 후 `ros2 launch launch/marslab_slam_nav.launch.py scenario:=flat` 검증.
+- Nav2 success-rate 매트릭스 및 `/rover/gt_pose` vs `/slam_toolbox/pose` ATE 비교는 Wk6 벤치마크 세션.
+- 시나리오 6~7 에셋 소싱(Sketchfab / NASA 3D Resources Perseverance skycrane / HAB).

@@ -1172,3 +1172,41 @@ node = rclpy.create_node(
 - 새 세션에서 rover + scene 통합 진행 (DEM + rocks + rover 스폰)
 - 추후 `run_stage1.py` 리팩토링 (모듈화, 최적화)
 - SLAM + Nav2 통합 (Wk3~4)
+
+---
+
+## [2026-04-17] Stage 3 통합 완료 — Rover × Scene × SLAM × Nav2
+
+**세션 산출물:** `scripts/phase1/run_stage3.py` 신규 진입점 + `marslab/robots/rover*.py` 모듈화 + 2D LiDAR 추가 + slam_toolbox/Nav2 런치 스택.
+
+### 핵심 변경
+- **제어 모듈 분리 (G6):** `run_stage1.py` 에 인라인돼 있던 Ackermann/ramp 로직을 `marslab/robots/rover_control.py` 로 이전. `scripts/phase1/ackermann.py` 는 thin re-export 로 유지(주석 처리 원칙, 기존 테스트 회귀 없음).
+- **USD spawn/drive 모듈 (`marslab/robots/rover.py`):** `spawn_rover`, `apply_spawn_pose`, `apply_mass_properties`, `find_rigid_body_path`, `configure_drives`, `reinforce_pd_gains` 공개. DriveAPI 는 USD 선기록 + post-reset `set_gains` 2단계 강화 패턴 유지.
+- **센서 rig (`marslab/sensors/rover_rig.py`):** Camera/3D LiDAR/IMU + **2D LiDAR** 부착. 180° X-roll body frame 보정.
+- **2D LiDAR (`marslab/sensors/lidar_2d.py` + `assets/sensors/rtx_scan_2d.json`):** Mars-tuned 프로파일 (0.1–25 m, 40 Hz, 0.25°/ray, 57600 reports/s).
+
+### TF 정책 (사용자 지시 유지)
+- PubTF OmniGraph → `/tf_raw` (articulation joint TF).
+- rclpy odom publisher → `/tf` (`odom → base_link`).
+- slam_toolbox: `map → odom` 을 `/tf` 로 publish.
+- "TF는 건들지마" 지시에 따라 이원화 유지. 기존 통합 시도(2026-04-17 일지 상단)는 **재시도하지 않음**.
+
+### ROS2 통합 스택
+- `marslab/ros2_bridge/__init__.py::init_rclpy_side` → `BridgeContext` (cmd_vel sub, static TF, odom publisher).
+- `marslab/ros2_bridge/sensor_graph.py::build_sensor_graph` — OmniGraph 빌더. 노드/커넥션/set-value pure 함수로 분리해 offline 유닛 테스트 가능(Isaac Sim 미포함).
+
+### Stage 3 진입점
+- `scripts/phase1/run_stage3.py` (~450 라인). 시퀀스: scenario load → elevation → spawn pose → SimulationApp → terrain + atmosphere → (옵션) rover spawn + rig + drives → world.reset → warmup + timeline play → `reinforce_pd_gains` → (옵션) OmniGraph + rclpy side → main loop.
+
+### 시나리오별 rover 블록
+- `configs/robots/rover_m2020.yaml` base (phase1.yaml 로 롤백 가능하도록 보존).
+- 5개 시나리오 YAML 에 `rover.enabled`, `rover.spawn` (absolute/dem_relative/dem_center), `rover.sensors.lidar_2d` 블록 추가.
+
+### 테스트
+- `rover_control` / `rover` / `rover_rig` / `lidar_2d` 순수 파이썬 경로 + scenario_loader + elevation_loader + ros2_bridge 구조 + nav2 waypoint 유틸.
+- `pytest tests/unit/` → **365 passed**.
+
+### 후속
+- Isaac Sim 사용자 smoke: `scripts/isaac_python.sh scripts/phase1/run_stage3.py --config configs/scenarios/jezero_flat.yaml`.
+- slam_toolbox apt 설치 후 `ros2 launch launch/marslab_slam_nav.launch.py scenario:=flat`.
+- Nav2 waypoint 실행: `python3 scripts/eval/nav2_waypoint_runner.py --scenario flat`.

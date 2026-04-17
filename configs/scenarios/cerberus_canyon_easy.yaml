@@ -50,7 +50,7 @@ terrain:
   seed: 42
 
 rendering:
-  mode: "path_tracing"
+  mode: "ray_tracing"
   sky_dome_hdri_dir: "assets/sky/hdri/"
   resolution: [1920, 1080]
   spp: 32
@@ -62,3 +62,14 @@ rendering:
   dome_brightness_scale: 5000.0
   fog_density_scale: 0.002
   fog_color: [0.78, 0.62, 0.42]
+
+rover:
+  enabled: true
+  base_config: "configs/robots/rover_m2020.yaml"
+  # Easier variant of Cerberus Fossae: gentler slopes allow direct
+  # rim approach.  Spawn on the plain edge facing the canyon.
+  spawn:
+    mode: "dem_relative"
+    xy: [0.0, 150.0]
+    z_offset: 0.6
+    orientation_rpy: [3.14159, 0.0, -1.570796]
