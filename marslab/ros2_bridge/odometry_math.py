@@ -23,72 +23,85 @@ from typing import Tuple
 
 import numpy as np
 
+# R3-A1: quat_inverse / quat_multiply / quat_rotate_vec were relocated to
+# ``marslab.math.quaternion`` as the single source of truth.  The imports
+# below preserve backward compatibility for every existing call site
+# (``marslab.ros2_bridge.odometry_publisher``, ``tests/unit/test_odometry_math``)
+# that still does ``from marslab.ros2_bridge.odometry_math import quat_*``.
+from marslab.math.quaternion import (  # noqa: F401
+    quat_inverse,
+    quat_multiply,
+    quat_rotate_vec,
+)
 
-def quat_inverse(q: np.ndarray) -> np.ndarray:
-    """Return the inverse of a unit quaternion ``[w, x, y, z]``.
-
-    For a unit quaternion the inverse equals the conjugate: negate the
-    vector part, keep the scalar.  The caller is responsible for keeping
-    ``q`` unit-norm; this function does not renormalise.
-
-    Args:
-        q: Shape ``(4,)`` quaternion with scalar-first ordering.
-
-    Returns:
-        Shape ``(4,)`` inverse quaternion, dtype float32.
-    """
-    q = np.asarray(q, dtype=np.float32)
-    if q.shape != (4,):
-        raise ValueError(f"quaternion must have shape (4,), got {q.shape}")
-    return np.array([q[0], -q[1], -q[2], -q[3]], dtype=np.float32)
-
-
-def quat_multiply(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
-    """Hamilton product ``q1 ⊗ q2`` of two ``[w, x, y, z]`` quaternions.
-
-    Args:
-        q1: Left operand, shape ``(4,)``.
-        q2: Right operand, shape ``(4,)``.
-
-    Returns:
-        Shape ``(4,)`` product, dtype float32.
-    """
-    q1 = np.asarray(q1, dtype=np.float32)
-    q2 = np.asarray(q2, dtype=np.float32)
-    if q1.shape != (4,) or q2.shape != (4,):
-        raise ValueError(f"quaternions must have shape (4,), got {q1.shape} and {q2.shape}")
-    w1, x1, y1, z1 = q1
-    w2, x2, y2, z2 = q2
-    return np.array(
-        [
-            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
-            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
-            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-        ],
-        dtype=np.float32,
-    )
-
-
-def quat_rotate_vec(q: np.ndarray, v: np.ndarray) -> np.ndarray:
-    """Rotate a 3-vector by a ``[w, x, y, z]`` quaternion.
-
-    Computes ``q ⊗ [0, v] ⊗ q^-1`` and returns the vector part.
-
-    Args:
-        q: Rotation quaternion, shape ``(4,)``.
-        v: Vector to rotate, shape ``(3,)``.
-
-    Returns:
-        Rotated vector, shape ``(3,)``, dtype float32.
-    """
-    v = np.asarray(v, dtype=np.float32)
-    if v.shape != (3,):
-        raise ValueError(f"vector must have shape (3,), got {v.shape}")
-    v_quat = np.array([0.0, v[0], v[1], v[2]], dtype=np.float32)
-    q_inv = quat_inverse(q)
-    result = quat_multiply(quat_multiply(q, v_quat), q_inv)
-    return result[1:4].astype(np.float32)
+# DISABLED (moved_to_marslab_math_R3-A1): original quat_inverse definition.
+# def quat_inverse(q: np.ndarray) -> np.ndarray:
+#     """Return the inverse of a unit quaternion ``[w, x, y, z]``.
+#
+#     For a unit quaternion the inverse equals the conjugate: negate the
+#     vector part, keep the scalar.  The caller is responsible for keeping
+#     ``q`` unit-norm; this function does not renormalise.
+#
+#     Args:
+#         q: Shape ``(4,)`` quaternion with scalar-first ordering.
+#
+#     Returns:
+#         Shape ``(4,)`` inverse quaternion, dtype float32.
+#     """
+#     q = np.asarray(q, dtype=np.float32)
+#     if q.shape != (4,):
+#         raise ValueError(f"quaternion must have shape (4,), got {q.shape}")
+#     return np.array([q[0], -q[1], -q[2], -q[3]], dtype=np.float32)
+#
+#
+# DISABLED (moved_to_marslab_math_R3-A1): original quat_multiply definition.
+# def quat_multiply(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
+#     """Hamilton product ``q1 ⊗ q2`` of two ``[w, x, y, z]`` quaternions.
+#
+#     Args:
+#         q1: Left operand, shape ``(4,)``.
+#         q2: Right operand, shape ``(4,)``.
+#
+#     Returns:
+#         Shape ``(4,)`` product, dtype float32.
+#     """
+#     q1 = np.asarray(q1, dtype=np.float32)
+#     q2 = np.asarray(q2, dtype=np.float32)
+#     if q1.shape != (4,) or q2.shape != (4,):
+#         raise ValueError(f"quaternions must have shape (4,), got {q1.shape} and {q2.shape}")
+#     w1, x1, y1, z1 = q1
+#     w2, x2, y2, z2 = q2
+#     return np.array(
+#         [
+#             w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+#             w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+#             w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+#             w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+#         ],
+#         dtype=np.float32,
+#     )
+#
+#
+# DISABLED (moved_to_marslab_math_R3-A1): original quat_rotate_vec definition.
+# def quat_rotate_vec(q: np.ndarray, v: np.ndarray) -> np.ndarray:
+#     """Rotate a 3-vector by a ``[w, x, y, z]`` quaternion.
+#
+#     Computes ``q ⊗ [0, v] ⊗ q^-1`` and returns the vector part.
+#
+#     Args:
+#         q: Rotation quaternion, shape ``(4,)``.
+#         v: Vector to rotate, shape ``(3,)``.
+#
+#     Returns:
+#         Rotated vector, shape ``(3,)``, dtype float32.
+#     """
+#     v = np.asarray(v, dtype=np.float32)
+#     if v.shape != (3,):
+#         raise ValueError(f"vector must have shape (3,), got {v.shape}")
+#     v_quat = np.array([0.0, v[0], v[1], v[2]], dtype=np.float32)
+#     q_inv = quat_inverse(q)
+#     result = quat_multiply(quat_multiply(q, v_quat), q_inv)
+#     return result[1:4].astype(np.float32)
 
 
 def compute_odom_delta(

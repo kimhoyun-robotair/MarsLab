@@ -16,7 +16,7 @@ import numpy as np
 # Ensure marslab package is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from marslab.config.loader import load_config
+from marslab.config.loader import load_and_validate
 from marslab.terrain.dem_loader import load_converted_dem, load_hirise_dem, save_converted_dem
 
 
@@ -34,7 +34,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    config = load_config(args.config)
+    config = load_and_validate(args.config)
 
     if config.terrain.source != "hirise":
         print(

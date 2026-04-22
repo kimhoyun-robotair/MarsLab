@@ -45,7 +45,13 @@ terrain:
     ceiling_thickness_m: 50.0
     skylight_count: 10
     skylight_diameter_m: 20.0
-    skylight_depth_m: 90.0
+    # R2-A4 (2026-04-22): bumped from 90.0 -> 110.0 to satisfy CaveConfig
+    # validator (skylight_depth_m must be >= tube_height = tube_width_m *
+    # tube_height_ratio = 200 * 0.5 = 100m). Pre-R2 the validator was not
+    # wired in the loader path so the violation slipped through. See
+    # marslab/config/schema/terrain.py:154-168 for the rule. Cushing 2007
+    # cites 68-178m for Mars skylight shaft depths, so 110m is in range.
+    skylight_depth_m: 110.0
     skylight_overhang_deg: 5.0
     debris_cone_present: true
     debris_cone_count: 5

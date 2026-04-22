@@ -58,7 +58,7 @@ Results logged in work_log/LOG.md after each inspection.
   If the existing Isaac Sim run was done with the pre-C1 offset=0.3 and
   showed penetration/flip, **re-run with the updated YAML**.
 - IMU probe procedure (post task #8 / Amendment 2, 2026-04-14, Isaac Sim 5.x):
-  - Expected `rover prim:` stdout reads `/simple_rover` (NOT `/World/simple_rover`).
+  - Expected `rover prim:` stdout reads `/World/Rover` (NASA JPL m2020 공식 자산 경로).
   - `[Warning] [isaacsim.asset.importer.urdf] Creating Asset in an in-memory stage`
     is INFORMATIONAL — not a failure.
   - Use `isaacsim.sensors.physics.IMUSensor` (5.x); the deprecated

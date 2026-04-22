@@ -15,12 +15,19 @@ Manual verification (separate terminal):
     ros2 topic hz /rover_0/imu_sensor/data
 """
 
-import os
-import sys
+# TODO(R4): Rewrite using marslab.ros2_bridge.sensor_graph_builder (to be created in R4).
+# marslab.ros2_bridge.publisher was never implemented; current stack uses build_sensor_graph().
+# Tracking: R1 plan, R4 plan.
+import pytest
+
+pytestmark = pytest.mark.skip(reason="Awaits R4 sensor_graph_builder")
+
+import os  # noqa: E402
+import sys  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # noqa: E402
 
 simulation_app = SimulationApp({"headless": True})
 
@@ -53,23 +60,25 @@ def run_test(name, test_fn):
 
 # ===== TEST 1: ROS2 Bridge Extension =====
 def test_ros2_bridge_enable():
-    from marslab.ros2_bridge.publisher import enable_ros2_bridge
-
-    enable_ros2_bridge()
-    simulation_app.update()
+    # from marslab.ros2_bridge.publisher import enable_ros2_bridge  # TODO(R4)
+    #
+    # enable_ros2_bridge()
+    # simulation_app.update()
     # If no exception, extension is enabled
+    raise NotImplementedError("Awaits R4 sensor_graph_builder")
 
 
 # ===== TEST 2: Clock Publisher =====
 def test_clock_publisher():
-    from marslab.ros2_bridge.publisher import setup_clock_publisher
-
-    setup_clock_publisher()
-    simulation_app.update()
-
-    graph = og.get_graph_by_path("/ROS2_Clock")
-    assert graph is not None, "Clock graph not created"
-    assert graph.is_valid(), "Clock graph is invalid"
+    # from marslab.ros2_bridge.publisher import setup_clock_publisher  # TODO(R4)
+    #
+    # setup_clock_publisher()
+    # simulation_app.update()
+    #
+    # graph = og.get_graph_by_path("/ROS2_Clock")
+    # assert graph is not None, "Clock graph not created"
+    # assert graph.is_valid(), "Clock graph is invalid"
+    raise NotImplementedError("Awaits R4 sensor_graph_builder")
 
 
 # ===== TEST 3: Camera Publisher =====
@@ -99,7 +108,7 @@ def test_camera_publisher():
     world.reset()
 
     # Setup ROS2 publisher
-    from marslab.ros2_bridge.publisher import setup_camera_publisher
+    # from marslab.ros2_bridge.publisher import setup_camera_publisher  # TODO(R4)
 
     camera_prim_path = f"{robot_path}/{cfg.get('mount_link', 'base_link')}/{cfg['name']}"
 
@@ -108,12 +117,12 @@ def test_camera_publisher():
     if not prim.IsValid():
         camera_prim_path = f"{robot_path}/{cfg['name']}"
 
-    setup_camera_publisher(
-        camera_prim_path,
-        "/rover_0/stereo_rgb/image_raw",
-        "camera_link",
-        "rgb",
-    )
+    # setup_camera_publisher(
+    #     camera_prim_path,
+    #     "/rover_0/stereo_rgb/image_raw",
+    #     "camera_link",
+    #     "rgb",
+    # )  # TODO(R4)
 
     # Step to generate data
     for _ in range(10):
@@ -152,9 +161,9 @@ def test_imu_publisher():
 
     world.reset()
 
-    from marslab.ros2_bridge.publisher import setup_imu_publisher
-
-    setup_imu_publisher(imu_path, "/rover_0/imu_sensor/data", "imu_link")
+    # from marslab.ros2_bridge.publisher import setup_imu_publisher  # TODO(R4)
+    #
+    # setup_imu_publisher(imu_path, "/rover_0/imu_sensor/data", "imu_link")
 
     for _ in range(30):
         world.step(render=True)
@@ -192,9 +201,9 @@ def test_lidar_publisher():
 
     world.reset()
 
-    from marslab.ros2_bridge.publisher import setup_lidar_publisher
-
-    setup_lidar_publisher(lidar_path, "/rover_0/lidar_3d/points", "lidar_link")
+    # from marslab.ros2_bridge.publisher import setup_lidar_publisher  # TODO(R4)
+    #
+    # setup_lidar_publisher(lidar_path, "/rover_0/lidar_3d/points", "lidar_link")
 
     for _ in range(10):
         world.step(render=True)
@@ -271,19 +280,20 @@ if os.environ.get("MARSLAB_PUBLISH") == "1":
 
     world.reset()
 
-    from marslab.ros2_bridge.publisher import (  # noqa: E402
-        enable_ros2_bridge,
-        setup_all_publishers,
-        setup_clock_publisher,
-    )
-
-    enable_ros2_bridge()
-    setup_clock_publisher()
-    topics = setup_all_publishers("rover_0", sensor_prim_paths, sensor_configs)
-    print(f"\n  Publishing {len(topics)} topics:")
-    for t in topics:
-        print(f"    {t}")
-    print()
+    # from marslab.ros2_bridge.publisher import (  # TODO(R4)
+    #     enable_ros2_bridge,
+    #     setup_all_publishers,
+    #     setup_clock_publisher,
+    # )
+    #
+    # enable_ros2_bridge()
+    # setup_clock_publisher()
+    # topics = setup_all_publishers("rover_0", sensor_prim_paths, sensor_configs)
+    # print(f"\n  Publishing {len(topics)} topics:")
+    # for t in topics:
+    #     print(f"    {t}")
+    # print()
+    topics: list[str] = []
 
     # Run simulation continuously
     frame = 0

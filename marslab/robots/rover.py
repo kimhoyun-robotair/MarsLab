@@ -32,21 +32,27 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+# R3-A1: ``rpy_to_quat`` was relocated to ``marslab.math.quaternion`` as
+# the single source of truth.  Re-exported here so every existing import
+# site — ``from marslab.robots.rover import rpy_to_quat`` — keeps working
+# without modification (tests/unit/test_rover_module.py, sensors/rover_rig.py).
+from marslab.math.quaternion import rpy_to_quat  # noqa: F401
 
-def rpy_to_quat(roll: float, pitch: float, yaw: float) -> Tuple[float, float, float, float]:
-    """Convert roll-pitch-yaw (radians) to quaternion ``(w, x, y, z)``.
-
-    ZYX intrinsic convention (URDF / ROS standard).  Pure NumPy; no
-    Isaac Sim dependency.
-    """
-    cr, sr = np.cos(roll / 2.0), np.sin(roll / 2.0)
-    cp, sp = np.cos(pitch / 2.0), np.sin(pitch / 2.0)
-    cy, sy = np.cos(yaw / 2.0), np.sin(yaw / 2.0)
-    w = cr * cp * cy + sr * sp * sy
-    x = sr * cp * cy - cr * sp * sy
-    y = cr * sp * cy + sr * cp * sy
-    z = cr * cp * sy - sr * sp * cy
-    return float(w), float(x), float(y), float(z)
+# DISABLED (moved_to_marslab_math_R3-A1): original rpy_to_quat definition.
+# def rpy_to_quat(roll: float, pitch: float, yaw: float) -> Tuple[float, float, float, float]:
+#     """Convert roll-pitch-yaw (radians) to quaternion ``(w, x, y, z)``.
+#
+#     ZYX intrinsic convention (URDF / ROS standard).  Pure NumPy; no
+#     Isaac Sim dependency.
+#     """
+#     cr, sr = np.cos(roll / 2.0), np.sin(roll / 2.0)
+#     cp, sp = np.cos(pitch / 2.0), np.sin(pitch / 2.0)
+#     cy, sy = np.cos(yaw / 2.0), np.sin(yaw / 2.0)
+#     w = cr * cp * cy + sr * sp * sy
+#     x = sr * cp * cy - cr * sp * sy
+#     y = cr * sp * cy + sr * cp * sy
+#     z = cr * cp * sy - sr * sp * cy
+#     return float(w), float(x), float(y), float(z)
 
 
 def resolve_joint_indices(dof_names: List[str], requested: List[str]) -> List[int]:
@@ -257,10 +263,24 @@ def configure_drives(
     steer_joint_names = list(control_cfg["steer_joint_names"])
     suspension_names = list(control_cfg.get("suspension_joint_names", []))
 
-    drive_damping = float(control_cfg.get("drive_damping", 100000.0))
+    # R2-A3 (2026-04-22): G5 — drive_damping / steer_stiffness /
+    # steer_damping are required keys in the ``control:`` block.  The
+    # previous ``.get(..., <python-literal>)`` fallbacks were dead code:
+    # the Python defaults (100000 / 50000 / 5000) never matched the
+    # runtime YAML values (1000 / 50000 / 5000 in
+    # configs/robots/rover_m2020.yaml), so any caller that relied on the
+    # fallback would have silently driven the rover with wrong gains.
+    # The SkidSteerDriveConfig schema now lists these three as required
+    # fields (see marslab/config/schema/robot.py).  Preserve the old
+    # lines here (commented) per feedback_no_delete_comment.
+    # DISABLED (hardcoded_default_fallback, R2-A3):
+    # drive_damping = float(control_cfg.get("drive_damping", 100000.0))
+    # steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
+    # steer_damping = float(control_cfg.get("steer_damping", 5000.0))
+    drive_damping = float(control_cfg["drive_damping"])
     drive_max_force = float(control_cfg.get("drive_max_force", 1000000.0))
-    steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
-    steer_damping = float(control_cfg.get("steer_damping", 5000.0))
+    steer_stiffness = float(control_cfg["steer_stiffness"])
+    steer_damping = float(control_cfg["steer_damping"])
     steer_max_force = float(control_cfg.get("steer_max_force", 100000.0))
     suspension_damping = float(control_cfg.get("suspension_damping", 0.0))
     drive_type = str(control_cfg.get("drive_type", "acceleration"))
@@ -319,9 +339,14 @@ def reinforce_pd_gains(
     steer_joint_names = list(control_cfg["steer_joint_names"])
     suspension_names = list(control_cfg.get("suspension_joint_names", []))
 
-    drive_damping = float(control_cfg.get("drive_damping", 100000.0))
-    steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
-    steer_damping = float(control_cfg.get("steer_damping", 5000.0))
+    # R2-A3 (2026-04-22): see rationale in ``configure_drives`` above.
+    # DISABLED (hardcoded_default_fallback, R2-A3):
+    # drive_damping = float(control_cfg.get("drive_damping", 100000.0))
+    # steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
+    # steer_damping = float(control_cfg.get("steer_damping", 5000.0))
+    drive_damping = float(control_cfg["drive_damping"])
+    steer_stiffness = float(control_cfg["steer_stiffness"])
+    steer_damping = float(control_cfg["steer_damping"])
     suspension_damping = float(control_cfg.get("suspension_damping", 0.0))
 
     drive_indices = resolve_joint_indices(dof_names, drive_joint_names)

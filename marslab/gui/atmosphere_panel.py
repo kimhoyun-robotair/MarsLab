@@ -146,7 +146,8 @@ class AtmospherePanel:
         mode = self._state.get("sun_mode", "auto")
         if mode == "auto":
             t = self._state.get("time_of_sol", 0.0)
-            hours = t * 24.66
+            sol_seconds = self._state.get("sol_duration_seconds", 88642.0)
+            hours = t * (sol_seconds / 3600.0)
             return f"  Mode: Auto Sweep  |  Sol time: {hours:.1f}h ({t:.2f})"
         else:
             az = self._state.get("sun_azimuth_deg", 180.0)

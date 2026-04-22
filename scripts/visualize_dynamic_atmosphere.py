@@ -22,6 +22,7 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
+from marslab.config.loader import load_and_validate  # noqa: E402
 from marslab.environment.light_intensity import compute_direct_intensity  # noqa: E402
 from marslab.environment.sky_dome import compute_sky_dome_params  # noqa: E402
 from marslab.environment.sun_position import compute_sol_sun_position  # noqa: E402
@@ -31,10 +32,17 @@ OUTPUT_DIR = os.path.join(REPO_ROOT, "work_log", "scene_generation")
 OUTPUT_PNG = os.path.join(OUTPUT_DIR, "dynamic_atmosphere_visualization.png")
 
 HDRI_DIR = os.path.join(REPO_ROOT, "assets", "sky", "hdri")
-SOLAR_CONSTANT = 589.0  # W/m^2 at 1.52 AU
 
 
 def main() -> None:
+    # R3 (2026-04-22) G5: solar constant and sol length come from YAML so the
+    # figure stays consistent with the simulation config.  The prior literal
+    # ``24.66`` differed from ``sol_duration_seconds / 3600 = 24.6228`` by
+    # 0.04 h (see refactoring/_risks.md §3.8).
+    cfg = load_and_validate(os.path.join(REPO_ROOT, "configs/mars_env.yaml"))
+    solar_constant = cfg.mars_env.solar_constant_mean
+    sol_hours = cfg.mars_env.sol_duration_seconds / 3600.0
+
     t_values = np.linspace(0.0, 1.0, 200)
 
     # --- Panel 1: Sun trajectory ---
@@ -57,9 +65,9 @@ def main() -> None:
     intensity_ramp = []
     for t in t_values:
         pos = compute_sol_sun_position(t)
-        i_c = compute_direct_intensity(SOLAR_CONSTANT, 0.3, pos.zenith_angle_rad)
+        i_c = compute_direct_intensity(solar_constant, 0.3, pos.zenith_angle_rad)
         i_r = compute_direct_intensity(
-            SOLAR_CONSTANT,
+            solar_constant,
             compute_tau("ramp", t, start_tau=0.3, end_tau=2.0),
             pos.zenith_angle_rad,
         )
@@ -84,7 +92,7 @@ def main() -> None:
     # Panel 1: Sun trajectory
     ax1 = axes[0, 0]
     ax1_twin = ax1.twinx()
-    hours = t_values * 24.66  # Mars sol in hours
+    hours = t_values * sol_hours  # Mars sol in hours (from YAML sol_duration_seconds)
     ln1 = ax1.plot(hours, azimuths, "b-", label="Azimuth")
     ln2 = ax1_twin.plot(hours, elevations, "r-", label="Elevation")
     ax1.set_xlabel("Time of Sol (hours)")
@@ -145,7 +153,7 @@ def main() -> None:
 
     fig.suptitle(
         "MarsLab Dynamic Atmosphere: Diurnal Cycle Over One Sol\n"
-        "(Solar constant = 589 W/m^2, Jezero crater 18.4 deg N)",
+        f"(Solar constant = {solar_constant:.0f} W/m^2, Jezero crater 18.4 deg N)",
         fontsize=13,
         fontweight="bold",
     )

@@ -31,7 +31,7 @@ def configure_sky_dome(
         diffuse_fraction: Fraction of total irradiance that is diffuse (0-1).
         rendering_config: Rendering configuration with dome parameters.
     """
-    dome_path = "/World/DomeLight"
+    dome_path = rendering_config.dome_prim_path
 
     existing = stage.GetPrimAtPath(dome_path)
     if existing.IsValid():
@@ -70,7 +70,7 @@ def update_sky_dome(
         diffuse_fraction: Updated diffuse fraction (0-1).
         rendering_config: Rendering configuration with dome parameters.
     """
-    dome_path = "/World/DomeLight"
+    dome_path = rendering_config.dome_prim_path
     prim = stage.GetPrimAtPath(dome_path)
 
     if not prim.IsValid():

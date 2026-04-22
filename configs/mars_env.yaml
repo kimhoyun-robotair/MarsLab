@@ -57,9 +57,13 @@ rendering:
   mode: "ray_tracing"
   sky_dome_hdri_dir: "assets/sky/hdri/"
   resolution: [1920, 1080]
-  spp: 32                            # samples per pixel per frame (Phase 1: production)
-  total_spp: 256                     # total accumulated samples (Phase 1: production)
-  max_bounces: 6                     # ray bounce depth (Phase 1: production)
+  # R2-A1 (2026-04-22) spp / total_spp / max_bounces moved to
+  # rendering.path_tracing (see below). Old keys retained here as
+  # comments per feedback_no_delete_comment and still accepted by the
+  # pydantic pre-validator for backwards compatibility:
+  #   spp: 32
+  #   total_spp: 256
+  #   max_bounces: 6
   sun_intensity_scale: 30.0          # W/m^2 → Isaac Sim path-tracing units (calibrated 2026-04-16)
   sun_color: [1.0, 0.95, 0.85]      # warm Mars sunlight
   sun_angular_diameter_deg: 0.35     # sun disk from Mars
@@ -67,62 +71,53 @@ rendering:
   fog_density_scale: 0.002           # tau → fog density
   fog_color: [0.78, 0.62, 0.42]     # Mars dust haze butterscotch
 
-# Wk1 #4 (2026-04-14): rover re-enabled with fix_base=False (dynamic physics).
-# rotorcraft and quadruped remain commented (Wk2+ scope, rover stabilization first).
-robots:
-  - type: "rover"
-    urdf_path: "assets/robots/rover/simple_rover.urdf"
-    # Spawn z offset is relative to terrain surface (see scripts/run_scene.py
-    # _terrain_z_at). Geometry: base_link is a 1.0 x 0.6 x 0.3 box centered
-    # at its origin; wheel joints sit at local z=-0.15 with wheel radius
-    # 0.15, so wheel bottoms are at (spawn_z - 0.30). Offset 0.50 places
-    # wheel bottoms 0.20 m above the terrain, giving the rover a small drop
-    # gap to settle cleanly instead of spawning flush with the surface
-    # (zero margin -> explosive contact reaction on sloped cells). Raise
-    # further if penetration is still observed in the handoff IMU test.
-    # old: 0.30 (replaced 2026-04-14 per code-quality-reviewer C1)
-    spawn_position: [0.0, 0.0, 0.50]
-    sensor_config_paths:
-      - "configs/sensors/stereo_rgb.yaml"
-      - "configs/sensors/depth_camera.yaml"
-      - "configs/sensors/lidar_3d.yaml"
-      - "configs/sensors/imu.yaml"
-    # Wk2 #4 (2026-04-14, task #15): skid-steer drive parameters for cmd_vel
-    # control. Track width = 0.70 m is the distance between left (|y|=0.35)
-    # and right (|y|=-0.35) wheel centers per the
-    # assets/robots/rover/simple_rover.urdf joint origins. Wheel radius
-    # 0.15 m matches the <cylinder radius="0.15"/> collision geometry.
-    # Linear/angular clamps cap cmd_vel at a safe envelope — raise if
-    # SLAM/Nav2 tests want faster traversal. Joint names mirror the URDF.
-    drive:
-      wheel_radius: 0.15
-      track_width: 0.70
-      max_linear_vel: 1.0
-      max_angular_vel: 1.5
-      # Wk2 #7b (task #18): safety watchdog for /cmd_vel drop. If no
-      # Twist arrives within this window, the subscriber zeros all wheel
-      # velocities instead of letting the rover cruise at the last
-      # commanded velocity. 0.5 s matches Nav2's default behavior.
-      cmd_vel_timeout_s: 0.5
-      left_wheel_joints: ["joint_fl", "joint_ml", "joint_rl"]
-      right_wheel_joints: ["joint_fr", "joint_mr", "joint_rr"]
-      # Wk2 #6 (2026-04-14, task #17): diagonal covariance placeholders
-      # for the nav_msgs/Odometry publisher. Order: (x, y, z, roll,
-      # pitch, yaw) for pose_diag and (vx, vy, vz, wx, wy, wz) for
-      # twist_diag. Non-planar axes (z, roll, pitch, vz, wx, wy) are
-      # inflated to 1e6 so SLAM/Nav2 ignore them — a skid-steer rover
-      # has no wheel-encoder estimate of those components. Real numbers
-      # will replace these after Wk3 SLAM experiments.
-      odom_covariance:
-        pose_diag: [1.0e-3, 1.0e-3, 1.0e6, 1.0e6, 1.0e6, 1.0e-2]
-        twist_diag: [1.0e-3, 1.0e-3, 1.0e6, 1.0e6, 1.0e6, 1.0e-2]
-  # DISABLED (wk2_scope): replaced 2026-04-14
-  #  - type: "rotorcraft"
-  #    urdf_path: "assets/robots/rotorcraft/simple_rotorcraft.urdf"
-  #    spawn_position: [5.0, 0.0, 3.0]
-  #  - type: "quadruped"
-  #    usd_asset_path: "Isaac/Robots/Unitree/Go2/go2.usd"
-  #    spawn_position: [-3.0, 0.0, 0.30]
+  # R3 (2026-04-22) G5 — literals migrated out of marslab/rendering/*.py.
+  # sun_prim_path / dome_prim_path: override when a scenario needs multiple
+  # lights. Defaults match the historical paths used in sun_renderer.py /
+  # sky_renderer.py (2026-04-16).
+  sun_prim_path: "/World/SunLight"
+  dome_prim_path: "/World/DomeLight"
+
+  # R2-A1 (2026-04-22): flat R3 fields regrouped into 4 nested blocks
+  # (fog / ray_tracing / path_tracing / sky_dome). Legacy flat keys
+  # kept commented per feedback_no_delete_comment:
+  #   antialiasing_op: 3
+  #   dlss_exec_mode: 1
+  #   denoiser_indirect_diffuse: true
+  #   denoiser_reflections: true
+  #   denoiser_optix_pathtracing: true
+  #   fog_enabled: true
+  #   fog_color_amount: 1.0
+  #   fog_start_height: 0.0
+  #   fog_height_falloff: 0.01
+  #   fog_height_density_ratio: 0.5
+  fog:
+    enabled: true
+    color_amount: 1.0
+    start_height: 0.0
+    height_falloff: 0.01
+    height_density_ratio: 0.5
+    # color reserved for future scenario overrides; live fog tint is
+    # still driven by rendering.fog_color above.
+    color: [0.83, 0.47, 0.28]
+  ray_tracing:
+    # antialiasing_op: 0=off, 1=FXAA, 2=TAA, 3=DLAA, 4=DLSS.
+    # dlss_exec_mode: 0=Performance, 1=Balanced, 2=Quality, 3=Auto.
+    antialiasing_op: 3
+    dlss_exec_mode: 1
+    denoiser_indirect_diffuse: true
+    denoiser_reflections: true
+  path_tracing:
+    spp: 32                         # samples per pixel per frame (Phase 1: production)
+    total_spp: 256                  # total accumulated samples (Phase 1: production)
+    max_bounces: 6                  # ray bounce depth (Phase 1: production)
+    denoiser_optix: true
+  sky_dome:
+    # Butterscotch Mars sky endpoints (Bell et al. 2006 MER Pancam).
+    clear_rgb: [0.76, 0.57, 0.35]
+    dusty_rgb: [0.85, 0.75, 0.60]
+    brightness_min: 0.1
+    brightness_decay: 0.3
 
 # Wk1 Phase B #23 (2026-04-15, task #23): sensor subsystem + telemetry
 # blocks. The 'sensors.imu' block drives the Wk1 live IMU gravity probe

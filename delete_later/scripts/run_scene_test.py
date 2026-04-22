@@ -20,7 +20,7 @@ simulation_app = SimulationApp({"headless": True})
 import carb  # noqa: E402
 import omni.usd  # noqa: E402
 
-from marslab.config.loader import load_config, propagate_seeds  # noqa: E402
+from marslab.config.loader import load_and_validate  # noqa: E402
 from marslab.environment.diffuse_fraction import compute_diffuse_fraction  # noqa: E402
 from marslab.environment.light_intensity import compute_direct_intensity  # noqa: E402
 from marslab.environment.sky_dome import compute_sky_dome_params  # noqa: E402
@@ -45,8 +45,8 @@ def main() -> None:
     # TEST 1: Full scene assembly
     print("\n[TEST 1] Full scene assembly...")
     try:
-        config = load_config("configs/mars_env.yaml")
-        config = propagate_seeds(config)
+        config = load_and_validate("configs/mars_env.yaml")
+        # config = propagate_seeds(config)  # auto-called by load_and_validate (R1)
 
         # Use procedural terrain (no DEM dependency)
         elevation, meta = generate_terrain("crater", (128, 128), 1.0, seed=42)

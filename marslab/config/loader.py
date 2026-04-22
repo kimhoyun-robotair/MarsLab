@@ -57,3 +57,55 @@ def propagate_seeds(config: MarsLabConfig, master_seed: int | None = None) -> Ma
         updates["benchmark"] = config.benchmark.model_copy(update={"seed": seed + 2})
 
     return config.model_copy(update=updates)
+
+
+def load_and_validate(
+    config_path: str,
+    master_seed: int | None = None,
+) -> MarsLabConfig:
+    """Load a MarsLab scenario or flat YAML and return a validated config.
+
+    Resolves the ``base_config`` key if present (scenario YAML pattern) by
+    deep-merging the referenced file with scenario overrides winning, then
+    validates the result as a ``MarsLabConfig`` and propagates seeds.
+
+    Args:
+        config_path: Path to scenario YAML or flat config.
+        master_seed: Optional override for the master seed.
+
+    Returns:
+        Fully validated ``MarsLabConfig`` with propagated seeds.
+
+    Raises:
+        FileNotFoundError: If ``config_path`` or its ``base_config`` reference
+            is missing.
+        pydantic.ValidationError: If merged data fails schema validation.
+    """
+    from marslab.config.yaml_loader import deep_merge, read_yaml  # noqa: PLC0415
+
+    abs_path = os.path.abspath(config_path)
+    if not os.path.isfile(abs_path):
+        raise FileNotFoundError(f"Configuration file not found: {abs_path}")
+
+    data = read_yaml(abs_path)
+    if not isinstance(data, dict):
+        data = {}
+
+    if "base_config" in data:
+        base_rel = data.pop("base_config")
+        anchor_dir = os.path.dirname(abs_path)
+        base_abs = (
+            base_rel
+            if os.path.isabs(base_rel)
+            else os.path.normpath(os.path.join(anchor_dir, base_rel))
+        )
+        if not os.path.isfile(base_abs):
+            raise FileNotFoundError(f"base_config referenced by {abs_path} not found: {base_abs}")
+        base = read_yaml(base_abs)
+        if not isinstance(base, dict):
+            base = {}
+        data = deep_merge(base, data)
+
+    config = MarsLabConfig(**data)
+    config = propagate_seeds(config, master_seed=master_seed)
+    return config

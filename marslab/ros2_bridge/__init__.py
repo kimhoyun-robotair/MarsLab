@@ -102,11 +102,21 @@ def init_rclpy_side(
     static_broadcaster = publish_static_sensor_tfs(node, sensor_frames)
 
     odom_topic = _ns_topic(ns, topics["odom"])
+    # R3 (2026-04-22) G5: pull frame_id / child_frame_id / queue_size from
+    # YAML when the rover block declares an ``odom_publisher`` sub-map. The
+    # sub-map mirrors ``OdomPublisherConfig`` (marslab/config/schema/robot.py)
+    # so slam_toolbox and Nav2 frame names stay aligned with a single YAML
+    # source. Falls back to the historical function defaults when the key
+    # is absent so existing scenario YAMLs keep loading unchanged.
+    odom_pub_cfg = ros2_cfg.get("odom_publisher", {}) if isinstance(ros2_cfg, dict) else {}
     odom_ctx = create_odometry_publisher(
         node=node,
         topic=odom_topic,
         init_pos_world=init_pos_world,
         init_quat_world=init_quat_world,
+        queue_size=int(odom_pub_cfg.get("queue_size", 10)),
+        frame_id=str(odom_pub_cfg.get("frame_id", "odom")),
+        child_frame_id=str(odom_pub_cfg.get("child_frame_id", "base_link")),
     )
 
     return BridgeContext(

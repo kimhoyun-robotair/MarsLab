@@ -16,13 +16,13 @@ Usage:
         --config configs/mars_env.yaml
 """
 
-import argparse
+import argparse  # noqa: F401  # kept for backwards-compat type references
 import os
 import sys
 from typing import Any, Dict
 
-import numpy as np
-import yaml
+import numpy as np  # noqa: F401  # kept for parity with disabled load_terrain_elevation (R3-A3)
+import yaml  # noqa: F401  # kept for parity with disabled load_stage2_config (R3-A4)
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DEFAULT_CONFIG = os.path.join(REPO_ROOT, "configs", "mars_env.yaml")
@@ -31,139 +31,169 @@ DEFAULT_CONFIG = os.path.join(REPO_ROOT, "configs", "mars_env.yaml")
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
+from marslab.cli.stage2_args import parse_stage2_args  # noqa: E402
+from marslab.runtime.config_loader import load_runtime_config_dict  # noqa: E402
+from marslab.terrain.terrain_loader import (  # noqa: E402
+    load_scenario_terrain,
+    resolve_dem_paths,
+)
 
-def load_stage2_config(config_path: str) -> Dict[str, Any]:
-    """Load and validate a Stage 2 YAML config.
-
-    Accepts either ``mars_env.yaml`` format (with mars_env/terrain/rendering
-    top-level keys) or a standalone scenario YAML with the same structure.
-
-    Args:
-        config_path: Path to YAML config file.
-
-    Returns:
-        Parsed config dict.
-
-    Raises:
-        FileNotFoundError: If config file is missing.
-        ValueError: If required sections are absent.
-    """
-    if not os.path.isfile(config_path):
-        raise FileNotFoundError(f"Config not found: {config_path}")
-
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-
-    if not isinstance(cfg, dict):
-        raise ValueError(f"Config root must be a mapping, got {type(cfg).__name__}")
-
-    for key in ("mars_env", "terrain", "rendering"):
-        if key not in cfg:
-            raise ValueError(f"Config missing required section: '{key}'")
-
-    return cfg
-
-
-def load_terrain_elevation(
-    terrain_cfg: Dict[str, Any],
-) -> tuple[np.ndarray, dict, float]:
-    """Load terrain elevation from config (procedural or HiRISE DEM).
-
-    Args:
-        terrain_cfg: The ``terrain`` section of the config.
-
-    Returns:
-        Tuple of (elevation, metadata, resolution).
-
-    Raises:
-        ValueError: If terrain source is unknown or misconfigured.
-    """
-    source = terrain_cfg.get("source", "procedural")
-    resolution = float(terrain_cfg.get("terrain_resolution", 1.0))
-
-    if source == "procedural":
-        preset = terrain_cfg.get("procedural_preset", "flat")
-        size = tuple(terrain_cfg.get("terrain_size", [256, 256]))
-        seed = int(terrain_cfg.get("seed", 42))
-
-        if preset == "cave":
-            # Cave returns surface elevation only; 3D mesh built later
-            from marslab.terrain.cave_generator import generate_cave_mesh
-
-            cave_cfg = terrain_cfg.get("cave", {})
-            # wall_albedo_range is a material param, not geometry — exclude from mesh gen
-            geom_cfg = {k: v for k, v in cave_cfg.items() if k != "wall_albedo_range"}
-            cave_data = generate_cave_mesh(
-                domain_size=size,
-                resolution=resolution,
-                seed=seed,
-                **geom_cfg,
-            )
-            elevation = cave_data["surface_elevation"]
-            metadata = cave_data["metadata"]
-            # Stash cave_data in terrain_cfg for scene building stage
-            terrain_cfg["_cave_data"] = cave_data
-        else:
-            from marslab.terrain.procedural_generator import generate_terrain
-
-            # Collect preset-specific params (e.g. canyon_depth, canyon_floor_width)
-            preset_params = {k: v for k, v in terrain_cfg.items() if k.startswith("canyon_")}
-            elevation, metadata = generate_terrain(
-                preset,
-                size,
-                resolution,
-                seed,
-                kwargs=preset_params,
-            )
-
-    elif source == "hirise":
-        from marslab.terrain.dem_loader import crop_dem, load_converted_dem
-
-        converted_dir = terrain_cfg.get("converted_dem_dir")
-        if converted_dir is None:
-            raise ValueError("terrain.converted_dem_dir required for source='hirise'")
-
-        dem_dir = os.path.join(REPO_ROOT, converted_dir)
-        elevation, metadata = load_converted_dem(dem_dir)
-        resolution = float(metadata.get("resolution_x", resolution))
-
-        # Apply optional crop
-        crop = terrain_cfg.get("dem_crop")
-        if crop is not None:
-            elevation, metadata = crop_dem(
-                elevation,
-                metadata,
-                row=int(crop["row"]),
-                col=int(crop["col"]),
-                height=int(crop["height"]),
-                width=int(crop["width"]),
-            )
-    else:
-        raise ValueError(f"Unknown terrain source: '{source}'")
-
-    return elevation, metadata, resolution
+# DISABLED (moved_to_marslab_runtime_R3-A4): inline loader replaced by
+# marslab.runtime.config_loader.load_runtime_config_dict(). Preserved per
+# feedback_no_delete_comment so the original parsing path stays visible.
+#
+# def load_stage2_config(config_path: str) -> Dict[str, Any]:
+#     """Load and validate a Stage 2 YAML config.
+#
+#     Accepts either ``mars_env.yaml`` format (with mars_env/terrain/rendering
+#     top-level keys) or a standalone scenario YAML with the same structure.
+#
+#     Args:
+#         config_path: Path to YAML config file.
+#
+#     Returns:
+#         Parsed config dict.
+#
+#     Raises:
+#         FileNotFoundError: If config file is missing.
+#         ValueError: If required sections are absent.
+#     """
+#     if not os.path.isfile(config_path):
+#         raise FileNotFoundError(f"Config not found: {config_path}")
+#
+#     with open(config_path, "r", encoding="utf-8") as f:
+#         cfg = yaml.safe_load(f)
+#
+#     if not isinstance(cfg, dict):
+#         raise ValueError(f"Config root must be a mapping, got {type(cfg).__name__}")
+#
+#     for key in ("mars_env", "terrain", "rendering"):
+#         if key not in cfg:
+#             raise ValueError(f"Config missing required section: '{key}'")
+#
+#     return cfg
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--config",
-        default=DEFAULT_CONFIG,
-        help="Path to Stage 2 YAML config (default: configs/mars_env.yaml)",
-    )
-    parser.add_argument(
-        "--headless",
-        action="store_true",
-        help="Run Isaac Sim without the GUI.",
-    )
-    return parser.parse_args()
+# DISABLED (moved_to_marslab_terrain_loader_R3-A3): the local copy
+# duplicated marslab.terrain.elevation_loader.load_terrain_elevation().
+# Call sites below now use load_scenario_terrain() from
+# marslab.terrain.terrain_loader. Preserved as a comment per
+# feedback_no_delete_comment so reviewers can see the previous inline
+# definition alongside the new facade call.
+#
+# def load_terrain_elevation(
+#     terrain_cfg: Dict[str, Any],
+# ) -> tuple[np.ndarray, dict, float]:
+#     """Load terrain elevation from config (procedural or HiRISE DEM).
+#
+#     Args:
+#         terrain_cfg: The ``terrain`` section of the config.
+#
+#     Returns:
+#         Tuple of (elevation, metadata, resolution).
+#
+#     Raises:
+#         ValueError: If terrain source is unknown or misconfigured.
+#     """
+#     source = terrain_cfg.get("source", "procedural")
+#     resolution = float(terrain_cfg.get("terrain_resolution", 1.0))
+#
+#     if source == "procedural":
+#         preset = terrain_cfg.get("procedural_preset", "flat")
+#         size = tuple(terrain_cfg.get("terrain_size", [256, 256]))
+#         seed = int(terrain_cfg.get("seed", 42))
+#
+#         if preset == "cave":
+#             # Cave returns surface elevation only; 3D mesh built later
+#             from marslab.terrain.cave_generator import generate_cave_mesh
+#
+#             cave_cfg = terrain_cfg.get("cave", {})
+#             # wall_albedo_range is a material param, not geometry — exclude from mesh gen
+#             geom_cfg = {k: v for k, v in cave_cfg.items() if k != "wall_albedo_range"}
+#             cave_data = generate_cave_mesh(
+#                 domain_size=size,
+#                 resolution=resolution,
+#                 seed=seed,
+#                 **geom_cfg,
+#             )
+#             elevation = cave_data["surface_elevation"]
+#             metadata = cave_data["metadata"]
+#             # Stash cave_data in terrain_cfg for scene building stage
+#             terrain_cfg["_cave_data"] = cave_data
+#         else:
+#             from marslab.terrain.procedural_generator import generate_terrain
+#
+#             # Collect preset-specific params (e.g. canyon_depth, canyon_floor_width)
+#             preset_params = {k: v for k, v in terrain_cfg.items() if k.startswith("canyon_")}
+#             elevation, metadata = generate_terrain(
+#                 preset,
+#                 size,
+#                 resolution,
+#                 seed,
+#                 kwargs=preset_params,
+#             )
+#
+#     elif source == "hirise":
+#         from marslab.terrain.dem_loader import crop_dem, load_converted_dem
+#
+#         converted_dir = terrain_cfg.get("converted_dem_dir")
+#         if converted_dir is None:
+#             raise ValueError("terrain.converted_dem_dir required for source='hirise'")
+#
+#         dem_dir = os.path.join(REPO_ROOT, converted_dir)
+#         elevation, metadata = load_converted_dem(dem_dir)
+#         resolution = float(metadata.get("resolution_x", resolution))
+#
+#         # Apply optional crop
+#         crop = terrain_cfg.get("dem_crop")
+#         if crop is not None:
+#             elevation, metadata = crop_dem(
+#                 elevation,
+#                 metadata,
+#                 row=int(crop["row"]),
+#                 col=int(crop["col"]),
+#                 height=int(crop["height"]),
+#                 width=int(crop["width"]),
+#             )
+#     else:
+#         raise ValueError(f"Unknown terrain source: '{source}'")
+#
+#     return elevation, metadata, resolution
+
+
+# DISABLED (moved_to_marslab_cli_R3-A2): argparse block relocated to
+# marslab.cli.stage2_args.parse_stage2_args. Kept as comment per
+# feedback_no_delete_comment policy.
+# def parse_args() -> argparse.Namespace:
+#     parser = argparse.ArgumentParser(description=__doc__)
+#     parser.add_argument(
+#         "--config",
+#         default=DEFAULT_CONFIG,
+#         help="Path to Stage 2 YAML config (default: configs/mars_env.yaml)",
+#     )
+#     parser.add_argument(
+#         "--headless",
+#         action="store_true",
+#         help="Run Isaac Sim without the GUI.",
+#     )
+#     return parser.parse_args()
 
 
 def main() -> int:
-    args = parse_args()
+    args = parse_stage2_args()
 
     config_path = os.path.abspath(args.config)
-    cfg = load_stage2_config(config_path)
+    # R3-A4 (2026-04-22): load_stage2_config() moved to
+    # marslab.runtime.config_loader.load_runtime_config_dict. The runtime
+    # helper reuses marslab.config.scenario_loader so base_config deep-merge
+    # is applied for free; the original load_stage2_config only handled
+    # flat YAML.
+    cfg = load_runtime_config_dict(config_path)
+    # Preserve the legacy required-section guard. load_runtime_config_dict
+    # returns a merged dict without enforcing Stage-2 specific sections.
+    for key in ("mars_env", "terrain", "rendering"):
+        if key not in cfg:
+            raise ValueError(f"Config missing required section: '{key}'")
     print(f"[run_stage2] Loaded config: {config_path}", flush=True)
 
     mars_cfg = cfg["mars_env"]
@@ -171,7 +201,12 @@ def main() -> int:
     rendering_cfg = cfg["rendering"]
 
     # --- Load terrain elevation (offline, no Isaac Sim) ---------------------
-    elevation, metadata, resolution = load_terrain_elevation(terrain_cfg)
+    # R3-A3 (2026-04-22): use marslab.terrain.terrain_loader facade so
+    # Stage 2/3 share a single implementation. ``dem_paths`` centralises
+    # the texture_dir / rock_mesh_dir / rock_texture_dir absolute paths
+    # that used to be re-assembled inline below.
+    elevation, metadata, resolution = load_scenario_terrain(terrain_cfg, repo_root=REPO_ROOT)
+    dem_paths = resolve_dem_paths(terrain_cfg, repo_root=REPO_ROOT)
     print(
         f"[run_stage2] Terrain: {elevation.shape} @ {resolution} m/px, "
         f"z=[{elevation.min():.1f}, {elevation.max():.1f}] m",
@@ -263,9 +298,9 @@ def main() -> int:
         from marslab.terrain.material_applicator import apply_terrain_material
 
         surface_albedo = tuple(mars_cfg.get("surface_albedo_range", [0.10, 0.40]))
-        texture_dir = terrain_cfg.get("texture_dir")
-        if texture_dir:
-            texture_dir = os.path.join(REPO_ROOT, texture_dir)
+        # R3-A3: path now resolved once by resolve_dem_paths() above.
+        texture_dir_path = dem_paths.get("texture_dir")
+        texture_dir = str(texture_dir_path) if texture_dir_path is not None else None
         apply_terrain_material(
             stage,
             "/World/Cave/Surface",
@@ -301,9 +336,9 @@ def main() -> int:
         from marslab.terrain.material_applicator import apply_terrain_material
 
         albedo_range = tuple(mars_cfg.get("surface_albedo_range", [0.10, 0.40]))
-        texture_dir = terrain_cfg.get("texture_dir")
-        if texture_dir:
-            texture_dir = os.path.join(REPO_ROOT, texture_dir)
+        # R3-A3: path now resolved once by resolve_dem_paths() above.
+        texture_dir_path = dem_paths.get("texture_dir")
+        texture_dir = str(texture_dir_path) if texture_dir_path is not None else None
         apply_terrain_material(
             stage,
             terrain_prim_path,
@@ -327,12 +362,11 @@ def main() -> int:
             diameter_range=d_range,
             seed=int(terrain_cfg.get("seed", 42)),
         )
-        rock_mesh_dir = terrain_cfg.get("rock_mesh_dir")
-        if rock_mesh_dir:
-            rock_mesh_dir = os.path.join(REPO_ROOT, rock_mesh_dir)
-        rock_texture_dir = terrain_cfg.get("rock_texture_dir")
-        if rock_texture_dir:
-            rock_texture_dir = os.path.join(REPO_ROOT, rock_texture_dir)
+        # R3-A3: rock asset paths resolved once by resolve_dem_paths() above.
+        rock_mesh_dir_path = dem_paths.get("rock_mesh_dir")
+        rock_mesh_dir = str(rock_mesh_dir_path) if rock_mesh_dir_path is not None else None
+        rock_texture_dir_path = dem_paths.get("rock_texture_dir")
+        rock_texture_dir = str(rock_texture_dir_path) if rock_texture_dir_path is not None else None
         place_rocks_on_terrain(
             stage=stage,
             rocks=rocks,
@@ -363,26 +397,53 @@ def main() -> int:
     print("[run_stage2] Atmosphere configured (sun + sky + fog).", flush=True)
 
     # --- Dynamic atmosphere setup ------------------------------------------
-    dyn_cfg = mars_cfg.get("dynamic_atmosphere", {})
-    dynamic_enabled = bool(dyn_cfg.get("enabled", False))
+    # R2-A2 (2026-04-22): replaced the nested ``dict.get()`` chain with
+    # pydantic attribute access via ``DynamicAtmosphereConfig``. The
+    # structured config gives range-validation (e.g. ``time_scale > 0``,
+    # azimuths in [0, 360]) that the dict path silently skipped.
+    # DISABLED (dict.get fallback, R2-A2): kept commented per
+    # feedback_no_delete_comment so the original parsing path is
+    # visible during review.
+    #
+    # dyn_cfg = mars_cfg.get("dynamic_atmosphere", {})
+    # dynamic_enabled = bool(dyn_cfg.get("enabled", False))
+    # if dynamic_enabled:
+    #     time_scale = float(dyn_cfg.get("time_scale", 200.0))
+    #     update_interval = int(dyn_cfg.get("update_interval_frames", 10))
+    #     sun_sweep_cfg = dyn_cfg.get("sun_sweep", {})
+    #     sweep_start_az = float(sun_sweep_cfg.get("start_azimuth_deg", 90.0))
+    #     sweep_end_az = float(sun_sweep_cfg.get("end_azimuth_deg", 270.0))
+    #     sweep_max_el = float(sun_sweep_cfg.get("max_elevation_deg", 60.0))
+    #     tau_profile_name = str(dyn_cfg.get("tau_profile", "constant"))
+    #     tau_kwargs: Dict[str, float] = {}
+    #     tau_profile_cfg = dyn_cfg.get(f"tau_{tau_profile_name}", {})
+    #     if tau_profile_cfg:
+    #         tau_kwargs.update(tau_profile_cfg)
+    from marslab.config.schema import DynamicAtmosphereConfig
+
+    dyn = DynamicAtmosphereConfig(**mars_cfg.get("dynamic_atmosphere", {}))
+    dynamic_enabled = dyn.enabled
 
     sol_duration = float(mars_cfg.get("sol_duration_seconds", 88642))
-    update_interval = 10  # default
+    update_interval = dyn.update_interval_frames
 
     if dynamic_enabled:
-        time_scale = float(dyn_cfg.get("time_scale", 200.0))
-        update_interval = int(dyn_cfg.get("update_interval_frames", 10))
+        time_scale = dyn.time_scale
 
-        sun_sweep_cfg = dyn_cfg.get("sun_sweep", {})
-        sweep_start_az = float(sun_sweep_cfg.get("start_azimuth_deg", 90.0))
-        sweep_end_az = float(sun_sweep_cfg.get("end_azimuth_deg", 270.0))
-        sweep_max_el = float(sun_sweep_cfg.get("max_elevation_deg", 60.0))
+        sweep_start_az = dyn.sun_sweep.start_azimuth_deg
+        sweep_end_az = dyn.sun_sweep.end_azimuth_deg
+        sweep_max_el = dyn.sun_sweep.max_elevation_deg
 
-        tau_profile_name = str(dyn_cfg.get("tau_profile", "constant"))
-        tau_kwargs: Dict[str, float] = {}
-        tau_profile_cfg = dyn_cfg.get(f"tau_{tau_profile_name}", {})
-        if tau_profile_cfg:
-            tau_kwargs.update(tau_profile_cfg)
+        tau_profile_name = dyn.tau_profile
+        # R2-A2 (2026-04-22): ``tau_kwargs`` preserved from the dict.get
+        # parsing for parity with the legacy code path. The render loop
+        # below does not consume it today (tau is driven by
+        # ``atmosphere_state['tau']`` via the GUI slider), so mark
+        # F841-unused. The separate ticket that wires tau_profile into
+        # the per-frame ``compute_tau`` call will read this dict.
+        tau_kwargs: Dict[str, float] = dict(  # noqa: F841
+            getattr(dyn, f"tau_{tau_profile_name}").model_dump()
+        )
 
         print(
             f"[run_stage2] Dynamic atmosphere ON: time_scale={time_scale}x, "
@@ -390,10 +451,10 @@ def main() -> int:
             flush=True,
         )
     else:
-        time_scale = 200.0
-        sweep_start_az = 90.0
-        sweep_end_az = 270.0
-        sweep_max_el = 60.0
+        time_scale = dyn.time_scale
+        sweep_start_az = dyn.sun_sweep.start_azimuth_deg
+        sweep_end_az = dyn.sun_sweep.end_azimuth_deg
+        sweep_max_el = dyn.sun_sweep.max_elevation_deg
         print("[run_stage2] Dynamic atmosphere OFF (static).", flush=True)
 
     # --- Shared atmosphere state (GUI ↔ render loop) -----------------------
@@ -405,6 +466,7 @@ def main() -> int:
         "time_of_sol": 0.0,
         "direct_intensity": direct_intensity,
         "diffuse_fraction": diffuse_frac,
+        "sol_duration_seconds": sol_duration,
     }
 
     # --- Interactive atmosphere panel (GUI only) ---------------------------

@@ -30,7 +30,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-from marslab.config.loader import load_config
+from marslab.config.loader import load_and_validate
 from marslab.config.schema import MarsLabConfig, TerrainConfig
 from marslab.terrain.dem_loader import crop_dem, load_converted_dem, load_hirise_dem
 from marslab.terrain.rock_placer import compute_cfa, sample_rocks_golombek
@@ -203,7 +203,7 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     yaml_path = argv[1]
-    config = load_config(yaml_path)
+    config = load_and_validate(yaml_path)
     scenario_name = config.terrain.scenario_name or os.path.splitext(os.path.basename(yaml_path))[0]
 
     if len(argv) >= 3:

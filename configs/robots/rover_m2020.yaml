@@ -57,6 +57,15 @@ ros2:
     depth: 30
     lidar: 10
     scan: 30                     # Example_Rotary_2D scanRateBaseHz = 30 Hz
+  # R3 (2026-04-22) G5 — frame names previously hardcoded in
+  # marslab/ros2_bridge/odometry_publisher.py defaults.  init_rclpy_side
+  # reads this sub-map and threads the values through
+  # create_odometry_publisher so slam_toolbox and Nav2 YAMLs share one
+  # source of truth.  Absent → fall back to the function defaults.
+  odom_publisher:
+    frame_id: "odom"
+    child_frame_id: "base_link"
+    queue_size: 10
 
 sensors:
   camera:

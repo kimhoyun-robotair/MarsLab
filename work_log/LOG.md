@@ -3253,3 +3253,73 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - slam_toolbox ros-humble-slam-toolbox apt 설치 후 `ros2 launch launch/marslab_slam_nav.launch.py scenario:=flat` 검증.
 - Nav2 success-rate 매트릭스 및 `/rover/gt_pose` vs `/slam_toolbox/pose` ATE 비교는 Wk6 벤치마크 세션.
 - 시나리오 6~7 에셋 소싱(Sketchfab / NASA 3D Resources Perseverance skycrane / HAB).
+
+---
+
+## [2026-04-22] Refactor R1~R3 — Stage 파이프라인 모듈화 & Oracle Twin 도입
+
+**모듈:** `marslab/config/`, `marslab/math/`, `marslab/cli/`, `marslab/terrain/`, `marslab/runtime/`, `marslab/ros2_bridge/`, `marslab/robots/`, `scripts/phase1/`, `tests/unit/`
+**Plan 참조:** `~/.claude/plans/claude-md-plan-md-log-md-work-log-wiggly-acorn.md` (R1~R8+P1 로드맵 중 R1~R3 완료). Oracle twin 정책 · `feedback_delete_later_directory` · `feedback_no_delete_comment` 준수.
+
+### 원래 계획 개요 (Refactor Master Plan R1~R3 발췌)
+- **R1 (dead code 제거):** Option A — `scripts/phase1/run_stage1.py`, `run_stage3.py`, `marslab/utils/{__init__,seed}.py`, `marslab/config/schema.py`(→ schema/ 패키지), G1 out-of-scope `quadruped.py` / `rotorcraft.py` 등 미사용 코드 경로 `git rm` 또는 `delete_later/` 이동. `~/MarsLab/delete_later/README.md` 에 이동 사유·대체 경로·복구 커맨드 기록. **retention 폐기** (이동 시점 = 완료 시점).
+- **R2 (Config schema + YAML loader 분할):** `marslab/config/schema.py` 1-file → `schema/` 패키지 8개 모듈 분할 + `spawn_resolver.py` / `yaml_loader.py` 신설. `scenario_loader.py` 는 shim 유지. pydantic v2 `model_validator(mode='before')` 로 YAML 역호환 (예: `mars.sun_azimuth` scalar 허용).
+- **R3 (Stage 3 monolithic facade 분리):** 5-subagent 병렬 실행 (A1 `math/quaternion.py`, A2 `cli/stage{2,3}_args.py`, A3 `terrain/terrain_loader.py` thin facade, A4 `runtime/{config_loader,precheck}.py`, A5 단위 테스트). **in-place facade + pass-through re-export** 패턴으로 backward compat 유지. Oracle (`run_stage3_monolithic.py`) `diff=0` 엄수, writable twin (`run_stage3_monolithic_new.py`) 에서만 facade 교체.
+
+### 수행 내용
+
+**R1 Option A 완전 삭제/이동 (파일 단위)**
+- `scripts/phase1/run_stage1.py`, `run_stage3.py` — 사용자가 `git rm`. Stage 3 통합 러너로 대체된 이후 참조 0.
+- `marslab/utils/{__init__,seed}.py` — `numpy.random.Generator` 기반 seed propagation 으로 대체, 구 seed util 참조 0.
+- `marslab/robots/{quadruped,rotorcraft}.py`, `configs/robots/{quadruped,rotorcraft,rover}.yaml`, `scripts/run_{integration,multi_robot,scene,sensor,ros2}_test.py`, `tests/integration/test_robot_spawn.py` — G1 out-of-scope → `delete_later/` 로 `git mv`.
+- `delete_later/README.md` 에 파일별 출처·사유·대체 경로·복구 커맨드 기록.
+- **검증:** `python3 -m pytest tests/unit/ -v` 358 passed (R1 전 358 유지, 삭제 자원 참조 없음).
+
+**R2 Config 패키지 분할**
+- 기존 `marslab/config/schema.py` 단일 파일(약 400+ LOC) → `marslab/config/schema/` 패키지 8개 모듈로 분할:
+  - `base.py`, `mars_env.py`, `terrain.py`, `rocks.py`, `dynamic_atmosphere.py`, `render.py`, `scenarios.py`, `__init__.py`.
+- `marslab/config/spawn_resolver.py` — `resolve_spawn_pose(terrain_cfg, mars_cfg, elevation) -> np.ndarray` + `absolute` / `dem_center` / `dem_relative` 3-mode bilinear sampling. 기존 `scenario_loader.resolve_spawn_pose` 가 이 함수로 위임.
+- `marslab/config/yaml_loader.py` — `load_yaml(path) -> Dict[str, Any]` + `deep_merge(base, override)` 통합. pydantic validator 로 `Union[float, List[float]]` 지원.
+- `marslab/config/scenario_loader.py` — 기존 API 보존 shim (`load_scenario_config`, `resolve_spawn_pose` pass-through).
+- **pydantic v2 backward-compat:** `model_validator(mode='before')` 로 `mars.sun_azimuth: 180` (스칼라) 와 `[180]` (리스트) 둘 다 허용.
+- Isaac Sim smoke (사용자 수행) — `run_stage2` / `run_stage3_monolithic` / `run_stage3_monolithic_new` 3종 풀 모드 정상.
+
+**R3 Stage 파이프라인 facade 분리 (5-subagent 병렬)**
+- **A1 — `marslab/math/`:** 신규 패키지 (`__init__.py` 12 LOC, `quaternion.py` 176 LOC). 5 함수 `quat_inverse/multiply/rotate_vec` (from `odometry_math.py`), `rpy_to_quat` (from `rover.py`), `quat_to_rpy` (신규). scalar-first `[w,x,y,z]` + ZYX 라디안. 기존 정의부는 DISABLED 주석 블록 + `from marslab.math.quaternion import ...` pass-through re-export.
+- **A2 — `marslab/cli/`:** `stage2_args.py`, `stage3_args.py` 신규. `build_*_parser()` / `parse_*_args(argv=None)`. `.strip()` 는 호출자 책임 (parser purity).
+- **A3 — `marslab/terrain/terrain_loader.py`:** Option B thin facade. `load_scenario_terrain(terrain_cfg, repo_root=None) -> (ndarray, Dict, float)` 은 `elevation_loader.load_terrain_elevation` 을 래핑. `resolve_dem_paths(terrain_cfg, repo_root=None) -> Dict[str, Path]` 신설 (존재 검사 없음).
+- **A4 — `marslab/runtime/`:** `config_loader.py` (`load_runtime_config`, `load_runtime_config_dict`) + `precheck.py` (`check_rover_usd`, `check_rover_block`, `check_lidar_cfg`, `check_dem_assets`). Oracle 에러 메시지 parity 유지.
+- **A5 — 단위 테스트 37종 추가:** `test_quaternion.py` (18), `test_stage3_args.py` (9), `test_terrain_loader.py` (10). 전체 **366 → 403 passed**.
+- **`run_stage3_monolithic_new.py`:** rpy_to_quat / argparse / load_terrain / path-assembly ×3 / rover USD / lidar / rover block 총 **9 DISABLED 블록** 누적 (1501 → 1585 LOC). Oracle 은 `diff=0` 엄수 (md5 `d4e147cd2345f927db18c4d7ad33b854`).
+- **`run_stage2.py`:** argparse / load_terrain_elevation / path-assembly / load_stage2_config 4 DISABLED 블록 (561 LOC).
+
+**R3 포스트-픽스: Dynamic Sun GUI Manual 모드 버그**
+- 증상: `run_stage3_monolithic_new.py` 에서 패널 "Manual" 클릭해도 태양이 계속 sweep.
+- 원인: 동적 대기 업데이트 블록(L1524)이 `atmosphere_state["sun_mode"]` 를 무시하고 `dynamic_enabled` 만 확인 → 무조건 `compute_sol_sun_position()` 호출.
+- 수정: `run_stage2` L496-544 파리티로 `sun_mode` 분기 추가. `auto+dynamic_enabled` → sweep, `manual` → `compute_sun_position(az_slider, clamp(el_slider, 0.5, 89.5))`, 그 외 → skip. 외부 gate 에서 `dynamic_enabled` 제거해 Manual/Tau 슬라이더 반응성 확보.
+- 사용자 풀 모드 smoke 재실행으로 Manual 전환·Az/El 슬라이더·Auto 복귀·Tau 반영 4종 확인.
+
+### 검증
+- **Black / Ruff:** R3-touched 18개 파일 전부 clean. Pre-existing drift (`scripts/check_instruction_sync.py`, `scripts/tools/generate_instruction_index.py`) 2건은 Instruction wiki 파이프라인 소속으로 R3 외 (별도 태스크 대상).
+- **Unit tests:** `python3 -m pytest tests/unit/ -v` — **403 passed, 1 warning** (GDAL deprecation). R1 엔트리 시점 358 → R3 종료 403 (37 추가).
+- **Isaac Sim smoke (사용자 실행):** R2 종료 시점에 3종 (stage2 / stage3_monolithic / stage3_monolithic_new) 풀 모드 정상. R3 종료 smoke 에서 `run_stage3_monolithic_new.py` Manual 모드 버그 관측 → 즉시 수정 후 재실행 정상.
+- **Oracle 불변성:** `scripts/phase1/run_stage3_monolithic.py` md5 `d4e147cd2345f927db18c4d7ad33b854` R1 전후 · R2 전후 · R3 5 subagent 전후 · 포스트-픽스 전후 모두 일치.
+
+### 핵심 설계 결정
+- **Oracle twin 패턴 확립:** `run_stage3_monolithic.py` (원본, diff=0) + `run_stage3_monolithic_new.py` (writable twin). R1~P1 리팩토링 실험은 twin 에서만 수행, 사용자에게 Isaac Sim 교차검증 요청. 기억 노트 `project_monolithic_new_oracle.md` 로 영속화.
+- **in-place facade + pass-through re-export:** R3 전체 파일 단위 삭제/이동 **0건**. 기존 정의부는 DISABLED 주석 블록으로 잔류, 신규 위치에서 import 후 `from <new> import <name>` 재선언으로 모든 기존 import site 호환. 단점: twin 파일 LOC 누적(+84). R4+ 또는 v2.0 harness 교체 시 일괄 청소.
+- **Isaac Sim 런타임 prefix:** `scripts/isaac_python.sh <path>` 강제. system python3 직접 실행 금지. 기억 노트 `reference_isaac_python_runner.md` 로 영속화.
+- **Smoke 플래그 기본값 교정:** 풀 모드(플래그 없음) 가 R3 facade 경로 전수 검증에 적합. `--headless --no-ros2` 는 환경/격리 테스트 시 선택적 사용. Claude 가 관성적으로 `--headless --no-ros2` 를 default 로 제시한 것을 사용자가 교정.
+
+### 생성/수정 파일 요약
+- **신규 패키지/모듈:** `marslab/config/schema/*.py` (8), `marslab/config/{spawn_resolver,yaml_loader}.py`, `marslab/math/{__init__,quaternion}.py`, `marslab/cli/{__init__,stage2_args,stage3_args}.py`, `marslab/terrain/terrain_loader.py`, `marslab/runtime/{__init__,config_loader,precheck}.py`.
+- **신규 테스트:** `tests/unit/test_quaternion.py` (18), `test_stage3_args.py` (9), `test_terrain_loader.py` (10).
+- **수정(DISABLED + re-export):** `marslab/ros2_bridge/odometry_math.py` (156→168), `marslab/robots/rover.py` (410→428), `marslab/config/scenario_loader.py` (shim), `marslab/terrain/__init__.py` (re-export), `scripts/phase1/run_stage2.py` (561), `run_stage3_monolithic_new.py` (1501→1585, 9 DISABLED + Manual 모드 버그 픽스).
+- **이동 (delete_later/):** `marslab/robots/{quadruped,rotorcraft}.py`, `configs/robots/{quadruped,rotorcraft,rover}.yaml`, `scripts/run_{integration,multi_robot,scene,sensor,ros2}_test.py`, `tests/integration/test_robot_spawn.py`, 구 `marslab/config/schema.py`.
+- **삭제 (git rm):** `scripts/phase1/run_stage1.py`, `run_stage3.py`, `marslab/utils/{__init__,seed}.py`, `launch/{marslab_slam_nav.launch.py, rviz/marslab_slam_nav.rviz, slam_toolbox.launch.py}` (Wk3 launch 파일, R1 범위 외이나 동시 정리), `tests/unit/test_{run_stage1_helpers,seed}.py`.
+
+### 후속 과제
+- **DISABLED 정리 정책 결정 (사용자 대기):** Option A (`feedback_no_delete_comment` 유지) / B (`delete_later/disabled_blocks/<파일>_R<단계>.md` 별도 archive) / C (git history 로 일괄 삭제 + 정책 개정). `run_stage3_monolithic_new.py` 1585 LOC / 9 블록 누적이 체감 한계.
+- **R4 방향 결정 (사용자 대기):** (a) 하드코딩 상수 51건 YAML 이관 (G5 위반 청산), (b) `_risks.md` §5.2 seed propagation 3중 통합, (c) §4.2 telemetry 소비자 0 (미사용 metrics path 정리), (d) DISABLED 일괄 청소 중 택일.
+- **R5~R8+P1:** 마스터 플랜 기준 남은 단계. R4 완료 후 순차 접근.
+- **Instruction wiki drift:** `scripts/check_instruction_sync.py`, `scripts/tools/generate_instruction_index.py` pre-existing black/ruff 위반 — Instruction wiki 유지보수 별도 태스크에서 정리.

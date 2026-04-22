@@ -20,7 +20,7 @@ def attach_camera(stage, robot_prim_path: str, config: dict) -> object:
 
     Args:
         stage: USD stage.
-        robot_prim_path: Robot root prim path (e.g., "/simple_rover").
+        robot_prim_path: Robot root prim path (e.g., "/World/Rover").
         config: Sensor config dict with keys: name, mount_link,
             offset_position, resolution, focal_length,
             horizontal_aperture, clipping_range, enable_depth.

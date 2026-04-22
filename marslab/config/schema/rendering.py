@@ -1,0 +1,341 @@
+"""Rendering schema: RTX mode, resolution, sun/dome/fog parameters.
+
+Split from marslab.config.schema (R2, 2026-04-22). Leaf model — no
+cross-domain references.
+
+R3 (2026-04-22) absorbed 12 hardcoded literals from the ``rendering/``
+consumers so G5 ("Zero hardcoded constants in Python source") holds:
+
+- ``sun_prim_path`` / ``dome_prim_path`` — prim path literals from
+  ``sun_renderer.py:32`` and ``sky_renderer.py:34``.
+- ``antialiasing_op`` / ``dlss_exec_mode`` / ``denoiser_*`` — RTX
+  post-processing knobs from ``render_settings.py:45-46``.
+- ``fog_*`` — five fog literals from ``atmosphere_fog.py:37,43,45-47``.
+
+R2-A1 (2026-04-22): the 12 flat R3 fields (fog_*, antialiasing_op,
+dlss_exec_mode, spp, total_spp, max_bounces, denoiser_*) are now
+re-grouped into four nested sub-configs: ``FogConfig``,
+``RayTracingConfig``, ``PathTracingConfig``, and ``SkyDomeConfig``.
+The pre-R2-A1 flat fields are preserved as commented definitions and
+their literals migrate into the nested defaults. A pre-validator
+(``_migrate_flat_to_nested``) still accepts the flat keys in existing
+YAML so no scenario file has to change.
+"""
+
+from typing import Any, Literal, Tuple
+
+from pydantic import BaseModel, Field, model_validator
+
+__all__ = [
+    "FogConfig",
+    "PathTracingConfig",
+    "RayTracingConfig",
+    "RenderingConfig",
+    "SkyDomeConfig",
+]
+
+
+class FogConfig(BaseModel):
+    """RTX atmosphere-fog knobs consumed by ``atmosphere_fog.py``.
+
+    R2-A1 (2026-04-22): migrated from the flat ``fog_*`` fields on
+    ``RenderingConfig``.
+    """
+
+    enabled: bool = Field(
+        default=True,
+        description="Master switch written to ``/rtx/fog/enabled``.",
+    )
+    color_amount: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Value written to ``/rtx/fog/fogColorAmount``.",
+    )
+    start_height: float = Field(
+        default=0.0,
+        description=(
+            "World-Z (metres) below which fog density is full strength. "
+            "Written to ``/rtx/fog/fogStartHeight``."
+        ),
+    )
+    height_falloff: float = Field(
+        default=0.01,
+        ge=0.0,
+        description=(
+            "Exponential falloff rate above ``start_height``. Written "
+            "to ``/rtx/fog/fogHeightFalloff``."
+        ),
+    )
+    height_density_ratio: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=2.0,
+        description=(
+            "Multiplier applied to the tau-derived density when setting "
+            "``/rtx/fog/fogHeightDensity`` (ratio of height to distance "
+            "density)."
+        ),
+    )
+    color: Tuple[float, float, float] = Field(
+        default=(0.83, 0.47, 0.28),
+        description=(
+            "Reserved. The live fog color is still driven by "
+            "``RenderingConfig.fog_color`` (top-level) because that field "
+            "participates in the butterscotch R>G>B invariant tests. "
+            "``FogConfig.color`` stays for future scenario overrides."
+        ),
+    )
+
+
+class RayTracingConfig(BaseModel):
+    """RTX ray-tracing / post-processing knobs consumed by ``render_settings.py``.
+
+    R2-A1 (2026-04-22): migrated from the flat ``antialiasing_op``,
+    ``dlss_exec_mode``, ``denoiser_indirect_diffuse`` and
+    ``denoiser_reflections`` fields on ``RenderingConfig``.
+    """
+
+    antialiasing_op: int = Field(
+        default=3,
+        ge=0,
+        le=5,
+        description=(
+            "Value written to ``/rtx/post/aa/op``. 0=off, 1=FXAA, 2=TAA, "
+            "3=DLAA, 4=DLSS, 5=reserved."
+        ),
+    )
+    dlss_exec_mode: int = Field(
+        default=1,
+        ge=0,
+        le=3,
+        description=(
+            "Value written to ``/rtx/post/dlss/execMode``. 0=Performance, "
+            "1=Balanced, 2=Quality, 3=Auto."
+        ),
+    )
+    denoiser_indirect_diffuse: bool = Field(
+        default=True,
+        description="Enable the indirect-diffuse denoiser in RTX mode.",
+    )
+    denoiser_reflections: bool = Field(
+        default=True,
+        description="Enable the reflections denoiser in RTX mode.",
+    )
+
+
+class PathTracingConfig(BaseModel):
+    """Path-tracing knobs consumed by ``render_settings.py``.
+
+    R2-A1 (2026-04-22): migrated from the flat ``spp``, ``total_spp``,
+    ``max_bounces`` and ``denoiser_optix_pathtracing`` fields on
+    ``RenderingConfig``.
+    """
+
+    spp: int = Field(
+        default=32,
+        ge=1,
+        le=256,
+        description="Samples per pixel per frame.",
+    )
+    total_spp: int = Field(
+        default=256,
+        ge=1,
+        description="Total accumulated samples.",
+    )
+    max_bounces: int = Field(
+        default=8,
+        ge=1,
+        le=64,
+        description="Max ray bounces.",
+    )
+    denoiser_optix: bool = Field(
+        default=True,
+        description=(
+            "Enable the OptiX denoiser in path_tracing mode. Ignored when "
+            "``mode='ray_tracing'``."
+        ),
+    )
+
+
+class SkyDomeConfig(BaseModel):
+    """Sky-dome color / brightness ramp consumed by ``environment/sky_dome.py``.
+
+    R2-A1 (2026-04-22): migrated the four hardcoded literals
+    (``_CLEAR_SKY_RGB``, ``_DUSTY_SKY_RGB``, brightness floor 0.1,
+    brightness decay 0.3) out of ``marslab/environment/sky_dome.py``
+    and into YAML per G5.
+    """
+
+    clear_rgb: Tuple[float, float, float] = Field(
+        default=(0.76, 0.57, 0.35),
+        description=(
+            "Butterscotch clear-sky RGB at tau=0. Mirrors the legacy "
+            "``_CLEAR_SKY_RGB`` constant (Bell et al. 2006 MER Pancam)."
+        ),
+    )
+    dusty_rgb: Tuple[float, float, float] = Field(
+        default=(0.85, 0.75, 0.60),
+        description=(
+            "Dust-storm sky RGB used as the interpolation endpoint at "
+            "tau >= 3. Mirrors the legacy ``_DUSTY_SKY_RGB`` constant."
+        ),
+    )
+    brightness_min: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Lower clamp for the sky-dome brightness. Previously the "
+            "hardcoded 0.1 floor in ``compute_sky_dome_params``."
+        ),
+    )
+    brightness_decay: float = Field(
+        default=0.3,
+        ge=0.0,
+        description=(
+            "Slope of the brightness = 1 - decay * t ramp where t is the "
+            "tau interpolation factor. Previously the hardcoded 0.3 "
+            "multiplier in ``compute_sky_dome_params``."
+        ),
+    )
+
+
+class RenderingConfig(BaseModel):
+    """Rendering configuration."""
+
+    mode: Literal["path_tracing", "ray_tracing"] = Field(default="path_tracing")
+    sky_dome_hdri_dir: str = Field(default="assets/sky/hdri/")
+    resolution: list[int] = Field(
+        default=[1280, 720], min_length=2, max_length=2, description="[width, height] in pixels"
+    )
+    # R2-A1 (2026-04-22) deprecated in favour of PathTracingConfig.spp.
+    # Kept as a comment for feedback_no_delete_comment:
+    # spp: int = Field(default=32, ge=1, le=256, description="Samples per pixel per frame")
+    # total_spp: int = Field(default=256, ge=1, description="Total accumulated samples")
+    # max_bounces: int = Field(default=8, ge=1, le=64, description="Max ray bounces")
+    sun_intensity_scale: float = Field(
+        default=30.0, ge=0.1, description="W/m^2 to Isaac Sim light units scale factor"
+    )
+    sun_color: list[float] = Field(
+        default=[1.0, 0.95, 0.85],
+        min_length=3,
+        max_length=3,
+        description="Sun light RGB color [0-1]",
+    )
+    sun_angular_diameter_deg: float = Field(
+        default=0.35, ge=0.1, le=5.0, description="Sun angular diameter from Mars"
+    )
+    dome_brightness_scale: float = Field(
+        default=5000.0, ge=1.0, description="Sky dome brightness multiplier"
+    )
+    fog_density_scale: float = Field(
+        default=0.002, ge=0.0, description="Tau to fog density conversion factor"
+    )
+    fog_color: list[float] = Field(
+        default=[0.78, 0.62, 0.42],
+        min_length=3,
+        max_length=3,
+        description="Mars dust haze fog color RGB [0-1]",
+    )
+
+    # R3 (2026-04-22) additions — prim path overrides.
+    sun_prim_path: str = Field(
+        default="/World/SunLight",
+        description=(
+            "USD prim path for the DistantLight created by "
+            "``sun_renderer.py``. Override when a scenario spawns multiple "
+            "sun lights or when a non-default stage layout is needed."
+        ),
+    )
+    dome_prim_path: str = Field(
+        default="/World/DomeLight",
+        description=(
+            "USD prim path for the DomeLight created by ``sky_renderer.py``. "
+            "Override when a scenario uses multiple dome lights."
+        ),
+    )
+
+    # R2-A1 (2026-04-22) nested sub-configs replace the flat R3 fields.
+    fog: FogConfig = Field(default_factory=FogConfig)
+    ray_tracing: RayTracingConfig = Field(default_factory=RayTracingConfig)
+    path_tracing: PathTracingConfig = Field(default_factory=PathTracingConfig)
+    sky_dome: SkyDomeConfig = Field(default_factory=SkyDomeConfig)
+
+    # --- R3 flat fields (R2-A1 deprecated, kept commented) --------------
+    # The R3 commit (2026-04-22) originally declared these as top-level
+    # fields. R2-A1 groups them under ``fog`` / ``ray_tracing`` /
+    # ``path_tracing``. Definitions retained here so the migration is
+    # obvious in source review (feedback_no_delete_comment):
+    #
+    # antialiasing_op: int = Field(default=3, ge=0, le=5)
+    # dlss_exec_mode: int = Field(default=1, ge=0, le=3)
+    # denoiser_indirect_diffuse: bool = Field(default=True)
+    # denoiser_reflections: bool = Field(default=True)
+    # denoiser_optix_pathtracing: bool = Field(default=True)
+    # fog_enabled: bool = Field(default=True)
+    # fog_color_amount: float = Field(default=1.0, ge=0.0, le=1.0)
+    # fog_start_height: float = Field(default=0.0)
+    # fog_height_falloff: float = Field(default=0.01, ge=0.0)
+    # fog_height_density_ratio: float = Field(default=0.5, ge=0.0, le=2.0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_flat_to_nested(cls, data: Any) -> Any:
+        """Accept the pre-R2-A1 flat YAML keys and fold them into the
+        nested sub-configs. Scenario YAMLs that still use flat keys keep
+        loading without edits. Any explicit nested value wins over the
+        flat shim (i.e. nested takes precedence)."""
+        if not isinstance(data, dict):
+            return data
+
+        flat_to_fog = {
+            "fog_enabled": "enabled",
+            "fog_color_amount": "color_amount",
+            "fog_start_height": "start_height",
+            "fog_height_falloff": "height_falloff",
+            "fog_height_density_ratio": "height_density_ratio",
+        }
+        flat_to_rt = {
+            "antialiasing_op": "antialiasing_op",
+            "dlss_exec_mode": "dlss_exec_mode",
+            "denoiser_indirect_diffuse": "denoiser_indirect_diffuse",
+            "denoiser_reflections": "denoiser_reflections",
+        }
+        flat_to_pt = {
+            "spp": "spp",
+            "total_spp": "total_spp",
+            "max_bounces": "max_bounces",
+            "denoiser_optix_pathtracing": "denoiser_optix",
+        }
+
+        def _merge(section_key: str, mapping: dict[str, str]) -> None:
+            existing = data.get(section_key)
+            if existing is None or not isinstance(existing, dict):
+                existing = {}
+            migrated: dict[str, Any] = {}
+            for flat_key, nested_key in mapping.items():
+                if flat_key in data and nested_key not in existing:
+                    migrated[nested_key] = data[flat_key]
+            if migrated:
+                merged = {**migrated, **existing}
+                data[section_key] = merged
+
+        _merge("fog", flat_to_fog)
+        _merge("ray_tracing", flat_to_rt)
+        _merge("path_tracing", flat_to_pt)
+
+        # Purge flat keys so pydantic does not complain about "extra"
+        # fields. The legacy field definitions above are commented out,
+        # so the model has no home for them.
+        for flat_key in list(flat_to_fog) + list(flat_to_rt) + list(flat_to_pt):
+            data.pop(flat_key, None)
+
+        return data
+
+    @model_validator(mode="after")
+    def check_resolution(self) -> "RenderingConfig":
+        """Resolution values must be positive."""
+        if any(v <= 0 for v in self.resolution):
+            raise ValueError(f"Resolution values must be positive, got {self.resolution}")
+        return self

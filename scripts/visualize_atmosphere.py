@@ -17,16 +17,26 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
+from marslab.config.loader import load_and_validate
 from marslab.environment.diffuse_fraction import compute_diffuse_fraction
 from marslab.environment.light_intensity import compute_direct_intensity
 from marslab.environment.sky_dome import compute_sky_dome_params
 
+# Lowest tau plotted in the sweeps.  Kept as a module-level constant because
+# it anchors the figure's horizontal axis, not the physics.  The upper bound
+# comes from ``mars_env.dust_opacity_range`` (configs/mars_env.yaml) so the
+# R3 G5 literal migration only removes values that belong to the physics.
+_PLOT_TAU_MIN = 0.05
+_PLOT_TAU_SAMPLES = 100
+
 
 def main() -> None:
     """Generate atmosphere visualization plots."""
-    solar_constant = 589.0  # W/m^2
-    zenith = math.radians(45)  # 45 deg elevation
-    taus = np.linspace(0.05, 4.0, 100)
+    cfg = load_and_validate("configs/mars_env.yaml")
+    solar_constant = cfg.mars_env.solar_constant_mean
+    zenith = math.radians(90.0 - cfg.mars_env.sun_elevation_deg)
+    tau_hi = cfg.mars_env.dust_opacity_range[1]
+    taus = np.linspace(_PLOT_TAU_MIN, tau_hi, _PLOT_TAU_SAMPLES)
 
     direct = [compute_direct_intensity(solar_constant, t, zenith) for t in taus]
     diffuse_frac = [compute_diffuse_fraction(t) for t in taus]

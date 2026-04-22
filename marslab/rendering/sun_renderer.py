@@ -29,7 +29,7 @@ def configure_sun_light(
         diffuse_fraction: Fraction of light that is diffuse (0-1).
         rendering_config: Rendering configuration with sun parameters.
     """
-    sun_path = "/World/SunLight"
+    sun_path = rendering_config.sun_prim_path
 
     existing = stage.GetPrimAtPath(sun_path)
     if existing.IsValid():
@@ -73,7 +73,7 @@ def update_sun_light(
         diffuse_fraction: Updated diffuse fraction (0-1).
         rendering_config: Rendering configuration with sun parameters.
     """
-    sun_path = "/World/SunLight"
+    sun_path = rendering_config.sun_prim_path
     prim = stage.GetPrimAtPath(sun_path)
 
     if not prim.IsValid():

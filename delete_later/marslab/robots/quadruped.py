@@ -43,8 +43,10 @@ def spawn_quadruped(stage, config: RobotConfig, gravity: float) -> str:
     # Resolve asset path
     usd_path = _resolve_asset_path(config.usd_asset_path)
 
-    # Create prim and add USD reference
-    prim_path = "/World/quadruped"
+    # Create prim and add USD reference. ``config.prim_path`` falls back
+    # to ``/World/{type}`` so single-instance scenarios that never set the
+    # override keep the historical ``/World/quadruped`` layout.
+    prim_path = config.prim_path or f"/World/{config.type}"
     prim = stage.DefinePrim(Sdf.Path(prim_path), "Xform")
     prim.GetReferences().AddReference(usd_path)
 
