@@ -212,8 +212,7 @@ MarsLab/                                    # Repository root
 |   |
 |   |-- ros2_bridge/                        # ROS2 publishing [G6]
 |   |   |-- __init__.py                     # Wk 9 |          | ~3
-|   |   |-- publisher.py                    # Wk 9 | G6       | ~90
-|   |   `-- topic_config.py                 # Wk 9 | G6       | ~30
+|   |   `-- publisher.py                    # Wk 9 | G6       | ~90
 |   |
 |   |-- annotation/                         # Synthetic data annotation [G6]
 |   |   |-- __init__.py                     # Wk 12 |         | ~3
@@ -229,7 +228,6 @@ MarsLab/                                    # Repository root
 |   |
 |   `-- utils/                              # Shared utilities [G6]
 |       |-- __init__.py                     # Wk 1 |          | ~3
-|       |-- seed.py                         # Wk 1 | G5       | ~25
 |       `-- usd_helpers.py                  # Wk 4 | G6       | ~40
 |
 |-- tests/                                  # ALL tests [G7]
@@ -244,7 +242,6 @@ MarsLab/                                    # Repository root
 |   |   |-- test_sky_dome.py                # Wk 3 | G7       | ~35
 |   |   |-- test_dem_loader.py              # Wk 2 | G7       | ~50
 |   |   |-- test_rock_placer.py             # Wk 2 | G7       | ~80
-|   |   |-- test_seed.py                    # Wk 1 | G7       | ~30
 |   |   |-- test_label_converter.py         # Wk 12 | G7      | ~40
 |   |   |-- test_robot_config.py            # Wk 4 | G7       | ~40
 |   |   |-- test_domain_randomizer.py       # Wk 13 | G7      | ~50

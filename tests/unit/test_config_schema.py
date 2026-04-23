@@ -4,7 +4,6 @@ import pytest
 from pydantic import ValidationError
 
 from marslab.config.schema import (
-    BenchmarkConfig,
     DynamicAtmosphereConfig,
     FogConfig,
     MarsEnvConfig,
@@ -63,16 +62,8 @@ def test_marslab_config_full():
     c = MarsLabConfig(
         terrain=TerrainConfig(source="procedural", procedural_preset="flat"),
         robots=[RobotConfig(type="rover", urdf_path="test.urdf")],
-        benchmark=BenchmarkConfig(),
     )
     assert len(c.robots) == 1
-    assert c.benchmark is not None
-
-
-def test_benchmark_optional():
-    """MarsLabConfig with benchmark=None is valid."""
-    c = MarsLabConfig(terrain=TerrainConfig(source="procedural", procedural_preset="flat"))
-    assert c.benchmark is None
 
 
 # --- Invalid / out-of-range ---
@@ -212,8 +203,9 @@ def test_skid_steer_odom_publisher_default():
     """R3 OdomPublisherConfig submodel defaults match the ROS2 frame convention.
 
     R2-A3 (2026-04-22) promoted drive_damping / steer_stiffness /
-    steer_damping to required fields (no Python defaults), so the
-    constructor now needs them explicitly. Values mirror
+    steer_damping to required fields (no Python defaults). R2-4a
+    (2026-04-23) added the same treatment for drive_max_force /
+    steer_max_force / suspension_damping / drive_type. Values mirror
     ``configs/robots/rover_m2020.yaml`` so the test does not drift from
     the runtime rover tuning.
     """
@@ -221,6 +213,10 @@ def test_skid_steer_odom_publisher_default():
         drive_damping=1000.0,
         steer_stiffness=50000.0,
         steer_damping=5000.0,
+        drive_max_force=1000000.0,
+        steer_max_force=100000.0,
+        suspension_damping=50.0,
+        drive_type="acceleration",
     )
     assert c.odom_publisher.frame_id == "odom"
     assert c.odom_publisher.child_frame_id == "base_link"

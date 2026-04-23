@@ -4,6 +4,14 @@ The Stage-3 runtime consumes ``/<ns>/cmd_vel`` each physics step to
 drive the Ackermann controller.  Keeping the subscriber in its own
 module lets us unit-test the state container without importing
 ``rclpy``.
+
+R4-5 extension (2026-04-23): ``queue_size`` is no longer a Python
+default.  The historical value (``10``) now lives in
+:class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig` under
+``cmd_vel_queue_size`` and is threaded through ``init_rclpy_side``.
+The ``queue_size`` parameter here remains keyword-only with no default
+so every call site must pass it explicitly -- there is no longer a
+silent fallback that would hide a missing YAML key.
 """
 
 from __future__ import annotations
@@ -15,7 +23,8 @@ def create_cmd_vel_subscriber(
     node: Any,
     topic: str,
     twist_state: Dict[str, float],
-    queue_size: int = 10,
+    *,
+    queue_size: int,
 ) -> Any:
     """Subscribe ``twist_state`` to a ``geometry_msgs/Twist`` topic.
 
@@ -27,7 +36,11 @@ def create_cmd_vel_subscriber(
             ``angular.z`` into ``w`` on every message.  Passing a
             shared dict keeps the subscriber side-effect-visible to
             the main simulation loop without a class.
-        queue_size: rclpy subscription queue depth.
+        queue_size: rclpy subscription queue depth.  Keyword-only --
+            callers must source this from
+            :class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig`
+            (``cmd_vel_queue_size``) so the value is validated upstream
+            (``ge=1``, ``le=1000``).
 
     Returns:
         The created ``rclpy`` subscription handle.

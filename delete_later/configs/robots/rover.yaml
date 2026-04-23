@@ -1,7 +1,0 @@
-# Simple rover configuration for pipeline validation
-# Full rocker-bogie upgrade in Week 14
-
-robots:
-  - type: "rover"
-    urdf_path: "assets/robots/rover/simple_rover.urdf"
-    spawn_position: [0.0, 0.0, 1.0]

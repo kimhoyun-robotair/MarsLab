@@ -310,8 +310,8 @@ total_count: 89
     - 배경: #20 과 동일
     - 해결 단서: #20 과 동시 해소
 
-22. [scripts/run_ros2_test.md:77](scripts/run_ros2_test.md) "CLAUDE feedback_no_delete_comment 원칙... 과 충돌 — 이 스크립트가 '비활성화된 주석 상태'가 아니라 '깨진 상태로 방치' 임. 의도적 방치 vs 미완 마이그레이션 확인 필요"
-    - 배경: 깨진 스크립트 처리
+22. [scripts/run_ros2_test.md:77](scripts/run_ros2_test.md) "run_ros2_test.py 가 깨진 상태로 방치됨. 의도적 방치 vs 미완 마이그레이션 확인 필요"
+    - 배경: 깨진 스크립트 처리 (정책 근거 무효 — `feedback_no_delete_comment` 2026-04-23 retired)
     - 해결 단서: 사용자 결정 필요
 
 23. [scripts/phase1/run_stage3_monolithic.md:212](scripts/phase1/run_stage3_monolithic.md) "`configs/robots/rover_m2020.yaml` — `lidar_2d:` 섹션 잔존"
@@ -386,8 +386,8 @@ total_count: 89
     - 해결 단서: 동시 해소
 
 13. [scripts/blender_generate_rocks.md:62](scripts/blender_generate_rocks.md) "line 103~106 의 `os.remove(...)` 가 기존 trimesh 산출물을 무조건 제거. 사용자는 양쪽 버전 비교를 못 함"
-    - 배경: feedback_no_delete_comment 잠재 위반
-    - 해결 단서: 사용자 결정 필요 (정책 적용 여부)
+    - 배경: trimesh 산출물 비교 불가
+    - 해결 단서: 사용자 결정 필요 (`feedback_no_delete_comment` 정책은 2026-04-23 retired; 근거 재수립 필요)
 
 14. [_risks.md:308 (raw line 309)](_risks.md) 중복: §4 에서 이미 포함
 

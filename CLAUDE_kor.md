@@ -69,7 +69,7 @@ GPU 없이 테스트 가능해야 함. Isaac Sim 의존 코드는 통합 전용�
 - 클래스: `PascalCase`
 - 함수/변수: `snake_case`
 - 상수: `UPPER_SNAKE_CASE`
-- ROS2 토픽: `/{robot_name}/{sensor_type}` (예: `/rover_0/rgb/image_raw`)
+- ROS2 토픽: `/{robot_name}/{sensor_type}` (예: `/rover/rgb/image_raw`)
 - 설정 키: YAML에서 `snake_case`
 
 ### Isaac Sim 관련

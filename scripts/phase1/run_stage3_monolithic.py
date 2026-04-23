@@ -55,23 +55,17 @@ import numpy as np
 import yaml  # noqa: F401  (kept for parity with run_stage1; unused directly)
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-PHASE1_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # marslab.* imports require the repo root on sys.path.
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
-
-# Ensure scripts/phase1/ is importable for the ackermann module.
-if PHASE1_DIR not in sys.path:
-    sys.path.insert(0, PHASE1_DIR)
-
-from ackermann import ackermann_command  # noqa: E402
 
 # scenario_loader is pure-Python (no Isaac Sim) — safe at module scope.
 from marslab.config.scenario_loader import (  # noqa: E402
     load_scenario_config,
     resolve_spawn_pose,
 )
+from marslab.robots.rover_control import ackermann_command  # noqa: E402
 
 # =============================================================================
 # Pure helpers — verbatim from run_stage1.py L90-170 (offline-testable).

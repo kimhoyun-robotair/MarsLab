@@ -1,8 +1,5 @@
 """Mars environmental parameters (gravity, atmosphere, solar, albedo, seed).
 
-Split from marslab.config.schema (R2, 2026-04-22). See
-delete_later/schema.py for the pre-split original.
-
 R2-A2 (2026-04-22) added ``DynamicAtmosphereConfig`` (plus the
 ``SunSweepConfig`` / ``TauConstantConfig`` / ``TauRampConfig`` /
 ``TauSineConfig`` leaves) so the previously-untyped
@@ -207,6 +204,17 @@ class MarsEnvConfig(BaseModel):
     )
     sun_elevation_deg: float = Field(
         default=45.0, ge=0.0, le=90.0, description="Sun elevation above horizon in degrees"
+    )
+    # P6 (2026-04-23) physics integration tick. Not a Mars constant — the
+    # engine step size — but grouped here so every environmental scalar
+    # flows through a single pydantic model rather than duplicated
+    # ``1.0/60.0`` literals in :mod:`marslab.runtime.stage2_scene` and
+    # :mod:`marslab.runtime.stage2_loop`.
+    physics_dt: float = Field(
+        default=1.0 / 60.0,
+        gt=0.0,
+        le=0.1,
+        description="Physics simulation timestep in seconds (engine tick, not Mars physics).",
     )
     seed: int = Field(default=42, ge=0)
 

@@ -3389,3 +3389,72 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - **R4-7/R4-8 체크리스트 실행 (사용자):** `refactoring/R4_cleanup_checklist.md` 기준 Option A/B/C 선택. 권장 = Option B (archive to `delete_later/disabled_blocks/`). 22 블록 / 632 LOC + dead schema 수동 정리 시 `run_stage3_monolithic_new.py` 1585 LOC → 예상 1350 LOC 수준.
 - **R5 방향 결정 (사용자 대기):** (a) 하드코딩 상수 51건 YAML 이관 (G5), (b) seed propagation 3중 통합, (c) P1 (`run_stage3_monolithic_new.py` 모듈화 완료 시 Oracle 과 diff 재평가) 중 택일.
 - **memory 반영 필요:** "facade extraction in parallel subagents" 패턴이 확립됨 → `project_r4_parallel_facade.md` 프로젝트 메모 고려 (후속 R5 에서도 병렬 분업 재활용).
+
+---
+
+## [2026-04-23] Refactor R4 addendum — Option C cleanup + `feedback_no_delete_comment` retirement
+
+**모듈:** `marslab/config/schema/`, `marslab/config/loader.py`, `marslab/ros2_bridge/`, `marslab/robots/`, `scripts/phase1/`, `tests/unit/`, `configs/`, `refactoring/`, `~/.claude/projects/-home-hoyunkim-MarsLab/memory/`
+**Plan 참조:** `~/.claude/plans/claude-md-plan-md-log-md-work-log-wiggly-acorn.md` (R4 Post-Cleanup Plan — Dangling Import Fix + Verify + Policy Retirement).
+
+### 원래 계획 개요 (R4-7 / R4-8 Option C 실행 + 정책 retire)
+- 사용자가 `refactoring/R4_cleanup_checklist.md` 기준 Option C (hard-delete, archive 없음) 선택. 근거: "필요없는 주석과 파일들이라면 내가 직접 hard-delete할거야".
+- 실행 분업: Phase A 사용자 수동 삭제 (파일/주석 제거) → Phase B Claude 가 dangling reference + formatter + pytest 수습 + 정책 retire + LOG.md 기록.
+- Surprise finding (checklist Section 2 rows 3-4): `SensorImuConfig` / `SensorsConfig` 124 LOC 가 `TelemetryConfig` 와 동일한 근거 수준 (runtime 소비자 0, docstring 이 가리키는 `marslab.sensors.imu_probe.run_live_gravity_probe` + `IMUPublisher` 부재). 사용자 판단으로 동반 제거.
+- `BenchmarkConfig` 은 plan 에서 "keep" 권고였으나 사용자가 함께 삭제 (이름·근거 유사성 기반). Claude 측 수습 범위에 `loader.py:55-57` benchmark seed propagation 블록 제거 + 2 테스트 파일 fixture 수정 추가.
+
+### 수행 내용
+
+**Phase A — 사용자 hard-delete (완료 시점 2026-04-23)**
+- 삭제된 파일 (`git rm`): `marslab/config/schema/{telemetry,sensors,benchmark}.py`, `marslab/ros2_bridge/topic_config.py`.
+- 삭제된 schema export: `marslab/config/schema/__init__.py` 의 `SensorImuConfig` / `SensorsConfig` / `TelemetryConfig` / `BenchmarkConfig` import + `__all__` 엔트리.
+- 삭제된 root 필드: `marslab/config/schema/root.py` 의 `telemetry` / `sensors` / `benchmark` `Field(...)` 선언 + 해당 import.
+- 삭제된 YAML 블록: `configs/mars_env.yaml` 의 `sensors:` / `imu:` / `telemetry:` / `benchmark:` 블록.
+- 삭제된 DISABLED 주석 블록: `marslab/robots/rover.py` 3 블록, `marslab/ros2_bridge/{sensor_graph.py,__init__.py,odometry_math.py}` 5 블록, `scripts/phase1/{run_stage2.py,run_stage3_monolithic_new.py}` 14 블록 — checklist Section 4 총 22 블록 (632 LOC).
+
+**Phase B — Claude 수습 (dangling reference + formatter + test)**
+- `marslab/config/loader.py:55-57` 의 benchmark seed propagation `if config.benchmark is not None:` 블록 제거. (`BenchmarkConfig` 삭제로 필드 자체가 없음 → 런타임 AttributeError 위험 원천 차단.)
+- `tests/unit/test_config_schema.py` — `BenchmarkConfig` import + `test_marslab_config_full` 의 `benchmark=BenchmarkConfig()` 인자 + `test_benchmark_optional` 테스트 전체 제거.
+- `tests/unit/test_seed_reproducibility.py` — `BenchmarkConfig` import + 두 fixture (`_run_pipeline` L24, `test_seed_propagation_offsets` L93) 의 `benchmark=BenchmarkConfig()` 인자 + `assert c1.benchmark.seed == c2.benchmark.seed` 어서션 제거.
+- `black marslab/ scripts/ tests/` → 6 파일 auto-format 적용 (`root.py`, `odometry_math.py`, `sensor_graph.py`, `rover.py`, `run_stage2.py`, `run_stage3_monolithic_new.py`).
+- `ruff check --fix marslab/ scripts/ tests/` → W292 (EOF newline) + I001 (import order) 4건 auto-fix.
+
+**Phase B — 정책 retirement + 문서화**
+- `~/.claude/projects/-home-hoyunkim-MarsLab/memory/feedback_no_delete_comment.md` body 를 retirement notice 로 개정. 제목: "Comment-out policy retired". Rollback 은 `git log -p <file>` 에 일임. 파일 단위 archive 필요 시에만 `feedback_delete_later_directory` 사용.
+- `~/.claude/projects/-home-hoyunkim-MarsLab/memory/MEMORY.md` 해당 라인 → `"[Retired 2026-04-23] hard-delete 기본, rollback 은 git log -p. R4 Option C 에서 폐기."` 로 업데이트.
+- `CLAUDE.md` 검색 — `"Comment out"` / `"no_delete_comment"` / `"Do NOT delete"` / `"삭제하지 말고"` / `"DISABLED"` 문구 0 hit. 수정 불요.
+- `refactoring/R4_cleanup_checklist.md` 상단에 `> **Executed 2026-04-23 per Option C (hard-delete).** feedback_no_delete_comment 정책은 동일 날짜에 retire.` 블록쿼트 1 줄 추가 (원 체크리스트 본문 보존).
+
+### 검증
+- **LOC 축소 (before → after):**
+  - `scripts/phase1/run_stage3_monolithic_new.py`: 1585 → 1288 (**−297**)
+  - `scripts/phase1/run_stage2.py`: 561 → 420 (**−141**)
+  - `marslab/ros2_bridge/__init__.py`: (R4-6 이후) 138 → 55 (**−83**, DISABLED 블록 제거)
+  - `marslab/ros2_bridge/sensor_graph.py`: (R4-5 이후) 176 → 96 (**−80**)
+  - `marslab/ros2_bridge/odometry_math.py`: 168 → 98 (**−70**)
+  - `marslab/robots/rover.py`: 304 → 282 (**−22**)
+  - 추가 schema/YAML 삭감: telemetry.py 29 LOC + sensors.py ≈124 LOC + benchmark.py ≈18 LOC + topic_config.py 48 LOC + mars_env.yaml 5+41 LOC ≈ **265 LOC**
+  - **누적 ~958 LOC 감소** (Phase A 사용자 직접 삭제 + Phase B Claude 수습).
+- **Unit tests:** `python3 -m pytest tests/unit/` — **445 passed, 1 warning in 8.63s**. R4 종료 시점 446 → 445 (−1: `test_benchmark_optional` 제거).
+- **Black:** `black --check marslab/ scripts/ tests/` → "128 files would be left unchanged" ✓.
+- **Ruff:** `ruff check marslab/ scripts/ tests/` → "All checks passed!" ✓.
+- **Oracle 불변성:** `md5sum scripts/phase1/run_stage3_monolithic.py` → `d4e147cd2345f927db18c4d7ad33b854` (R1~R4 + R4 addendum 전 구간 일치).
+- **Dead reference grep:** `grep -rn "SensorImuConfig\|SensorsConfig\|TelemetryConfig\|BenchmarkConfig\|topic_config" marslab/ scripts/ tests/ configs/` → **0 hits**.
+- **Isaac Sim smoke (사용자 실행, 2026-04-22 R4 종료 시점):** stage2 / monolithic_new 정상. monolithic 은 Oracle 제약으로 Manual-mode sun sweep 버그 잔존하되 수정 대상 아님 (사용자 수용).
+
+### 핵심 설계 결정
+- **Option C 로 정책 전환:** R2~R4 facade 리팩토링 동안 DISABLED 주석을 롤백 재료로 유지해왔으나 22 블록 / 632 LOC 에 도달하며 가독성 비용이 rollback 편의를 추월. 사용자가 "필요없는 주석과 파일들이라면 내가 직접 hard-delete할거야" 로 명시 → Option C 채택 + `feedback_no_delete_comment` retire. 신규 규칙은 git log 에 의존.
+- **Surprise finding 동반 삭제:** `SensorImuConfig`/`SensorsConfig` 124 LOC 는 원 plan 에 없었지만 `TelemetryConfig` 와 근거 동일 (runtime 소비자 0, dangling docstring). 사용자가 checklist surprise finding 을 읽고 함께 제거하도록 결정.
+- **`BenchmarkConfig` 은 plan deviation 이지만 정합적 처리:** plan 은 keep 권고였으나 사용자 선택으로 제거. 수습 범위에 `loader.py` benchmark 블록 + 2 테스트 fixture 수정 포함. 이로써 "schema 없이 loader/test 가 참조 → 런타임 실패" 위험 원천 차단. 결과적으로 `test_benchmark_optional` 1 테스트 감소.
+- **CLAUDE.md 수정 불요:** grep 결과 comment-out 정책이 CLAUDE.md 에는 반영되어 있지 않았음 (memory 전용 정책). 문서 동기화 불필요.
+
+### 생성/수정 파일 요약
+- **삭제 (git rm, 사용자 실행):** `marslab/config/schema/{telemetry,sensors,benchmark}.py`, `marslab/ros2_bridge/topic_config.py`.
+- **수정 (dangling reference 제거, Claude):** `marslab/config/loader.py` (benchmark propagation 블록 3 LOC 삭제), `tests/unit/test_config_schema.py` (`test_benchmark_optional` 제거 + fixture 수정), `tests/unit/test_seed_reproducibility.py` (import + 2 fixture + 1 assertion 수정).
+- **수정 (formatter auto-fix):** `marslab/config/schema/root.py` (W292), `marslab/ros2_bridge/{odometry_math.py,sensor_graph.py}`, `marslab/robots/rover.py`, `scripts/phase1/{run_stage2.py,run_stage3_monolithic_new.py}` (black + ruff I001).
+- **수정 (정책/문서):** `~/.claude/projects/-home-hoyunkim-MarsLab/memory/feedback_no_delete_comment.md` (retirement notice), 동일 디렉토리 `MEMORY.md` 한줄 업데이트, `refactoring/R4_cleanup_checklist.md` 헤더 스탬프 추가.
+
+### 후속 과제
+- **R5 scope 결정 (사용자 대기):** (a) 하드코딩 상수 51건 YAML 이관 (G5 청산), (b) seed propagation 3중 통합, (c) P1 `run_stage3_monolithic_new.py` 모듈화 완료 시 Oracle (1298 LOC) ↔ twin (1288 LOC) diff 재평가 중 택일.
+- **Oracle monolithic Manual-mode 버그:** R4 종료 시점 관측된 Sun Auto/Manual 토글 이슈는 Oracle 수정 금지 제약으로 fix-forward 대상 아님. v2.0 또는 Oracle 해제 시 해결.
+- **사용자 선택 memory 업데이트 (선택):** "R5+ 에서도 facade extraction 을 병렬 subagent 로 분담한다" 패턴을 `project_r4_parallel_facade.md` 에 이미 기록. 후속 R5 실행 시 해당 메모 자동 참조.

@@ -4,14 +4,8 @@ R2 (2026-04-22) split the original 670-LOC schema.py into seven domain
 modules plus a root aggregator. Public imports remain unchanged:
 
     from marslab.config.schema import MarsLabConfig, MarsEnvConfig, ...
-
-Domain files: mars_env.py, terrain.py, robot.py, rendering.py,
-sensors.py, telemetry.py, benchmark.py, root.py. The original
-schema.py is preserved under ``delete_later/schema.py`` for rollback
-(see delete_later/README.md).
 """
 
-from marslab.config.schema.benchmark import BenchmarkConfig
 from marslab.config.schema.mars_env import (
     DynamicAtmosphereConfig,
     MarsEnvConfig,
@@ -33,9 +27,14 @@ from marslab.config.schema.robot import (
     SkidSteerDriveConfig,
 )
 from marslab.config.schema.root import MarsLabConfig
-from marslab.config.schema.sensors import SensorImuConfig, SensorsConfig
-from marslab.config.schema.telemetry import TelemetryConfig
-from marslab.config.schema.terrain import CaveConfig, DemCropConfig, TerrainConfig
+from marslab.config.schema.ros2_bridge import Ros2BridgeConfig
+from marslab.config.schema.scene import SceneConfig, StructureConfigSchema
+from marslab.config.schema.terrain import (
+    CaveConfig,
+    CaveGeometryConfig,
+    DemCropConfig,
+    TerrainConfig,
+)
 
 # R2-A1 (2026-04-22) exported FogConfig / RayTracingConfig /
 # PathTracingConfig / SkyDomeConfig alongside the pre-existing public
@@ -45,8 +44,8 @@ from marslab.config.schema.terrain import CaveConfig, DemCropConfig, TerrainConf
 # ``from marslab.config.schema import DynamicAtmosphereConfig`` works
 # without reaching into ``marslab.config.schema.mars_env``.
 __all__ = [
-    "BenchmarkConfig",
     "CaveConfig",
+    "CaveGeometryConfig",
     "DemCropConfig",
     "DynamicAtmosphereConfig",
     "FogConfig",
@@ -57,14 +56,14 @@ __all__ = [
     "RayTracingConfig",
     "RenderingConfig",
     "RobotConfig",
-    "SensorImuConfig",
-    "SensorsConfig",
+    "Ros2BridgeConfig",
+    "SceneConfig",
     "SkidSteerDriveConfig",
     "SkyDomeConfig",
+    "StructureConfigSchema",
     "SunSweepConfig",
     "TauConstantConfig",
     "TauRampConfig",
     "TauSineConfig",
-    "TelemetryConfig",
     "TerrainConfig",
 ]

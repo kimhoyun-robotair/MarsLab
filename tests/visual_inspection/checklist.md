@@ -154,28 +154,28 @@ executor + `rclpy.shutdown()` lifecycle block in `main()` that instantiates
 `CmdVelSubscriber`, `TfBroadcaster`, and `OdometryPublisher` against the
 spawned `SingleArticulation`.
 
-- [ ] `/rover_0/cmd_vel` subscriber moves the rover
+- [ ] `/rover/cmd_vel` subscriber moves the rover
   - Method: in a second terminal (ROS2 Jazzy sourced), run
-    `ros2 topic pub --once /rover_0/cmd_vel geometry_msgs/msg/Twist \
+    `ros2 topic pub --once /rover/cmd_vel geometry_msgs/msg/Twist \
      '{linear: {x: 0.3, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}'`
     and watch the rover in Isaac Sim. Expected: all six wheels spin
     forward at `0.3 / 0.15 ≈ 2.0 rad/s`, rover accelerates along +x.
-  - Expected: `ros2 topic echo /rover_0/odom --once` shows
+  - Expected: `ros2 topic echo /rover/odom --once` shows
     `twist.twist.linear.x ≈ 0.3` within numerical precision after
     ~1 s of settling.
-- [ ] `/rover_0/cmd_vel` watchdog zeros the wheels on message drop
+- [ ] `/rover/cmd_vel` watchdog zeros the wheels on message drop
   (Wk2 #7b / task #18)
   - Method: publish a non-zero Twist once (as above), verify the rover
     starts moving, then **do not publish again for > 0.5 s**.
   - Expected: rover decelerates to a stop within one watchdog tick
     (0.05 s) after the 0.5 s timeout expires. Check the log for one
     (and only one) `cmd_vel watchdog: no Twist received in 0.500 s on
-    /rover_0/cmd_vel — zeroing wheels ...` warning line.
+    /rover/cmd_vel — zeroing wheels ...` warning line.
   - Expected: re-publishing a fresh Twist resumes motion immediately
     and clears the warning latch (subsequent drops log a fresh
     warning, not silent).
 - [ ] In-place left pivot is visibly symmetric
-  - Method: `ros2 topic pub --once /rover_0/cmd_vel ... \
+  - Method: `ros2 topic pub --once /rover/cmd_vel ... \
      '{linear: {x: 0.0, ...}, angular: {x: 0.0, y: 0.0, z: 0.4}}'`.
   - Expected: left wheels spin backward, right wheels spin forward at
     equal magnitude `(0.4 * 0.35) / 0.15 ≈ 0.933 rad/s`. Rover rotates
@@ -199,14 +199,14 @@ spawned `SingleArticulation`.
   - Expected: the dynamic `odom → base_link` edge updates at ~50 Hz;
     check with `ros2 run tf2_ros tf2_echo odom base_link` while the
     rover drives.
-- [ ] `/rover_0/odom` publishes at 50 Hz (±10%)
-  - Method: `ros2 topic hz /rover_0/odom` for ~10 s.
+- [ ] `/rover/odom` publishes at 50 Hz (±10%)
+  - Method: `ros2 topic hz /rover/odom` for ~10 s.
   - Expected: average rate between 45 Hz and 55 Hz, per the
     `_workspace/ros2_topic_spec.md` ±10% tolerance budget.
-- [ ] `/rover_0/odom` twist matches the commanded Twist at steady state
+- [ ] `/rover/odom` twist matches the commanded Twist at steady state
   - Method: publish `linear.x: 0.25, angular.z: 0.1` for 3 s, then stop
     publishing (the watchdog will zero the wheels after 0.5 s).
-  - Expected: just before the drop, `/rover_0/odom.twist.twist.linear.x`
+  - Expected: just before the drop, `/rover/odom.twist.twist.linear.x`
     should read ~0.25 m/s and `.angular.z` ~0.1 rad/s — this verifies
     the FK round-trip (`compute_wheel_velocities → set_joint_velocities
     → PhysX → get_joint_velocities → wheel_velocities_to_twist`) is
@@ -215,7 +215,7 @@ spawned `SingleArticulation`.
   - Method: drive the rover in a known pattern (e.g. forward 1 m, left
     turn 90°, forward 1 m) via `ros2 topic pub --rate 10` commands, and
     visually compare the final rover position in Isaac Sim against the
-    final `/rover_0/odom.pose.pose.position` reading.
+    final `/rover/odom.pose.pose.position` reading.
   - Expected: positions agree within ~0.05 m on flat terrain. Larger
     drift on sloped terrain is expected for v1.0 (no slip compensation,
     exact arc integration assumes rigid, non-slipping wheels).
@@ -274,31 +274,31 @@ Expected stdout marker for a clean run:
 - [ ] **V10-2** Continuous publish mode with topic plumbing checks:
   `MARSLAB_PUBLISH=1 ~/isaacsim/python.sh scripts/run_scene.py --config configs/mars_env.yaml`
   In a second terminal (ROS2 Jazzy sourced):
-  - [ ] `ros2 topic list` shows `/rover_0/rgb/image_raw`,
-    `/rover_0/lidar/points`, `/rover_0/imu/data`, `/tf`, `/rover_0/odom`,
-    `/rover_0/cmd_vel`, `/clock` (plus any depth/stereo depending on
+  - [ ] `ros2 topic list` shows `/rover/rgb/image_raw`,
+    `/rover/lidar/points`, `/rover/imu/data`, `/tf`, `/rover/odom`,
+    `/rover/cmd_vel`, `/clock` (plus any depth/stereo depending on
     sensor config YAMLs)
-  - [ ] `ros2 topic hz /rover_0/imu/data` → ~200 Hz within ±10%
-  - [ ] `ros2 topic hz /rover_0/lidar/points` → at configured rate
-  - [ ] `ros2 topic hz /rover_0/rgb/image_raw` → at configured rate
+  - [ ] `ros2 topic hz /rover/imu/data` → ~200 Hz within ±10%
+  - [ ] `ros2 topic hz /rover/lidar/points` → at configured rate
+  - [ ] `ros2 topic hz /rover/rgb/image_raw` → at configured rate
   - [ ] `ros2 topic hz /tf` → non-zero, broadcaster active
   - [ ] `ros2 run tf2_tools view_frames` produces a complete tree:
     `map` → `odom` → `base_link` → wheel + sensor frames. No
     disconnected subtrees.
-  - [ ] `ros2 topic hz /rover_0/odom` → matches odometry publisher rate
+  - [ ] `ros2 topic hz /rover/odom` → matches odometry publisher rate
 - [ ] **V10-3** cmd_vel drive test (verifies task #15 cmd_vel subscriber
   end-to-end):
   - [ ] Send continuous forward command:
-    `ros2 topic pub /rover_0/cmd_vel geometry_msgs/msg/Twist "linear: {x: 0.3}" --rate 10`
+    `ros2 topic pub /rover/cmd_vel geometry_msgs/msg/Twist "linear: {x: 0.3}" --rate 10`
     → rover visibly drives forward in Isaac Sim viewport, wheels rotate
   - [ ] Send turn command:
-    `ros2 topic pub /rover_0/cmd_vel geometry_msgs/msg/Twist "angular: {z: 0.5}" --rate 10`
+    `ros2 topic pub /rover/cmd_vel geometry_msgs/msg/Twist "angular: {z: 0.5}" --rate 10`
     → rover turns in place (skid-steer, opposing wheel banks)
   - [ ] Rocker-bogie visual articulation observable when rover traverses
     a rock (this also closes V9's pending rocker-bogie line)
 - [ ] **V10-4** Watchdog test (verifies task #18 cmd_vel watchdog):
   - [ ] Send a single Twist message, then stop publishing:
-    `ros2 topic pub /rover_0/cmd_vel geometry_msgs/msg/Twist "linear: {x: 0.3}" --once`
+    `ros2 topic pub /rover/cmd_vel geometry_msgs/msg/Twist "linear: {x: 0.3}" --once`
   - [ ] After `SkidSteerDriveConfig.cmd_vel_timeout_s` elapses, stdout
     from `~/isaacsim/python.sh` shows
     `cmd_vel watchdog: no Twist received in X.XXX s on /cmd_vel`

@@ -67,7 +67,18 @@ def init_rclpy_side(
 
     twist_state: Dict[str, float] = {"v": 0.0, "w": 0.0}
     cmd_vel_topic = _ns_topic(ns, topics["cmd_vel"])
-    cmd_vel_sub = create_cmd_vel_subscriber(node, cmd_vel_topic, twist_state)
+    # R4-5 extension (2026-04-23) G5: ``cmd_vel_queue_size`` is now a
+    # schema field (Ros2BridgeConfig.cmd_vel_queue_size) rather than a
+    # Python default inside ``create_cmd_vel_subscriber``.  Falls back
+    # to 10 (the historical constant) when the YAML key is absent so
+    # existing scenarios keep loading unchanged.
+    cmd_vel_queue_size = int(ros2_cfg.get("cmd_vel_queue_size", 10))
+    cmd_vel_sub = create_cmd_vel_subscriber(
+        node,
+        cmd_vel_topic,
+        twist_state,
+        queue_size=cmd_vel_queue_size,
+    )
 
     static_broadcaster = publish_static_sensor_tfs(node, sensor_frames)
 

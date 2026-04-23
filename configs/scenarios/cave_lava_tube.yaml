@@ -92,19 +92,18 @@ rendering:
 rover:
   enabled: true
   base_config: "configs/robots/rover_m2020.yaml"
-  # Cave scenario: the procedural tube generator returns a *ceiling*
-  # elevation grid, so dem_relative would drop the rover onto the
-  # ceiling surface.  Use absolute spawn targeting the centre of the
-  # first skylight aperture where natural light reaches the tube
-  # floor.  Z is set below the nominal floor level of the cave
-  # (tube_width_m=200 × tube_height_ratio=0.5 ⇒ height≈100 m beneath
-  # the ceiling surface ≈ -50 m in world frame).  A z_offset of 0.5 m
-  # above the expected floor keeps the wheels clear of breakdown
-  # debris on landing.
+  # Cave frame (R5 post-split, marslab/terrain/cave_generator.py:135):
+  # tube floor normalized to z=0, surface cap at z=150. Centerline passes
+  # through the domain center (200, 200) along tube_direction_deg=45°.
+  # For seed=42 skylight #4 lands at (181.2, 190.5) — spawn directly beneath
+  # so natural light reaches the rover. If ``terrain.seed`` changes, the
+  # skylight layout shifts; recompute via generate_cave_mesh(...).
+  # ``skylight_positions`` and update xy below. z=0.5 is wheel clearance
+  # above the floor.
   spawn:
     mode: "absolute"
-    xy: [0.0, 0.0]
-    z: -49.5
+    xy: [181.2, 190.5]
+    z: 0.5
     orientation_rpy: [3.14159, 0.0, 0.785398]  # face +X+Y along tube axis (45° bearing)
   sensors:
     # Increase depth clip range so RGB camera captures distant tube wall.

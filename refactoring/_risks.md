@@ -24,8 +24,8 @@ status: W6c v2 (T5 Wave 2 append)
 - 출처: [`wiki/tests/unit/README.md`](tests/unit/README.md) §"현재 상태 알림" (L17-20) 및
   동일 문서 플래그 테이블 "BROKEN" 행(L115-116).
 - 영향: `pytest tests/unit/` 명령이 다른 테스트까지 수집 전에 중단.
-- 권고 조치: `pytest.mark.skip` 가드 또는 파일 전체 주석 처리
-  (MEMORY `feedback_no_delete_comment` 준수).
+- 권고 조치: `pytest.mark.skip` 가드 또는 파일 삭제
+  (`feedback_no_delete_comment` 는 2026-04-23 retired — 현재는 hard-delete 가 기본).
 - **RESOLVED (2026-04-22, R1)**: `git rm` 으로 인덱스 포함 완전 제거 (3 파일 —
   `tests/unit/test_seed.py`, `marslab/utils/__init__.py`, `marslab/utils/seed.py`).
   소비자 0 (`grep -rn "marslab\.utils\|utils\.seed" marslab/ scripts/ tests/ configs/`
@@ -87,7 +87,7 @@ status: W6c v2 (T5 Wave 2 append)
 ## 2. 데드 코드 / 의심 데드 참조 (8 건)
 
 **현재 저장소 어떤 호출자도 사용하지 않거나, 참조처가 존재하지 않는 파일·설정을 가리키는** 항목.
-MEMORY `feedback_no_delete_comment` 에 따라 삭제가 아닌 주석 처리 또는 사용자 결정 대기가 기본.
+`feedback_no_delete_comment` 정책은 2026-04-23 retired — 현재는 hard-delete 가 기본이며 rollback 은 `git log -p` 로 수행.
 
 ### 2.1 `marslab/ros2_bridge/topic_config.py` — import 0 건의 48-LOC 모듈
 - `grep -rn "from marslab.ros2_bridge.topic_config\|import.*topic_config" marslab scripts tests launch`

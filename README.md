@@ -172,3 +172,10 @@ robots:
 - Vicente-Retortillo, A. et al. (2015). Solar radiation fluxes on Mars. JSWSC.
 - Appelbaum, J. & Flood, D.J. (1990). Solar radiation on Mars. NASA TM-102299.
 - Bell, J.F. et al. (2006). Chromaticity of the Martian sky. JGR Planets.
+
+
+scripts/isaac_python.sh scripts/phase1/run_stage3_monolithic.py --config configs/scenarios/jezero_flat.yaml
+# 여기서 YAML 파일 이름만 바꿔가면서 진행하면 됨.
+
+scripts/isaac_python.sh scripts/phase1/run_stage2.py --config configs/mars_env.yaml
+scripts/isaac_python.sh scripts/phase1/run_stage3_monolithic_new.py --config configs/scenarios/jezero_flat.yaml

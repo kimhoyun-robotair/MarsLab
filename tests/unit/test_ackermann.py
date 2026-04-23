@@ -1,19 +1,9 @@
-"""Unit tests for scripts/phase1/ackermann.py — Ackermann steering controller."""
-
-import os
-import sys
+"""Unit tests for marslab.robots.rover_control — Ackermann steering controller."""
 
 import numpy as np
 import pytest
 
-# Ensure the phase1 module is importable.
-PHASE1_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "phase1")
-)
-if PHASE1_DIR not in sys.path:
-    sys.path.insert(0, PHASE1_DIR)
-
-from ackermann import ackermann_command  # noqa: E402
+from marslab.robots.rover_control import ackermann_command
 
 # Perseverance rover geometry (URDF measured).
 WB = 2.26  # wheelbase (m)

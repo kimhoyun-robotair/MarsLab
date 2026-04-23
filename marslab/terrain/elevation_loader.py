@@ -63,7 +63,11 @@ def load_terrain_elevation(
             from marslab.terrain.cave_generator import generate_cave_mesh
 
             cave_cfg = terrain_cfg.get("cave", {})
-            geom_cfg = {k: v for k, v in cave_cfg.items() if k != "wall_albedo_range"}
+            # ``wall_albedo_range`` is consumed by the material applicator,
+            # ``geometry`` (R5) is a nested block used by future generator
+            # tuning -- neither is a kwarg of ``generate_cave_mesh``.
+            _cave_exclude = {"wall_albedo_range", "geometry"}
+            geom_cfg = {k: v for k, v in cave_cfg.items() if k not in _cave_exclude}
             cave_data = generate_cave_mesh(
                 domain_size=size,
                 resolution=resolution,

@@ -1,7 +1,6 @@
 """Pure-Python rover control primitives (Ackermann + ramp helpers).
 
-This module replaces the scripts/phase1/ackermann.py one-off script as
-the canonical home for rover control math.  Everything here is pure
+Everything here is pure
 NumPy — no Isaac Sim, no ROS2, no IO — so it can be unit-tested offline
 (project principle P3).
 

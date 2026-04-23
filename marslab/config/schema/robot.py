@@ -9,7 +9,17 @@ R3 (2026-04-22) added ``OdomPublisherConfig`` (frame_id / child_frame_id /
 queue_size migration from ``odometry_publisher.py:45-47``) and
 ``RobotConfig.prim_path`` (``/World/quadruped`` literal migration from
 ``quadruped.py:47``).
+
+R2-4a (2026-04-23) promoted ``drive_max_force`` / ``steer_max_force`` /
+``suspension_damping`` / ``drive_type`` from dead ``.get(..., literal)``
+fallbacks in ``marslab.robots.drive_api_setup`` (L118-123, L189) to
+required ``SkidSteerDriveConfig`` fields. ``configs/robots/rover_m2020.yaml``
+already declares all four, so making them required catches future robot
+YAMLs that omit a value at load time instead of silently shipping Python
+literals to PhysX DriveAPI tuning.
 """
+
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -172,9 +182,7 @@ class SkidSteerDriveConfig(BaseModel):
     # steer_damping required.  Dead Python defaults previously lived at
     # marslab/robots/rover.py:260-264 and 322-324 with values that did
     # NOT match configs/robots/rover_m2020.yaml — leaving them optional
-    # here would hide the same mismatch on any future robot YAML.  See
-    # feedback_no_delete_comment: the old dict.get fallbacks are
-    # preserved as comments in rover.py.
+    # here would hide the same mismatch on any future robot YAML. 
     drive_damping: float = Field(
         ...,
         gt=0.0,
@@ -201,6 +209,50 @@ class SkidSteerDriveConfig(BaseModel):
             "PhysX angular DriveAPI damping for position-mode steering joints. "
             "Matches ``control.steer_damping`` in ``configs/robots/rover_m2020.yaml`` "
             "(currently 5000.0 for the M2020 rover). Required since R2-A3."
+        ),
+    )
+    # R2-4a (2026-04-23): the following four fields were previously dead
+    # ``control_cfg.get(key, <python-literal>)`` fallbacks inside
+    # ``marslab.robots.drive_api_setup`` (L118-123, L189).  rover_m2020.yaml
+    # already declares all four (lines 129-135), so promoting them to
+    # required catches any future rover config that omits one at load time
+    # rather than silently shipping the Python literal to PhysX.
+    drive_max_force: float = Field(
+        ...,
+        gt=0.0,
+        description=(
+            "Maximum PhysX DriveAPI torque for velocity-mode wheel joints (Nm). "
+            "Matches ``control.drive_max_force`` in rover_m2020.yaml (currently "
+            "1000000.0). Required since R2-4a (2026-04-23)."
+        ),
+    )
+    steer_max_force: float = Field(
+        ...,
+        gt=0.0,
+        description=(
+            "Maximum PhysX DriveAPI torque for position-mode steering joints (Nm). "
+            "Matches ``control.steer_max_force`` in rover_m2020.yaml (currently "
+            "100000.0). Required since R2-4a."
+        ),
+    )
+    suspension_damping: float = Field(
+        ...,
+        ge=0.0,
+        description=(
+            "PhysX DriveAPI damping for passive suspension joints. 0 leaves "
+            "suspension undamped; positive values add viscous resistance. "
+            "Matches ``control.suspension_damping`` in rover_m2020.yaml "
+            "(currently 50.0). Required since R2-4a — no Python fallback."
+        ),
+    )
+    drive_type: Literal["acceleration", "force"] = Field(
+        ...,
+        description=(
+            "PhysX DriveAPI mode. ``acceleration`` (recommended) auto-compensates "
+            "for link mass / inertia, yielding consistent wheel response across "
+            "rover variants. ``force`` applies raw torque and is sensitive to "
+            "URDF inertia tuning. Matches ``control.drive_type`` in "
+            "rover_m2020.yaml. Required since R2-4a."
         ),
     )
     odom_covariance: OdometryCovarianceConfig = Field(

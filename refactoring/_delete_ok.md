@@ -2,7 +2,7 @@
 title: Phase 1 감사 종료 시점 삭제 가능 파일 목록 (제안)
 last_updated: 2026-04-21
 scope: ~/MarsLab/ 전체
-status: T6 초판
+status: 2026-04-23 — R4/R8+P1 master refactor 반영 후 업데이트
 important: 본 문서는 제안 목록. 실제 삭제는 사용자 승인 후에만 수행.
 ---
 
@@ -110,17 +110,6 @@ Python/테스트/빌드 도구가 실행 시 자동 재생성하므로, 삭제�
 
 삭제 제안 대상이 아니며, 재확인 목적.
 
-- **`work_log/*.png` 등 중간 산출 이미지 (14개)**: `feedback_no_delete_comment` 정책상 삭제 금지. 주요 파일:
-  - `work_log/atmosphere_visualization.png`
-  - `work_log/procedural_terrain_visualization.png`
-  - `work_log/terrain_visualization.png`, `terrain_visualization_full.png`
-  - `work_log/mars_scene_v1.png`
-  - `work_log/rover_generation/depth_noise.png`
-  - `work_log/scene_generation/cerberus_*.png` (4개)
-  - `work_log/scene_generation/cave_preview*.png` (2개)
-  - `work_log/scene_generation/dem_regions_overview.png`
-  - `work_log/scene_generation/dynamic_atmosphere_visualization.png`
-  - `work_log/scene_generation/procedural_canyon_preview.png`
 - **`Instruction/` (대문자)**: Isaac Sim 학습용 instruction 위키 (332 KB). `feedback_instruction_wiki_pattern` 에 명시된 프로젝트 필수 컴포넌트. **삭제 금지**.
 - **`tests/integration/test_robot_spawn.py`**: 위 D 참조. THE critical test 파일 — **삭제 금지**.
 - **`assets/terrain/dem/.gitkeep`**: 디렉터리 구조 보존용.

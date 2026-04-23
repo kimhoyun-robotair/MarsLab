@@ -209,11 +209,6 @@ class RenderingConfig(BaseModel):
     resolution: list[int] = Field(
         default=[1280, 720], min_length=2, max_length=2, description="[width, height] in pixels"
     )
-    # R2-A1 (2026-04-22) deprecated in favour of PathTracingConfig.spp.
-    # Kept as a comment for feedback_no_delete_comment:
-    # spp: int = Field(default=32, ge=1, le=256, description="Samples per pixel per frame")
-    # total_spp: int = Field(default=256, ge=1, description="Total accumulated samples")
-    # max_bounces: int = Field(default=8, ge=1, le=64, description="Max ray bounces")
     sun_intensity_scale: float = Field(
         default=30.0, ge=0.1, description="W/m^2 to Isaac Sim light units scale factor"
     )
@@ -261,23 +256,6 @@ class RenderingConfig(BaseModel):
     ray_tracing: RayTracingConfig = Field(default_factory=RayTracingConfig)
     path_tracing: PathTracingConfig = Field(default_factory=PathTracingConfig)
     sky_dome: SkyDomeConfig = Field(default_factory=SkyDomeConfig)
-
-    # --- R3 flat fields (R2-A1 deprecated, kept commented) --------------
-    # The R3 commit (2026-04-22) originally declared these as top-level
-    # fields. R2-A1 groups them under ``fog`` / ``ray_tracing`` /
-    # ``path_tracing``. Definitions retained here so the migration is
-    # obvious in source review (feedback_no_delete_comment):
-    #
-    # antialiasing_op: int = Field(default=3, ge=0, le=5)
-    # dlss_exec_mode: int = Field(default=1, ge=0, le=3)
-    # denoiser_indirect_diffuse: bool = Field(default=True)
-    # denoiser_reflections: bool = Field(default=True)
-    # denoiser_optix_pathtracing: bool = Field(default=True)
-    # fog_enabled: bool = Field(default=True)
-    # fog_color_amount: float = Field(default=1.0, ge=0.0, le=1.0)
-    # fog_start_height: float = Field(default=0.0)
-    # fog_height_falloff: float = Field(default=0.01, ge=0.0)
-    # fog_height_density_ratio: float = Field(default=0.5, ge=0.0, le=2.0)
 
     @model_validator(mode="before")
     @classmethod

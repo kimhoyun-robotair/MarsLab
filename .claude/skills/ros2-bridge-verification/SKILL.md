@@ -17,10 +17,10 @@ ROS2 브리지의 버그는 다운스트림 SLAM·Nav2가 통째로 실패하게
 
   | 토픽 | 타입 | 방향 | 레이트(Hz) | QoS | publisher 코드 | subscriber/소비자 |
   |------|------|------|----------|-----|--------------|----------------|
-  | `/rover_0/cmd_vel` | `geometry_msgs/Twist` | 외부→sim | 10 | reliable, depth=10 | cmd_vel_subscriber.py | wheel control |
-  | `/rover_0/odom` | `nav_msgs/Odometry` | sim→외부 | 30 | reliable | odometry.py | SLAM |
+  | `/rover/cmd_vel` | `geometry_msgs/Twist` | 외부→sim | 10 | reliable, depth=10 | cmd_vel_subscriber.py | wheel control |
+  | `/rover/odom` | `nav_msgs/Odometry` | sim→외부 | 30 | reliable | odometry.py | SLAM |
   | `/tf` | `tf2_msgs/TFMessage` | sim→외부 | 30 | reliable | tf_broadcaster.py | Nav2 |
-  | `/rover_0/rgb/image_raw` | `sensor_msgs/Image` | sim→외부 | 10 | best_effort | publisher.py | perception |
+  | `/rover/rgb/image_raw` | `sensor_msgs/Image` | sim→외부 | 10 | best_effort | publisher.py | perception |
   | ... | | | | | | |
 
 - 이 문서가 `slam-nav-integrator`와 `robotics-mobility-lead` 사이의 진실 공급원.
@@ -37,8 +37,8 @@ ROS2 브리지의 버그는 다운스트림 SLAM·Nav2가 통째로 실패하게
 사용자에게 다음 명령 실행 요청:
 ```
 ros2 topic list
-ros2 topic hz /rover_0/odom
-ros2 topic hz /rover_0/rgb/image_raw
+ros2 topic hz /rover/odom
+ros2 topic hz /rover/rgb/image_raw
 ros2 topic echo /tf --once
 ros2 run tf2_tools view_frames
 ```

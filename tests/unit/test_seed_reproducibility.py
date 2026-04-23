@@ -7,7 +7,7 @@ the same master seed. This is a MUST requirement per PLAN.md.
 import numpy as np
 
 from marslab.config.loader import propagate_seeds
-from marslab.config.schema import BenchmarkConfig, MarsEnvConfig, MarsLabConfig, TerrainConfig
+from marslab.config.schema import MarsEnvConfig, MarsLabConfig, TerrainConfig  # noqa: F401
 from marslab.environment.diffuse_fraction import compute_diffuse_fraction
 from marslab.environment.light_intensity import compute_direct_intensity
 from marslab.environment.sky_dome import compute_sky_dome_params
@@ -21,7 +21,6 @@ def _run_pipeline(master_seed: int) -> dict:
     config = MarsLabConfig(
         mars_env=MarsEnvConfig(),
         terrain=TerrainConfig(source="procedural", procedural_preset="crater"),
-        benchmark=BenchmarkConfig(),
     )
     config = propagate_seeds(config, master_seed=master_seed)
 
@@ -90,12 +89,10 @@ def test_seed_propagation_offsets():
     """Propagated seeds are deterministic offsets from master."""
     config = MarsLabConfig(
         terrain=TerrainConfig(source="procedural", procedural_preset="flat"),
-        benchmark=BenchmarkConfig(),
     )
     c1 = propagate_seeds(config, master_seed=42)
     c2 = propagate_seeds(config, master_seed=42)
 
     assert c1.mars_env.seed == c2.mars_env.seed
     assert c1.terrain.seed == c2.terrain.seed
-    assert c1.benchmark.seed == c2.benchmark.seed
     assert c1.terrain.seed == c1.mars_env.seed + 1

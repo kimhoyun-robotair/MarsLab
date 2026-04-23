@@ -9,7 +9,78 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-__all__ = ["CaveConfig", "DemCropConfig", "TerrainConfig"]
+__all__ = ["CaveConfig", "CaveGeometryConfig", "DemCropConfig", "TerrainConfig"]
+
+
+class CaveGeometryConfig(BaseModel):
+    """Fine-grained cave geometry knobs surfaced to YAML (R5).
+
+    The top-level :class:`CaveConfig` already exposes the high-impact
+    cave parameters (tube width, curvature, skylight counts, etc.).
+    This nested block surfaces nine additional tuning parameters that
+    previously lived as in-code constants so scenario YAMLs can adjust
+    centerline sweep shape and surface-cap noise without patching
+    Python.
+
+    YAMLs that omit the ``geometry`` block keep the previous behaviour
+    by virtue of the defaults below.
+    """
+
+    centerline_path_length_factor: float = Field(
+        default=1.1,
+        gt=0,
+        description="Path length multiplier vs. longest domain side.",
+    )
+    centerline_freq_ratio_secondary: float = Field(
+        default=2.3,
+        gt=0,
+        description="Secondary harmonic frequency as a ratio of the primary.",
+    )
+    centerline_secondary_amp_ratio: float = Field(
+        default=0.3,
+        ge=0,
+        description="Secondary harmonic amplitude as a fraction of the primary.",
+    )
+    centerline_amp_domain_ratio: float = Field(
+        default=0.15,
+        ge=0,
+        description="Primary perturbation amplitude as a fraction of the short domain side.",
+    )
+    cross_section_smooth_sigma: tuple[float, float] = Field(
+        default=(3.0, 2.0),
+        description="gaussian_filter sigma for (stations, ring) on cross-section noise.",
+    )
+    floor_debris_height_scale: float = Field(
+        default=0.3,
+        ge=0,
+        description="Height scale factor applied to smoothed floor debris noise.",
+    )
+    surface_noise_sigma: float = Field(
+        default=10.0,
+        gt=0,
+        description="Gaussian sigma for surface-cap elevation noise.",
+    )
+    surface_noise_amplitude_m: float = Field(
+        default=2.0,
+        ge=0,
+        description="Peak-ish amplitude (sigma-normalized) of surface noise in meters.",
+    )
+    debris_cone_diameter_ratio: float = Field(
+        default=0.15,
+        gt=0,
+        description="Debris cone base diameter as a fraction of the tube width.",
+    )
+
+    @model_validator(mode="after")
+    def check_smooth_sigma(self) -> "CaveGeometryConfig":
+        """Ensure both gaussian sigmas are positive."""
+        sig_stations, sig_ring = self.cross_section_smooth_sigma
+        if sig_stations <= 0 or sig_ring <= 0:
+            raise ValueError(
+                "cross_section_smooth_sigma entries must both be > 0, "
+                f"got {self.cross_section_smooth_sigma}"
+            )
+        return self
 
 
 class DemCropConfig(BaseModel):
@@ -149,6 +220,13 @@ class CaveConfig(BaseModel):
         ge=20,
         le=400,
         description="Number of cross-sections along the tube centerline",
+    )
+    geometry: CaveGeometryConfig = Field(
+        default_factory=CaveGeometryConfig,
+        description=(
+            "Fine-grained centerline/surface/debris geometry knobs (R5). "
+            "Omit to keep pre-R5 defaults."
+        ),
     )
 
     @model_validator(mode="after")

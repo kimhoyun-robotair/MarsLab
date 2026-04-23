@@ -45,8 +45,6 @@ Usage:
     scripts/isaac_python.sh scripts/phase1/run_stage3_monolithic.py \\
         --config configs/scenarios/jezero_flat.yaml 2>&1 | tee ~/stage3.log
 """
-
-import argparse  # noqa: F401  # kept for DISABLED block type reference
 import os
 import sys
 from typing import Any, Dict, List, Tuple
@@ -55,20 +53,16 @@ import numpy as np
 import yaml  # noqa: F401  (kept for parity with run_stage1; unused directly)
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-PHASE1_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # marslab.* imports require the repo root on sys.path.
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-# Ensure scripts/phase1/ is importable for the ackermann module.
-if PHASE1_DIR not in sys.path:
-    sys.path.insert(0, PHASE1_DIR)
-
-from ackermann import ackermann_command  # noqa: E402
-
+# R1-6a: dict-level seed propagation so terrain.seed == mars_env.seed + 1 (G7).
+# Oracle (run_stage3_monolithic.py) skips this — paper experiments use twin only.
 # Stage 3 CLI parser (pure argparse, no Isaac Sim) — R3-A2 extraction.
 from marslab.cli.stage3_args import parse_stage3_args  # noqa: E402
+from marslab.config.loader import propagate_seeds_in_dict  # noqa: E402
 
 # scenario_loader is pure-Python (no Isaac Sim) — safe at module scope.
 from marslab.config.scenario_loader import (  # noqa: E402
@@ -76,11 +70,19 @@ from marslab.config.scenario_loader import (  # noqa: E402
     resolve_spawn_pose,
 )
 
-# R3-A1: rpy_to_quat relocated to marslab.math.quaternion (single source
-# of truth).  The local definition below is DISABLED but preserved as a
-# comment per feedback_no_delete_comment.  marslab.math is pure-NumPy so
-# it is safe at module scope (no Isaac Sim bootstrap required).
 from marslab.math.quaternion import rpy_to_quat  # noqa: E402, F401
+from marslab.robots.rover_control import ackermann_command  # noqa: E402
+
+# R6-1: main-loop body extracted to marslab.runtime.main_loop.  The twin
+# constructs the LoopContext below and delegates the per-step body.
+from marslab.runtime.main_loop import (  # noqa: E402
+    AtmosphereLoopState,
+    ControlState,
+    LoopContext,
+    OdomPublishState,
+    quat_inverse,
+    run_main_loop,
+)
 
 # Runtime prechecks factored out of the inline guards below (R3-A4).
 from marslab.runtime.precheck import (  # noqa: E402
@@ -121,27 +123,6 @@ def clamp_twist(v: float, w: float, v_max: float, w_max: float) -> Tuple[float, 
     return clamp(v, -v_max, v_max), clamp(w, -w_max, w_max)
 
 
-# DISABLED (moved_to_marslab_math_R3-A1): original local rpy_to_quat definition.
-# def rpy_to_quat(roll: float, pitch: float, yaw: float) -> Tuple[float, float, float, float]:
-#     """Convert roll-pitch-yaw (radians) to quaternion (w, x, y, z).
-#
-#     Uses the ZYX intrinsic convention (yaw around Z, then pitch around Y,
-#     then roll around X) which is the standard for URDF and ROS.
-#
-#     Returns:
-#         ``(w, x, y, z)`` tuple with scalar-first quaternion.
-#     """
-#     cr, sr = np.cos(roll / 2.0), np.sin(roll / 2.0)
-#     cp, sp = np.cos(pitch / 2.0), np.sin(pitch / 2.0)
-#     cy, sy = np.cos(yaw / 2.0), np.sin(yaw / 2.0)
-#
-#     w = cr * cp * cy + sr * sp * sy
-#     x = sr * cp * cy - cr * sp * sy
-#     y = cr * sp * cy + sr * cp * sy
-#     z = cr * cp * sy - sr * sp * cy
-#     return float(w), float(x), float(y), float(z)
-
-
 def resolve_joint_indices(dof_names: List[str], requested: List[str]) -> List[int]:
     """Resolve each requested joint name to its index inside ``dof_names``.
 
@@ -166,132 +147,6 @@ def resolve_joint_indices(dof_names: List[str], requested: List[str]) -> List[in
 
 
 # =============================================================================
-# Terrain elevation loader — verbatim from run_stage2.py L67-144.
-# =============================================================================
-
-
-# DISABLED (moved_to_marslab_terrain_loader_R3-A3): the local copy
-# duplicated marslab.terrain.elevation_loader.load_terrain_elevation().
-# Call sites below now use load_scenario_terrain() from
-# marslab.terrain.terrain_loader. Preserved as a comment per
-# feedback_no_delete_comment so reviewers can see the previous inline
-# definition alongside the new facade call.
-#
-# def load_terrain_elevation(
-#     terrain_cfg: Dict[str, Any],
-# ) -> tuple[np.ndarray, dict, float]:
-#     """Load terrain elevation from config (procedural or HiRISE DEM).
-#
-#     Args:
-#         terrain_cfg: The ``terrain`` section of the config.
-#
-#     Returns:
-#         Tuple of (elevation, metadata, resolution).
-#
-#     Raises:
-#         ValueError: If terrain source is unknown or misconfigured.
-#     """
-#     source = terrain_cfg.get("source", "procedural")
-#     resolution = float(terrain_cfg.get("terrain_resolution", 1.0))
-#
-#     if source == "procedural":
-#         preset = terrain_cfg.get("procedural_preset", "flat")
-#         size = tuple(terrain_cfg.get("terrain_size", [256, 256]))
-#         seed = int(terrain_cfg.get("seed", 42))
-#
-#         if preset == "cave":
-#             # Cave returns surface elevation only; 3D mesh built later
-#             from marslab.terrain.cave_generator import generate_cave_mesh
-#
-#             cave_cfg = terrain_cfg.get("cave", {})
-#             # wall_albedo_range is a material param, not geometry — exclude from mesh gen
-#             geom_cfg = {k: v for k, v in cave_cfg.items() if k != "wall_albedo_range"}
-#             cave_data = generate_cave_mesh(
-#                 domain_size=size,
-#                 resolution=resolution,
-#                 seed=seed,
-#                 **geom_cfg,
-#             )
-#             elevation = cave_data["surface_elevation"]
-#             metadata = cave_data["metadata"]
-#             # Stash cave_data in terrain_cfg for scene building stage
-#             terrain_cfg["_cave_data"] = cave_data
-#         else:
-#             from marslab.terrain.procedural_generator import generate_terrain
-#
-#             # Collect preset-specific params (e.g. canyon_depth, canyon_floor_width)
-#             preset_params = {k: v for k, v in terrain_cfg.items() if k.startswith("canyon_")}
-#             elevation, metadata = generate_terrain(
-#                 preset,
-#                 size,
-#                 resolution,
-#                 seed,
-#                 kwargs=preset_params,
-#             )
-#
-#     elif source == "hirise":
-#         from marslab.terrain.dem_loader import crop_dem, load_converted_dem
-#
-#         converted_dir = terrain_cfg.get("converted_dem_dir")
-#         if converted_dir is None:
-#             raise ValueError("terrain.converted_dem_dir required for source='hirise'")
-#
-#         dem_dir = os.path.join(REPO_ROOT, converted_dir)
-#         elevation, metadata = load_converted_dem(dem_dir)
-#         resolution = float(metadata.get("resolution_x", resolution))
-#
-#         # Apply optional crop
-#         crop = terrain_cfg.get("dem_crop")
-#         if crop is not None:
-#             elevation, metadata = crop_dem(
-#                 elevation,
-#                 metadata,
-#                 row=int(crop["row"]),
-#                 col=int(crop["col"]),
-#                 height=int(crop["height"]),
-#                 width=int(crop["width"]),
-#             )
-#     else:
-#         raise ValueError(f"Unknown terrain source: '{source}'")
-#
-#     return elevation, metadata, resolution
-
-
-# =============================================================================
-# CLI
-# =============================================================================
-
-
-# DISABLED (moved_to_marslab_cli_R3-A2): argparse block relocated to
-# marslab.cli.stage3_args.parse_stage3_args. The Oracle
-# (run_stage3_monolithic.py) retains the original; this writable twin
-# delegates to the shared parser. args.config.strip() is preserved at the
-# call site (main()) per R3-A2 design note (parser stays pure).
-# def parse_args() -> argparse.Namespace:
-#     parser = argparse.ArgumentParser(description=__doc__)
-#     parser.add_argument(
-#         "--config",
-#         required=True,
-#         help="Path to Stage 3 scenario YAML (e.g. configs/scenarios/jezero_flat.yaml).",
-#     )
-#     parser.add_argument(
-#         "--headless",
-#         action="store_true",
-#         help="Run Isaac Sim without the GUI. Default is GUI mode.",
-#     )
-#     parser.add_argument(
-#         "--no-ros2",
-#         action="store_true",
-#         help="Skip rclpy / OmniGraph ROS2 bridge (offline rover+scene diagnostic).",
-#     )
-#     args = parser.parse_args()
-#     # Strip whitespace — CLI paste often leaves trailing \n or ` 2>&1` debris
-#     # (see plan § 10.4).
-#     args.config = args.config.strip()
-#     return args
-
-
-# =============================================================================
 # main()
 # =============================================================================
 
@@ -307,24 +162,13 @@ def main() -> int:
     # -------------------------------------------------------------------------
     config_path = os.path.abspath(args.config)
     cfg = load_scenario_config(config_path)
+    cfg = propagate_seeds_in_dict(cfg)
     print(f"[run_stage3_mono] Loaded scenario: {config_path}", flush=True)
 
     mars_cfg = cfg["mars_env"]
     terrain_cfg = cfg["terrain"]
     rendering_cfg = cfg["rendering"]
     rover_cfg = cfg.get("rover") or {}
-    # DISABLED (moved_to_marslab_runtime_R3-A4): inline rover-block guard
-    # replaced by marslab.runtime.precheck.check_rover_block(). Preserved
-    # as a comment per feedback_no_delete_comment so the original
-    # print + return-code path stays visible.
-    #
-    # if not rover_cfg:
-    #     print(
-    #         "[run_stage3_mono] FATAL: scenario has no 'rover' block. "
-    #         "Stage 3 monolithic requires a rover; use run_stage2.py for scene-only.",
-    #         file=sys.stderr,
-    #     )
-    #     return 2
     check_rover_block(rover_cfg)
     sensors_cfg = rover_cfg["sensors"]
     control_cfg = rover_cfg["control"]
@@ -377,17 +221,6 @@ def main() -> int:
     usd_abs = (
         usd_rel if os.path.isabs(usd_rel) else os.path.abspath(os.path.join(REPO_ROOT, usd_rel))
     )
-    # DISABLED (moved_to_marslab_runtime_R3-A4): inline USD existence guard
-    # replaced by marslab.runtime.precheck.check_rover_usd(). Preserved
-    # per feedback_no_delete_comment.
-    #
-    # if not os.path.isfile(usd_abs):
-    #     print(
-    #         f"[run_stage3_mono] Rover USD missing: {usd_abs}. "
-    #         f"Run scripts/phase1/convert_urdf_to_usd.py first.",
-    #         file=sys.stderr,
-    #     )
-    #     return 3
     check_rover_usd(usd_abs)
 
     # -------------------------------------------------------------------------
@@ -397,24 +230,8 @@ def main() -> int:
 
     simulation_app = boot_simulation_app(headless=bool(args.headless))
 
-    # DISABLED R4-1 (2026-04-22): moved to marslab.sim.boot.boot_simulation_app.
-    # Retained as comment per feedback_no_delete_comment.
-    #
-    # from isaacsim import SimulationApp  # noqa: E402
-    # simulation_app = SimulationApp(
-    #     {"headless": bool(args.headless), "renderer": "RaytracedLighting"}
-    # )
-
     # All omni.* / isaacsim.* / rclpy imports must come AFTER SimulationApp().
     import omni.graph.core as og  # noqa: E402
-    import omni.usd  # noqa: E402,F401  # kept for parity with DISABLED R4-1 block
-
-    # DISABLED R4-1 (2026-04-22): enable_extension + simulation_app.update()
-    # moved into marslab.sim.boot.boot_simulation_app.
-    #
-    # from isaacsim.core.utils.extensions import enable_extension  # noqa: E402
-    # enable_extension("isaacsim.ros2.bridge")
-    # simulation_app.update()
     import rclpy  # noqa: E402
     import rclpy.parameter  # noqa: E402
     from geometry_msgs.msg import TransformStamped, Twist  # noqa: E402
@@ -433,7 +250,13 @@ def main() -> int:
     from marslab.sim.world_setup import create_world  # noqa: E402
 
     physics_dt = 1.0 / 60.0
-    gravity = float(mars_cfg.get("gravity", 3.72))
+    # G5 (2026-04-23): ``MarsEnvConfig.gravity`` already defaults to 3.72 via
+    # pydantic; reading via ``mars_cfg["gravity"]`` raises ``KeyError`` loudly if
+    # the YAML block is malformed, matching the R2-A3 / R2-4a "no Python-literal
+    # fallback" precedent. Oracle (``run_stage3_monolithic.py:376``) retains the
+    # legacy ``.get(..., 3.72)`` because its md5 is frozen; paper experiments
+    # run through the twin.
+    gravity = float(mars_cfg["gravity"])
     world, stage = create_world(physics_dt=physics_dt, gravity=gravity)
     # NOTE: intentionally NOT calling world.scene.add_default_ground_plane().
     # Terrain mesh (DEM/procedural/cave) replaces the default ground.
@@ -442,33 +265,6 @@ def main() -> int:
         "[run_stage3_mono] Solver iterations: pos=16, vel=4 on /physicsScene",
         flush=True,
     )
-
-    # DISABLED R4-1 (2026-04-22): inline world creation + gravity + solver
-    # iteration count block moved to marslab.sim.world_setup.create_world.
-    # Retained as comment per feedback_no_delete_comment.
-    #
-    # world = World(
-    #     stage_units_in_meters=1.0,
-    #     physics_dt=physics_dt,
-    #     rendering_dt=physics_dt,
-    # )
-    # physics_ctx = world.get_physics_context()
-    # physics_ctx.set_gravity(-gravity)
-    # physics_ctx.set_solver_type("TGS")
-    # stage = omni.usd.get_context().get_stage()
-    # physics_scene_prim = stage.GetPrimAtPath("/physicsScene")
-    # if physics_scene_prim.IsValid():
-    #     physics_scene_prim.CreateAttribute(
-    #         "physxScene:solverPositionIterationCount", Sdf.ValueTypeNames.Int
-    #     ).Set(16)
-    #     physics_scene_prim.CreateAttribute(
-    #         "physxScene:solverVelocityIterationCount", Sdf.ValueTypeNames.Int
-    #     ).Set(4)
-    # else:
-    #     print(
-    #         "[run_stage3_mono] WARNING: /physicsScene not found; default solver iterations.",
-    #         file=sys.stderr,
-    #     )
 
     # -------------------------------------------------------------------------
     # § 7.12  Terrain + material + rocks (run_stage2.py L230-349 verbatim).
@@ -609,22 +405,6 @@ def main() -> int:
     print("[run_stage3_mono] Atmosphere configured (sun + sky + fog).", flush=True)
 
     # --- Dynamic atmosphere setup (R2-A2: pydantic, run_stage2 parity) -----
-    # R2-A2 (2026-04-22): mirrors the run_stage2 migration from nested
-    # ``dict.get()`` to ``DynamicAtmosphereConfig`` attribute access.
-    # Oracle ``run_stage3_monolithic.py`` keeps the legacy dict path per
-    # the refactor constraint; only the editable ``_new`` twin changes
-    # here.
-    # DISABLED (dict.get fallback, R2-A2): see Oracle for reference.
-    #
-    # dyn_cfg = mars_cfg.get("dynamic_atmosphere", {})
-    # dynamic_enabled = bool(dyn_cfg.get("enabled", False))
-    # if dynamic_enabled:
-    #     time_scale = float(dyn_cfg.get("time_scale", 200.0))
-    #     update_interval = int(dyn_cfg.get("update_interval_frames", 10))
-    #     sun_sweep_cfg = dyn_cfg.get("sun_sweep", {})
-    #     sweep_start_az = float(sun_sweep_cfg.get("start_azimuth_deg", 90.0))
-    #     sweep_end_az = float(sun_sweep_cfg.get("end_azimuth_deg", 270.0))
-    #     sweep_max_el = float(sun_sweep_cfg.get("max_elevation_deg", 60.0))
     from marslab.config.schema import DynamicAtmosphereConfig
 
     dyn = DynamicAtmosphereConfig(**mars_cfg.get("dynamic_atmosphere", {}))
@@ -779,128 +559,38 @@ def main() -> int:
         )
 
     # -------------------------------------------------------------------------
+    # § 7.16b  Scene structures (P1-1c, 2026-04-23).
+    # -------------------------------------------------------------------------
+    # Static USD dressing for the spacecraft landing / Mars base
+    # scenarios.  Scenarios without a ``scene.structures`` block skip
+    # this step entirely; those that declare structures attach each
+    # USD under ``/World/Structures/{name}``.
+    scene_cfg = cfg.get("scene") or {}
+    scene_structures = scene_cfg.get("structures") if isinstance(scene_cfg, dict) else None
+    if scene_structures:
+        from marslab.config.schema.scene import StructureConfigSchema
+        from marslab.scene.structure_loader import load_structures as _load_structures
+
+        structure_cfgs = [StructureConfigSchema(**s).to_dataclass() for s in scene_structures]
+        _prim_paths = _load_structures(stage, structure_cfgs)
+        print(
+            f"[run_stage3_mono] Attached {len(_prim_paths)} scene structure(s): "
+            f"{[p.rsplit('/', 1)[-1] for p in _prim_paths]}",
+            flush=True,
+        )
+
+    # -------------------------------------------------------------------------
     # § 7.17  Sensors (run_stage1.py L372-441, lidar key remap only).
     # -------------------------------------------------------------------------
     camera_cfg = sensors_cfg["camera"]
     # Stage-3 config uses "lidar_3d"; Stage-1 phase1.yaml used "lidar".
     # Accept either so this file remains a drop-in for both schemas.
     lidar_cfg = sensors_cfg.get("lidar_3d") or sensors_cfg.get("lidar")
-    # DISABLED (moved_to_marslab_runtime_R3-A4): inline lidar-block guard
-    # replaced by marslab.runtime.precheck.check_lidar_cfg(). The precheck
-    # raises ValueError so the Isaac Sim app is still torn down here to
-    # preserve the Oracle's "close sim before exit" behaviour. Preserved
-    # per feedback_no_delete_comment.
-    #
-    # if lidar_cfg is None:
-    #     print(
-    #         "[run_stage3_mono] FATAL: sensors block has no 'lidar_3d' or 'lidar'.",
-    #         file=sys.stderr,
-    #     )
-    #     simulation_app.close()
-    #     return 4
     try:
         check_lidar_cfg(lidar_cfg)
     except ValueError:
         simulation_app.close()
         raise
-    # DISABLED R4-2 (2026-04-22): moved to marslab.sensors.sensor_spawner.
-    # The inline camera / 3D LiDAR / optional 2D LiDAR / IMU spawn block
-    # (previously L806-892) was extracted into
-    # ``marslab.sensors.sensor_spawner.spawn_sensors`` so this runtime no
-    # longer imports ``isaacsim.sensors.*`` directly.  The replacement
-    # below is a single orchestrator call; ``spawn_sensors`` returns a
-    # :class:`SensorHandles` that we unpack into the same local names the
-    # downstream §7.18 OmniGraph / §7.24 TF / §7.30 main-loop blocks
-    # already reference, so nothing else on this page changes.
-    # Preserved verbatim per feedback_no_delete_comment.
-    #
-    # imu_cfg = sensors_cfg["imu"]
-    #
-    # from isaacsim.sensors.camera import Camera  # noqa: E402
-    # from isaacsim.sensors.physics import IMUSensor  # noqa: E402
-    # from isaacsim.sensors.rtx import LidarRtx  # noqa: E402
-    #
-    # # Camera orientation strategy: ANY xformOp modification on the Camera
-    # # prim itself corrupts the RTX depth pipeline (vertical striping).
-    # # Tested and failed: constructor orientation, AddOrientOp, set_local_pose.
-    # # Fix: place translation + orientation on a PARENT Xform prim. The Camera
-    # # prim has no xformOps of its own, but inherits the correct world-space
-    # # transform from the parent chain.
-    # cam_orient_deg = camera_cfg.get("local_orientation_rpy_deg", [0.0, 0.0, 0.0])
-    # has_cam_orient = any(abs(v) > 0.01 for v in cam_orient_deg)
-    #
-    # if has_cam_orient:
-    #     cam_qw, cam_qx, cam_qy, cam_qz = rpy_to_quat(
-    #         np.radians(float(cam_orient_deg[0])),
-    #         np.radians(float(cam_orient_deg[1])),
-    #         np.radians(float(cam_orient_deg[2])),
-    #     )
-    #     camera_xform_path = f"{rigid_body_path}/stage1_camera_xform"
-    #     camera_xform = UsdGeom.Xform.Define(stage, camera_xform_path)
-    #     camera_xform.ClearXformOpOrder()
-    #     cx_translate = camera_xform.AddTranslateOp()
-    #     cx_translate.Set(Gf.Vec3d(*[float(x) for x in camera_cfg["local_translation"]]))
-    #     cx_orient = camera_xform.AddOrientOp()
-    #     cx_orient.Set(Gf.Quatf(float(cam_qw), float(cam_qx), float(cam_qy), float(cam_qz)))
-    #     camera_prim_path = f"{camera_xform_path}/stage1_camera"
-    #     print(
-    #         f"[run_stage3_mono] Camera parent Xform: {camera_xform_path} "
-    #         f"rpy_deg={cam_orient_deg}",
-    #         flush=True,
-    #     )
-    # else:
-    #     camera_prim_path = f"{rigid_body_path}/stage1_camera"
-    #
-    # camera = Camera(
-    #     prim_path=camera_prim_path,
-    #     resolution=tuple(camera_cfg["resolution"]),
-    #     # Translation/orientation on parent Xform if oriented, else on Camera.
-    #     translation=(
-    #         None
-    #         if has_cam_orient
-    #         else np.asarray(camera_cfg["local_translation"], dtype=np.float32)
-    #     ),
-    # )
-    # camera.initialize()
-    # camera.set_focal_length(float(camera_cfg["focal_length"]) / 10.0)
-    # camera.set_clipping_range(
-    #     float(camera_cfg["clipping_range"][0]), float(camera_cfg["clipping_range"][1])
-    # )
-    #
-    # lidar_prim_path = f"{rigid_body_path}/stage1_lidar"
-    # lidar = LidarRtx(  # noqa: F841  (handle kept alive for extension lifetime)
-    #     prim_path=lidar_prim_path,
-    #     config_file_name=lidar_cfg["profile"],
-    #     translation=np.asarray(lidar_cfg["local_translation"], dtype=np.float32),
-    # )
-    # lidar.initialize()
-    #
-    # # 2D LiDAR (LaserScan) — optional, mirrors the 3D LiDAR pipeline.
-    # # config_file_name receives the Isaac-Sim bundled profile *name* only
-    # # (e.g. "Example_Rotary_2D"), never a filesystem path (§10.8 regression).
-    # lidar_2d_cfg = sensors_cfg.get("lidar_2d")
-    # lidar_2d_prim_path = None
-    # if lidar_2d_cfg is not None:
-    #     lidar_2d_prim_path = f"{rigid_body_path}/stage1_lidar_2d"
-    #     lidar_2d = LidarRtx(  # noqa: F841  (handle kept alive for extension lifetime)
-    #         prim_path=lidar_2d_prim_path,
-    #         config_file_name=lidar_2d_cfg["profile"],
-    #         translation=np.asarray(lidar_2d_cfg["local_translation"], dtype=np.float32),
-    #     )
-    #     lidar_2d.initialize()
-    #     print(
-    #         f"[run_stage3_mono] 2D LiDAR attached at {lidar_2d_prim_path} "
-    #         f"profile='{lidar_2d_cfg['profile']}'",
-    #         flush=True,
-    #     )
-    #
-    # imu_prim_path = f"{rigid_body_path}/stage1_imu"
-    # imu = IMUSensor(
-    #     prim_path=imu_prim_path,
-    #     translation=np.asarray(imu_cfg["local_translation"], dtype=np.float32),
-    #     frequency=int(ros2_cfg["rates"]["imu"]),
-    # )
-    # imu.initialize()
     imu_cfg = sensors_cfg["imu"]
     lidar_2d_cfg = sensors_cfg.get("lidar_2d")
 
@@ -1333,273 +1023,114 @@ def main() -> int:
             flush=True,
         )
 
-    # Pure quaternion helpers (closed over odom_init_quat).
-    def quat_inverse(q: np.ndarray) -> np.ndarray:
-        """Return inverse of unit quaternion [w, x, y, z]."""
-        return np.array([q[0], -q[1], -q[2], -q[3]], dtype=np.float32)
-
-    def quat_multiply(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
-        """Hamilton product of two [w, x, y, z] quaternions."""
-        w1, x1, y1, z1 = q1
-        w2, x2, y2, z2 = q2
-        return np.array(
-            [
-                w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
-                w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
-                w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-                w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-            ],
-            dtype=np.float32,
-        )
-
-    def quat_rotate_vec(q: np.ndarray, v: np.ndarray) -> np.ndarray:
-        """Rotate vector v by quaternion q ([w,x,y,z])."""
-        v_quat = np.array([0.0, v[0], v[1], v[2]], dtype=np.float32)
-        q_inv = quat_inverse(q)
-        result = quat_multiply(quat_multiply(q, v_quat), q_inv)
-        return result[1:4]
-
+    # R6-1: quaternion helpers moved to marslab.runtime.main_loop.  The twin
+    # only needs the ``odom_init_quat_inv`` pre-computation here so the
+    # LoopContext below receives a fully-populated OdomPublishState.
     odom_init_quat_inv = quat_inverse(odom_init_quat)
 
     # -------------------------------------------------------------------------
-    # § 7.23  Main loop (run_stage1.py L858-1132 verbatim; prefixes adapted).
+    # § 7.23  Main loop — delegated to marslab.runtime.main_loop (R6-1).
     # -------------------------------------------------------------------------
-    drive_idx_arr = np.asarray(drive_indices, dtype=np.int32)
-    steer_idx_arr = np.asarray(steer_indices, dtype=np.int32)
-
-    # Sign convention: 180° X-roll inverts steer Z-axis direction.
     negate_steer = bool(control_cfg.get("negate_steer", False))
     if negate_steer:
         print("[run_stage3_mono] negate_steer=True: inverting steer angles.", flush=True)
 
     debug_logging = bool(control_cfg.get("debug_logging", False))
-    step_count = 0
-
-    # Velocity ramp: limits per-step change in wheel speed targets to prevent
-    # the massive impulse that occurs when set_joint_velocity_targets jumps
-    # from 0 to 0.375 with high kd in acceleration mode.
-    n_drive = len(drive_indices)
-    current_drive_targets = np.zeros(n_drive, dtype=np.float32)
     max_wheel_accel_rate = float(control_cfg.get("max_wheel_accel_rate", 0.5))
-    per_step_limit = max_wheel_accel_rate * physics_dt
     decel_multiplier = float(control_cfg.get("decel_multiplier", 1.0))
+    max_steer_angle = float(control_cfg.get("max_steer_angle", 0.7))
+    steer_ramp_rate = float(control_cfg.get("steer_ramp_rate", 2.0))
+
     if max_wheel_accel_rate > 0:
         print(
             f"[run_stage3_mono] Velocity ramp: max_wheel_accel_rate={max_wheel_accel_rate} rad/s², "
-            f"per_step_limit={per_step_limit:.6f} rad/s, decel_mult={decel_multiplier}",
+            f"per_step_limit={max_wheel_accel_rate * physics_dt:.6f} rad/s, "
+            f"decel_mult={decel_multiplier}",
             flush=True,
         )
-
-    # Steer angle limits and ramp.
-    max_steer_angle = float(control_cfg.get("max_steer_angle", 0.7))
-    steer_ramp_rate = float(control_cfg.get("steer_ramp_rate", 2.0))
-    n_steer = len(steer_indices)
-    current_steer_targets = np.zeros(n_steer, dtype=np.float32)
-    steer_per_step_limit = steer_ramp_rate * physics_dt
     print(
         f"[run_stage3_mono] Steer limits: max_angle={max_steer_angle:.2f} rad "
         f"({np.degrees(max_steer_angle):.1f}°), "
-        f"ramp_rate={steer_ramp_rate} rad/s, per_step={steer_per_step_limit:.6f} rad",
+        f"ramp_rate={steer_ramp_rate} rad/s, "
+        f"per_step={steer_ramp_rate * physics_dt:.6f} rad",
         flush=True,
     )
 
-    # Dynamic atmosphere timing state.
-    elapsed = 0.0
+    control_state = ControlState(
+        current_drive_targets=np.zeros(len(drive_indices), dtype=np.float32),
+        current_steer_targets=np.zeros(len(steer_indices), dtype=np.float32),
+        step_count=0,
+        latest_twist=latest_twist,
+    )
+    atmosphere_loop_state = AtmosphereLoopState(
+        atmosphere_dict=atmosphere_state,
+        elapsed=0.0,
+        dynamic_enabled=dynamic_enabled,
+        time_scale=time_scale,
+        sweep_start_az=sweep_start_az,
+        sweep_end_az=sweep_end_az,
+        sweep_max_el=sweep_max_el,
+        sol_duration=sol_duration,
+        update_interval=update_interval,
+        solar_constant=solar_constant,
+        hdri_dir=hdri_dir,
+    )
+    odom_state = OdomPublishState(
+        node=node,
+        odom_pub=odom_pub,
+        odom_tf_broadcaster=odom_tf_broadcaster,
+        odom_init_pos=odom_init_pos,
+        odom_init_quat=odom_init_quat,
+        odom_init_quat_inv=odom_init_quat_inv,
+        transform_stamped_cls=TransformStamped,
+        odometry_cls=Odometry,
+    )
+
+    def _spin_once() -> None:
+        if node is not None:
+            rclpy.spin_once(node, timeout_sec=0.0)
+
+    ctx = LoopContext(
+        simulation_app=simulation_app,
+        world=world,
+        stage=stage,
+        articulation=articulation,
+        imu=imu,
+        drive_indices=drive_indices,
+        steer_indices=steer_indices,
+        wheelbase=wheelbase,
+        track_steer=track_steer,
+        track_middle=track_middle,
+        wheel_radius=wheel_radius,
+        v_max=v_max,
+        w_max=w_max,
+        physics_dt=physics_dt,
+        negate_steer=negate_steer,
+        debug_logging=debug_logging,
+        max_wheel_accel_rate=max_wheel_accel_rate,
+        decel_multiplier=decel_multiplier,
+        max_steer_angle=max_steer_angle,
+        steer_ramp_rate=steer_ramp_rate,
+        control=control_state,
+        atmosphere=atmosphere_loop_state,
+        odom=odom_state,
+        render_config=render_config,
+        ackermann_fn=ackermann_command,
+        spin_once=_spin_once,
+        update_sun_fn=update_sun_light,
+        update_sky_fn=update_sky_dome,
+        configure_fog_fn=configure_atmosphere_fog,
+        compute_sun_fn=compute_sun_position,
+        compute_sol_sun_fn=compute_sol_sun_position,
+        compute_direct_intensity_fn=compute_direct_intensity,
+        compute_diffuse_fraction_fn=compute_diffuse_fraction,
+        compute_sky_dome_fn=compute_sky_dome_params,
+        atmo_panel_update=(atmo_panel.update_display if atmo_panel is not None else None),
+    )
 
     print("[run_stage3_mono] Entering main loop. Ctrl+C to exit.", flush=True)
     try:
-        while simulation_app.is_running():
-            if node is not None:
-                rclpy.spin_once(node, timeout_sec=0.0)
-
-            v, w = clamp_twist(latest_twist["v"], latest_twist["w"], v_max, w_max)
-            steer_angles, wheel_vels = ackermann_command(
-                v, w, wheelbase, track_steer, track_middle, wheel_radius
-            )
-            if negate_steer:
-                steer_angles = -steer_angles
-
-            # Clamp steer angles to mechanical limits.
-            steer_angles = np.clip(steer_angles, -max_steer_angle, max_steer_angle)
-
-            # Apply steer angle ramp to prevent snap transitions.
-            if steer_ramp_rate > 0:
-                s_delta = steer_angles - current_steer_targets
-                s_delta = np.clip(s_delta, -steer_per_step_limit, steer_per_step_limit)
-                current_steer_targets = current_steer_targets + s_delta
-                ramped_steer = current_steer_targets
-            else:
-                ramped_steer = steer_angles
-
-            # Apply drive velocity ramp with asymmetric decel.
-            if max_wheel_accel_rate > 0:
-                delta = wheel_vels - current_drive_targets
-                is_decel = np.abs(wheel_vels) < np.abs(current_drive_targets)
-                step_lim = np.where(is_decel, per_step_limit * decel_multiplier, per_step_limit)
-                delta = np.clip(delta, -step_lim, step_lim)
-                current_drive_targets = current_drive_targets + delta
-                ramped_vels = current_drive_targets
-            else:
-                ramped_vels = wheel_vels
-
-            try:
-                articulation.set_joint_position_targets(ramped_steer, joint_indices=steer_idx_arr)
-                articulation.set_joint_velocity_targets(ramped_vels, joint_indices=drive_idx_arr)
-            except Exception as exc:  # noqa: BLE001
-                print(
-                    f"[run_stage3_mono] joint target failed: {exc}",
-                    file=sys.stderr,
-                )
-
-            if debug_logging and step_count % 60 == 0:
-                try:
-                    actual_pos = articulation.get_joint_positions()
-                    actual_vel = articulation.get_joint_velocities()
-                    if actual_pos is not None and actual_vel is not None:
-                        s_pos = (
-                            actual_pos[0, steer_idx_arr]
-                            if actual_pos.ndim == 2
-                            else actual_pos[steer_idx_arr]
-                        )
-                        d_vel = (
-                            actual_vel[0, drive_idx_arr]
-                            if actual_vel.ndim == 2
-                            else actual_vel[drive_idx_arr]
-                        )
-                        print(
-                            f"[DIAG {step_count}] twist=({v:.3f},{w:.3f}) "
-                            f"steer_cmd={steer_angles} steer_act={s_pos} "
-                            f"drive_cmd={ramped_vels} drive_act={d_vel}",
-                            flush=True,
-                        )
-                except Exception:  # noqa: BLE001
-                    pass
-                try:
-                    imu_frame = imu.get_current_frame()
-                    if imu_frame is not None and "lin_acc" in imu_frame:
-                        la = imu_frame["lin_acc"]
-                        print(
-                            f"[DIAG {step_count}] imu_acc="
-                            f"({la[0]:.4f},{la[1]:.4f},{la[2]:.4f})",
-                            flush=True,
-                        )
-                except Exception:  # noqa: BLE001
-                    pass
-
-            # --- Publish odom → base_link TF + Odometry message -----------
-            if node is not None and odom_pub is not None and odom_tf_broadcaster is not None:
-                try:
-                    rover_poses_odom = articulation.get_world_poses()
-                    if rover_poses_odom is not None:
-                        _rp, _rq = rover_poses_odom
-                        cur_pos = _rp[0] if _rp.ndim == 2 else _rp
-                        cur_quat = _rq[0] if _rq.ndim == 2 else _rq
-
-                        delta_pos_world = cur_pos - odom_init_pos
-                        delta_pos_odom = quat_rotate_vec(odom_init_quat_inv, delta_pos_world)
-                        delta_quat = quat_multiply(odom_init_quat_inv, cur_quat)
-
-                        now = node.get_clock().now().to_msg()
-
-                        odom_tf = TransformStamped()
-                        odom_tf.header.stamp = now
-                        odom_tf.header.frame_id = "odom"
-                        odom_tf.child_frame_id = "base_link"
-                        odom_tf.transform.translation.x = float(delta_pos_odom[0])
-                        odom_tf.transform.translation.y = float(delta_pos_odom[1])
-                        odom_tf.transform.translation.z = float(delta_pos_odom[2])
-                        odom_tf.transform.rotation.w = float(delta_quat[0])
-                        odom_tf.transform.rotation.x = float(delta_quat[1])
-                        odom_tf.transform.rotation.y = float(delta_quat[2])
-                        odom_tf.transform.rotation.z = float(delta_quat[3])
-                        odom_tf_broadcaster.sendTransform(odom_tf)
-
-                        odom_msg = Odometry()
-                        odom_msg.header.stamp = now
-                        odom_msg.header.frame_id = "odom"
-                        odom_msg.child_frame_id = "base_link"
-                        odom_msg.pose.pose.position.x = float(delta_pos_odom[0])
-                        odom_msg.pose.pose.position.y = float(delta_pos_odom[1])
-                        odom_msg.pose.pose.position.z = float(delta_pos_odom[2])
-                        odom_msg.pose.pose.orientation.w = float(delta_quat[0])
-                        odom_msg.pose.pose.orientation.x = float(delta_quat[1])
-                        odom_msg.pose.pose.orientation.y = float(delta_quat[2])
-                        odom_msg.pose.pose.orientation.z = float(delta_quat[3])
-
-                        try:
-                            lin_vel = articulation.get_linear_velocities()
-                            ang_vel = articulation.get_angular_velocities()
-                            if lin_vel is not None and ang_vel is not None:
-                                lv = lin_vel[0] if lin_vel.ndim == 2 else lin_vel
-                                av = ang_vel[0] if ang_vel.ndim == 2 else ang_vel
-                                cur_quat_inv = quat_inverse(cur_quat)
-                                body_lv = quat_rotate_vec(cur_quat_inv, lv)
-                                body_av = quat_rotate_vec(cur_quat_inv, av)
-                                odom_msg.twist.twist.linear.x = float(body_lv[0])
-                                odom_msg.twist.twist.linear.y = float(body_lv[1])
-                                odom_msg.twist.twist.linear.z = float(body_lv[2])
-                                odom_msg.twist.twist.angular.x = float(body_av[0])
-                                odom_msg.twist.twist.angular.y = float(body_av[1])
-                                odom_msg.twist.twist.angular.z = float(body_av[2])
-                        except Exception:  # noqa: BLE001
-                            pass
-
-                        odom_pub.publish(odom_msg)
-                except Exception as odom_exc:  # noqa: BLE001
-                    if step_count < 120:
-                        print(
-                            f"[run_stage3_mono] odom publish failed: {odom_exc}",
-                            file=sys.stderr,
-                        )
-
-            # --- Dynamic atmosphere update (run_stage2 L496-544 parity) --
-            # Honor atmosphere_state["sun_mode"]: "auto" sweeps, "manual" reads
-            # panel az/el sliders, else skip sun updates. Tau slider still
-            # applies in both auto and manual modes.
-            if step_count % update_interval == 0 and step_count > 0:
-                current_tau = atmosphere_state["tau"]
-                dyn_sun_pos = None
-
-                if atmosphere_state["sun_mode"] == "auto" and dynamic_enabled:
-                    elapsed += physics_dt * update_interval * time_scale
-                    t = (elapsed % sol_duration) / sol_duration
-                    atmosphere_state["time_of_sol"] = t
-                    dyn_sun_pos = compute_sol_sun_position(
-                        time_of_sol_fraction=t,
-                        start_azimuth_deg=sweep_start_az,
-                        end_azimuth_deg=sweep_end_az,
-                        max_elevation_deg=sweep_max_el,
-                    )
-                    atmosphere_state["sun_azimuth_deg"] = dyn_sun_pos.azimuth_deg
-                    atmosphere_state["sun_elevation_deg"] = dyn_sun_pos.elevation_deg
-                elif atmosphere_state["sun_mode"] == "manual":
-                    dyn_sun_pos = compute_sun_position(
-                        azimuth_deg=atmosphere_state["sun_azimuth_deg"],
-                        elevation_deg=max(0.5, min(89.5, atmosphere_state["sun_elevation_deg"])),
-                    )
-
-                if dyn_sun_pos is not None:
-                    dyn_intensity = compute_direct_intensity(
-                        solar_constant, current_tau, dyn_sun_pos.zenith_angle_rad
-                    )
-                    dyn_diffuse = compute_diffuse_fraction(current_tau)
-                    dyn_sky = compute_sky_dome_params(current_tau, hdri_dir)
-
-                    atmosphere_state["direct_intensity"] = dyn_intensity
-                    atmosphere_state["diffuse_fraction"] = dyn_diffuse
-
-                    update_sun_light(stage, dyn_sun_pos, dyn_intensity, dyn_diffuse, render_config)
-                    update_sky_dome(stage, dyn_sky, dyn_diffuse, render_config)
-                    configure_atmosphere_fog(stage, current_tau, render_config)
-
-                    if atmo_panel is not None:
-                        atmo_panel.update_display()
-
-            step_count += 1
-
-            world.step(render=True)
-    except KeyboardInterrupt:
-        print("[run_stage3_mono] KeyboardInterrupt -- shutting down.", flush=True)
+        exit_code = run_main_loop(ctx)
     finally:
         if node is not None:
             try:
@@ -1620,8 +1151,7 @@ def main() -> int:
             sys.stdout.flush()
             sys.stderr.flush()
             os._exit(0)
-
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

@@ -15,16 +15,6 @@ from typing import Optional
 
 from marslab.config.schema import SkyDomeConfig
 
-# R2-A1 (2026-04-22): the butterscotch / dusty endpoints and the
-# brightness ramp coefficients moved to ``SkyDomeConfig`` so YAML
-# controls them (G5). The literals are retained here as commented
-# constants per feedback_no_delete_comment — they double as the pydantic
-# defaults so the runtime behaviour is bit-for-bit identical.
-# _CLEAR_SKY_RGB = (0.76, 0.57, 0.35)  # Bell et al. 2006 butterscotch
-# _DUSTY_SKY_RGB = (0.85, 0.75, 0.60)  # dust-storm sky
-# _BRIGHTNESS_MIN = 0.1                # clamp floor
-# _BRIGHTNESS_DECAY = 0.3              # slope of 1 - decay * t
-
 _DEFAULT_SKY_DOME_CONFIG = SkyDomeConfig()
 
 
@@ -58,11 +48,8 @@ def compute_sky_dome_params(
         tau: Dust optical depth (>= 0).
         hdri_dir: Directory containing HDRI sky textures.
         sky_cfg: Sky-dome sub-config carrying the interpolation endpoints
-            and brightness ramp coefficients. When ``None`` (legacy call
-            sites) a ``SkyDomeConfig()`` with the pre-R2-A1 defaults is
-            used, so the Oracle ``run_stage3_monolithic.py`` signature
-            ``compute_sky_dome_params(tau, hdri_dir)`` remains
-            bit-for-bit identical.
+            and brightness ramp coefficients. When ``None`` a
+            ``SkyDomeConfig()`` with default values is used.
 
     Returns:
         SkyDomeParams with color, brightness, and texture path.
@@ -85,7 +72,6 @@ def compute_sky_dome_params(
     b = clear[2] + t * (dusty[2] - clear[2])
 
     # Brightness: high at low tau, drops at high tau.
-    # Pre-R2-A1: brightness = max(0.1, 1.0 - 0.3 * t)
     brightness = max(cfg.brightness_min, 1.0 - cfg.brightness_decay * t)
 
     # Select HDRI by tau range (placeholder paths)

@@ -8,9 +8,6 @@ Stage 3 runtime scripts can depend on a focused module, while
 ``marslab/robots/rover.py`` re-exports each name to preserve existing
 imports (``from marslab.robots.rover import configure_drives``).
 
-Per ``feedback_no_delete_comment``, the original function bodies in
-``rover.py`` are retained as ``#``-commented blocks rather than deleted.
-
 Ordering contract (critical — PhysX tensor-cache semantics):
 
 1. :func:`configure_drives` MUST run **pre-reset**.  PhysX synchronises
@@ -100,27 +97,22 @@ def configure_drives(
     steer_joint_names = list(control_cfg["steer_joint_names"])
     suspension_names = list(control_cfg.get("suspension_joint_names", []))
 
-    # R2-A3 (2026-04-22): G5 — drive_damping / steer_stiffness /
-    # steer_damping are required keys in the ``control:`` block.  The
-    # previous ``.get(..., <python-literal>)`` fallbacks were dead code:
-    # the Python defaults (100000 / 50000 / 5000) never matched the
-    # runtime YAML values (1000 / 50000 / 5000 in
-    # configs/robots/rover_m2020.yaml), so any caller that relied on the
-    # fallback would have silently driven the rover with wrong gains.
-    # The SkidSteerDriveConfig schema now lists these three as required
-    # fields (see marslab/config/schema/robot.py).  Preserve the old
-    # lines here (commented) per feedback_no_delete_comment.
-    # DISABLED (hardcoded_default_fallback, R2-A3):
-    # drive_damping = float(control_cfg.get("drive_damping", 100000.0))
-    # steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
-    # steer_damping = float(control_cfg.get("steer_damping", 5000.0))
+    # R2-A3 + R2-4a (2026-04-22/23): G5 — all six values below are required
+    # keys in the ``control:`` block. The old ``.get(..., <python-literal>)``
+    # fallbacks were dead code (Python defaults never matched
+    # ``configs/robots/rover_m2020.yaml``; relying on the fallback would have
+    # silently driven the rover with wrong gains / forces). See
+    # ``marslab.config.schema.robot.SkidSteerDriveConfig`` for the canonical
+    # spec; this module mirrors those requirements at the dict boundary so a
+    # missing YAML key raises ``KeyError`` at load time instead of propagating
+    # a Python literal into PhysX.
     drive_damping = float(control_cfg["drive_damping"])
-    drive_max_force = float(control_cfg.get("drive_max_force", 1000000.0))
+    drive_max_force = float(control_cfg["drive_max_force"])
     steer_stiffness = float(control_cfg["steer_stiffness"])
     steer_damping = float(control_cfg["steer_damping"])
-    steer_max_force = float(control_cfg.get("steer_max_force", 100000.0))
-    suspension_damping = float(control_cfg.get("suspension_damping", 0.0))
-    drive_type = str(control_cfg.get("drive_type", "acceleration"))
+    steer_max_force = float(control_cfg["steer_max_force"])
+    suspension_damping = float(control_cfg["suspension_damping"])
+    drive_type = str(control_cfg["drive_type"])
 
     joints_scope = f"{chassis_path}/joints"
 
@@ -178,15 +170,13 @@ def reinforce_pd_gains(
     steer_joint_names = list(control_cfg["steer_joint_names"])
     suspension_names = list(control_cfg.get("suspension_joint_names", []))
 
-    # R2-A3 (2026-04-22): see rationale in ``configure_drives`` above.
-    # DISABLED (hardcoded_default_fallback, R2-A3):
-    # drive_damping = float(control_cfg.get("drive_damping", 100000.0))
-    # steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
-    # steer_damping = float(control_cfg.get("steer_damping", 5000.0))
+    # R2-A3 + R2-4a: see rationale in ``configure_drives`` above. All four
+    # keys are required — ``SkidSteerDriveConfig`` validates them at load
+    # time.
     drive_damping = float(control_cfg["drive_damping"])
     steer_stiffness = float(control_cfg["steer_stiffness"])
     steer_damping = float(control_cfg["steer_damping"])
-    suspension_damping = float(control_cfg.get("suspension_damping", 0.0))
+    suspension_damping = float(control_cfg["suspension_damping"])
 
     drive_indices = _resolve_joint_indices(dof_names, drive_joint_names)
     steer_indices = _resolve_joint_indices(dof_names, steer_joint_names)

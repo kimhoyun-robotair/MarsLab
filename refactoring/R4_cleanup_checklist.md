@@ -1,5 +1,9 @@
 # R4-7 + R4-8 Cleanup Checklist
 
+> **Executed 2026-04-23 per Option C (hard-delete).** `feedback_no_delete_comment`
+> 정책은 동일 날짜에 retire. 상세 결과는 `work_log/LOG.md` 의 `[2026-04-23]
+> Refactor R4 addendum` 엔트리 참조.
+
 | Field | Value |
 |-------|-------|
 | git HEAD | `e0429e2075bb194265d042249ddcc395c0ff2a44` |
@@ -7,7 +11,7 @@
 | Reviewer | Human user (`suberkut76@gmail.com`) |
 | Author | Claude agent, read-only scan |
 | Source plan | `/home/hoyunkim/.claude/plans/claude-md-plan-md-log-md-work-log-wiggly-acorn.md` |
-| Policy constraints | `feedback_no_git_commands`, `feedback_no_delete_comment`, `feedback_delete_later_directory` |
+| Policy constraints | `feedback_no_git_commands`, `feedback_delete_later_directory` (note: `feedback_no_delete_comment` retired 2026-04-23 — header above) |
 | Oracle (frozen) | `scripts/phase1/run_stage3_monolithic.py` md5 `d4e147cd2345f927db18c4d7ad33b854` |
 
 > **HOW TO USE.** Claude has **not** modified any code, YAML, or comment. Every
@@ -15,34 +19,6 @@
 > the HEAD hash above — if you branch/commit between now and execution, re-run
 > `git rev-parse HEAD` and spot-check a few line ranges before deleting.
 > **Never touch the Oracle** regardless of which option you pick.
-
----
-
-## Policy option recap (pick one for R4-8, then execute)
-
-- **Option A — Keep every `# DISABLED` block in place (status quo).** Honors
-  `feedback_no_delete_comment` verbatim. Cost: ~420 LOC of commented code stays
-  in four hot files (`run_stage2.py`, `run_stage3_monolithic_new.py`,
-  `odometry_math.py`, `__init__.py`, `sensor_graph.py`, `rover.py`).
-  **Recommended only if** rollback to pre-R2/R3/R4 Python is still likely.
-- **Option B — Archive to `delete_later/` (compromise).** Move each `# DISABLED`
-  block, verbatim, into one per-file archive under
-  `delete_later/disabled_blocks/<relative/path>.py.txt` and delete the commented
-  lines from the live source. Keeps rollback material (plus `delete_later/README.md`
-  entry per `feedback_delete_later_directory` R1 policy) without polluting the
-  source tree. Requires a one-line revision to the `feedback_no_delete_comment`
-  policy to allow comment-deletion when an archive copy exists.
-- **Option C — Hard-delete the `# DISABLED` blocks.** Rely on `git log -p` for
-  rollback. Cleanest source tree; breaks `feedback_no_delete_comment`
-  unconditionally. Not recommended unless the policy itself is being retired.
-
-**Recommendation: Option B.** It removes the ~420 LOC of noise while preserving
-an inspectable rollback archive under `delete_later/` (already the policy-sanctioned
-mechanism for file-level deletions). See Section 6 for the policy-revision draft.
-
-For **R4-7 (dead modules / fields / YAML keys)** a separate choice applies —
-the plan already frames it as Option A (keep) vs Option B (move to `delete_later/`).
-Again Option B is the recommendation (delete_later preserves rollback).
 
 ---
 
@@ -256,14 +232,6 @@ Only needed if the user picks **Option B** or **Option C** for R4-8.
 > of the original policy; keeping ~600 LOC of commented blocks in hot files
 > (`run_stage2.py`, `run_stage3_monolithic_new.py`) costs readability with no
 > rollback-safety benefit once the archive exists.
-
-### Draft for Option C (hard delete) — not recommended
-
-> **feedback_no_delete_comment (v2, 2026-04-22): Policy retired.**
-> Rely on `git log -p <file>` for rollback. Justification: every `# DISABLED`
-> block in the repo at HEAD `e0429e2` has an adjacent facade import in the
-> same file, so the replacement is already self-documenting; the archived
-> comments added no information beyond what `git log` preserves.
 
 Pick exactly one draft; drop it into `CLAUDE.md` or the corresponding auto-memory
 entry. Do not silently retire the policy without an explicit revision.

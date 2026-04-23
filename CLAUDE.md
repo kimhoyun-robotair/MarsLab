@@ -78,7 +78,7 @@ code is isolated into separate functions/files clearly marked as integration-onl
 - Classes: `PascalCase`
 - Functions/variables: `snake_case`
 - Constants: `UPPER_SNAKE_CASE`
-- ROS2 topics: `/{robot_name}/{sensor_type}` (e.g., `/rover_0/rgb/image_raw`)
+- ROS2 topics: `/{robot_name}/{sensor_type}` (e.g., `/rover/rgb/image_raw`)
 - Config keys: `snake_case` in YAML
 
 ### Isaac Sim Specific

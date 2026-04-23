@@ -146,7 +146,12 @@ class AtmospherePanel:
         mode = self._state.get("sun_mode", "auto")
         if mode == "auto":
             t = self._state.get("time_of_sol", 0.0)
-            sol_seconds = self._state.get("sol_duration_seconds", 88642.0)
+            # P6 G5 (2026-04-23): previously ``self._state.get(..., 88642.0)``.
+            # ``build_atmosphere_state`` / ``run_stage3_monolithic_new.py``
+            # always seed ``sol_duration_seconds`` from the pydantic
+            # ``MarsEnvConfig.sol_duration_seconds`` default, so the local
+            # fallback literal duplicated the schema and is now gone.
+            sol_seconds = self._state["sol_duration_seconds"]
             hours = t * (sol_seconds / 3600.0)
             return f"  Mode: Auto Sweep  |  Sol time: {hours:.1f}h ({t:.2f})"
         else:

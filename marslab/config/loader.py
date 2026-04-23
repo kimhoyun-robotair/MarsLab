@@ -53,10 +53,52 @@ def propagate_seeds(config: MarsLabConfig, master_seed: int | None = None) -> Ma
         "terrain": config.terrain.model_copy(update={"seed": seed + 1}),
     }
 
-    if config.benchmark is not None:
-        updates["benchmark"] = config.benchmark.model_copy(update={"seed": seed + 2})
-
     return config.model_copy(update=updates)
+
+
+def propagate_seeds_in_dict(cfg: dict, master_seed: int | None = None) -> dict:
+    """Dict-level twin of :func:`propagate_seeds` for flows that skip pydantic.
+
+    ``scripts/phase1/run_stage3_monolithic_new.py`` consumes the raw dict
+    returned by :func:`marslab.config.scenario_loader.load_scenario_config`
+    instead of constructing a :class:`MarsLabConfig`. G7 still requires that
+    ``terrain.seed == mars_env.seed + 1`` so every randomised stage receives
+    a deterministic, distinct seed. This helper enforces that invariant on
+    the dict path.
+
+    The function mutates and returns ``cfg`` in place. Missing ``mars_env``
+    or ``terrain`` blocks are left untouched — callers that skip terrain
+    (e.g. structure-only tests) are free to omit them.
+
+    Args:
+        cfg: Config dict, typically the output of ``load_scenario_config``.
+        master_seed: Optional master seed. Defaults to ``cfg['mars_env']['seed']``
+            or 42 if absent.
+
+    Returns:
+        The same ``cfg`` dict with ``mars_env.seed`` and ``terrain.seed``
+        populated according to the propagation rule.
+    """
+    mars_cfg = cfg.get("mars_env")
+    terrain_cfg = cfg.get("terrain")
+    if not isinstance(mars_cfg, dict) or not isinstance(terrain_cfg, dict):
+        return cfg
+    raw = master_seed if master_seed is not None else mars_cfg.get("seed", 42)
+    # Tight type check: pydantic ``propagate_seeds`` receives a typed ``int``
+    # from ``MarsEnvConfig``; this dict path must enforce the same contract so
+    # a ``seed: 42.0`` YAML author gets a loud error instead of silent
+    # truncation, and a negative seed (G7 reproducibility smell) is rejected.
+    # ``bool`` is an ``int`` subclass in Python -- exclude explicitly.
+    if not isinstance(raw, int) or isinstance(raw, bool):
+        raise TypeError(f"mars_env.seed must be int, got {type(raw).__name__}: {raw!r}")
+    if raw < 0:
+        raise ValueError(
+            f"mars_env.seed must be >= 0 for deterministic G7 reproducibility; got {raw}"
+        )
+    seed = raw
+    mars_cfg["seed"] = seed
+    terrain_cfg["seed"] = seed + 1
+    return cfg
 
 
 def load_and_validate(

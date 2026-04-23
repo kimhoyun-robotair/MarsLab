@@ -4,8 +4,12 @@ Attaches a rotating LiDAR sensor to robots. All parameters from
 YAML config (G5). Requires Isaac Sim runtime.
 """
 
+import logging
+
 import numpy as np
 from pxr import Gf, Sdf, UsdGeom
+
+logger = logging.getLogger(__name__)
 
 
 def attach_lidar(stage, robot_prim_path: str, config: dict) -> str:
@@ -45,6 +49,15 @@ def attach_lidar(stage, robot_prim_path: str, config: dict) -> str:
         sensor_path = f"{parent_path}/{name}"
 
     # Try RTX LiDAR creation command
+    lidar_params = {
+        "min_range": min_range,
+        "max_range": max_range,
+        "horizontal_fov": h_fov[1] - h_fov[0],
+        "vertical_fov": v_fov[1] - v_fov[0],
+        "horizontal_resolution": h_res,
+        "vertical_resolution": v_res,
+        "rotation_rate": rotation_rate,
+    }
     try:
         omni.kit.commands.execute(
             "RangeSensorCreateLidar",
@@ -62,11 +75,26 @@ def attach_lidar(stage, robot_prim_path: str, config: dict) -> str:
             high_lod=True,
             yaw_offset=0.0,
         )
-    except Exception:
-        # Fallback: create a basic Xform prim as placeholder
+    except Exception as exc:
+        # Isaac Sim API failure: never swallow silently (CLAUDE.md error policy).
+        # Log with full context (prim path + parameters + original exception),
+        # then re-raise as RuntimeError so the caller sees a loud failure rather
+        # than a silent missing-sensor placeholder at simulation runtime.
+        logger.error(
+            "RTX LiDAR creation failed at prim_path=%s params=%s: %s",
+            sensor_path,
+            lidar_params,
+            exc,
+        )
+        # Still create the Xform placeholder so downstream USD queries do not
+        # crash when exception handlers above this frame intentionally continue,
+        # but re-raise afterward so the default behavior is a hard failure.
         prim = stage.DefinePrim(Sdf.Path(sensor_path), "Xform")
         xform = UsdGeom.Xformable(prim)
         xform.AddTranslateOp().Set(Gf.Vec3d(*offset_pos))
+        raise RuntimeError(
+            f"Failed to create RTX LiDAR at {sensor_path} with params {lidar_params}: {exc}"
+        ) from exc
 
     # Set position offset
     lidar_prim = stage.GetPrimAtPath(sensor_path)
@@ -95,8 +123,12 @@ def read_lidar_point_cloud(lidar_prim_path: str) -> np.ndarray:
         pc = lidar.get_point_cloud()
         if pc is not None and len(pc) > 0:
             return np.array(pc, dtype=np.float32).reshape(-1, 3)
-    except (ImportError, Exception):
-        pass
+    except (ImportError, Exception) as exc:
+        logger.warning(
+            "LidarRtx read failed for %s, falling back to range_sensor: %r",
+            lidar_prim_path,
+            exc,
+        )
 
     try:
         from omni.isaac.range_sensor import _range_sensor
@@ -105,7 +137,11 @@ def read_lidar_point_cloud(lidar_prim_path: str) -> np.ndarray:
         pc = lidar_interface.get_point_cloud_data(lidar_prim_path)
         if pc is not None and len(pc) > 0:
             return np.array(pc, dtype=np.float32).reshape(-1, 3)
-    except (ImportError, Exception):
-        pass
+    except (ImportError, Exception) as exc:
+        logger.warning(
+            "range_sensor read failed for %s, returning empty point cloud: %r",
+            lidar_prim_path,
+            exc,
+        )
 
     return np.empty((0, 3), dtype=np.float32)

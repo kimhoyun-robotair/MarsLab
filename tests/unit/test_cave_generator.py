@@ -1,5 +1,7 @@
 """Unit tests for marslab.terrain.cave_generator."""
 
+import hashlib
+
 import numpy as np
 import pytest
 
@@ -364,3 +366,37 @@ def test_metadata_values(cave_default):
     assert meta["surface_z"] == 150.0
     assert meta["floor_z"] == 0.0
     assert meta["seed"] == 42
+
+
+# --- R5 regression guard ---
+
+
+# Hash captured from the pre-R5 monolithic cave_generator on 2026-04-23 for
+# SMALL = seed=42, domain_size=(100, 100), resolution=1.0, path_resolution=30,
+# ring_resolution=20. If this hash changes, either the RNG consumption order
+# drifted (serious bug -- fix the split) or the user intentionally tuned the
+# generator (update the hash here with a work_log entry).
+_R5_REGRESSION_HASH = "047936be6a2ffb03adb38e1665eac58e3c721285c144fe79b3282f9b7a7b5840"
+
+
+def test_r5_regression_hash_stable():
+    """RNG draw order and numeric output survive the R5 4-way split."""
+    result = generate_cave_mesh(**SMALL)
+
+    parts: list[bytes] = []
+    for key in ("tube_mesh", "floor_mesh", "surface_mesh"):
+        parts.append(result[key].vertices.tobytes())
+    for sky in result["skylight_meshes"]:
+        parts.append(sky.vertices.tobytes())
+    for cone in result["debris_cones"]:
+        parts.append(cone.vertices.tobytes())
+    bd = [(b["x"], b["y"], b["z"], b["diameter"]) for b in result["breakdown_positions"]]
+    parts.append(np.asarray(bd, dtype=np.float64).tobytes())
+    parts.append(np.asarray(result["skylight_positions"], dtype=np.float64).tobytes())
+    parts.append(np.nan_to_num(result["surface_elevation"], nan=-9999.0).tobytes())
+
+    actual = hashlib.sha256(b"".join(parts)).hexdigest()
+    assert actual == _R5_REGRESSION_HASH, (
+        "Cave generator bit-exact regression guard failed. "
+        "Either the R5 submodule split changed RNG order, or parameters drifted."
+    )

@@ -199,7 +199,7 @@ def _base_cfgs() -> Dict[str, Any]:
     }
     ros2_cfg = {
         "rates": {"imu": 200},
-        "namespace": "rover_0",
+        "namespace": "rover",
     }
     return {"sensors_cfg": sensors_cfg, "ros2_cfg": ros2_cfg}
 

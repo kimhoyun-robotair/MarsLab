@@ -14,6 +14,7 @@ mars_env:
   dust_opacity_range: [0.5, 2.0]     # tau range for domain randomization
   sun_azimuth_deg: 180               # degrees (0=N, 90=E, 180=S, 270=W)
   sun_elevation_deg: 45              # degrees above horizon
+  physics_dt: 0.016666666666666666   # s (60 Hz engine tick; P6 G5 migration)
   seed: 42
   dynamic_atmosphere:
     enabled: false                   # static atmosphere by default
@@ -57,13 +58,6 @@ rendering:
   mode: "ray_tracing"
   sky_dome_hdri_dir: "assets/sky/hdri/"
   resolution: [1920, 1080]
-  # R2-A1 (2026-04-22) spp / total_spp / max_bounces moved to
-  # rendering.path_tracing (see below). Old keys retained here as
-  # comments per feedback_no_delete_comment and still accepted by the
-  # pydantic pre-validator for backwards compatibility:
-  #   spp: 32
-  #   total_spp: 256
-  #   max_bounces: 6
   sun_intensity_scale: 30.0          # W/m^2 → Isaac Sim path-tracing units (calibrated 2026-04-16)
   sun_color: [1.0, 0.95, 0.85]      # warm Mars sunlight
   sun_angular_diameter_deg: 0.35     # sun disk from Mars
@@ -78,19 +72,6 @@ rendering:
   sun_prim_path: "/World/SunLight"
   dome_prim_path: "/World/DomeLight"
 
-  # R2-A1 (2026-04-22): flat R3 fields regrouped into 4 nested blocks
-  # (fog / ray_tracing / path_tracing / sky_dome). Legacy flat keys
-  # kept commented per feedback_no_delete_comment:
-  #   antialiasing_op: 3
-  #   dlss_exec_mode: 1
-  #   denoiser_indirect_diffuse: true
-  #   denoiser_reflections: true
-  #   denoiser_optix_pathtracing: true
-  #   fog_enabled: true
-  #   fog_color_amount: 1.0
-  #   fog_start_height: 0.0
-  #   fog_height_falloff: 0.01
-  #   fog_height_density_ratio: 0.5
   fog:
     enabled: true
     color_amount: 1.0
@@ -118,62 +99,3 @@ rendering:
     dusty_rgb: [0.85, 0.75, 0.60]
     brightness_min: 0.1
     brightness_decay: 0.3
-
-# Wk1 Phase B #23 (2026-04-15, task #23): sensor subsystem + telemetry
-# blocks. The 'sensors.imu' block drives the Wk1 live IMU gravity probe
-# (marslab/sensors/imu_probe.py). target_gz mirrors mars_env.gravity so
-# the probe compares the accelerometer reading against the configured
-# Mars gravity rather than a hardcoded constant -- G5 compliance.
-# tolerance 0.05 m/s^2 matches PLAN.md §6.2 "THE critical test" band of
-# 3.67..3.77. sample_count 20 / settle_steps 50 give a ~1/3 s settle at
-# 60 Hz physics and a 20-sample average that averages out contact
-# oscillation without stalling the smoke loop.
-sensors:
-  imu:
-    sample_count: 20
-    settle_steps: 50
-    target_gz: 3.72
-    tolerance: 0.05
-    # Noise gate added alongside the B6 judgment spec (qa-validator
-    # 2026-04-15). If sample stddev on z exceeds this bound the probe
-    # reports pass=False with reason="stddev_z_excessive" even when
-    # mean_z is on target -- catches the "settle_steps too low"
-    # failure mode where the rover still has contact bounce.
-    stddev_z_max: 0.10
-    # Wk1 Phase B followup (2026-04-15, team-lead design call #1):
-    # URDF link identifiers for the probe mount. Not Mars physical
-    # constants -- they are stage identifiers, but kept in YAML so a
-    # future rover URDF with a different imu mount link can be loaded
-    # without editing Python. The probe falls through from mount_link
-    # to fallback_link when the primary link is missing on the stage.
-    mount_link: "imu_link"
-    fallback_link: "base_link"
-    # Phase C2 (#34, 2026-04-15): IMU ROS2 publisher fields. Read by
-    # marslab.ros2_bridge.imu_node.IMUPublisher. The probe-based
-    # fields above (sample_count/settle_steps/target_gz/tolerance/
-    # stddev_z_max/mount_link/fallback_link) remain in YAML even
-    # though the Phase B run_live_gravity_probe call site is now
-    # commented out -- they still drive the offline
-    # evaluate_gravity_reading unit tests and a future regression
-    # session can re-enable the probe by uncommenting the Hook B
-    # block in scripts/run_scene.py.
-    publish_rate_hz: 100.0
-    frame_id: "imu_link"
-    topic_name: "/{robot_name}/imu/data"
-
-# Wk1 Phase B #22 (2026-04-15, task #22): JSON sink destination for the
-# Wk1 IMU gate payload. Parent directories are auto-created by
-# marslab/telemetry/json_sink.py:write_sink.
-telemetry:
-  json_sink_path: "_workspace/wk1_imu_gate.json"
-
-benchmark:
-  annotation_format: "ai4mars"
-  dr_axes:
-    - "dust_optical_depth"
-    - "surface_albedo"
-    - "rock_sfd_k"
-    - "sun_elevation"
-    - "camera_trajectory"
-  num_samples: 10000
-  seed: 42

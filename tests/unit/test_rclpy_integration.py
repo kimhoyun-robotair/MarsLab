@@ -65,8 +65,14 @@ class TestInitRclpySide:
 
         captured: Dict[str, Any] = {}
 
-        def fake_cmd_vel(node: Any, topic: str, state: Dict[str, float]) -> Any:
-            captured["cmd_vel"] = (node, topic, state)
+        def fake_cmd_vel(
+            node: Any,
+            topic: str,
+            state: Dict[str, float],
+            *,
+            queue_size: int,
+        ) -> Any:
+            captured["cmd_vel"] = (node, topic, state, queue_size)
             return types.SimpleNamespace(topic=topic)
 
         def fake_static_tfs(node: Any, sensor_frames: Any) -> Any:
@@ -162,6 +168,50 @@ class TestInitRclpySide:
         assert odom_kwargs["frame_id"] == "map"
         assert odom_kwargs["child_frame_id"] == "base_footprint"
         assert odom_kwargs["topic"] == "/rover/odom"
+
+    def test_cmd_vel_queue_size_uses_yaml_override(
+        self,
+        fake_rclpy: types.ModuleType,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """R4-5 extension: ``cmd_vel_queue_size`` flows from ``ros2_cfg``."""
+        captured = self._patch_factories(monkeypatch)
+        from marslab.ros2_bridge.rclpy_integration import init_rclpy_side
+
+        ros2_cfg = {
+            "namespace": "rover",
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+            "cmd_vel_queue_size": 37,
+        }
+        init_rclpy_side(
+            ros2_cfg=ros2_cfg,
+            sensor_frames=[],
+            init_pos_world=np.zeros(3),
+            init_quat_world=np.array([1.0, 0.0, 0.0, 0.0]),
+        )
+        # captured["cmd_vel"] layout: (node, topic, state, queue_size).
+        assert captured["cmd_vel"][3] == 37
+
+    def test_cmd_vel_queue_size_defaults_to_ten(
+        self,
+        fake_rclpy: types.ModuleType,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Absent YAML key → historical default of 10 is preserved."""
+        captured = self._patch_factories(monkeypatch)
+        from marslab.ros2_bridge.rclpy_integration import init_rclpy_side
+
+        ros2_cfg = {
+            "namespace": "rover",
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+        }
+        init_rclpy_side(
+            ros2_cfg=ros2_cfg,
+            sensor_frames=[],
+            init_pos_world=np.zeros(3),
+            init_quat_world=np.array([1.0, 0.0, 0.0, 0.0]),
+        )
+        assert captured["cmd_vel"][3] == 10
 
     def test_returns_bridge_context_with_twist_state(
         self,

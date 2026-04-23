@@ -39,12 +39,6 @@
 3. `assets/terrain/dem/cerberus_fossae.tif` 에 저장
 4. `scripts/convert_dem.py` 로 변환 → `assets/terrain/dem/cerberus_fossae_converted/`
 
-### 사용자 확인 필요사항
-
-- [ ] Product ID가 실제 PDS에서 유효한지 웹 확인 (`uahirise.org/dtm/`)
-- [ ] DEM 파일 크기 확인 (수 GB 가능, crop만 필요)
-- [ ] Cerberus Fossae vs Coprates Chasma 최종 선택
-
 ### 참고 논문
 
 - Andrews-Hanna (2012): Valles Marineris 형성 메커니즘

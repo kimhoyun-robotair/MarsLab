@@ -2,8 +2,7 @@
 
 This module centralises the camera / LiDAR-3D / LiDAR-2D / IMU
 instantiation that previously lived inline in
-``scripts/phase1/run_stage3_monolithic_new.py`` §7.17 (L806-892 of the
-pre-R4-2 revision).
+``scripts/phase1/run_stage3_monolithic_new.py``
 
 The logic is a verbatim port of the original block — only the
 function-local imports were moved here so the runtime script no longer
