@@ -91,13 +91,16 @@ def check_frontmatter_sources() -> list[str]:
     for md in sorted(WIKI_ROOT.rglob("*.md")):
         src = read_source_field(md)
         if src is None:
-            errors.append(f"[no-source] missing `source:` in frontmatter → "
-                          f"{md.relative_to(REPO_ROOT)}")
+            errors.append(
+                f"[no-source] missing `source:` in frontmatter → " f"{md.relative_to(REPO_ROOT)}"
+            )
             continue
         src_path = (REPO_ROOT / src).resolve()
         if not src_path.exists():
-            errors.append(f"[dead-source] {md.relative_to(REPO_ROOT)} points at "
-                          f"non-existent `source: {src}`")
+            errors.append(
+                f"[dead-source] {md.relative_to(REPO_ROOT)} points at "
+                f"non-existent `source: {src}`"
+            )
     return errors
 
 
@@ -106,7 +109,8 @@ def check_staged_pairs() -> list[str]:
     try:
         out = subprocess.check_output(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
-            cwd=REPO_ROOT, text=True,
+            cwd=REPO_ROOT,
+            text=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         return [f"[git-error] {exc}"]
@@ -124,8 +128,11 @@ def check_staged_pairs() -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--staged", action="store_true",
-                    help="Also check that staged .py files have their .md staged (pre-commit mode)")
+    ap.add_argument(
+        "--staged",
+        action="store_true",
+        help="Also check that staged .py files have their .md staged (pre-commit mode)",
+    )
     args = ap.parse_args()
 
     all_errors: list[str] = []

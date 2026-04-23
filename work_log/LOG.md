@@ -3323,3 +3323,69 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - **R4 방향 결정 (사용자 대기):** (a) 하드코딩 상수 51건 YAML 이관 (G5 위반 청산), (b) `_risks.md` §5.2 seed propagation 3중 통합, (c) §4.2 telemetry 소비자 0 (미사용 metrics path 정리), (d) DISABLED 일괄 청소 중 택일.
 - **R5~R8+P1:** 마스터 플랜 기준 남은 단계. R4 완료 후 순차 접근.
 - **Instruction wiki drift:** `scripts/check_instruction_sync.py`, `scripts/tools/generate_instruction_index.py` pre-existing black/ruff 위반 — Instruction wiki 유지보수 별도 태스크에서 정리.
+
+---
+
+## [2026-04-22] Refactor R4 — Monolithic Facade 연속 추출 + Dead Schema/DISABLED Inventory
+
+**모듈:** `marslab/sim/`, `marslab/sensors/`, `marslab/robots/`, `marslab/ros2_bridge/`, `scripts/phase1/`, `tests/unit/`, `refactoring/`
+**Plan 참조:** `~/.claude/plans/claude-md-plan-md-log-md-work-log-wiggly-acorn.md` (R4 focused plan, 사용자 원안 R4-1~R4-6 + R4-7 schema/topic cleanup + R4-8 DISABLED archive 인벤토리). Oracle twin · `feedback_no_delete_comment` · `feedback_delete_later_directory` · `feedback_follow_original_r_plan` 준수.
+
+### 원래 계획 개요 (R4 focused plan)
+- **R4-1 `marslab/sim/`:** `boot.py` (SimulationApp + ros2_bridge extension enable), `world_setup.py` (World + Physx solver iteration counts + 음수 gravity 정규화) 신설. `run_stage3_monolithic_new.py` L396-462 facade 교체.
+- **R4-2 `marslab/sensors/sensor_spawner.py`:** `SensorHandles` dataclass + `spawn_sensors()` orchestrator. 카메라 parent Xform trick, 2D-LiDAR optional 게이팅 보존. `run_stage3_monolithic_new.py` L806-892 facade 교체.
+- **R4-3 `marslab/robots/drive_api_setup.py`:** `_apply_drive_api` / `configure_drives` / `reinforce_pd_gains` 3 함수 추출. `rover.py` 원본은 DISABLED + pass-through re-export. 순환 import 회피용 `_resolve_joint_indices` trampoline.
+- **R4-4 lazy-import 회귀 테스트:** 이미 구조적으로 완료된 상태 (`import marslab.ros2_bridge` 가 rclpy/geometry_msgs/sensor_msgs/nav_msgs/tf2_ros 를 안 당김). 회귀 방지 테스트만 추가.
+- **R4-5 `marslab/ros2_bridge/sensor_graph_builder.py`:** `_build_create_nodes` / `_build_connections` / `_build_set_values` 3 helper 를 `sensor_graph.py` 에서 추출. `build_sensor_graph` 는 `og.Controller.edit` orchestrator 로 축소.
+- **R4-6 `marslab/ros2_bridge/{rclpy_integration,context}.py`:** `init_rclpy_side` (~100 LOC) + `BridgeContext` dataclass 를 `__init__.py` 에서 분리. 순환 import 회피 및 rclpy lazy-load 불변식 보존.
+- **R4-7 Dead schema/topic 정리:** `marslab/config/schema/topic_config.py` (import 0), `TelemetryConfig`, `SensorImuConfig`/`SensorsConfig` dead-field 목록을 `refactoring/R4_cleanup_checklist.md` 로 사용자 제공 (Claude 는 삭제 안 함).
+- **R4-8 DISABLED 블록 인벤토리:** 22 블록 / 632 LOC 전체 위치·시작/끝 라인·헤더 첫 줄을 동일 체크리스트에 기재. 사용자가 Option A/B/C 선택 후 실행.
+
+**분업 원칙:** Claude 는 facade 신규 파일 + 런타임 교체 + 신규 test + 체크리스트 문서 생성만. 파일/주석 **삭제·이동은 사용자 수동** (`feedback_no_delete_comment` + `feedback_no_git_commands` + `feedback_delete_later_directory`).
+
+### 수행 내용
+
+**Phase 1 — ros2_bridge 내부 정리 (Claude 직접)**
+- **R4-6:** `marslab/ros2_bridge/context.py` (BridgeContext `@dataclass` 추출), `rclpy_integration.py` (`init_rclpy_side(ros2_cfg, sensor_frames, init_pos_world, init_quat_world, node_name=...)` ~100 LOC). 기존 `__init__.py::init_rclpy_side` 블록은 DISABLED 주석 + `from .rclpy_integration import init_rclpy_side` re-export. `odom_publisher.queue_size/frame_id/child_frame_id` YAML override 유지. rclpy / rclpy.parameter 는 함수 body level 에서만 import.
+- **R4-5:** `marslab/ros2_bridge/sensor_graph_builder.py` 신규 — `_build_create_nodes(graph_spec, namespace)`, `_build_connections(graph_spec)`, `_build_set_values(graph_spec, sensor_rates)` 3 pure-Python helper. `sensor_graph.py::build_sensor_graph` 는 3 helper 호출 후 `og.Controller.edit` 1 회 orchestrator 로 축소. 원 inline 코드는 DISABLED.
+- **R4-4:** `tests/unit/test_ros2_bridge_lazy_import.py` 회귀 테스트 4종 — `import marslab.ros2_bridge` / `sensor_graph` / `sensor_graph_builder` / `rclpy_integration` 후 `rclpy`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`, `tf2_ros`, `omni` 가 `sys.modules` 에 들어오지 않음을 검증.
+
+**Phase 2a — 런타임 facade 교체 (Claude 직접)**
+- **R4-1:** `marslab/sim/__init__.py`, `boot.py` (`boot_simulation_app(headless=False, renderer="RaytracedLighting", ros2_bridge_extension="isaacsim.ros2.bridge") -> SimulationApp`), `world_setup.py` (`create_world(physics_dt, gravity, solver_type="TGS", solver_position_iteration_count=16, solver_velocity_iteration_count=4) -> (World, Stage)`, 음수 gravity `|g|` 로 정규화 후 `-|g|` 세팅). `run_stage3_monolithic_new.py` L396-462 블록 교체 + DISABLED 주석.
+
+**Phase 2b+3 — 병렬 subagent 3건 동시 실행**
+사용자 요청 "subagent를 사용해서 병렬로 작업할 수 있는 것들에 대해서 각 작업당 agent를 하나씩 할당" 에 따라 파일 surface 충돌 없는 3개 태스크 동시 launch:
+- **R4-2 subagent (sensors/):** `marslab/sensors/sensor_spawner.py` 218 LOC 작성. `@dataclass SensorHandles(camera, lidar_3d, lidar_2d, imu)` + `spawn_sensors(stage, sensors_cfg, rigid_body_path, ros2_rates) -> SensorHandles`. `run_stage3_monolithic_new.py` L806-892 facade 교체, 카메라 orientation parent-Xform, 2D-LiDAR `sensors_cfg.get("lidar_2d")` 게이팅 보존. `marslab/sensors/__init__.py` re-export 추가.
+- **R4-3 subagent (robots/):** `marslab/robots/drive_api_setup.py` 208 LOC — `_apply_drive_api`, `configure_drives`, `reinforce_pd_gains` 원본 이름 유지 (plan 의 `reinforce_drive_gains` 에서 의도적 deviation, 회귀 리스크 최소화). 순환 import 해결: `_resolve_joint_indices` trampoline 에서 호출 시점에만 `from marslab.robots.rover import ...` lazy-import. `rover.py` L218-370 DISABLED + `from marslab.robots.drive_api_setup import ...` re-export. `__all__` 확장.
+- **R4-7/R4-8 subagent (문서 생성):** `refactoring/R4_cleanup_checklist.md` 293 LOC. git HEAD `e0429e2075bb194265d042249ddcc395c0ff2a44` 시점 스냅샷. 결과: dead module 1 (topic_config.py 48 LOC), dead fields `TelemetryConfig` 29 LOC + `SensorImuConfig`/`SensorsConfig` bonus 124 LOC, `BenchmarkConfig` 는 `loader.py:56-57` 에서 소비 중으로 유지, DISABLED 22 블록 / 632 LOC (6 파일). **권장: Option B** (archive to `delete_later/disabled_blocks/`).
+
+**Phase 4 — 검증 (CI 3-gate)**
+- 테스트 +43: `test_bridge_context.py` (4), `test_rclpy_integration.py` (4), `test_sensor_graph_builder.py` (8), `test_ros2_bridge_lazy_import.py` (4), `test_sim_boot.py` (6), `test_sim_world_setup.py` (6), `test_sensor_spawner.py` (5), `test_drive_api_setup.py` (6).
+- 중간 교정: black auto-format (5 files), ruff `I001` import-order (run_stage3_monolithic_new.py), ruff `F401` re-export (`marslab/sensors/__init__.py` `__all__` 추가).
+
+### 검증
+- **Unit tests:** `python3 -m pytest tests/unit/` — **446 passed, 1 warning in 8.70s** (R3 종료 403 → R4 종료 446, +43).
+- **Black:** `black --check marslab/ scripts/ tests/` — "132 files would be left unchanged" ✓.
+- **Ruff:** `ruff check marslab/ scripts/ tests/` — "All checks passed!" ✓.
+- **Oracle 불변성:** `md5sum scripts/phase1/run_stage3_monolithic.py` → `d4e147cd2345f927db18c4d7ad33b854` (R1~R4 전 구간 일치). twin 만 수정.
+- **Lazy-import 불변식:** `test_ros2_bridge_lazy_import.py` 4 테스트 통과로 rclpy/geometry_msgs/sensor_msgs/nav_msgs/tf2_ros/omni 가 `import marslab.ros2_bridge` / 하위 모듈 import 시 `sys.modules` 에 안 들어옴.
+- **Isaac Sim smoke (사용자 수동 실행 대기):** stage2 / stage3_monolithic_new / stage3_monolithic 3종 풀 모드 — R4 facade 교체 후 아직 미검증.
+
+### 핵심 설계 결정
+- **병렬 subagent 3건 동시 실행:** R4-2 (sensors/ + run_stage3_monolithic_new.py L806-892), R4-3 (robots/rover.py + 신규 drive_api_setup.py), R4-7/R4-8 (refactoring/ 문서 read-only) 3 개가 파일 surface 비중첩이라 동시 진행. Phase 2b 체감 소요 시간 3x → 1x.
+- **`reinforce_pd_gains` 이름 보존:** plan 상 `reinforce_drive_gains` 로 rename 제안됐으나 R4-3 subagent 는 원본 이름 유지. 호출 site 회귀 리스크 최소화 결정 (사용자 요구가 "re-export facade" 지 "rename" 이 아니었음).
+- **순환 import trampoline 패턴:** `drive_api_setup.py::_resolve_joint_indices` 에서 `from marslab.robots.rover import ...` 를 함수 body 내부에만 두어 모듈 로드 시점 순환 회피. 향후 shared util 분리(예: `marslab/robots/joint_utils.py`) 시 제거 가능.
+- **BridgeContext 별도 모듈:** `rclpy_integration.py` 와 `sensor_graph_builder.py` 가 공유하지만 `rclpy` 를 끌어오지 않도록 `context.py` 에 격리. R4.G3 위험 (순환 import) 완화.
+- **R4-7 dead field 탐색 bonus:** plan 이 `TelemetryConfig` + `BenchmarkConfig` + `lidar_2d` 만 명시했는데, subagent 조사에서 `SensorImuConfig` 24 LOC + `SensorsConfig` 100 LOC 추가 dead 확인 (`BenchmarkConfig` 는 실제 사용 중으로 유지). 체크리스트에 근거(import 0 grep 결과) 포함해서 Option B 실행 시 즉시 archive 가능.
+
+### 생성/수정 파일 요약
+- **신규 (facade):** `marslab/sim/{__init__,boot,world_setup}.py`, `marslab/sensors/sensor_spawner.py`, `marslab/robots/drive_api_setup.py`, `marslab/ros2_bridge/{context,rclpy_integration,sensor_graph_builder}.py`.
+- **신규 (테스트 +43):** `tests/unit/test_{sim_boot,sim_world_setup,sensor_spawner,drive_api_setup,ros2_bridge_lazy_import,sensor_graph_builder,rclpy_integration,bridge_context}.py`.
+- **신규 (문서):** `refactoring/R4_cleanup_checklist.md` (293 LOC, dead schema/module + 22 DISABLED 블록 인벤토리 + Option A/B/C 실행 절차).
+- **수정(DISABLED + re-export):** `marslab/ros2_bridge/{__init__.py,sensor_graph.py}`, `marslab/robots/rover.py` (L218-370 DISABLED), `marslab/sensors/__init__.py` (`__all__` + re-export), `scripts/phase1/run_stage3_monolithic_new.py` (L396-462 + L806-892 facade 교체, 9 → 11 DISABLED 블록).
+
+### 후속 과제
+- **사용자 Isaac Sim smoke 3종 수동 실행:** `scripts/isaac_python.sh scripts/phase1/{run_stage2.py,run_stage3_monolithic.py,run_stage3_monolithic_new.py} --config configs/scenarios/jezero_flat.yaml` 풀 모드. Kit 렌더 + `/rover_0/odom` · `/rover_0/imu/data` · `/rover_0/lidar/points` publish 확인.
+- **R4-7/R4-8 체크리스트 실행 (사용자):** `refactoring/R4_cleanup_checklist.md` 기준 Option A/B/C 선택. 권장 = Option B (archive to `delete_later/disabled_blocks/`). 22 블록 / 632 LOC + dead schema 수동 정리 시 `run_stage3_monolithic_new.py` 1585 LOC → 예상 1350 LOC 수준.
+- **R5 방향 결정 (사용자 대기):** (a) 하드코딩 상수 51건 YAML 이관 (G5), (b) seed propagation 3중 통합, (c) P1 (`run_stage3_monolithic_new.py` 모듈화 완료 시 Oracle 과 diff 재평가) 중 택일.
+- **memory 반영 필요:** "facade extraction in parallel subagents" 패턴이 확립됨 → `project_r4_parallel_facade.md` 프로젝트 메모 고려 (후속 R5 에서도 병렬 분업 재활용).

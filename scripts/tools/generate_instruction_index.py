@@ -68,18 +68,20 @@ def progress_bar(counts: dict[str, int], width: int = 30) -> str:
     filled_n = int(width * counts.get("needs_refactor", 0) / total)
     filled_d = width - filled_r - filled_n
     bar = "█" * filled_r + "▒" * filled_n + "·" * filled_d
-    return (f"`{bar}` "
-            f"reviewed {counts.get('reviewed', 0)} / "
-            f"needs_refactor {counts.get('needs_refactor', 0)} / "
-            f"draft {counts.get('draft', 0)} "
-            f"(total {total})")
+    return (
+        f"`{bar}` "
+        f"reviewed {counts.get('reviewed', 0)} / "
+        f"needs_refactor {counts.get('needs_refactor', 0)} / "
+        f"draft {counts.get('draft', 0)} "
+        f"(total {total})"
+    )
 
 
 def main() -> int:
     # Group by module directory (first-level under marslab/)
     module_files: dict[str, list[Path]] = defaultdict(list)
     for py in sorted(SRC_ROOT.rglob("*.py")):
-        rel = py.relative_to(REPO_ROOT)        # marslab/config/schema.py
+        rel = py.relative_to(REPO_ROOT)  # marslab/config/schema.py
         # module = first path component under marslab/
         parts = rel.parts
         if len(parts) == 2:
@@ -89,7 +91,7 @@ def main() -> int:
         module_files[module].append(py)
 
     status_counts: dict[str, int] = defaultdict(int)
-    isaac_hits: list[tuple[str, str]] = []      # (rel_py, role)
+    isaac_hits: list[tuple[str, str]] = []  # (rel_py, role)
     ros2_hits: list[tuple[str, str]] = []
 
     lines: list[str] = []
@@ -101,10 +103,12 @@ def main() -> int:
     lines.append("")
     lines.append("# MarsLab Instruction Wiki — INDEX")
     lines.append("")
-    lines.append("> **English summary (1 paragraph):** Auto-generated navigation for the "
-                 "MarsLab Instruction wiki. Each row mirrors one source file under `marslab/` "
-                 "and links to its twin `.md`. Re-run `scripts/tools/generate_instruction_index.py` "
-                 "after adding/removing source files or flipping a `.md` status to reviewed.")
+    lines.append(
+        "> **English summary (1 paragraph):** Auto-generated navigation for the "
+        "MarsLab Instruction wiki. Each row mirrors one source file under `marslab/` "
+        "and links to its twin `.md`. Re-run `scripts/tools/generate_instruction_index.py` "
+        "after adding/removing source files or flipping a `.md` status to reviewed."
+    )
     lines.append("")
     lines.append("## 진행률")
     lines.append("")
@@ -143,7 +147,9 @@ def main() -> int:
             md_link = f"[[Instruction/{py.relative_to(REPO_ROOT).with_suffix('').as_posix()}]]"
             isaac_mark = "✅" if isaac else ""
             ros2_mark = "✅" if ros2 else ""
-            lines.append(f"| `{rel}` → {md_link} | {loc} | {status} | {role} | {isaac_mark} | {ros2_mark} |")
+            lines.append(
+                f"| `{rel}` → {md_link} | {loc} | {status} | {role} | {isaac_mark} | {ros2_mark} |"
+            )
 
             if isaac:
                 isaac_hits.append((rel, role))
@@ -184,7 +190,9 @@ def main() -> int:
     lines.append("")
     lines.append("- Phase A-4: `scripts/check_instruction_sync.py` (동형성 검증)")
     lines.append("- Phase B: 파일별 워크스루 — `marslab/utils/` 부터 시작 권장")
-    lines.append("- `.md` 프리필을 다시 돌리려면: `python3 scripts/tools/generate_instruction_skeleton.py`")
+    lines.append(
+        "- `.md` 프리필을 다시 돌리려면: `python3 scripts/tools/generate_instruction_skeleton.py`"
+    )
     lines.append("")
 
     # Fill in the progress bar now that counts are known

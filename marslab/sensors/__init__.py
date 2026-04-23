@@ -11,6 +11,16 @@ import yaml
 from marslab.sensors.camera import attach_camera
 from marslab.sensors.imu import attach_imu
 from marslab.sensors.lidar import attach_lidar
+from marslab.sensors.sensor_spawner import SensorHandles, spawn_sensors
+
+__all__ = [
+    "attach_camera",
+    "attach_imu",
+    "attach_lidar",
+    "load_and_attach_sensor",
+    "SensorHandles",
+    "spawn_sensors",
+]
 
 _SENSOR_DISPATCH = {
     "camera": attach_camera,

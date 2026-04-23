@@ -391,75 +391,84 @@ def main() -> int:
     check_rover_usd(usd_abs)
 
     # -------------------------------------------------------------------------
-    # § 7.7  Isaac Sim boot — lazy imports so pure helpers stay offline-testable.
+    # § 7.7  Isaac Sim boot — delegated to marslab.sim.boot (R4-1, 2026-04-22).
     # -------------------------------------------------------------------------
-    from isaacsim import SimulationApp  # noqa: E402
+    from marslab.sim.boot import boot_simulation_app  # noqa: E402
 
-    simulation_app = SimulationApp(
-        {"headless": bool(args.headless), "renderer": "RaytracedLighting"}
-    )
+    simulation_app = boot_simulation_app(headless=bool(args.headless))
+
+    # DISABLED R4-1 (2026-04-22): moved to marslab.sim.boot.boot_simulation_app.
+    # Retained as comment per feedback_no_delete_comment.
+    #
+    # from isaacsim import SimulationApp  # noqa: E402
+    # simulation_app = SimulationApp(
+    #     {"headless": bool(args.headless), "renderer": "RaytracedLighting"}
+    # )
 
     # All omni.* / isaacsim.* / rclpy imports must come AFTER SimulationApp().
     import omni.graph.core as og  # noqa: E402
-    import omni.usd  # noqa: E402
-    from isaacsim.core.api import World  # noqa: E402
+    import omni.usd  # noqa: E402,F401  # kept for parity with DISABLED R4-1 block
+
+    # DISABLED R4-1 (2026-04-22): enable_extension + simulation_app.update()
+    # moved into marslab.sim.boot.boot_simulation_app.
+    #
+    # from isaacsim.core.utils.extensions import enable_extension  # noqa: E402
+    # enable_extension("isaacsim.ros2.bridge")
+    # simulation_app.update()
+    import rclpy  # noqa: E402
+    import rclpy.parameter  # noqa: E402
+    from geometry_msgs.msg import TransformStamped, Twist  # noqa: E402
     from isaacsim.core.prims import Articulation  # noqa: E402
-    from isaacsim.core.utils.extensions import enable_extension  # noqa: E402
     from isaacsim.core.utils.stage import (  # noqa: E402
         add_reference_to_stage,
         is_stage_loading,
     )
-    from pxr import Gf, Sdf, UsdGeom, UsdPhysics  # noqa: E402
-
-    enable_extension("isaacsim.ros2.bridge")
-    simulation_app.update()
-
-    import rclpy  # noqa: E402
-    import rclpy.parameter  # noqa: E402
-    from geometry_msgs.msg import TransformStamped, Twist  # noqa: E402
     from nav_msgs.msg import Odometry  # noqa: E402
+    from pxr import Gf, Sdf, UsdGeom, UsdPhysics  # noqa: E402,F401  # Sdf kept for parity
     from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster  # noqa: E402
 
     # -------------------------------------------------------------------------
-    # § 7.8-7.10  World + Mars gravity + stage.
+    # § 7.8-7.10  World + Mars gravity + stage (R4-1 facade, 2026-04-22).
     # -------------------------------------------------------------------------
+    from marslab.sim.world_setup import create_world  # noqa: E402
+
     physics_dt = 1.0 / 60.0
-    world = World(
-        stage_units_in_meters=1.0,
-        physics_dt=physics_dt,
-        rendering_dt=physics_dt,
-    )
+    gravity = float(mars_cfg.get("gravity", 3.72))
+    world, stage = create_world(physics_dt=physics_dt, gravity=gravity)
     # NOTE: intentionally NOT calling world.scene.add_default_ground_plane().
     # Terrain mesh (DEM/procedural/cave) replaces the default ground.
-
-    gravity = float(mars_cfg.get("gravity", 3.72))
-    physics_ctx = world.get_physics_context()
-    physics_ctx.set_gravity(-gravity)
-    physics_ctx.set_solver_type("TGS")
     print(f"[run_stage3_mono] Gravity: {gravity} m/s^2", flush=True)
+    print(
+        "[run_stage3_mono] Solver iterations: pos=16, vel=4 on /physicsScene",
+        flush=True,
+    )
 
-    stage = omni.usd.get_context().get_stage()
-
-    # 29 DOF + high-gain drives need more solver iterations than default 4/1.
-    # PhysicsContext has no set_solver_*_iteration_count in Isaac Sim 5.x;
-    # set via USD PhysxScene attributes instead.
-    physics_scene_prim = stage.GetPrimAtPath("/physicsScene")
-    if physics_scene_prim.IsValid():
-        physics_scene_prim.CreateAttribute(
-            "physxScene:solverPositionIterationCount", Sdf.ValueTypeNames.Int
-        ).Set(16)
-        physics_scene_prim.CreateAttribute(
-            "physxScene:solverVelocityIterationCount", Sdf.ValueTypeNames.Int
-        ).Set(4)
-        print(
-            "[run_stage3_mono] Solver iterations: pos=16, vel=4 on /physicsScene",
-            flush=True,
-        )
-    else:
-        print(
-            "[run_stage3_mono] WARNING: /physicsScene not found; default solver iterations.",
-            file=sys.stderr,
-        )
+    # DISABLED R4-1 (2026-04-22): inline world creation + gravity + solver
+    # iteration count block moved to marslab.sim.world_setup.create_world.
+    # Retained as comment per feedback_no_delete_comment.
+    #
+    # world = World(
+    #     stage_units_in_meters=1.0,
+    #     physics_dt=physics_dt,
+    #     rendering_dt=physics_dt,
+    # )
+    # physics_ctx = world.get_physics_context()
+    # physics_ctx.set_gravity(-gravity)
+    # physics_ctx.set_solver_type("TGS")
+    # stage = omni.usd.get_context().get_stage()
+    # physics_scene_prim = stage.GetPrimAtPath("/physicsScene")
+    # if physics_scene_prim.IsValid():
+    #     physics_scene_prim.CreateAttribute(
+    #         "physxScene:solverPositionIterationCount", Sdf.ValueTypeNames.Int
+    #     ).Set(16)
+    #     physics_scene_prim.CreateAttribute(
+    #         "physxScene:solverVelocityIterationCount", Sdf.ValueTypeNames.Int
+    #     ).Set(4)
+    # else:
+    #     print(
+    #         "[run_stage3_mono] WARNING: /physicsScene not found; default solver iterations.",
+    #         file=sys.stderr,
+    #     )
 
     # -------------------------------------------------------------------------
     # § 7.12  Terrain + material + rocks (run_stage2.py L230-349 verbatim).
@@ -794,93 +803,116 @@ def main() -> int:
     except ValueError:
         simulation_app.close()
         raise
+    # DISABLED R4-2 (2026-04-22): moved to marslab.sensors.sensor_spawner.
+    # The inline camera / 3D LiDAR / optional 2D LiDAR / IMU spawn block
+    # (previously L806-892) was extracted into
+    # ``marslab.sensors.sensor_spawner.spawn_sensors`` so this runtime no
+    # longer imports ``isaacsim.sensors.*`` directly.  The replacement
+    # below is a single orchestrator call; ``spawn_sensors`` returns a
+    # :class:`SensorHandles` that we unpack into the same local names the
+    # downstream §7.18 OmniGraph / §7.24 TF / §7.30 main-loop blocks
+    # already reference, so nothing else on this page changes.
+    # Preserved verbatim per feedback_no_delete_comment.
+    #
+    # imu_cfg = sensors_cfg["imu"]
+    #
+    # from isaacsim.sensors.camera import Camera  # noqa: E402
+    # from isaacsim.sensors.physics import IMUSensor  # noqa: E402
+    # from isaacsim.sensors.rtx import LidarRtx  # noqa: E402
+    #
+    # # Camera orientation strategy: ANY xformOp modification on the Camera
+    # # prim itself corrupts the RTX depth pipeline (vertical striping).
+    # # Tested and failed: constructor orientation, AddOrientOp, set_local_pose.
+    # # Fix: place translation + orientation on a PARENT Xform prim. The Camera
+    # # prim has no xformOps of its own, but inherits the correct world-space
+    # # transform from the parent chain.
+    # cam_orient_deg = camera_cfg.get("local_orientation_rpy_deg", [0.0, 0.0, 0.0])
+    # has_cam_orient = any(abs(v) > 0.01 for v in cam_orient_deg)
+    #
+    # if has_cam_orient:
+    #     cam_qw, cam_qx, cam_qy, cam_qz = rpy_to_quat(
+    #         np.radians(float(cam_orient_deg[0])),
+    #         np.radians(float(cam_orient_deg[1])),
+    #         np.radians(float(cam_orient_deg[2])),
+    #     )
+    #     camera_xform_path = f"{rigid_body_path}/stage1_camera_xform"
+    #     camera_xform = UsdGeom.Xform.Define(stage, camera_xform_path)
+    #     camera_xform.ClearXformOpOrder()
+    #     cx_translate = camera_xform.AddTranslateOp()
+    #     cx_translate.Set(Gf.Vec3d(*[float(x) for x in camera_cfg["local_translation"]]))
+    #     cx_orient = camera_xform.AddOrientOp()
+    #     cx_orient.Set(Gf.Quatf(float(cam_qw), float(cam_qx), float(cam_qy), float(cam_qz)))
+    #     camera_prim_path = f"{camera_xform_path}/stage1_camera"
+    #     print(
+    #         f"[run_stage3_mono] Camera parent Xform: {camera_xform_path} "
+    #         f"rpy_deg={cam_orient_deg}",
+    #         flush=True,
+    #     )
+    # else:
+    #     camera_prim_path = f"{rigid_body_path}/stage1_camera"
+    #
+    # camera = Camera(
+    #     prim_path=camera_prim_path,
+    #     resolution=tuple(camera_cfg["resolution"]),
+    #     # Translation/orientation on parent Xform if oriented, else on Camera.
+    #     translation=(
+    #         None
+    #         if has_cam_orient
+    #         else np.asarray(camera_cfg["local_translation"], dtype=np.float32)
+    #     ),
+    # )
+    # camera.initialize()
+    # camera.set_focal_length(float(camera_cfg["focal_length"]) / 10.0)
+    # camera.set_clipping_range(
+    #     float(camera_cfg["clipping_range"][0]), float(camera_cfg["clipping_range"][1])
+    # )
+    #
+    # lidar_prim_path = f"{rigid_body_path}/stage1_lidar"
+    # lidar = LidarRtx(  # noqa: F841  (handle kept alive for extension lifetime)
+    #     prim_path=lidar_prim_path,
+    #     config_file_name=lidar_cfg["profile"],
+    #     translation=np.asarray(lidar_cfg["local_translation"], dtype=np.float32),
+    # )
+    # lidar.initialize()
+    #
+    # # 2D LiDAR (LaserScan) — optional, mirrors the 3D LiDAR pipeline.
+    # # config_file_name receives the Isaac-Sim bundled profile *name* only
+    # # (e.g. "Example_Rotary_2D"), never a filesystem path (§10.8 regression).
+    # lidar_2d_cfg = sensors_cfg.get("lidar_2d")
+    # lidar_2d_prim_path = None
+    # if lidar_2d_cfg is not None:
+    #     lidar_2d_prim_path = f"{rigid_body_path}/stage1_lidar_2d"
+    #     lidar_2d = LidarRtx(  # noqa: F841  (handle kept alive for extension lifetime)
+    #         prim_path=lidar_2d_prim_path,
+    #         config_file_name=lidar_2d_cfg["profile"],
+    #         translation=np.asarray(lidar_2d_cfg["local_translation"], dtype=np.float32),
+    #     )
+    #     lidar_2d.initialize()
+    #     print(
+    #         f"[run_stage3_mono] 2D LiDAR attached at {lidar_2d_prim_path} "
+    #         f"profile='{lidar_2d_cfg['profile']}'",
+    #         flush=True,
+    #     )
+    #
+    # imu_prim_path = f"{rigid_body_path}/stage1_imu"
+    # imu = IMUSensor(
+    #     prim_path=imu_prim_path,
+    #     translation=np.asarray(imu_cfg["local_translation"], dtype=np.float32),
+    #     frequency=int(ros2_cfg["rates"]["imu"]),
+    # )
+    # imu.initialize()
     imu_cfg = sensors_cfg["imu"]
-
-    from isaacsim.sensors.camera import Camera  # noqa: E402
-    from isaacsim.sensors.physics import IMUSensor  # noqa: E402
-    from isaacsim.sensors.rtx import LidarRtx  # noqa: E402
-
-    # Camera orientation strategy: ANY xformOp modification on the Camera
-    # prim itself corrupts the RTX depth pipeline (vertical striping).
-    # Tested and failed: constructor orientation, AddOrientOp, set_local_pose.
-    # Fix: place translation + orientation on a PARENT Xform prim. The Camera
-    # prim has no xformOps of its own, but inherits the correct world-space
-    # transform from the parent chain.
-    cam_orient_deg = camera_cfg.get("local_orientation_rpy_deg", [0.0, 0.0, 0.0])
-    has_cam_orient = any(abs(v) > 0.01 for v in cam_orient_deg)
-
-    if has_cam_orient:
-        cam_qw, cam_qx, cam_qy, cam_qz = rpy_to_quat(
-            np.radians(float(cam_orient_deg[0])),
-            np.radians(float(cam_orient_deg[1])),
-            np.radians(float(cam_orient_deg[2])),
-        )
-        camera_xform_path = f"{rigid_body_path}/stage1_camera_xform"
-        camera_xform = UsdGeom.Xform.Define(stage, camera_xform_path)
-        camera_xform.ClearXformOpOrder()
-        cx_translate = camera_xform.AddTranslateOp()
-        cx_translate.Set(Gf.Vec3d(*[float(x) for x in camera_cfg["local_translation"]]))
-        cx_orient = camera_xform.AddOrientOp()
-        cx_orient.Set(Gf.Quatf(float(cam_qw), float(cam_qx), float(cam_qy), float(cam_qz)))
-        camera_prim_path = f"{camera_xform_path}/stage1_camera"
-        print(
-            f"[run_stage3_mono] Camera parent Xform: {camera_xform_path} "
-            f"rpy_deg={cam_orient_deg}",
-            flush=True,
-        )
-    else:
-        camera_prim_path = f"{rigid_body_path}/stage1_camera"
-
-    camera = Camera(
-        prim_path=camera_prim_path,
-        resolution=tuple(camera_cfg["resolution"]),
-        # Translation/orientation on parent Xform if oriented, else on Camera.
-        translation=(
-            None
-            if has_cam_orient
-            else np.asarray(camera_cfg["local_translation"], dtype=np.float32)
-        ),
-    )
-    camera.initialize()
-    camera.set_focal_length(float(camera_cfg["focal_length"]) / 10.0)
-    camera.set_clipping_range(
-        float(camera_cfg["clipping_range"][0]), float(camera_cfg["clipping_range"][1])
-    )
-
-    lidar_prim_path = f"{rigid_body_path}/stage1_lidar"
-    lidar = LidarRtx(  # noqa: F841  (handle kept alive for extension lifetime)
-        prim_path=lidar_prim_path,
-        config_file_name=lidar_cfg["profile"],
-        translation=np.asarray(lidar_cfg["local_translation"], dtype=np.float32),
-    )
-    lidar.initialize()
-
-    # 2D LiDAR (LaserScan) — optional, mirrors the 3D LiDAR pipeline.
-    # config_file_name receives the Isaac-Sim bundled profile *name* only
-    # (e.g. "Example_Rotary_2D"), never a filesystem path (§10.8 regression).
     lidar_2d_cfg = sensors_cfg.get("lidar_2d")
-    lidar_2d_prim_path = None
-    if lidar_2d_cfg is not None:
-        lidar_2d_prim_path = f"{rigid_body_path}/stage1_lidar_2d"
-        lidar_2d = LidarRtx(  # noqa: F841  (handle kept alive for extension lifetime)
-            prim_path=lidar_2d_prim_path,
-            config_file_name=lidar_2d_cfg["profile"],
-            translation=np.asarray(lidar_2d_cfg["local_translation"], dtype=np.float32),
-        )
-        lidar_2d.initialize()
-        print(
-            f"[run_stage3_mono] 2D LiDAR attached at {lidar_2d_prim_path} "
-            f"profile='{lidar_2d_cfg['profile']}'",
-            flush=True,
-        )
 
-    imu_prim_path = f"{rigid_body_path}/stage1_imu"
-    imu = IMUSensor(
-        prim_path=imu_prim_path,
-        translation=np.asarray(imu_cfg["local_translation"], dtype=np.float32),
-        frequency=int(ros2_cfg["rates"]["imu"]),
-    )
-    imu.initialize()
+    from marslab.sensors.sensor_spawner import spawn_sensors  # noqa: E402
+
+    handles = spawn_sensors(stage, sensors_cfg, ros2_cfg, rigid_body_path)
+    camera = handles.camera  # noqa: F841  (handle kept alive for extension lifetime)
+    imu = handles.imu
+    camera_prim_path = handles.camera_prim_path
+    lidar_prim_path = handles.lidar_3d_prim_path
+    lidar_2d_prim_path = handles.lidar_2d_prim_path
+    imu_prim_path = handles.imu_prim_path
 
     # -------------------------------------------------------------------------
     # § 7.18  OmniGraph — BEFORE world.reset() (run_stage1.py L443-527 verbatim).

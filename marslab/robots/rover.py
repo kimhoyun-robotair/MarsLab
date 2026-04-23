@@ -30,13 +30,39 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
+import numpy as np  # noqa: F401  # kept for parity with DISABLED reinforce_pd_gains body
 
 # R3-A1: ``rpy_to_quat`` was relocated to ``marslab.math.quaternion`` as
 # the single source of truth.  Re-exported here so every existing import
 # site — ``from marslab.robots.rover import rpy_to_quat`` — keeps working
 # without modification (tests/unit/test_rover_module.py, sensors/rover_rig.py).
 from marslab.math.quaternion import rpy_to_quat  # noqa: F401
+
+# R4-3 (2026-04-22): DriveAPI + PD-gain helpers relocated to
+# ``marslab.robots.drive_api_setup``.  Re-exported here so existing
+# imports (``from marslab.robots.rover import configure_drives``,
+# ``reinforce_pd_gains``) keep working.  Original inline bodies are
+# retained below as ``#``-commented DISABLED blocks per
+# ``feedback_no_delete_comment``.
+from marslab.robots.drive_api_setup import (  # noqa: F401
+    _apply_drive_api,
+    configure_drives,
+    reinforce_pd_gains,
+)
+
+__all__ = [
+    "rpy_to_quat",
+    "resolve_joint_indices",
+    "SpawnedRover",
+    "load_rover_usd",
+    "apply_spawn_pose",
+    "apply_mass_properties",
+    "find_rigid_body_path",
+    "_apply_drive_api",
+    "configure_drives",
+    "reinforce_pd_gains",
+    "spawn_rover",
+]
 
 # DISABLED (moved_to_marslab_math_R3-A1): original rpy_to_quat definition.
 # def rpy_to_quat(roll: float, pitch: float, yaw: float) -> Tuple[float, float, float, float]:
@@ -215,158 +241,160 @@ def find_rigid_body_path(stage: Any, chassis_path: str) -> str:
     return chassis_path
 
 
-def _apply_drive_api(
-    stage: Any,
-    joint_path: str,
-    stiffness: float,
-    damping: float,
-    max_force: float,
-    drive_type: str,
-) -> bool:
-    """Create or update the angular DriveAPI on a single revolute joint."""
-    from pxr import Sdf, UsdPhysics
-
-    joint_prim = stage.GetPrimAtPath(joint_path)
-    if not joint_prim.IsValid():
-        return False
-    if not joint_prim.HasAPI(UsdPhysics.DriveAPI, "angular"):
-        UsdPhysics.DriveAPI.Apply(joint_prim, "angular")
-    drive_api = UsdPhysics.DriveAPI(joint_prim, "angular")
-    joint_prim.CreateAttribute("drive:angular:physics:stiffness", Sdf.ValueTypeNames.Float).Set(
-        float(stiffness)
-    )
-    joint_prim.CreateAttribute("drive:angular:physics:damping", Sdf.ValueTypeNames.Float).Set(
-        float(damping)
-    )
-    joint_prim.CreateAttribute("drive:angular:physics:maxForce", Sdf.ValueTypeNames.Float).Set(
-        float(max_force)
-    )
-    type_attr = drive_api.GetTypeAttr() or drive_api.CreateTypeAttr()
-    type_attr.Set(drive_type)
-    return True
-
-
-def configure_drives(
-    stage: Any,
-    chassis_path: str,
-    control_cfg: Dict[str, Any],
-) -> None:
-    """Apply DriveAPI attributes to drive / steer / suspension joints.
-
-    Must be called BEFORE ``world.reset()`` because PhysX syncs USD
-    drive attributes to tensors only at the reset boundary; later
-    writes are ignored by the tensor cache.  Post-reset gain reinforce
-    still runs through ``articulation.set_gains`` — see
-    :func:`reinforce_pd_gains`.
-    """
-    drive_joint_names = list(control_cfg["drive_joint_names"])
-    steer_joint_names = list(control_cfg["steer_joint_names"])
-    suspension_names = list(control_cfg.get("suspension_joint_names", []))
-
-    # R2-A3 (2026-04-22): G5 — drive_damping / steer_stiffness /
-    # steer_damping are required keys in the ``control:`` block.  The
-    # previous ``.get(..., <python-literal>)`` fallbacks were dead code:
-    # the Python defaults (100000 / 50000 / 5000) never matched the
-    # runtime YAML values (1000 / 50000 / 5000 in
-    # configs/robots/rover_m2020.yaml), so any caller that relied on the
-    # fallback would have silently driven the rover with wrong gains.
-    # The SkidSteerDriveConfig schema now lists these three as required
-    # fields (see marslab/config/schema/robot.py).  Preserve the old
-    # lines here (commented) per feedback_no_delete_comment.
-    # DISABLED (hardcoded_default_fallback, R2-A3):
-    # drive_damping = float(control_cfg.get("drive_damping", 100000.0))
-    # steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
-    # steer_damping = float(control_cfg.get("steer_damping", 5000.0))
-    drive_damping = float(control_cfg["drive_damping"])
-    drive_max_force = float(control_cfg.get("drive_max_force", 1000000.0))
-    steer_stiffness = float(control_cfg["steer_stiffness"])
-    steer_damping = float(control_cfg["steer_damping"])
-    steer_max_force = float(control_cfg.get("steer_max_force", 100000.0))
-    suspension_damping = float(control_cfg.get("suspension_damping", 0.0))
-    drive_type = str(control_cfg.get("drive_type", "acceleration"))
-
-    joints_scope = f"{chassis_path}/joints"
-
-    for jname in drive_joint_names:
-        # Velocity mode: stiffness=0, damping=high.
-        _apply_drive_api(
-            stage,
-            f"{joints_scope}/{jname}",
-            stiffness=0.0,
-            damping=drive_damping,
-            max_force=drive_max_force,
-            drive_type=drive_type,
-        )
-
-    for jname in steer_joint_names:
-        # Position mode: stiffness=high, damping=moderate.
-        _apply_drive_api(
-            stage,
-            f"{joints_scope}/{jname}",
-            stiffness=steer_stiffness,
-            damping=steer_damping,
-            max_force=steer_max_force,
-            drive_type=drive_type,
-        )
-
-    if suspension_damping > 0.0:
-        for jname in suspension_names:
-            # Damped passive joint: stiffness=0, damping>0.
-            _apply_drive_api(
-                stage,
-                f"{joints_scope}/{jname}",
-                stiffness=0.0,
-                damping=suspension_damping,
-                max_force=steer_max_force,
-                drive_type=drive_type,
-            )
-
-
-def reinforce_pd_gains(
-    articulation: Any,
-    control_cfg: Dict[str, Any],
-    dof_names: List[str],
-) -> None:
-    """Reinforce PD gains into the PhysX tensors after ``world.reset``.
-
-    ``articulation.set_effort_modes`` only touches USD, so post-reset
-    ``set_gains`` is the only path that propagates to the tensor cache.
-    Matches the Stage 1 warm-up sequence (10-step physics warmup + play
-    timeline) that the caller is expected to run immediately before
-    calling this helper.
-    """
-    drive_joint_names = list(control_cfg["drive_joint_names"])
-    steer_joint_names = list(control_cfg["steer_joint_names"])
-    suspension_names = list(control_cfg.get("suspension_joint_names", []))
-
-    # R2-A3 (2026-04-22): see rationale in ``configure_drives`` above.
-    # DISABLED (hardcoded_default_fallback, R2-A3):
-    # drive_damping = float(control_cfg.get("drive_damping", 100000.0))
-    # steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
-    # steer_damping = float(control_cfg.get("steer_damping", 5000.0))
-    drive_damping = float(control_cfg["drive_damping"])
-    steer_stiffness = float(control_cfg["steer_stiffness"])
-    steer_damping = float(control_cfg["steer_damping"])
-    suspension_damping = float(control_cfg.get("suspension_damping", 0.0))
-
-    drive_indices = resolve_joint_indices(dof_names, drive_joint_names)
-    steer_indices = resolve_joint_indices(dof_names, steer_joint_names)
-    susp_indices: List[int] = []
-    if suspension_names and suspension_damping > 0.0:
-        susp_indices = resolve_joint_indices(dof_names, suspension_names)
-
-    num_dof = len(dof_names)
-    kps = np.zeros((1, num_dof), dtype=np.float32)
-    kds = np.zeros((1, num_dof), dtype=np.float32)
-    for idx in drive_indices:
-        kds[0, idx] = drive_damping
-    for idx in steer_indices:
-        kps[0, idx] = steer_stiffness
-        kds[0, idx] = steer_damping
-    for idx in susp_indices:
-        kds[0, idx] = suspension_damping
-
-    articulation.set_gains(kps=kps, kds=kds)
+# DISABLED R4-3 (2026-04-22): moved to marslab.robots.drive_api_setup.
+# Retained as comments per feedback_no_delete_comment.
+# def _apply_drive_api(
+#     stage: Any,
+#     joint_path: str,
+#     stiffness: float,
+#     damping: float,
+#     max_force: float,
+#     drive_type: str,
+# ) -> bool:
+#     """Create or update the angular DriveAPI on a single revolute joint."""
+#     from pxr import Sdf, UsdPhysics
+#
+#     joint_prim = stage.GetPrimAtPath(joint_path)
+#     if not joint_prim.IsValid():
+#         return False
+#     if not joint_prim.HasAPI(UsdPhysics.DriveAPI, "angular"):
+#         UsdPhysics.DriveAPI.Apply(joint_prim, "angular")
+#     drive_api = UsdPhysics.DriveAPI(joint_prim, "angular")
+#     joint_prim.CreateAttribute("drive:angular:physics:stiffness", Sdf.ValueTypeNames.Float).Set(
+#         float(stiffness)
+#     )
+#     joint_prim.CreateAttribute("drive:angular:physics:damping", Sdf.ValueTypeNames.Float).Set(
+#         float(damping)
+#     )
+#     joint_prim.CreateAttribute("drive:angular:physics:maxForce", Sdf.ValueTypeNames.Float).Set(
+#         float(max_force)
+#     )
+#     type_attr = drive_api.GetTypeAttr() or drive_api.CreateTypeAttr()
+#     type_attr.Set(drive_type)
+#     return True
+#
+#
+# def configure_drives(
+#     stage: Any,
+#     chassis_path: str,
+#     control_cfg: Dict[str, Any],
+# ) -> None:
+#     """Apply DriveAPI attributes to drive / steer / suspension joints.
+#
+#     Must be called BEFORE ``world.reset()`` because PhysX syncs USD
+#     drive attributes to tensors only at the reset boundary; later
+#     writes are ignored by the tensor cache.  Post-reset gain reinforce
+#     still runs through ``articulation.set_gains`` — see
+#     :func:`reinforce_pd_gains`.
+#     """
+#     drive_joint_names = list(control_cfg["drive_joint_names"])
+#     steer_joint_names = list(control_cfg["steer_joint_names"])
+#     suspension_names = list(control_cfg.get("suspension_joint_names", []))
+#
+#     # R2-A3 (2026-04-22): G5 — drive_damping / steer_stiffness /
+#     # steer_damping are required keys in the ``control:`` block.  The
+#     # previous ``.get(..., <python-literal>)`` fallbacks were dead code:
+#     # the Python defaults (100000 / 50000 / 5000) never matched the
+#     # runtime YAML values (1000 / 50000 / 5000 in
+#     # configs/robots/rover_m2020.yaml), so any caller that relied on the
+#     # fallback would have silently driven the rover with wrong gains.
+#     # The SkidSteerDriveConfig schema now lists these three as required
+#     # fields (see marslab/config/schema/robot.py).  Preserve the old
+#     # lines here (commented) per feedback_no_delete_comment.
+#     # DISABLED (hardcoded_default_fallback, R2-A3):
+#     # drive_damping = float(control_cfg.get("drive_damping", 100000.0))
+#     # steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
+#     # steer_damping = float(control_cfg.get("steer_damping", 5000.0))
+#     drive_damping = float(control_cfg["drive_damping"])
+#     drive_max_force = float(control_cfg.get("drive_max_force", 1000000.0))
+#     steer_stiffness = float(control_cfg["steer_stiffness"])
+#     steer_damping = float(control_cfg["steer_damping"])
+#     steer_max_force = float(control_cfg.get("steer_max_force", 100000.0))
+#     suspension_damping = float(control_cfg.get("suspension_damping", 0.0))
+#     drive_type = str(control_cfg.get("drive_type", "acceleration"))
+#
+#     joints_scope = f"{chassis_path}/joints"
+#
+#     for jname in drive_joint_names:
+#         # Velocity mode: stiffness=0, damping=high.
+#         _apply_drive_api(
+#             stage,
+#             f"{joints_scope}/{jname}",
+#             stiffness=0.0,
+#             damping=drive_damping,
+#             max_force=drive_max_force,
+#             drive_type=drive_type,
+#         )
+#
+#     for jname in steer_joint_names:
+#         # Position mode: stiffness=high, damping=moderate.
+#         _apply_drive_api(
+#             stage,
+#             f"{joints_scope}/{jname}",
+#             stiffness=steer_stiffness,
+#             damping=steer_damping,
+#             max_force=steer_max_force,
+#             drive_type=drive_type,
+#         )
+#
+#     if suspension_damping > 0.0:
+#         for jname in suspension_names:
+#             # Damped passive joint: stiffness=0, damping>0.
+#             _apply_drive_api(
+#                 stage,
+#                 f"{joints_scope}/{jname}",
+#                 stiffness=0.0,
+#                 damping=suspension_damping,
+#                 max_force=steer_max_force,
+#                 drive_type=drive_type,
+#             )
+#
+#
+# def reinforce_pd_gains(
+#     articulation: Any,
+#     control_cfg: Dict[str, Any],
+#     dof_names: List[str],
+# ) -> None:
+#     """Reinforce PD gains into the PhysX tensors after ``world.reset``.
+#
+#     ``articulation.set_effort_modes`` only touches USD, so post-reset
+#     ``set_gains`` is the only path that propagates to the tensor cache.
+#     Matches the Stage 1 warm-up sequence (10-step physics warmup + play
+#     timeline) that the caller is expected to run immediately before
+#     calling this helper.
+#     """
+#     drive_joint_names = list(control_cfg["drive_joint_names"])
+#     steer_joint_names = list(control_cfg["steer_joint_names"])
+#     suspension_names = list(control_cfg.get("suspension_joint_names", []))
+#
+#     # R2-A3 (2026-04-22): see rationale in ``configure_drives`` above.
+#     # DISABLED (hardcoded_default_fallback, R2-A3):
+#     # drive_damping = float(control_cfg.get("drive_damping", 100000.0))
+#     # steer_stiffness = float(control_cfg.get("steer_stiffness", 50000.0))
+#     # steer_damping = float(control_cfg.get("steer_damping", 5000.0))
+#     drive_damping = float(control_cfg["drive_damping"])
+#     steer_stiffness = float(control_cfg["steer_stiffness"])
+#     steer_damping = float(control_cfg["steer_damping"])
+#     suspension_damping = float(control_cfg.get("suspension_damping", 0.0))
+#
+#     drive_indices = resolve_joint_indices(dof_names, drive_joint_names)
+#     steer_indices = resolve_joint_indices(dof_names, steer_joint_names)
+#     susp_indices: List[int] = []
+#     if suspension_names and suspension_damping > 0.0:
+#         susp_indices = resolve_joint_indices(dof_names, suspension_names)
+#
+#     num_dof = len(dof_names)
+#     kps = np.zeros((1, num_dof), dtype=np.float32)
+#     kds = np.zeros((1, num_dof), dtype=np.float32)
+#     for idx in drive_indices:
+#         kds[0, idx] = drive_damping
+#     for idx in steer_indices:
+#         kps[0, idx] = steer_stiffness
+#         kds[0, idx] = steer_damping
+#     for idx in susp_indices:
+#         kds[0, idx] = suspension_damping
+#
+#     articulation.set_gains(kps=kps, kds=kds)
 
 
 def spawn_rover(
