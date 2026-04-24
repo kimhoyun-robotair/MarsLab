@@ -71,6 +71,7 @@ marslab.egg-info/
 삭제대상/
 work_log/
 .claude/
+tmp/
 
 # Reviewer 2 #15 (2026-04-24): integration suite reinstated.
 # tests/integration/ is VCS-tracked; use scripts/run_integration_test.py
