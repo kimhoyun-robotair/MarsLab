@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 if TYPE_CHECKING:  # pragma: no cover - type-checker only
     from marslab.scene.structure_loader import StructureConfig
@@ -27,6 +27,12 @@ __all__ = [
     "SceneConfig",
     "StructureConfigSchema",
 ]
+
+
+# Reviewer 2 #12 (2026-04-24): both models below pin ``extra="forbid"``
+# so a misspelled structure field (``spawn_xyz`` vs ``spawn_position``,
+# ``collisions`` vs ``collision``) fails YAML validation instead of
+# being silently dropped into a default.
 
 
 class StructureConfigSchema(BaseModel):
@@ -43,6 +49,8 @@ class StructureConfigSchema(BaseModel):
       than ``str | None`` so the dataclass default matches the pydantic
       default byte-for-byte.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(
         ...,
@@ -156,6 +164,8 @@ class SceneConfig(BaseModel):
             declarations.  Order is preserved end-to-end so log output
             and prim creation sequence stay stable.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     structures: list[StructureConfigSchema] = Field(
         default_factory=list,

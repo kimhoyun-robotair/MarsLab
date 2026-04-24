@@ -91,16 +91,23 @@ class TestElevationBounds:
 class TestCaveGeometryDefaultFactory:
     """``CaveConfig.geometry`` uses ``default_factory`` to stay backward-compat."""
 
-    def test_cave_geometry_default_factory(self) -> None:
-        """YAMLs that omit ``geometry`` still yield a valid nested config.
+    def test_cave_config_default_is_valid(self) -> None:
+        """Reviewer 2 #5 (2026-04-24): ``CaveConfig()`` with zero arguments
+        must construct without raising.
 
-        ``CaveConfig`` default ``skylight_depth_m=90`` is below the default
-        tube ceiling (``tube_width_m*tube_height_ratio = 200*0.5 = 100``),
-        which the cross-field validator rejects when ``skylight_count > 0``.
-        The backward-compat path under test is the ``geometry`` subfield, so
-        we set ``skylight_count=0`` to sidestep the unrelated constraint.
+        Pre-fix: ``skylight_depth_m=90.0`` < ``tube_width_m*tube_height_ratio``
+        (200*0.5 = 100m) with default ``skylight_count=10`` tripped
+        ``check_cave_ranges``. Raising the default to 110m (still in
+        Cushing 2007 68-178m range) restores the ergonomic default.
         """
-        c = CaveConfig(skylight_count=0)
+        c = CaveConfig()
+        assert c.tube_width_m * c.tube_height_ratio == 100.0
+        assert c.skylight_depth_m >= c.tube_width_m * c.tube_height_ratio
+        assert c.skylight_count > 0
+
+    def test_cave_geometry_default_factory(self) -> None:
+        """YAMLs that omit ``geometry`` still yield a valid nested config."""
+        c = CaveConfig()
         assert isinstance(c.geometry, CaveGeometryConfig)
 
     def test_cave_geometry_default_values(self) -> None:
@@ -121,12 +128,24 @@ class TestCaveGeometryDefaultFactory:
         with pytest.raises(ValidationError):
             CaveConfig(skylight_count=5, skylight_depth_m=50.0)
 
+    def test_cave_config_skylight_depth_validation(self) -> None:
+        """Reviewer 2 #5 (2026-04-24): raising the default must NOT disable
+        the cross-field rule. Invalid user overrides still raise, and the
+        boundary (depth == tube_height) is accepted by ``>=``.
+        """
+        # Explicit underflow with non-zero skylights still raises.
+        with pytest.raises(ValidationError):
+            CaveConfig(skylight_count=3, skylight_depth_m=80.0)
+        # Boundary case: depth == tube_height is permitted by the ``<`` guard.
+        c = CaveConfig(skylight_count=3, skylight_depth_m=100.0)
+        assert c.skylight_depth_m == 100.0
+        # ``skylight_count == 0`` skips the check entirely.
+        c0 = CaveConfig(skylight_count=0, skylight_depth_m=20.0)
+        assert c0.skylight_count == 0
+
     def test_cave_geometry_accepts_nested_override(self) -> None:
         """Explicit nested override wins over default factory."""
-        c = CaveConfig(
-            skylight_count=0,
-            geometry=CaveGeometryConfig(surface_noise_sigma=25.0),
-        )
+        c = CaveConfig(geometry=CaveGeometryConfig(surface_noise_sigma=25.0))
         assert c.geometry.surface_noise_sigma == 25.0
 
     def test_cave_wall_albedo_ordered(self) -> None:

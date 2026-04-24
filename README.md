@@ -73,6 +73,28 @@ pip install -e ".[dev]"
 pytest tests/unit/ -v
 ```
 
+### Developer Hygiene (black + ruff + mypy + pip-audit)
+
+All three CI checks plus a typing scope and a dependency audit are wired to
+`pyproject.toml` (Reviewer 2 #18, 2026-04-24):
+
+```bash
+# One-time per clone: install pre-commit hooks so black/ruff run on every commit.
+pip install pre-commit
+pre-commit install
+
+# Manual full sweep (matches CI):
+black --check marslab/ scripts/ tests/
+ruff  check   marslab/ scripts/ tests/
+pytest tests/unit/ -q
+mypy                           # scoped to marslab/config + marslab/environment
+pip-audit --strict             # fails on any known CVE in installed deps
+```
+
+The ruff ruleset is `E,F,W,I,B,SIM`.  Adding `UP` (pyupgrade) is deferred to a
+dedicated refactor — it currently surfaces ~290 violations, almost all of them
+`List[X]` -> `list[X]` / `Optional[X]` -> `X | None`.
+
 ### Run Full Mars Scene (Isaac Sim required)
 
 ```bash
@@ -81,16 +103,42 @@ PYTHONPATH=/path/to/MarsLab ~/isaacsim/python.sh scripts/run_scene.py
 
 ### Run Integration Tests (Isaac Sim required)
 
+The integration suite lives under `tests/integration/` and is VCS-tracked
+(Reviewer 2 #15 reinstate, 2026-04-24).  All tests are gated on
+`pytest.importorskip("isaacsim")` and marked `@pytest.mark.integration`,
+so the default `pytest tests/unit/` run skips them cleanly on hosts
+without a GPU.
+
+Current inventory (3 integration tests + scaffolding):
+
+| Test file                                               | What it proves                                               |
+|--------------------------------------------------------|---------------------------------------------------------------|
+| `tests/integration/test_imu_gravity_actual.py`         | Rover IMU z-axis within 3.72 +/- 0.05 m/s^2 (Wk1 gate)        |
+| `tests/integration/test_robot_spawn_ros2_topics.py`    | `/rover/odom` publishes within 30 s of Stage-3 boot           |
+| `tests/integration/test_slam_toolbox_receives_scan.py` | `/rover/scan` visible under slam_toolbox QoS (BEST_EFFORT)    |
+
+Invoke through the `scripts/isaac_python.sh` wrapper, which strips the
+system ROS 2 Jazzy environment before handing off to Isaac Sim's bundled
+Python.  The `scripts/run_integration_test.py` entry point overrides
+`addopts=-m 'not integration'` and runs exactly the integration suite:
+
 ```bash
-# Rover spawn + gravity verification
-PYTHONPATH=/path/to/MarsLab ~/isaacsim/python.sh scripts/run_integration_test.py
+# Run every integration test
+scripts/isaac_python.sh scripts/run_integration_test.py
 
-# Full scene assembly test
-PYTHONPATH=/path/to/MarsLab ~/isaacsim/python.sh scripts/run_scene_test.py
+# Run a specific file
+scripts/isaac_python.sh scripts/run_integration_test.py \
+    tests/integration/test_imu_gravity_actual.py
 
-# Multi-robot test (rover + rotorcraft + quadruped)
-PYTHONPATH=/path/to/MarsLab ~/isaacsim/python.sh scripts/run_multi_robot_test.py
+# Run a specific nodeid
+scripts/isaac_python.sh scripts/run_integration_test.py \
+    tests/integration/test_imu_gravity_actual.py::test_imu_z_gravity_within_mars_band
 ```
+
+> The older `scripts/run_scene_test.py` / `scripts/run_multi_robot_test.py`
+> entry points advertised in the Phase 1a README have been retired — the
+> equivalents now live as `scripts/phase1/run_stage4.py` (Stage-3 runtime)
+> and the scenario-specific YAMLs under `configs/scenarios/`.
 
 ### Offline Visualizations (no GPU needed)
 
@@ -174,8 +222,8 @@ robots:
 - Bell, J.F. et al. (2006). Chromaticity of the Martian sky. JGR Planets.
 
 
-scripts/isaac_python.sh scripts/phase1/run_stage3_monolithic.py --config configs/scenarios/jezero_flat.yaml
+scripts/isaac_python.sh scripts/phase1/run_stage4.py --config configs/scenarios/jezero_flat.yaml
 # 여기서 YAML 파일 이름만 바꿔가면서 진행하면 됨.
 
 scripts/isaac_python.sh scripts/phase1/run_stage2.py --config configs/mars_env.yaml
-scripts/isaac_python.sh scripts/phase1/run_stage3_monolithic_new.py --config configs/scenarios/jezero_flat.yaml
+scripts/isaac_python.sh scripts/phase1/run_stage4.py --config configs/scenarios/jezero_flat.yaml

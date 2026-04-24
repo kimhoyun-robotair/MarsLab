@@ -2,8 +2,8 @@
 #
 # Paired with:
 #   - slam_toolbox (configs/slam/slam_toolbox_async.yaml) for map -> odom
-#   - run_stage3_monolithic.py which subscribes /rover/cmd_vel and publishes
-#     /rover/odom, /rover/scan, /tf, /tf_static, /clock
+#   - scripts/phase1/run_stage4.py which subscribes /rover/cmd_vel and
+#     publishes /rover/odom, /rover/scan, /tf, /tf_static, /clock
 #
 # NOTE: the launch file globally remaps /cmd_vel -> /rover/cmd_vel so that
 # controller_server and velocity_smoother publishes reach the rover.

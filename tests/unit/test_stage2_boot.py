@@ -19,9 +19,17 @@ MARS_ENV_YAML = REPO_ROOT / "configs" / "mars_env.yaml"
 
 
 def _find_scenario_without_cave() -> Path:
-    """Return a scenario YAML whose terrain pipeline is not cave."""
+    """Return a scenario YAML whose terrain pipeline is not cave.
+
+    Reviewer 2 #17 (2026-04-24): skip ``_``-prefixed YAMLs (e.g.
+    ``_base.yaml``) — they are shared include fragments and do not
+    carry a complete ``terrain`` block, so feeding them into
+    ``run_stage2_boot`` would fail the required-section check.
+    """
     scenarios_dir = REPO_ROOT / "configs" / "scenarios"
     for candidate in sorted(scenarios_dir.glob("*.yaml")):
+        if candidate.name.startswith("_"):
+            continue
         name = candidate.name.lower()
         if "cave" in name:
             continue
@@ -84,7 +92,7 @@ class TestAtmosphereInit:
         atmo = boot.atmosphere_init
         assert isinstance(atmo, StageTwoAtmosphereInit)
         # Frozen dataclass: attribute assignment must raise.
-        with pytest.raises(Exception):  # noqa: BLE001 - FrozenInstanceError
+        with pytest.raises(Exception):  # noqa: BLE001, B017 - FrozenInstanceError
             atmo.tau = 999.0  # type: ignore[misc]
 
     def test_beer_law_intensity_positive_finite(self) -> None:

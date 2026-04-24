@@ -1,11 +1,10 @@
-"""Thin CLI entry point for the MarsLab v1.0 Stage 3 rover runtime (R6-2).
+"""Thin CLI entry point for the MarsLab v1.0 Stage 3 rover runtime.
 
-This wrapper is the *modular* counterpart to
-``scripts/phase1/run_stage3_monolithic_new.py`` (twin) and
-``scripts/phase1/run_stage3_monolithic.py`` (frozen Oracle).  It exists so
-future callers can bypass the monolithic twin entirely once the end-to-end
-Isaac Sim smoke test has confirmed parity.  Until that smoke passes, both
-entry points coexist.
+This wrapper is the modular entry point for the Stage 3 rover runtime.
+It parses ``--scenario`` / ``--headless`` / ``--no-ros2`` and delegates
+to :func:`scripts.phase1.run_stage4.main`, which drives the refactored
+facades in ``marslab.runtime``, ``marslab.robots``, ``marslab.sensors``,
+and ``marslab.ros2_bridge``.
 
 Usage::
 
@@ -68,14 +67,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    """Delegate to the monolithic twin after argument translation.
+    """Delegate to :func:`scripts.phase1.run_stage4.main` after argument translation.
 
-    Until the end-to-end Isaac Sim smoke test confirms parity between this
-    modular entry point and ``run_stage3_monolithic_new.py``, this function
-    re-dispatches into the twin's ``main()`` using the positional arguments
-    the twin already understands.  This keeps ``run_marslab.py`` genuinely
-    executable today (so CI smoke tests pass) without duplicating the
-    ~600 LOC of Isaac Sim boot + sensor wiring.
+    The downstream runner uses ``--config`` rather than ``--scenario``, so we
+    re-inject the translated argv before calling into it.  This keeps
+    ``run_marslab.py`` a thin, genuinely executable CLI facade without
+    duplicating the Isaac Sim boot + sensor wiring.
 
     Args:
         argv: Optional argv list for tests; ``None`` means ``sys.argv``.
@@ -86,9 +83,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     scenario = args.scenario.strip()
 
-    # Re-inject into argv so the twin's argparse (``--config`` flavour) sees
-    # the same scenario path. This keeps the two entry points byte-exact
-    # while the modular extraction matures.
     forwarded: List[str] = ["run_marslab", "--config", scenario]
     if args.headless:
         forwarded.append("--headless")
@@ -98,9 +92,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     original_argv = sys.argv
     try:
         sys.argv = forwarded
-        from scripts.phase1.run_stage3_monolithic_new import main as _twin_main
+        from scripts.phase1.run_stage4 import main as _stage4_main
 
-        return int(_twin_main())
+        return int(_stage4_main())
     finally:
         sys.argv = original_argv
 

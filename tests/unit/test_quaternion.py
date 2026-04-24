@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 
 import numpy as np
@@ -222,3 +223,120 @@ def test_module_docstring_declares_scalar_first() -> None:
     doc = qm.__doc__ or ""
     assert "scalar-first" in doc.lower()
     assert "[w, x, y, z]" in doc
+
+
+# ---------------------------------------------------------------------------
+# Reviewer 2 #19 regressions — H-9 gimbal lock, H-10 dtype, H-11 non-unit warn
+# ---------------------------------------------------------------------------
+
+
+def test_quaternion_no_float32_cast_float64_in() -> None:
+    """H-10: float64 inputs round-trip through the helpers as float64.
+
+    Prior to the 2026-04-24 fix, every call forced ``astype(np.float32)``
+    which allocated a fresh array per operation (>=400/sec at 200 Hz).
+    This regression guard pins the inherited-dtype contract.
+    """
+    q64 = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+    v64 = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+    assert quat_inverse(q64).dtype == np.float64
+    assert quat_multiply(q64, q64).dtype == np.float64
+    assert quat_rotate_vec(q64, v64).dtype == np.float64
+
+
+def test_quaternion_no_float32_cast_float32_in() -> None:
+    """H-10: float32 inputs remain float32 (back-compat with legacy callers)."""
+    q32 = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    v32 = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    assert quat_inverse(q32).dtype == np.float32
+    assert quat_multiply(q32, q32).dtype == np.float32
+    assert quat_rotate_vec(q32, v32).dtype == np.float32
+
+
+def test_quat_inverse_warns_non_unit() -> None:
+    """H-11: non-unit quaternion into ``quat_inverse`` emits a warning.
+
+    Backward compat: the conjugate is still returned (callers keep
+    working) but the warning surfaces the drift so upstream state gets
+    renormalised. Uses a direct ``logging.Handler`` to dodge the pytest
+    ``caplog`` fixture propagation quirk on nested-package loggers.
+    """
+    from _pytest.logging import LogCaptureHandler
+
+    logger = logging.getLogger("marslab.math.quaternion")
+    handler = LogCaptureHandler()
+    handler.setLevel(logging.WARNING)
+    logger.addHandler(handler)
+    try:
+        # norm^2 = 4.0 -- 300% off from 1.0, clearly non-unit.
+        q = np.array([2.0, 0.0, 0.0, 0.0], dtype=np.float64)
+        out = quat_inverse(q)
+    finally:
+        logger.removeHandler(handler)
+    assert any("non-unit quaternion" in rec.getMessage() for rec in handler.records)
+    # Conjugate semantics preserved.
+    np.testing.assert_allclose(out, np.array([2.0, 0.0, 0.0, 0.0]))
+
+
+def test_quat_inverse_no_warn_for_unit() -> None:
+    """H-11 negative: a unit quaternion must not trigger the warning."""
+    from _pytest.logging import LogCaptureHandler
+
+    logger = logging.getLogger("marslab.math.quaternion")
+    handler = LogCaptureHandler()
+    handler.setLevel(logging.WARNING)
+    logger.addHandler(handler)
+    try:
+        q = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+        quat_inverse(q)
+    finally:
+        logger.removeHandler(handler)
+    assert not any("non-unit quaternion" in rec.getMessage() for rec in handler.records)
+
+
+def test_quat_to_rpy_gimbal_lock_positive_pitch() -> None:
+    """H-9: pitch=+π/2 ⇒ roll=0, pitch reports +π/2 exactly.
+
+    At pitch=+π/2 the rotation matrix degenerates (roll and yaw share
+    an axis); the extraction convention is roll=0 and yaw absorbs the
+    residual. The previous branch took ``arcsin`` of a clamped value
+    which could evaluate to exactly ``π/2`` with an unstable sign near
+    the saturation boundary. The fix uses
+    ``copysign(π/2, sin_pitch)`` so the reported pitch stays +π/2 even
+    if float round-off made ``sin_pitch`` slightly over 1.
+    """
+    # Build a quaternion with pitch = +π/2, roll=0, yaw=0 using the
+    # ZYX construction so we know the ground truth.
+    w, x, y, z = rpy_to_quat(0.0, math.pi / 2.0, 0.0)
+    q = np.array([w, x, y, z], dtype=np.float64)
+    roll, pitch, yaw = quat_to_rpy(q)
+    assert pitch == pytest.approx(math.pi / 2.0, abs=1e-6)
+    assert roll == 0.0
+    # Yaw residual must be finite and in [-π, π].
+    assert -math.pi <= yaw <= math.pi
+
+
+def test_quat_to_rpy_gimbal_lock_negative_pitch() -> None:
+    """H-9: pitch=-π/2 ⇒ roll=0, pitch reports -π/2 with correct sign."""
+    w, x, y, z = rpy_to_quat(0.0, -math.pi / 2.0, 0.0)
+    q = np.array([w, x, y, z], dtype=np.float64)
+    roll, pitch, yaw = quat_to_rpy(q)
+    assert pitch == pytest.approx(-math.pi / 2.0, abs=1e-6)
+    assert roll == 0.0
+    assert -math.pi <= yaw <= math.pi
+
+
+def test_quat_to_rpy_gimbal_lock_saturated_input() -> None:
+    """H-9: direct quaternion with sin_pitch exactly +1 still yields +π/2.
+
+    Constructs a quaternion that would make the raw ``sin_pitch``
+    numerically equal to or slightly above ``1.0`` before clamping —
+    the fix must not collapse the sign.
+    """
+    # w = sin(π/4), y = cos(π/4)  =>  2*(w*y - z*x) = 2 * 0.7071 * 0.7071 = 1.0
+    s = math.sin(math.pi / 4.0)
+    c = math.cos(math.pi / 4.0)
+    q = np.array([s, 0.0, c, 0.0], dtype=np.float64)
+    roll, pitch, yaw = quat_to_rpy(q)
+    assert pitch == pytest.approx(math.pi / 2.0, abs=1e-6)
+    assert roll == 0.0

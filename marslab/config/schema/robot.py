@@ -21,7 +21,7 @@ literals to PhysX DriveAPI tuning.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
     "OdometryCovarianceConfig",
@@ -29,6 +29,14 @@ __all__ = [
     "RobotConfig",
     "SkidSteerDriveConfig",
 ]
+
+
+# Reviewer 2 #12 (2026-04-24): ``extra="forbid"`` attached to every
+# robot-schema BaseModel.  See ``marslab/config/schema/mars_env.py`` for
+# the global rationale.  A typo like ``wheel_radious`` (sic) in a rover
+# YAML previously persisted through ``load_and_validate`` because
+# pydantic v2 defaulted to ``extra="ignore"`` — PhysX then received
+# whatever Python literal the runtime happened to fall back to.
 
 
 class OdometryCovarianceConfig(BaseModel):
@@ -44,6 +52,8 @@ class OdometryCovarianceConfig(BaseModel):
     Wk2 #6 (2026-04-14, task #17) introduced this block so G5 is
     honored — no numeric covariance lives in Python.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     pose_diag: list[float] = Field(
         default=[1e-3, 1e-3, 1e6, 1e6, 1e6, 1e-2],
@@ -94,6 +104,8 @@ class OdomPublisherConfig(BaseModel):
     ``configs/mars_env.yaml`` drive all three publishers from one source.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     frame_id: str = Field(
         default="odom",
         description=(
@@ -137,6 +149,8 @@ class SkidSteerDriveConfig(BaseModel):
     future rover config that omits the values fails at load time instead
     of silently shipping Python literals to DriveAPI tuning.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     wheel_radius: float = Field(default=0.15, gt=0.0, description="Wheel radius in meters")
     track_width: float = Field(
@@ -286,6 +300,8 @@ class SkidSteerDriveConfig(BaseModel):
 
 class RobotConfig(BaseModel):
     """Single robot configuration."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: str = Field(description="Robot type identifier (e.g., 'rover', 'quadruped')")
     urdf_path: str | None = Field(default=None, description="Path to custom URDF file")

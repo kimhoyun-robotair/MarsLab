@@ -9,7 +9,7 @@ surface small lets us unit-test every non-trivial formula offline (P3).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -60,6 +60,9 @@ def create_odometry_publisher(
     queue_size: int = 10,
     frame_id: str = "odom",
     child_frame_id: str = "base_link",
+    *,
+    odom_qos: Optional[Any] = None,
+    tf_qos: Optional[Any] = None,
 ) -> OdometryPublisherContext:
     """Create the odometry publisher + TF broadcaster bundle.
 
@@ -69,11 +72,21 @@ def create_odometry_publisher(
         init_pos_world: Rover position at ``t=0`` in world frame, shape ``(3,)``.
         init_quat_world: Rover orientation at ``t=0`` in world frame,
             shape ``(4,)`` scalar-first.
-        queue_size: rclpy QoS depth.
+        queue_size: rclpy QoS depth.  Ignored when ``odom_qos`` is
+            provided (the QoSProfile carries its own depth).
         frame_id: Odometry parent frame.  Must match the slam_toolbox
             ``odom_frame`` param.
         child_frame_id: Odometry child frame.  Must match
             ``base_frame``.
+        odom_qos: Optional ``rclpy.qos.QoSProfile`` for the
+            ``nav_msgs/Odometry`` publisher.  When ``None`` the
+            publisher is created with the integer ``queue_size``
+            overload (rclpy default profile).  Reviewer 2 #04 (2026-04-24).
+        tf_qos: Optional ``rclpy.qos.QoSProfile`` forwarded to the
+            ``tf2_ros.TransformBroadcaster``.  ``TransformBroadcaster``
+            takes a ``qos`` keyword argument in tf2_ros >= 0.25.  When
+            ``None`` the default ``/tf`` QoS (RELIABLE + KEEP_LAST 100)
+            is used.
 
     Returns:
         :class:`OdometryPublisherContext` to be reused by
@@ -82,8 +95,23 @@ def create_odometry_publisher(
     from nav_msgs.msg import Odometry
     from tf2_ros import TransformBroadcaster
 
-    publisher = node.create_publisher(Odometry, topic, queue_size)
-    tf_broadcaster = TransformBroadcaster(node)
+    if odom_qos is not None:
+        publisher = node.create_publisher(Odometry, topic, odom_qos)
+    else:
+        publisher = node.create_publisher(Odometry, topic, queue_size)
+
+    if tf_qos is not None:
+        # TransformBroadcaster added the ``qos`` keyword in
+        # tf2_ros >= 0.25 (ROS 2 Humble+).  Older installs fall back
+        # to the no-argument constructor via the TypeError branch so
+        # MarsLab still boots on a mismatched tf2_ros.
+        try:
+            tf_broadcaster = TransformBroadcaster(node, qos=tf_qos)
+        except TypeError:
+            tf_broadcaster = TransformBroadcaster(node)
+    else:
+        tf_broadcaster = TransformBroadcaster(node)
+
     return OdometryPublisherContext(
         publisher=publisher,
         tf_broadcaster=tf_broadcaster,

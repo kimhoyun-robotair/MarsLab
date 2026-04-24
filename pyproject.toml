@@ -18,6 +18,10 @@ dev = [
     "pytest>=7.0",
     "black>=24.0",
     "ruff>=0.4",
+    "mypy>=1.8",
+    "types-PyYAML>=6.0",
+    "pip-audit>=2.7",
+    "pre-commit>=3.6",
     "matplotlib>=3.5",
 ]
 
@@ -38,11 +42,35 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I"]
+# Reviewer 2 #18 (2026-04-24): E/F/W/I baseline + B (bugbear) + SIM (simplify).
+# UP (pyupgrade) is deferred: it produces ~290 violations across the tree
+# (mostly ``List`` -> ``list`` and ``Optional`` -> ``X | None``) and should
+# land as a dedicated Reviewer 2 batch rather than mixed with packaging.
+select = ["E", "F", "W", "I", "B", "SIM"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["marslab"]
 
+[tool.mypy]
+# Reviewer 2 #18 (2026-04-24): initial pragmatic profile scoped to
+# pure-Python offline modules only.  Full-repo strict mode is deferred to
+# v2.0 because Isaac Sim USD handles rely on runtime typing and would
+# require custom stub packages to pass strict mypy.
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+files = ["marslab/config", "marslab/environment"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+# Reviewer 2 #15 (2026-04-24): integration tests require Isaac Sim + GPU.
+# Default `pytest tests/unit/` runs stay GPU-free; to exercise the
+# integration suite use ``scripts/run_integration_test.py`` which wraps
+# ``scripts/isaac_python.sh`` with ``-m integration`` removed from addopts.
+addopts = "-m 'not integration'"
+markers = [
+    "integration: requires Isaac Sim + GPU; skipped by default in unit runs",
+]

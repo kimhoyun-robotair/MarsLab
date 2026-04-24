@@ -362,7 +362,12 @@ def test_metadata_values(cave_default):
 # ring_resolution=20. If this hash changes, either the RNG consumption order
 # drifted (serious bug -- fix the split) or the user intentionally tuned the
 # generator (update the hash here with a work_log entry).
-_R5_REGRESSION_HASH = "047936be6a2ffb03adb38e1665eac58e3c721285c144fe79b3282f9b7a7b5840"
+#
+# Updated 2026-04-24 (Reviewer 2 audit #11): the breakdown lognormal
+# draw was mean-corrected (``mean=log(m) - sigma**2/2`` instead of
+# ``mean=log(m)``) so the sampled diameter stream changed. RNG order is
+# unchanged; only the transformed draw values differ.
+_R5_REGRESSION_HASH = "a8d0af1c9b0b3fb00a78fb94f7b821b26816ca67b02bad60c347b8084307d9b1"
 
 
 def test_r5_regression_hash_stable():

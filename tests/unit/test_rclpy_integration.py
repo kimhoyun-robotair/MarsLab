@@ -49,8 +49,48 @@ def fake_rclpy(monkeypatch: pytest.MonkeyPatch) -> types.ModuleType:
     param_module.Parameter = _Parameter  # type: ignore[attr-defined]
     fake.parameter = param_module
 
+    # Reviewer 2 #04 (2026-04-24): ``init_rclpy_side`` now resolves QoS
+    # profiles via ``marslab.ros2_bridge.qos.to_rclpy_qos`` which imports
+    # ``rclpy.qos``.  Stub the enum / QoSProfile surface so the offline
+    # fake rclpy can satisfy the adapter without installing ROS 2.
+    qos_module = types.ModuleType("rclpy.qos")
+
+    class _ReliabilityPolicy:
+        RELIABLE = "RELIABLE"
+        BEST_EFFORT = "BEST_EFFORT"
+
+    class _DurabilityPolicy:
+        VOLATILE = "VOLATILE"
+        TRANSIENT_LOCAL = "TRANSIENT_LOCAL"
+
+    class _HistoryPolicy:
+        KEEP_LAST = "KEEP_LAST"
+        KEEP_ALL = "KEEP_ALL"
+
+    class _QoSProfile:
+        """Minimal stand-in that records the kwargs for later inspection."""
+
+        def __init__(
+            self,
+            reliability: Any = None,
+            durability: Any = None,
+            history: Any = None,
+            depth: int = 10,
+        ) -> None:
+            self.reliability = reliability
+            self.durability = durability
+            self.history = history
+            self.depth = depth
+
+    qos_module.ReliabilityPolicy = _ReliabilityPolicy  # type: ignore[attr-defined]
+    qos_module.DurabilityPolicy = _DurabilityPolicy  # type: ignore[attr-defined]
+    qos_module.HistoryPolicy = _HistoryPolicy  # type: ignore[attr-defined]
+    qos_module.QoSProfile = _QoSProfile  # type: ignore[attr-defined]
+    fake.qos = qos_module  # type: ignore[attr-defined]
+
     monkeypatch.setitem(sys.modules, "rclpy", fake)
     monkeypatch.setitem(sys.modules, "rclpy.parameter", param_module)
+    monkeypatch.setitem(sys.modules, "rclpy.qos", qos_module)
     return fake
 
 
@@ -66,12 +106,18 @@ class TestInitRclpySide:
             state: Dict[str, float],
             *,
             queue_size: int,
+            qos: Any = None,
         ) -> Any:
+            # Reviewer 2 #04 (2026-04-24): ``qos`` is a new keyword arg.
+            # Record it so downstream assertions can pin the QoS contract.
             captured["cmd_vel"] = (node, topic, state, queue_size)
+            captured["cmd_vel_qos"] = qos
             return types.SimpleNamespace(topic=topic)
 
-        def fake_static_tfs(node: Any, sensor_frames: Any) -> Any:
+        def fake_static_tfs(node: Any, sensor_frames: Any, **kwargs: Any) -> Any:
+            # ``qos`` keyword added in Reviewer 2 #04; swallow transparently.
             captured["static_tfs"] = (node, list(sensor_frames))
+            captured["static_tfs_kwargs"] = kwargs
             return types.SimpleNamespace(kind="static_broadcaster")
 
         def fake_create_odom(**kwargs: Any) -> Any:
@@ -229,3 +275,90 @@ class TestInitRclpySide:
         )
         assert isinstance(ctx, BridgeContext)
         assert ctx.twist_state == {"v": 0.0, "w": 0.0}
+
+    def test_cmd_vel_qos_threaded_through_by_default(
+        self,
+        fake_rclpy: types.ModuleType,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Reviewer 2 #04: default ``cmd_vel_qos`` lands on the subscriber.
+
+        The default :class:`Ros2BridgeConfig` ships RELIABLE for the
+        command channel; the fake ``rclpy.qos.QoSProfile`` records the
+        exact reliability so a silent flip (regression) is caught.
+        """
+        captured = self._patch_factories(monkeypatch)
+        from marslab.ros2_bridge.rclpy_integration import init_rclpy_side
+
+        ros2_cfg = {
+            "namespace": "rover",
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+        }
+        init_rclpy_side(
+            ros2_cfg=ros2_cfg,
+            sensor_frames=[],
+            init_pos_world=np.zeros(3),
+            init_quat_world=np.array([1.0, 0.0, 0.0, 0.0]),
+        )
+        cmd_qos = captured["cmd_vel_qos"]
+        assert cmd_qos is not None
+        assert cmd_qos.reliability == "RELIABLE"
+        assert cmd_qos.depth == 10
+
+    def test_sensor_qos_override_flows_into_odom(
+        self,
+        fake_rclpy: types.ModuleType,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Overriding ``odom_qos`` in YAML changes the publisher QoS.
+
+        Catches the regression where ``init_rclpy_side`` would drop
+        the YAML block on the floor.
+        """
+        captured = self._patch_factories(monkeypatch)
+        from marslab.ros2_bridge.rclpy_integration import init_rclpy_side
+
+        ros2_cfg = {
+            "namespace": "rover",
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+            "odom_qos": {
+                "reliability": "best_effort",
+                "durability": "volatile",
+                "history": "keep_last",
+                "depth": 3,
+            },
+        }
+        init_rclpy_side(
+            ros2_cfg=ros2_cfg,
+            sensor_frames=[],
+            init_pos_world=np.zeros(3),
+            init_quat_world=np.array([1.0, 0.0, 0.0, 0.0]),
+        )
+        odom_kwargs = captured["odom"]
+        assert odom_kwargs["odom_qos"] is not None
+        assert odom_kwargs["odom_qos"].reliability == "BEST_EFFORT"
+        assert odom_kwargs["odom_qos"].depth == 3
+
+    def test_tf_qos_reaches_static_broadcaster(
+        self,
+        fake_rclpy: types.ModuleType,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Default ``tf_qos`` (TRANSIENT_LOCAL) reaches the static TF path."""
+        captured = self._patch_factories(monkeypatch)
+        from marslab.ros2_bridge.rclpy_integration import init_rclpy_side
+
+        ros2_cfg = {
+            "namespace": "rover",
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+        }
+        init_rclpy_side(
+            ros2_cfg=ros2_cfg,
+            sensor_frames=[("camera_link", [0.1, 0.0, 0.5])],
+            init_pos_world=np.zeros(3),
+            init_quat_world=np.array([1.0, 0.0, 0.0, 0.0]),
+        )
+        tf_kwargs = captured["static_tfs_kwargs"]
+        assert "qos" in tf_kwargs
+        assert tf_kwargs["qos"].durability == "TRANSIENT_LOCAL"
+        assert tf_kwargs["qos"].depth == 100

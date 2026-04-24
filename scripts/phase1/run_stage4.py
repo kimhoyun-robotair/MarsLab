@@ -1,8 +1,7 @@
 """Phase 1 Stage 3 monolithic runtime: rover + scene + ROS2, compact edition.
 
-``run_stage4.py`` is the writable successor to
-``run_stage3_monolithic_new.py``.  The 1,158 LOC inline body has been
-collapsed onto the Stage 2 / Stage 3 facades already landed in
+``run_stage4.py`` is the writable Stage 3 runtime entry point.  The body
+is collapsed onto the Stage 2 / Stage 3 facades landed in
 ``marslab.runtime``, ``marslab.robots``, ``marslab.sensors``, and
 ``marslab.ros2_bridge``:
 
@@ -23,9 +22,6 @@ collapsed onto the Stage 2 / Stage 3 facades already landed in
 *   :func:`marslab.runtime.main_loop.run_main_loop` /
     :func:`build_atmosphere_loop_state` --- per-step body.
 
-Oracle (``run_stage3_monolithic.py``, md5 ``beefa12579dd43f3da27b1dae3c6f852``)
-remains frozen; paper experiments run through this twin.
-
 Usage:
     scripts/isaac_python.sh scripts/phase1/run_stage4.py \\
         --config configs/scenarios/jezero_flat.yaml
@@ -33,6 +29,7 @@ Usage:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 from typing import List
@@ -209,18 +206,15 @@ def main() -> int:
     print("[run_stage4] PD gains reinforced post-reset.", flush=True)
 
     # --- Optional atmosphere GUI panel (built AFTER world.reset + warmup) ----
-    # The panel's omni.ui widgets are finalized lazily by the Kit event loop.
-    # Oracle (run_stage3_monolithic.py) spawns the panel long before
-    # world.reset() but then drives several hundred ``simulation_app.update()``
-    # iterations inside ``while is_stage_loading():`` between panel creation
-    # and the first button press, which is what lets slider widgets reach a
-    # stable state. In the decomposed twin the panel used to sit between
-    # ``setup_stage2_scene`` and ``spawn_rover`` — the Kit never got a
-    # chance to pump UI events before ``world.reset()``, so the first
-    # Auto/Manual click raised
-    # ``AttributeError: 'AtmospherePanel' object has no attribute '_az_slider'``.
-    # Creating the panel after warmup + explicitly pumping Kit a few times
-    # restores Oracle parity.
+    # The panel's omni.ui widgets are finalised lazily by the Kit event loop,
+    # so we must let Kit pump several update iterations after ``world.reset()``
+    # before constructing the panel.  Placing the panel between
+    # ``setup_stage2_scene`` and ``spawn_rover`` (i.e. before any Kit pump)
+    # previously caused the first Auto/Manual click to raise
+    # ``AttributeError: 'AtmospherePanel' object has no attribute '_az_slider'``
+    # because slider widgets had not reached a stable state yet.  Creating the
+    # panel after warmup + a few explicit ``simulation_app.update()`` calls
+    # avoids that race.
     atmo_panel = None
     if not args.headless:
         try:
@@ -332,23 +326,19 @@ def main() -> int:
         exit_code = run_main_loop(ctx)
     finally:
         if bridge is not None:
-            try:
+            with contextlib.suppress(Exception):
                 bridge.node.destroy_node()
-            except Exception:  # noqa: BLE001
-                pass
-            try:
+            with contextlib.suppress(Exception):
                 import rclpy  # noqa: PLC0415
 
                 rclpy.shutdown()
-            except Exception:  # noqa: BLE001
-                pass
         try:
             simulation_app.close()
         except Exception as exc:  # noqa: BLE001
             print(f"[run_stage4] simulation_app.close() raised: {exc}", file=sys.stderr)
             sys.stdout.flush()
             sys.stderr.flush()
-            os._exit(0)
+            os._exit(1)
     return exit_code
 
 

@@ -19,7 +19,7 @@ broadcast matches the Isaac Sim pose of each sensor prim.
 
 from __future__ import annotations
 
-from typing import Any, Iterable, List, Sequence, Tuple
+from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 SensorFrameSpec = Tuple[str, Sequence[float]]
 """``(child_frame_id, local_translation_xyz)`` pair."""
@@ -62,6 +62,8 @@ def publish_static_sensor_tfs(
     node: Any,
     sensor_frames: Iterable[SensorFrameSpec],
     parent_frame_id: str = "base_link",
+    *,
+    qos: Optional[Any] = None,
 ) -> Any:
     """Publish ``/tf_static`` for each ``(child_frame, xyz)`` pair.
 
@@ -70,6 +72,14 @@ def publish_static_sensor_tfs(
             ``StaticTransformBroadcaster``.
         sensor_frames: Iterable of ``(child_frame_id, xyz)`` pairs.
         parent_frame_id: Parent frame for all transforms.
+        qos: Optional ``rclpy.qos.QoSProfile`` forwarded to the
+            ``tf2_ros.StaticTransformBroadcaster`` constructor.
+            ``StaticTransformBroadcaster`` takes a ``qos`` keyword
+            argument in tf2_ros >= 0.25 (Humble+).  When ``None`` the
+            tf2_ros default (RELIABLE + TRANSIENT_LOCAL + KEEP_LAST
+            100) is used — late-joining subscribers still latch the
+            transforms.  Reviewer 2 #04 (2026-04-24) surfaces this
+            knob for YAML-driven tuning.
 
     Returns:
         The :class:`tf2_ros.StaticTransformBroadcaster` kept alive so
@@ -77,7 +87,16 @@ def publish_static_sensor_tfs(
     """
     from tf2_ros import StaticTransformBroadcaster
 
-    broadcaster = StaticTransformBroadcaster(node)
+    if qos is not None:
+        # tf2_ros older than 0.25 does not accept a ``qos`` keyword;
+        # fall back so MarsLab boots on a mismatched install rather
+        # than crashing at startup.
+        try:
+            broadcaster = StaticTransformBroadcaster(node, qos=qos)
+        except TypeError:
+            broadcaster = StaticTransformBroadcaster(node)
+    else:
+        broadcaster = StaticTransformBroadcaster(node)
     msgs = build_static_sensor_transforms(sensor_frames, parent_frame_id)
     broadcaster.sendTransform(msgs)
     return broadcaster

@@ -98,13 +98,21 @@ def _resolve_path(path: str, anchor_dir: Optional[str]) -> str:
 
 
 def load_scenario_config(scenario_path: str) -> Dict[str, Any]:
-    """Load a scenario YAML, merging a rover ``base_config`` if present.
+    """Load a scenario YAML, resolving root and rover ``base_config`` keys.
 
-    The scenario YAML is the higher-priority input; the base config
-    (pointed at by ``rover.base_config``) only contributes the common
-    rover/sensors/control/ros2 blocks.  The merge is done under the
-    ``rover:`` subtree so terrain/rendering/mars_env live only in the
-    scenario file.
+    Two independent ``base_config`` mechanisms run in order:
+
+    1. **Root-level** ``base_config`` (Reviewer 2 #17, 2026-04-24):
+       points at a sibling YAML (typically ``_base.yaml``) holding the
+       shared ``mars_env`` + ``rendering`` defaults so scenario files
+       only keep their real overrides.  The scenario dict is
+       deep-merged ON TOP of the base dict (scenario wins, lists are
+       replaced).
+    2. **Rover-level** ``rover.base_config``: pre-existing mechanism
+       that merges ``configs/robots/rover_m2020.yaml`` into the
+       scenario's ``rover:`` subtree.  Runs after the root merge so the
+       final dict is ``{root_base} + scenario + rover:{robot_base +
+       scenario.rover}``.
 
     Args:
         scenario_path: Path to the scenario YAML.  Relative paths are
@@ -112,8 +120,8 @@ def load_scenario_config(scenario_path: str) -> Dict[str, Any]:
             against repo root.
 
     Returns:
-        Fully merged config dict.  The ``rover.base_config`` key is
-        removed from the result.
+        Fully merged config dict.  Both ``base_config`` keys (root-level
+        and ``rover.base_config``) are stripped from the result.
 
     Raises:
         ValueError: If ``scenario_path`` contains internal whitespace
@@ -121,6 +129,8 @@ def load_scenario_config(scenario_path: str) -> Dict[str, Any]:
             usually means the CLI value got pasted with a trailing
             token (``2>&1`` is a shell redirection, not an argparse
             argument).
+        FileNotFoundError: If ``scenario_path`` or either referenced
+            ``base_config`` file is missing.
     """
     scenario_path = str(scenario_path).strip()
     resolved = scenario_path
@@ -136,6 +146,21 @@ def load_scenario_config(scenario_path: str) -> Dict[str, Any]:
         )
     scenario_cfg = read_yaml(resolved)
     scenario_dir = os.path.dirname(resolved)
+
+    # Reviewer 2 #17 (2026-04-24): fold a root-level ``base_config`` into
+    # the scenario dict before anything else. Pointed at
+    # ``configs/scenarios/_base.yaml`` so ~35 lines of mars_env/rendering
+    # boilerplate do not repeat across nine scenario files.  Scenario
+    # overrides win over the base; non-dict collisions replace outright
+    # (see ``deep_merge``).
+    if "base_config" in scenario_cfg:
+        root_base_ref = scenario_cfg.pop("base_config")
+        root_base_full = _resolve_path(str(root_base_ref), scenario_dir)
+        if not os.path.isfile(root_base_full):
+            raise FileNotFoundError(
+                f"Root base_config referenced by {resolved} not found: {root_base_full}"
+            )
+        scenario_cfg = deep_merge(read_yaml(root_base_full), scenario_cfg)
 
     rover_override = scenario_cfg.get("rover")
     if not isinstance(rover_override, dict):

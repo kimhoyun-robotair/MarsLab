@@ -24,7 +24,7 @@ YAML so no scenario file has to change.
 
 from typing import Any, Literal, Tuple
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
     "FogConfig",
@@ -35,12 +35,23 @@ __all__ = [
 ]
 
 
+# Reviewer 2 #12 (2026-04-24): every BaseModel in this module declares
+# ``extra="forbid"`` so unknown keys in ``rendering:`` YAML blocks fail
+# loudly instead of being silently dropped.  See the sibling note in
+# ``marslab/config/schema/mars_env.py`` for the full rationale.
+# ``RenderingConfig`` keeps its legacy flat→nested migrator
+# (``_migrate_flat_to_nested``) which pops flat keys from the input dict
+# BEFORE forbid-validation runs, so legacy YAMLs keep loading.
+
+
 class FogConfig(BaseModel):
     """RTX atmosphere-fog knobs consumed by ``atmosphere_fog.py``.
 
     R2-A1 (2026-04-22): migrated from the flat ``fog_*`` fields on
     ``RenderingConfig``.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     enabled: bool = Field(
         default=True, description="Master switch written to ``/rtx/fog/enabled``."
@@ -90,6 +101,8 @@ class RayTracingConfig(BaseModel):
     ``denoiser_reflections`` fields on ``RenderingConfig``.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     antialiasing_op: int = Field(
         default=3,
         ge=0,
@@ -118,6 +131,8 @@ class PathTracingConfig(BaseModel):
     ``RenderingConfig``.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     spp: int = Field(default=32, ge=1, le=256, description="Samples per pixel per frame.")
     total_spp: int = Field(default=256, ge=1, description="Total accumulated samples.")
     max_bounces: int = Field(default=8, ge=1, le=64, description="Max ray bounces.")
@@ -135,6 +150,8 @@ class SkyDomeConfig(BaseModel):
     brightness decay 0.3) out of ``marslab/environment/sky_dome.py``
     and into YAML per G5.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     clear_rgb: Tuple[float, float, float] = Field(
         default=(0.76, 0.57, 0.35),
@@ -168,6 +185,8 @@ class SkyDomeConfig(BaseModel):
 
 class RenderingConfig(BaseModel):
     """Rendering configuration."""
+
+    model_config = ConfigDict(extra="forbid")
 
     mode: Literal["path_tracing", "ray_tracing"] = Field(default="path_tracing")
     sky_dome_hdri_dir: str = Field(default="assets/sky/hdri/")

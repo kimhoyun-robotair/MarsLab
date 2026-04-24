@@ -64,7 +64,7 @@ def test_sample_seed_determinism():
     r1 = sample_rocks_golombek(1000, 0.05, (0.05, 3.0), seed=42)
     r2 = sample_rocks_golombek(1000, 0.05, (0.05, 3.0), seed=42)
     assert len(r1) == len(r2)
-    for a, b in zip(r1, r2):
+    for a, b in zip(r1, r2, strict=False):
         assert a.x == b.x
         assert a.y == b.y
         assert a.diameter == b.diameter

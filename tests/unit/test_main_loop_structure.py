@@ -210,3 +210,122 @@ def test_module_has_no_isaac_sim_imports() -> None:
     forbidden = {"omni", "rclpy", "isaacsim", "pxr"}
     bad = [name for name in dir(ml) if name in forbidden]
     assert not bad, f"forbidden Isaac Sim names in module: {bad}"
+
+
+# ---------------------------------------------------------------------------
+# Reviewer 2 #19 / H-1 regression — LoopContext god-object decomposition
+# ---------------------------------------------------------------------------
+
+
+def _make_minimal_ctx() -> LoopContext:
+    """Build a LoopContext populated with stand-in values for property tests."""
+
+    def _ackermann(*_args, **_kwargs):  # pragma: no cover - not invoked
+        return np.zeros(4), np.zeros(6)
+
+    return LoopContext(
+        simulation_app=object(),
+        world=object(),
+        stage=object(),
+        articulation=object(),
+        imu=object(),
+        drive_indices=[0, 1, 2, 3, 4, 5],
+        steer_indices=[6, 7, 8, 9],
+        wheelbase=1.23,
+        track_steer=0.98,
+        track_middle=1.05,
+        wheel_radius=0.26,
+        v_max=1.5,
+        w_max=1.2,
+        physics_dt=1.0 / 60.0,
+        negate_steer=True,
+        debug_logging=False,
+        max_wheel_accel_rate=0.4,
+        decel_multiplier=0.9,
+        max_steer_angle=0.7,
+        steer_ramp_rate=2.1,
+        control=ControlState(
+            current_drive_targets=np.zeros(6, dtype=np.float32),
+            current_steer_targets=np.zeros(4, dtype=np.float32),
+        ),
+        atmosphere=AtmosphereLoopState(
+            atmosphere_dict={"tau": 0.3},
+            sol_duration=88642.0,
+            solar_constant=589.0,
+        ),
+        odom=OdomPublishState(),
+        render_config=object(),
+        ackermann_fn=_ackermann,
+    )
+
+
+def test_loop_context_geometry_view() -> None:
+    """H-1: ``ctx.geometry`` is a :class:`VehicleGeometry` re-export.
+
+    Values must round-trip from the flat fields so legacy callers
+    (``ctx.wheelbase``) stay bit-equal to the decomposed view
+    (``ctx.geometry.wheelbase``).
+    """
+    from marslab.runtime.main_loop import VehicleGeometry
+
+    ctx = _make_minimal_ctx()
+    geom = ctx.geometry
+    assert isinstance(geom, VehicleGeometry)
+    assert geom.wheelbase == ctx.wheelbase
+    assert geom.track_steer == ctx.track_steer
+    assert geom.track_middle == ctx.track_middle
+    assert geom.wheel_radius == ctx.wheel_radius
+
+
+def test_loop_context_control_limits_view() -> None:
+    """H-1: ``ctx.control_limits`` is a :class:`ControlLimits` re-export."""
+    from marslab.runtime.main_loop import ControlLimits
+
+    ctx = _make_minimal_ctx()
+    lim = ctx.control_limits
+    assert isinstance(lim, ControlLimits)
+    assert lim.v_max == ctx.v_max
+    assert lim.w_max == ctx.w_max
+    assert lim.max_wheel_accel_rate == ctx.max_wheel_accel_rate
+    assert lim.decel_multiplier == ctx.decel_multiplier
+    assert lim.max_steer_angle == ctx.max_steer_angle
+    assert lim.steer_ramp_rate == ctx.steer_ramp_rate
+    assert lim.negate_steer == ctx.negate_steer
+
+
+def test_loop_context_atmosphere_callables_view() -> None:
+    """H-1: ``ctx.atmosphere_callables`` collects the 9 optional hooks."""
+    from marslab.runtime.main_loop import AtmosphereCallables
+
+    ctx = _make_minimal_ctx()
+    hooks = ctx.atmosphere_callables
+    assert isinstance(hooks, AtmosphereCallables)
+    # All default to None for the minimal context.
+    for field_name in (
+        "update_sun_fn",
+        "update_sky_fn",
+        "configure_fog_fn",
+        "compute_sun_fn",
+        "compute_sol_sun_fn",
+        "compute_direct_intensity_fn",
+        "compute_diffuse_fraction_fn",
+        "compute_sky_dome_fn",
+        "atmo_panel_update",
+    ):
+        assert getattr(hooks, field_name) is None
+
+
+def test_loop_context_legacy_flat_access_still_works() -> None:
+    """H-1 back-compat: flat attributes remain accessible on LoopContext.
+
+    The R7 decomposition must not break existing callers that read
+    ``ctx.wheel_radius`` / ``ctx.wheelbase`` / ``ctx.v_max`` directly
+    (notably ``scripts/phase1/run_stage4.py`` and every byte-identity
+    md5 pin in the test suite).
+    """
+    ctx = _make_minimal_ctx()
+    # Spot-check representative fields from each logical cluster.
+    assert ctx.wheel_radius == 0.26
+    assert ctx.v_max == 1.5
+    assert ctx.negate_steer is True
+    assert ctx.update_sun_fn is None

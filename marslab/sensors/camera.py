@@ -1,9 +1,16 @@
-"""Camera sensor attachment for Isaac Sim.
+"""DEPRECATED — replaced by sensor_spawner.py.
 
-Attaches RGB and/or depth cameras to robots. All parameters from
-YAML config (G5). Requires Isaac Sim runtime with World stepping.
+This module is retained only until sensors/__init__.py export is removed
+and the file is git-rm'd by the user.  Do not import from here.  See the
+Reviewer 2 audit C-17 / item #16 (2026-04-24) consolidation, which moved
+camera spawn + the ``read_camera_rgb`` / ``read_camera_depth`` helpers
+onto :class:`marslab.sensors.sensor_spawner.SensorHandles`.
 
-Camera data is only available after world.step(render=True).
+Original docstring (preserved for reference):
+Camera sensor attachment for Isaac Sim.  Attaches RGB and/or depth
+cameras to robots. All parameters from YAML config (G5). Requires Isaac
+Sim runtime with World stepping. Camera data is only available after
+``world.step(render=True)``.
 """
 
 import numpy as np

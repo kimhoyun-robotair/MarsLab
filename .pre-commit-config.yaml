@@ -1,0 +1,37 @@
+# Reviewer 2 #18 (2026-04-24): pre-commit mirrors the three checks
+# documented in CLAUDE.md "Coding Standards -> General":
+#     black --check marslab/ scripts/ tests/
+#     ruff check  marslab/ scripts/ tests/
+#     python3 -m pytest tests/unit/ -v
+#
+# The pytest run is NOT wired here; it stays in CI (.github/workflows/
+# unit_tests.yaml) because the GDAL system package is a precondition and
+# developers shouldn't pay a 7-second test suite on every commit.
+#
+# Install once per clone (user responsibility -- agents don't run it):
+#     pip install pre-commit
+#     pre-commit install
+#
+# Then every ``git commit`` runs black + ruff + whitespace hygiene.
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.3
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: debug-statements

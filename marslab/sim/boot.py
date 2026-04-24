@@ -1,9 +1,9 @@
 """SimulationApp boot helper.
 
-``boot_simulation_app`` mirrors the previous inline logic in
-``run_stage3_monolithic_new.py`` so the rest of the runtime can focus on
-scenario construction. Must be called before any ``omni.*`` / ``isaacsim.*``
-/ ``rclpy`` imports — those only resolve after Kit is alive.
+``boot_simulation_app`` centralises the Kit / SimulationApp bootstrap so
+the rest of the runtime can focus on scenario construction. Must be
+called before any ``omni.*`` / ``isaacsim.*`` / ``rclpy`` imports —
+those only resolve after Kit is alive.
 """
 
 from __future__ import annotations

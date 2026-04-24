@@ -1,7 +1,16 @@
-"""LiDAR sensor attachment for Isaac Sim.
+"""DEPRECATED — replaced by sensor_spawner.py.
 
-Attaches a rotating LiDAR sensor to robots. All parameters from
-YAML config (G5). Requires Isaac Sim runtime.
+This module is retained only until sensors/__init__.py export is removed
+and the file is git-rm'd by the user.  Do not import from here.  See the
+Reviewer 2 audit C-17 / item #16 (2026-04-24) consolidation, which moved
+LiDAR spawn and the ``read_lidar_point_cloud`` helper onto
+:class:`marslab.sensors.sensor_spawner.SensorHandles` (methods
+``read_lidar_3d_point_cloud`` / ``read_lidar_2d_point_cloud``).
+
+Original docstring (preserved for reference):
+LiDAR sensor attachment for Isaac Sim.  Attaches a rotating LiDAR
+sensor to robots.  All parameters from YAML config (G5).  Requires
+Isaac Sim runtime.
 """
 
 import logging

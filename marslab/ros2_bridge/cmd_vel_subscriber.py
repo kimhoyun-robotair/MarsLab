@@ -12,11 +12,18 @@ default.  The historical value (``10``) now lives in
 The ``queue_size`` parameter here remains keyword-only with no default
 so every call site must pass it explicitly -- there is no longer a
 silent fallback that would hide a missing YAML key.
+
+Reviewer 2 #04 (2026-04-24) added an optional ``qos`` parameter.
+When supplied it is passed directly to ``create_subscription`` so the
+caller can pin reliability / durability / history depth through YAML
+via :class:`marslab.config.schema.ros2_bridge.QoSProfileConfig`.
+When omitted the legacy integer-``queue_size`` call is preserved so
+existing tests and older call sites keep working.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 def create_cmd_vel_subscriber(
@@ -25,6 +32,7 @@ def create_cmd_vel_subscriber(
     twist_state: Dict[str, float],
     *,
     queue_size: int,
+    qos: Optional[Any] = None,
 ) -> Any:
     """Subscribe ``twist_state`` to a ``geometry_msgs/Twist`` topic.
 
@@ -40,7 +48,14 @@ def create_cmd_vel_subscriber(
             callers must source this from
             :class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig`
             (``cmd_vel_queue_size``) so the value is validated upstream
-            (``ge=1``, ``le=1000``).
+            (``ge=1``, ``le=1000``).  Ignored when ``qos`` is provided
+            because a full QoSProfile already carries a ``depth`` field.
+        qos: Optional ``rclpy.qos.QoSProfile`` instance.  When
+            provided, ``create_subscription`` is called with the full
+            profile (enabling custom reliability / durability).  When
+            ``None`` the legacy integer queue-size overload is used.
+            Callers that need YAML-driven QoS should build the
+            profile via :func:`marslab.ros2_bridge.qos.to_rclpy_qos`.
 
     Returns:
         The created ``rclpy`` subscription handle.
@@ -54,4 +69,8 @@ def create_cmd_vel_subscriber(
         twist_state["v"] = float(msg.linear.x)
         twist_state["w"] = float(msg.angular.z)
 
+    if qos is not None:
+        # rclpy accepts QoSProfile as a positional arg identical in
+        # slot to integer queue_size (overloaded at the rclpy layer).
+        return node.create_subscription(Twist, topic, _cb, qos)
     return node.create_subscription(Twist, topic, _cb, queue_size)

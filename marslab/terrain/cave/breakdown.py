@@ -9,12 +9,22 @@ with a hard cap at :data:`BREAKDOWN_DIAMETER_CAP_M`.
 RNG consumption order preserved from the pre-split module: inside the
 attempt loop, per iteration the draws are
 
-    1. ``rng.lognormal(mean=log(block_mean), sigma=block_sigma)``
+    1. ``rng.lognormal(mean=log(block_mean) - block_sigma**2/2,
+       sigma=block_sigma)``  (mean-corrected so ``E[diameter] = block_mean``)
     2. ``rng.integers(0, n_stations)``
     3. ``rng.uniform(lo, hi)``
 
 which terminates either at ``target_area`` coverage or after
 :data:`BREAKDOWN_MAX_ATTEMPTS` iterations.
+
+For a lognormal ``X`` parameterised by the underlying normal's mean
+``mu`` and std ``sigma``, ``E[X] = exp(mu + sigma**2 / 2)`` and
+``median[X] = exp(mu)``.  Since :data:`block_mean` is a true arithmetic
+mean (Blank 2024 reports the mean block diameter), we set
+``mu = log(block_mean) - sigma**2/2`` so the draws' expected value equals
+the configured ``block_mean``.  The earlier ``mu = log(block_mean)`` form
+made ``block_mean`` the *median*, biasing the expected value upward by
+``exp(sigma**2/2)``.
 """
 
 from __future__ import annotations
@@ -64,9 +74,12 @@ def generate_breakdown_positions(
             signature is identical. Currently unused.
         coverage_pct: Target floor area coverage in percent. ``<= 0``
             short-circuits to an empty list.
-        block_mean: LogNormal mean diameter (passed as ``log(mean)`` to
-            ``rng.lognormal``).
-        block_sigma: LogNormal sigma.
+        block_mean: Arithmetic mean diameter (meters). The underlying
+            normal's ``mu`` is set to ``log(block_mean) - block_sigma**2/2``
+            so that ``E[diameter] == block_mean`` exactly (before the
+            ``diameter_cap_m`` truncation).
+        block_sigma: Standard deviation of the underlying normal
+            (``sigma`` argument to ``rng.lognormal``).
         skylight_positions: Skylight centers to avoid.
         skylight_diameter: Diameter of skylights.
         rng: Shared numpy random generator.
@@ -105,9 +118,13 @@ def generate_breakdown_positions(
         if placed_area >= target_area:
             break
 
+        # Mean-correction: for lognormal X with underlying normal params
+        # (mu, sigma), E[X] = exp(mu + sigma**2 / 2).  Setting
+        # mu = log(block_mean) - sigma**2/2 makes E[X] = block_mean so the
+        # configured ``block_mean`` is the arithmetic mean, not the median.
         diameter = float(
             rng.lognormal(
-                mean=np.log(block_mean),
+                mean=np.log(block_mean) - block_sigma**2 / 2.0,
                 sigma=block_sigma,
             )
         )

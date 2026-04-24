@@ -8,6 +8,38 @@ on:
 
 jobs:
   test:
+    # Reviewer 2 #18 (2026-04-24): matrix covers both ends of the
+    # ``requires-python = ">=3.10"`` range.  The author's local runtime is
+    # 3.12; 3.10 is added so regressions from Python 3.10-only idioms
+    # (``|`` unions in ``__init__`` bodies, ``match`` scopes, etc.) fail
+    # before a contributor on Ubuntu 22.04 hits them.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system GDAL libraries
+        run: sudo apt-get update && sudo apt-get install -y libgdal-dev gdal-bin
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run unit tests
+        # ``addopts = "-m 'not integration'"`` in pyproject.toml keeps
+        # Isaac Sim-dependent tests out of this GPU-less runner.
+        run: pytest tests/unit/ -v --tb=short
+
+  type-check:
+    # Reviewer 2 #18: scoped mypy (config/ + environment/ only).
+    # Full-repo strict mypy is deferred to v2.0 because Isaac Sim USD
+    # handles require custom stub packages that don't exist yet.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,5 +54,5 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Run unit tests
-        run: pytest tests/unit/ -v --tb=short
+      - name: Run mypy (config/ + environment/)
+        run: mypy

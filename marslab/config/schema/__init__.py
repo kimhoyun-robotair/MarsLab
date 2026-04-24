@@ -33,6 +33,7 @@ from marslab.config.schema.terrain import (
     CaveConfig,
     CaveGeometryConfig,
     DemCropConfig,
+    ProceduralCanyonConfig,
     TerrainConfig,
 )
 
@@ -53,6 +54,7 @@ __all__ = [
     "MarsLabConfig",
     "OdometryCovarianceConfig",
     "PathTracingConfig",
+    "ProceduralCanyonConfig",
     "RayTracingConfig",
     "RenderingConfig",
     "RobotConfig",

@@ -90,6 +90,7 @@ def build_cave_scene(
     cave_data: dict,
     stage,
     prim_base_path: str = "/World/Cave",
+    seed: int | None = None,
 ) -> np.ndarray:
     """Build USD prims for all cave mesh components.
 
@@ -105,6 +106,13 @@ def build_cave_scene(
         cave_data: Dict from cave_generator.generate_cave_mesh().
         stage: USD stage.
         prim_base_path: Base USD prim path.
+        seed: Optional RNG seed for the breakdown block orientation /
+            scale draws.  When ``None`` the seed is sourced from
+            ``cave_data["metadata"]["seed"]`` (populated by
+            :func:`marslab.terrain.cave_generator.generate_cave_mesh`)
+            so the USD builder stays deterministic with the upstream
+            mesh generator.  A hardcoded ``42`` fallback would silently
+            break user-supplied seeds (Reviewer 2 H-16, 2026-04-24).
 
     Returns:
         surface_elevation: 2D float32 array for spawn z calculations.
@@ -164,10 +172,19 @@ def build_cave_scene(
     # Breakdown blocks as PointInstancer
     breakdown_positions = cave_data["breakdown_positions"]
     if breakdown_positions:
+        # Resolve the effective seed: explicit argument > metadata > 0.
+        effective_seed: int
+        if seed is not None:
+            effective_seed = int(seed)
+        else:
+            metadata = cave_data.get("metadata", {}) or {}
+            md_seed = metadata.get("seed")
+            effective_seed = int(md_seed) if md_seed is not None else 0
         _build_breakdown_instancer(
             stage,
             breakdown_positions,
             prim_base_path,
+            seed=effective_seed,
         )
 
     return cave_data["surface_elevation"]
@@ -177,6 +194,7 @@ def _build_breakdown_instancer(
     stage,
     blocks: list[dict],
     prim_base_path: str,
+    seed: int = 0,
 ) -> None:
     """Create a PointInstancer for breakdown blocks.
 
@@ -187,6 +205,11 @@ def _build_breakdown_instancer(
         stage: USD stage.
         blocks: List of {x, y, z, diameter} dicts.
         prim_base_path: Base prim path.
+        seed: RNG seed for block orientation / scale draws. The caller
+            (:func:`build_cave_scene`) is responsible for threading
+            the scenario seed through — see Reviewer 2 H-16. A local
+            hardcoded default would let user-supplied seeds drift
+            silently.
     """
     from pxr import Gf, Sdf, UsdGeom, UsdPhysics, UsdShade
 
@@ -223,8 +246,8 @@ def _build_breakdown_instancer(
     prim = stage.GetPrimAtPath(proto_path)
     UsdShade.MaterialBindingAPI.Apply(prim).Bind(mtl)
 
-    # Set instance data
-    rng = np.random.default_rng(42)
+    # Set instance data -- RNG seeded from caller (H-16 fix).
+    rng = np.random.default_rng(seed)
     positions = []
     orientations = []
     scales = []

@@ -40,6 +40,7 @@ __pycache__/
 *.swn
 *~
 *.txt
+.coverage
 
 # Large terrain data files (downloaded, not committed)
 assets/terrain/dem/*.tif
@@ -71,8 +72,12 @@ marslab.egg-info/
 work_log/
 .claude/
 
-# ROS2 플러그인 충돌로 인해서 pytest 실행 불가 > scripts/run_integration_test.py로 대체
-tests/integration/test_robot_spawn.py
+# Reviewer 2 #15 (2026-04-24): integration suite reinstated.
+# tests/integration/ is VCS-tracked; use scripts/run_integration_test.py
+# (wraps scripts/isaac_python.sh) to execute against Isaac Sim.  The
+# default pytest run skips the `integration` marker, so unit CI stays
+# GPU-free.  Do NOT re-exclude tests/integration/ or any test_*.py
+# underneath it without pairing with a CI change.
 
 # Claude Code harness — share .claude/agents and .claude/skills,
 # hide personal state and workspace

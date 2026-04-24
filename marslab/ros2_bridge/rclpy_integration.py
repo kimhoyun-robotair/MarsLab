@@ -5,14 +5,22 @@ importing :mod:`marslab.ros2_bridge` does not trigger ``rclpy`` until
 the runtime actually needs it.  The function mirrors the previous
 ``__init__.init_rclpy_side`` verbatim so downstream callers do not
 observe a behavioural change.
+
+Reviewer 2 #04 (2026-04-24): ``init_rclpy_side`` now pulls the four
+QoS profiles (``cmd_vel_qos`` / ``odom_qos`` / ``sensor_qos`` /
+``tf_qos``) from the ``rover.ros2`` YAML block via
+:class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig`.  Legacy
+scenarios that do not declare QoS fields continue to get the schema
+defaults, so no existing YAML needs to change.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 import numpy as np
 
+from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
 from marslab.ros2_bridge.cmd_vel_subscriber import create_cmd_vel_subscriber
 from marslab.ros2_bridge.context import BridgeContext
 from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
@@ -50,6 +58,7 @@ def init_rclpy_side(
 
     ns = str(ros2_cfg["namespace"])
     topics = dict(ros2_cfg["topics"])
+    qos_bundle = _resolve_qos_bundle(ros2_cfg)
 
     node = rclpy.create_node(
         f"{ns}_{node_name}",
@@ -70,14 +79,21 @@ def init_rclpy_side(
     # to 10 (the historical constant) when the YAML key is absent so
     # existing scenarios keep loading unchanged.
     cmd_vel_queue_size = int(ros2_cfg.get("cmd_vel_queue_size", 10))
+    # Reviewer 2 #04 (2026-04-24): pass the resolved QoSProfile so the
+    # subscription reliability matches Nav2 controller_server expectations.
     cmd_vel_sub = create_cmd_vel_subscriber(
         node,
         cmd_vel_topic,
         twist_state,
         queue_size=cmd_vel_queue_size,
+        qos=qos_bundle["cmd_vel"],
     )
 
-    static_broadcaster = publish_static_sensor_tfs(node, sensor_frames)
+    static_broadcaster = publish_static_sensor_tfs(
+        node,
+        sensor_frames,
+        qos=qos_bundle["tf"],
+    )
 
     odom_topic = _ns_topic(ns, topics["odom"])
     # R3 (2026-04-22) G5: pull frame_id / child_frame_id / queue_size from
@@ -95,6 +111,8 @@ def init_rclpy_side(
         queue_size=int(odom_pub_cfg.get("queue_size", 10)),
         frame_id=str(odom_pub_cfg.get("frame_id", "odom")),
         child_frame_id=str(odom_pub_cfg.get("child_frame_id", "base_link")),
+        odom_qos=qos_bundle["odom"],
+        tf_qos=qos_bundle["tf"],
     )
 
     return BridgeContext(
@@ -104,6 +122,60 @@ def init_rclpy_side(
         odom_ctx=odom_ctx,
         twist_state=twist_state,
     )
+
+
+def _extract_qos_field(ros2_cfg: Dict[str, Any], key: str) -> Optional[Dict[str, Any]]:
+    """Return the raw dict for ``ros2_cfg[key]`` if it looks like a QoS block.
+
+    Accepts the YAML form (a nested dict with ``reliability`` /
+    ``durability`` / ``history`` / ``depth`` keys).  Returns ``None``
+    when the key is absent so the caller can fall back to the schema
+    default.  Non-dict values (e.g. an accidental string) are
+    rejected by pydantic when the dict is passed to
+    :class:`QoSProfileConfig` below, so no defensive check here.
+    """
+    if not isinstance(ros2_cfg, dict):
+        return None
+    raw = ros2_cfg.get(key)
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        # Pass through so pydantic produces the standard error message;
+        # rejecting here would require duplicating the schema validator.
+        return raw  # type: ignore[return-value]
+    return raw
+
+
+def _resolve_qos_bundle(ros2_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the four rclpy ``QoSProfile`` instances from YAML.
+
+    Returns a dict with keys ``cmd_vel`` / ``odom`` / ``sensor`` /
+    ``tf`` so the caller (``init_rclpy_side``) can index cleanly
+    without juggling four scalar variables.  Every value is a fully
+    constructed ``rclpy.qos.QoSProfile``.
+
+    Absent keys fall back to the :class:`Ros2BridgeConfig` defaults;
+    an invalid YAML value (e.g. ``reliability: "kinda_reliable"``) is
+    caught by pydantic at this stage, before rclpy is ever touched.
+    """
+    # Lazy import so tests that import ``rclpy_integration`` without
+    # rclpy on the path keep working (see test_ros2_bridge_lazy_import).
+    from marslab.ros2_bridge.qos import to_rclpy_qos
+
+    defaults = Ros2BridgeConfig()
+
+    def _pick(name: str, fallback: QoSProfileConfig) -> QoSProfileConfig:
+        raw = _extract_qos_field(ros2_cfg, name)
+        if raw is None:
+            return fallback
+        return QoSProfileConfig.model_validate(raw)
+
+    return {
+        "cmd_vel": to_rclpy_qos(_pick("cmd_vel_qos", defaults.cmd_vel_qos)),
+        "odom": to_rclpy_qos(_pick("odom_qos", defaults.odom_qos)),
+        "sensor": to_rclpy_qos(_pick("sensor_qos", defaults.sensor_qos)),
+        "tf": to_rclpy_qos(_pick("tf_qos", defaults.tf_qos)),
+    }
 
 
 __all__ = ["init_rclpy_side"]

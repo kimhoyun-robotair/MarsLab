@@ -87,6 +87,7 @@ def build_sensor_graph(
     ns = str(ros2_cfg["namespace"])
     topics = dict(ros2_cfg["topics"])
     graph_path = _resolve_graph_path(ros2_cfg)
+    sensor_preset, tf_preset = _resolve_qos_presets(ros2_cfg)
     include_2d = lidar_2d_prim_path is not None and "scan" in topics
 
     keys = og.Controller.Keys
@@ -103,10 +104,46 @@ def build_sensor_graph(
                 camera_resolution=camera_resolution,
                 lidar_3d_prim_path=lidar_3d_prim_path,
                 lidar_2d_prim_path=lidar_2d_prim_path if include_2d else None,
+                sensor_qos_preset=sensor_preset,
+                tf_qos_preset=tf_preset,
             ),
         },
     )
     return SensorGraphHandle(graph_path=graph_path, graph=graph_handle)
+
+
+def _resolve_qos_presets(ros2_cfg: Dict[str, Any]) -> Tuple[str, str]:
+    """Return ``(sensor_preset, tf_preset)`` Isaac-Sim preset strings.
+
+    The OmniGraph helpers (``ROS2PublishImu``, ``ROS2CameraHelper``,
+    ``ROS2RtxLidarHelper``, ``ROS2PublishRawTransformTree``) accept a
+    preset *name* on ``inputs:qosProfile`` rather than a structured
+    QoSProfile.  This helper reads the matching ``sensor_qos`` and
+    ``tf_qos`` YAML blocks (or the schema defaults) and maps each to
+    the closest bundled preset via
+    :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_preset`.
+
+    Reviewer 2 #04 (2026-04-24).  Kept separate from
+    :func:`_resolve_graph_path` so tests can exercise it without
+    also instantiating pydantic graph-path validation.
+    """
+    # Local imports mirror the pattern used by ``_resolve_graph_path``
+    # so this module stays importable without rclpy / pydantic schema
+    # on the path.
+    from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
+    from marslab.ros2_bridge.qos import to_omnigraph_qos_preset
+
+    defaults = Ros2BridgeConfig()
+
+    def _pick(name: str, fallback: QoSProfileConfig) -> QoSProfileConfig:
+        raw = ros2_cfg.get(name) if isinstance(ros2_cfg, dict) else None
+        if raw is None:
+            return fallback
+        return QoSProfileConfig.model_validate(raw)
+
+    sensor_cfg = _pick("sensor_qos", defaults.sensor_qos)
+    tf_cfg = _pick("tf_qos", defaults.tf_qos)
+    return to_omnigraph_qos_preset(sensor_cfg), to_omnigraph_qos_preset(tf_cfg)
 
 
 def _resolve_graph_path(ros2_cfg: Dict[str, Any]) -> str:

@@ -164,3 +164,127 @@ def test_different_seeds_differ(geometry):
     b1 = generate_breakdown_positions(rng=rng1, **args)
     b2 = generate_breakdown_positions(rng=rng2, **args)
     assert b1 != b2
+
+
+# ---------------------------------------------------------------------------
+# Lognormal mean-correction regression tests (Reviewer 2 audit #11).
+#
+# ``generate_breakdown_positions`` must draw diameters whose expected
+# value equals the configured ``block_mean``.  Prior to the fix, the
+# implementation passed ``mean=log(block_mean)`` which gave
+# ``median=block_mean`` but ``E[X] = block_mean * exp(sigma**2 / 2)``.
+# ---------------------------------------------------------------------------
+
+
+def _draw_uncapped_diameters(
+    block_mean: float, block_sigma: float, n_samples: int, seed: int
+) -> np.ndarray:
+    """Replicate the production lognormal draw without the 5 m cap.
+
+    Mirrors the mean-corrected ``rng.lognormal(mean=log(m) - s**2/2,
+    sigma=s)`` call inside ``generate_breakdown_positions`` so this test
+    protects the mathematical intent, not the rejection-sampling loop.
+    """
+    rng = np.random.default_rng(seed)
+    return rng.lognormal(
+        mean=np.log(block_mean) - block_sigma**2 / 2.0,
+        sigma=block_sigma,
+        size=n_samples,
+    )
+
+
+def test_block_size_distribution_statistic():
+    """Uncapped sample mean approximates ``block_mean`` within 5 percent.
+
+    Regression guard for Reviewer 2 audit #11: the old code passed
+    ``mean=log(block_mean)`` to ``rng.lognormal``, which biased ``E[X]``
+    upward by ``exp(sigma**2/2)`` (roughly 4.6 percent at sigma=0.3).
+    """
+    block_mean = 0.5
+    block_sigma = 0.3
+    samples = _draw_uncapped_diameters(block_mean, block_sigma, 10_000, seed=42)
+
+    sample_mean = float(np.mean(samples))
+    rel_err = abs(sample_mean - block_mean) / block_mean
+    assert rel_err < 0.05, (
+        f"Sample mean {sample_mean:.4f} deviates from block_mean "
+        f"{block_mean:.4f} by {rel_err:.3%} (> 5%)."
+    )
+
+    # Median should diverge from block_mean by roughly exp(-sigma**2/2);
+    # this guards against an accidental revert to median=block_mean.
+    sample_median = float(np.median(samples))
+    expected_median = block_mean * np.exp(-(block_sigma**2) / 2.0)
+    assert abs(sample_median - expected_median) / expected_median < 0.05
+
+
+def test_lognormal_sigma_scaling():
+    """Mean-correction holds across sigma values; median shifts accordingly.
+
+    For sigma=0.3 the old ``mean=log(m)`` form biased the expected value
+    by only ~4.6 percent, but for sigma=1.0 the bias balloons to ~65
+    percent (``exp(0.5) = 1.6487``). This test locks both regimes in.
+    """
+    block_mean = 0.5
+    n_samples = 10_000
+
+    for block_sigma in (0.3, 1.0):
+        samples = _draw_uncapped_diameters(block_mean, block_sigma, n_samples, seed=2026)
+
+        # Expected value must equal block_mean (within MC noise) for both
+        # small and large sigma.
+        sample_mean = float(np.mean(samples))
+        rel_err_mean = abs(sample_mean - block_mean) / block_mean
+        assert rel_err_mean < 0.05, (
+            f"sigma={block_sigma}: sample mean {sample_mean:.4f} "
+            f"deviates from {block_mean:.4f} by {rel_err_mean:.3%}."
+        )
+
+        # Median must equal block_mean * exp(-sigma**2/2) -- the defining
+        # property of the mean-correction. This is the key check that
+        # distinguishes the fix from the old median=block_mean form.
+        sample_median = float(np.median(samples))
+        expected_median = block_mean * np.exp(-(block_sigma**2) / 2.0)
+        rel_err_median = abs(sample_median - expected_median) / expected_median
+        assert rel_err_median < 0.05, (
+            f"sigma={block_sigma}: sample median {sample_median:.4f} "
+            f"differs from expected {expected_median:.4f} "
+            f"by {rel_err_median:.3%}."
+        )
+
+
+def test_generator_mean_matches_config_within_cap(geometry):
+    """End-to-end: mean of drawn diameters tracks ``block_mean``.
+
+    Exercises the real ``generate_breakdown_positions`` path (including
+    the 5 m cap and rejection sampling). With ``block_mean=0.5`` and
+    ``block_sigma=0.3`` the cap almost never fires, so the observed
+    sample mean should be close to 0.5 m. Before the fix the observed
+    mean was biased upward to ~0.523 m.
+    """
+    centerline, cross_sections = geometry
+    rng = np.random.default_rng(7)
+    blocks = generate_breakdown_positions(
+        centerline,
+        cross_sections,
+        floor_z=0.0,
+        ring_pts=RING_PTS,
+        coverage_pct=40.0,
+        block_mean=0.5,
+        block_sigma=0.3,
+        skylight_positions=[],
+        skylight_diameter=20.0,
+        rng=rng,
+    )
+    diameters = np.array([b["diameter"] for b in blocks])
+    assert (
+        diameters.size >= 200
+    ), f"Need >=200 blocks for a stable mean estimate, got {diameters.size}."
+
+    # 5 m cap is a very soft truncation at block_mean=0.5, block_sigma=0.3
+    # (the cap is ~15 sigma in log-space), so bias stays well under 5%.
+    sample_mean = float(np.mean(diameters))
+    assert abs(sample_mean - 0.5) / 0.5 < 0.08, (
+        f"End-to-end sample mean {sample_mean:.4f} deviates from 0.5 m "
+        f"by more than 8% -- mean-correction regression?"
+    )

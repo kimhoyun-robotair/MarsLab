@@ -12,7 +12,6 @@ context only — the module itself is offline-importable (P3). Normal exit or
 from __future__ import annotations
 
 import logging
-import sys
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
@@ -21,6 +20,49 @@ import numpy as np
 from marslab.math.quaternion import quat_inverse, quat_multiply, quat_rotate_vec
 
 logger = logging.getLogger(__name__)
+
+#: Default number of physics steps during which per-step exceptions are
+#: promoted to ``logger.error`` output. Steps beyond this grace window
+#: intentionally silence the per-frame chatter to keep long runs readable.
+#:
+#: Honest caveat (Reviewer 2 #13): a critical failure surfacing *after*
+#: step 120 (e.g. IMU gravity drift, articulation desync) is still not
+#: observable from this helper alone — callers that need mid-run
+#: invariants must add dedicated periodic assertions (see
+#: ``tests/unit/test_imu_gravity_assertion.py``).
+_DEFAULT_GRACE_STEPS = 120
+
+
+def _log_once(
+    target_logger: logging.Logger,
+    exc: BaseException,
+    category: str,
+    step_count: int,
+    grace_steps: int = _DEFAULT_GRACE_STEPS,
+) -> None:
+    """Log an exception during the grace period and stay silent afterwards.
+
+    Consolidates the shotgun-surgery ``except Exception: print(..., step<120)``
+    pattern previously duplicated across the main loop (joint target set,
+    articulation probe, IMU fetch, velocity query, odom publish).
+
+    Args:
+        target_logger: Module logger (typically ``logging.getLogger(__name__)``).
+            The ``target_`` prefix avoids shadowing the module-level
+            ``logger`` binding for clarity at call sites.
+        exc: The caught exception instance.
+        category: Short snake_case label identifying the failure site
+            (e.g. ``"joint_target_set_failed"``).
+        step_count: Current simulation step count. Used to gate logging via
+            ``grace_steps``.
+        grace_steps: Number of leading steps during which the failure is
+            emitted at ``ERROR`` level. After this many steps the helper
+            silently returns so that long runs are not flooded by a single
+            recurring failure. Defaults to :data:`_DEFAULT_GRACE_STEPS`.
+    """
+    if step_count < grace_steps:
+        target_logger.error("%s (step=%d): %r", category, step_count, exc)
+
 
 # ---------------------------------------------------------------------------
 # State dataclasses — mutated in place by the loop body.
@@ -57,12 +99,10 @@ class AtmosphereLoopState:
     :attr:`atmosphere_dict`.  The dict is the authoritative store; the other
     attributes are scalars the loop carries across steps.
 
-    P6 G5 (2026-04-23): ``sol_duration`` and ``solar_constant`` previously
-    defaulted to the Mars physics constants (``88642.0`` s and
-    ``589.0`` W/m^2). That duplicated values already owned by
-    :class:`marslab.config.schema.MarsEnvConfig`. Both are now required
-    constructor arguments — callers must source them from the pydantic
-    schema (see ``run_stage3_monolithic_new.py``).
+    ``sol_duration`` and ``solar_constant`` are required constructor
+    arguments (G5): callers must source them from the pydantic
+    :class:`marslab.config.schema.MarsEnvConfig` rather than duplicate
+    the Mars physics constants (``88642.0`` s, ``589.0`` W/m^2) here.
 
     Attributes:
         atmosphere_dict: The live mutable dict shared with the GUI panel.
@@ -126,6 +166,92 @@ class OdomPublishState:
 
 
 @dataclass
+class VehicleGeometry:
+    """Static rover kinematics consumed by the Ackermann controller.
+
+    Extracted from :class:`LoopContext` in R7 (Reviewer 2 H-1,
+    2026-04-24).  These values are computed once from URDF / scenario
+    YAML and never mutate at runtime.
+
+    Attributes:
+        wheelbase: Distance between front and rear axles (m).
+        track_steer: Track width at the steering axles (m).
+        track_middle: Track width at the middle (driven) axles (m).
+        wheel_radius: Drive wheel radius (m).
+    """
+
+    wheelbase: float
+    track_steer: float
+    track_middle: float
+    wheel_radius: float
+
+
+@dataclass
+class ControlLimits:
+    """Ramp-rate and saturation envelope for cmd_vel → joint targets.
+
+    Extracted from :class:`LoopContext` in R7 (Reviewer 2 H-1,
+    2026-04-24).  These are controller-tunable bounds separate from
+    the static vehicle geometry.
+
+    Attributes:
+        v_max: Linear velocity saturation (m/s, symmetric).
+        w_max: Angular velocity saturation (rad/s, symmetric).
+        max_wheel_accel_rate: Drive wheel acceleration limit (rad/s^2).
+            A non-positive value disables the ramp.
+        decel_multiplier: Multiplier on ``max_wheel_accel_rate`` applied
+            when decelerating (``|target| < |current|``).
+        max_steer_angle: Steering-joint clamp (rad, symmetric).
+        steer_ramp_rate: Steering-joint ramp rate (rad/s). Non-positive
+            disables steering ramp.
+        negate_steer: If ``True``, flip the sign of commanded steering
+            angles before clamping (URDF-specific convention).
+    """
+
+    v_max: float
+    w_max: float
+    max_wheel_accel_rate: float
+    decel_multiplier: float
+    max_steer_angle: float
+    steer_ramp_rate: float
+    negate_steer: bool = False
+
+
+@dataclass
+class AtmosphereCallables:
+    """Optional atmosphere / rendering callbacks shared across the loop.
+
+    Extracted from :class:`LoopContext` in R7 (Reviewer 2 H-1,
+    2026-04-24).  Every field defaults to ``None`` so ``--no-atmosphere``
+    / headless unit-test callers can construct the context without
+    stubbing the entire rendering pipeline.
+
+    Attributes:
+        update_sun_fn: Pushes new sun position/intensity into the stage.
+        update_sky_fn: Pushes new HDRI parameters into the sky dome.
+        configure_fog_fn: Re-applies the Beer's-law fog with a new tau.
+        compute_sun_fn: Manual-mode solar position resolver.
+        compute_sol_sun_fn: Auto-mode solar position resolver
+            (time-of-sol sweep).
+        compute_direct_intensity_fn: Direct (beam) irradiance
+            (Kasten-Young Beer's law).
+        compute_diffuse_fraction_fn: Diffuse fraction ``f_d(tau)``.
+        compute_sky_dome_fn: Butterscotch HDRI parameter resolver.
+        atmo_panel_update: GUI panel refresh hook.
+    """
+
+    update_sun_fn: Optional[Callable[..., None]] = None
+    update_sky_fn: Optional[Callable[..., None]] = None
+    configure_fog_fn: Optional[Callable[..., None]] = None
+    compute_sun_fn: Optional[Callable[..., Any]] = None
+    compute_sol_sun_fn: Optional[Callable[..., Any]] = None
+    compute_direct_intensity_fn: Optional[Callable[..., float]] = None
+    compute_diffuse_fraction_fn: Optional[Callable[..., float]] = None
+    compute_sky_dome_fn: Optional[Callable[..., Any]] = None
+    atmo_panel_update: Optional[Callable[[], None]] = None
+
+
+@dataclass
 class LoopContext:
     """Everything :func:`run_main_loop` reads or mutates.
 
@@ -143,6 +269,22 @@ class LoopContext:
         ``compute_sol_sun_fn``, ``compute_direct_intensity_fn``,
         ``compute_diffuse_fraction_fn``, ``compute_sky_dome_fn``,
         ``atmo_panel_update``.
+
+    Decomposition (Reviewer 2 H-1, 2026-04-24)
+    ------------------------------------------
+    The original 34-field / 10-callable dataclass is the classic
+    god-object anti-pattern. R7 splits it into three composed views:
+
+    * :class:`VehicleGeometry` — static rover kinematics.
+    * :class:`ControlLimits` — ramp / saturation envelope.
+    * :class:`AtmosphereCallables` — optional rendering callbacks.
+
+    To keep backward compatibility with existing callers (and the
+    byte-level signature tests), the flat attributes remain on
+    :class:`LoopContext`; the sub-dataclass views are exposed as
+    read-only ``@property`` accessors that construct fresh instances on
+    demand.  New code should prefer ``ctx.geometry.wheel_radius`` etc.,
+    but ``ctx.wheel_radius`` stays valid.
     """
 
     simulation_app: Any
@@ -180,6 +322,46 @@ class LoopContext:
     compute_diffuse_fraction_fn: Optional[Callable[..., float]] = None
     compute_sky_dome_fn: Optional[Callable[..., Any]] = None
     atmo_panel_update: Optional[Callable[[], None]] = None
+
+    # --- Sub-dataclass views (H-1 decomposition) ----------------------------
+
+    @property
+    def geometry(self) -> VehicleGeometry:
+        """Read-only :class:`VehicleGeometry` view of the kinematic fields."""
+        return VehicleGeometry(
+            wheelbase=self.wheelbase,
+            track_steer=self.track_steer,
+            track_middle=self.track_middle,
+            wheel_radius=self.wheel_radius,
+        )
+
+    @property
+    def control_limits(self) -> ControlLimits:
+        """Read-only :class:`ControlLimits` view of the ramp/saturation fields."""
+        return ControlLimits(
+            v_max=self.v_max,
+            w_max=self.w_max,
+            max_wheel_accel_rate=self.max_wheel_accel_rate,
+            decel_multiplier=self.decel_multiplier,
+            max_steer_angle=self.max_steer_angle,
+            steer_ramp_rate=self.steer_ramp_rate,
+            negate_steer=self.negate_steer,
+        )
+
+    @property
+    def atmosphere_callables(self) -> AtmosphereCallables:
+        """Read-only :class:`AtmosphereCallables` view of the optional hooks."""
+        return AtmosphereCallables(
+            update_sun_fn=self.update_sun_fn,
+            update_sky_fn=self.update_sky_fn,
+            configure_fog_fn=self.configure_fog_fn,
+            compute_sun_fn=self.compute_sun_fn,
+            compute_sol_sun_fn=self.compute_sol_sun_fn,
+            compute_direct_intensity_fn=self.compute_direct_intensity_fn,
+            compute_diffuse_fraction_fn=self.compute_diffuse_fraction_fn,
+            compute_sky_dome_fn=self.compute_sky_dome_fn,
+            atmo_panel_update=self.atmo_panel_update,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -275,8 +457,9 @@ def run_main_loop(ctx: LoopContext) -> int:
 
     Args:
         ctx: Pre-initialized :class:`LoopContext` assembled by the CLI
-            wrapper (``scripts/run_marslab.py``) or the twin monolithic
-            runner after Isaac Sim boot and ``world.reset()``.
+            wrapper (``scripts/run_marslab.py``) or
+            :mod:`scripts.phase1.run_stage4` after Isaac Sim boot and
+            ``world.reset()``.
 
     Returns:
         ``0`` on normal exit or ``KeyboardInterrupt``. The caller owns the
@@ -346,10 +529,7 @@ def run_main_loop(ctx: LoopContext) -> int:
                     ramped_vels, joint_indices=drive_idx_arr
                 )
             except Exception as exc:  # noqa: BLE001
-                print(
-                    f"[run_main_loop] joint target failed: {exc}",
-                    file=sys.stderr,
-                )
+                _log_once(logger, exc, "joint_target_set_failed", ctl.step_count)
 
             if ctx.debug_logging and ctl.step_count % 60 == 0:
                 _debug_log_step(ctx, steer_idx_arr, drive_idx_arr, v, w, steer_angles, ramped_vels)
@@ -395,11 +575,7 @@ def _debug_log_step(
                 flush=True,
             )
     except Exception as exc:  # noqa: BLE001
-        if ctx.control.step_count < 120:
-            print(
-                f"[warn] articulation step={ctx.control.step_count} {repr(exc)[:200]}",
-                file=sys.stderr,
-            )
+        _log_once(logger, exc, "articulation_probe_failed", ctx.control.step_count)
     try:
         imu_frame = ctx.imu.get_current_frame()
         if imu_frame is not None and "lin_acc" in imu_frame:
@@ -410,11 +586,7 @@ def _debug_log_step(
                 flush=True,
             )
     except Exception as exc:  # noqa: BLE001
-        if ctx.control.step_count < 120:
-            print(
-                f"[warn] imu step={ctx.control.step_count} {repr(exc)[:200]}",
-                file=sys.stderr,
-            )
+        _log_once(logger, exc, "imu_frame_fetch_failed", ctx.control.step_count)
 
 
 def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
@@ -475,21 +647,11 @@ def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
                 odom_msg.twist.twist.angular.y = float(body_av[1])
                 odom_msg.twist.twist.angular.z = float(body_av[2])
         except Exception as exc:  # noqa: BLE001
-            logger.error("velocity query failed at step=%d: %r", step_count, exc)
-            if step_count < 120:
-                print(
-                    f"[warn] velocity step={step_count} {repr(exc)[:200]}",
-                    file=sys.stderr,
-                )
+            _log_once(logger, exc, "velocity_query_failed", step_count)
 
         odom.odom_pub.publish(odom_msg)
     except Exception as odom_exc:  # noqa: BLE001
-        logger.error("odom publish failed at step=%d: %r", step_count, odom_exc)
-        if step_count < 120:
-            print(
-                f"[run_main_loop] odom publish failed: {odom_exc}",
-                file=sys.stderr,
-            )
+        _log_once(logger, odom_exc, "odom_publish_failed", step_count)
 
 
 def _update_atmosphere(ctx: LoopContext) -> None:
@@ -504,11 +666,16 @@ def _update_atmosphere(ctx: LoopContext) -> None:
         t = (atmo.elapsed % atmo.sol_duration) / atmo.sol_duration
         state["time_of_sol"] = t
         if ctx.compute_sol_sun_fn is not None:
+            # ``mode="linear"`` preserves the SunSweepConfig envelope
+            # semantics used by the live simulation. Upgrading this
+            # path to the Reviewer-2 #8 spherical default requires
+            # plumbing latitude_deg/ls_deg through SunSweepConfig first.
             dyn_sun_pos = ctx.compute_sol_sun_fn(
                 time_of_sol_fraction=t,
                 start_azimuth_deg=atmo.sweep_start_az,
                 end_azimuth_deg=atmo.sweep_end_az,
                 max_elevation_deg=atmo.sweep_max_el,
+                mode="linear",
             )
             state["sun_azimuth_deg"] = dyn_sun_pos.azimuth_deg
             state["sun_elevation_deg"] = dyn_sun_pos.elevation_deg

@@ -63,10 +63,8 @@ def resolve_dem_paths(
 ) -> Dict[str, Path]:
     """Return canonical DEM-related asset paths for a scenario.
 
-    Absorbs the ``os.path.join(REPO_ROOT, ...)`` assembly that previously
-    lived inline in ``run_stage2.py`` (L266-274, L304-312) and
-    ``run_stage3_monolithic_new.py`` (L443-451, L481-483, L507-512) so
-    each caller resolves the same set of paths the same way.
+    Absorbs the ``os.path.join(REPO_ROOT, ...)`` assembly so every
+    Stage 2 / Stage 3 caller resolves the same set of paths the same way.
 
     Keys returned:
         * ``converted_dir`` — absolute path of ``terrain.converted_dem_dir``

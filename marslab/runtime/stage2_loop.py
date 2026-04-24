@@ -61,8 +61,11 @@ def run_stage2_loop(
 
     Args:
         simulation_app: Live ``SimulationApp`` returned by the boot
-            helper. The caller owns shutdown; this function only calls
-            ``close()`` inside the ``finally`` block.
+            helper. This function owns Isaac Sim shutdown: the
+            ``finally`` block always calls ``close()``. If ``close()``
+            raises, the failure is reported on stderr and the process
+            exits with code 1 (bypassing Kit ``atexit`` per
+            ``tests/visual_inspection/checklist.md §Kit-SIGSEGV``).
         boot: Offline boot result (needed for dynamic atmosphere config).
         scene: Scene handles produced by :func:`setup_stage2_scene`.
         headless: When ``True``, the GUI atmosphere panel is skipped.
@@ -149,11 +152,18 @@ def run_stage2_loop(
             t = (elapsed % sol_duration) / sol_duration
             atmosphere_state["time_of_sol"] = t
 
+            # ``mode="linear"`` pins the historical envelope semantics
+            # (linear azimuth sweep + half-sine elevation) that
+            # ``SunSweepConfig`` was designed around. The new default
+            # ``mode="spherical"`` is opt-in — switching to it requires
+            # extending SunSweepConfig with latitude_deg/ls_deg, which is
+            # a separate follow-up to the Reviewer-2 #8 fix.
             dyn_sun_pos = compute_sol_sun_position(
                 time_of_sol_fraction=t,
                 start_azimuth_deg=sweep_start_az,
                 end_azimuth_deg=sweep_end_az,
                 max_elevation_deg=sweep_max_el,
+                mode="linear",
             )
             atmosphere_state["sun_azimuth_deg"] = dyn_sun_pos.azimuth_deg
             atmosphere_state["sun_elevation_deg"] = dyn_sun_pos.elevation_deg
@@ -200,7 +210,7 @@ def run_stage2_loop(
             print(f"[run_stage2] simulation_app.close() raised: {exc}", file=sys.stderr)
             sys.stdout.flush()
             sys.stderr.flush()
-            os._exit(0)
+            os._exit(1)
 
 
 __all__ = ["build_atmosphere_state", "run_stage2_loop"]

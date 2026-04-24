@@ -47,8 +47,21 @@ def build_tube_shell(
 ) -> trimesh.Trimesh:
     """Stitch cross-section rings into a tube shell (ceiling + walls).
 
-    Winding is reversed so face normals point inward (toward the tube
-    interior) -- cameras inside the tube see the inner surface.
+    Winding convention (Reviewer 2 H-12, verified 2026-04-24)
+    ---------------------------------------------------------
+    Face winding is arranged so that the computed vertex order
+    ``[v0, v2, v1]`` / ``[v1, v2, v3]`` produces face normals that
+    point **inward** — toward the tube interior, i.e. a ceiling face
+    has a ``-Z`` normal and a left-wall face has a ``+X`` normal.
+    This matches the rendering requirement that cameras inside the
+    tube (rover viewpoint) see the inner surface.
+
+    The USD builder sets ``double_sided=True`` so PhysX collisions
+    fire from either side — the inward normal here is the **rendering**
+    contract, not the collision contract. A dedicated regression test
+    (``test_tube_shell_normals_inward`` in ``tests/unit/test_cave_mesh.py``)
+    sweeps ceiling samples and asserts the normal points toward the
+    axis so that this docstring stays trustworthy across future edits.
 
     Args:
         centerline: ``(n_stations, 3)`` centerline positions.
@@ -57,7 +70,8 @@ def build_tube_shell(
         ring_pts: Vertices per ring.
 
     Returns:
-        :class:`trimesh.Trimesh` of the tube shell.
+        :class:`trimesh.Trimesh` of the tube shell with inward-facing
+        per-face normals (``mesh.face_normals``).
     """
     n_stations = len(centerline)
     _, perp = tangent_frames(centerline)

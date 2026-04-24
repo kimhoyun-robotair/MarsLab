@@ -107,8 +107,11 @@ def generate_cave_mesh(
         debris_cone_count: Number of debris cones.
         debris_cone_angle_deg: Angle of repose for the debris cone.
         breakdown_coverage_pct: Floor area covered by breakdown blocks.
-        breakdown_block_mean_m: LogNormal mean block diameter.
-        breakdown_block_sigma: LogNormal sigma for block sizes.
+        breakdown_block_mean_m: Arithmetic mean block diameter in
+            meters (Blank 2024: 0.5 m). The underlying lognormal is
+            mean-corrected so ``E[diameter] == breakdown_block_mean_m``.
+        breakdown_block_sigma: Standard deviation of the underlying
+            normal distribution used by ``rng.lognormal``.
         floor_flat_pct: Percentage of floor that is flat.
         ring_resolution: Vertices per cross-section ring.
         path_resolution: Number of cross-sections along the tube.

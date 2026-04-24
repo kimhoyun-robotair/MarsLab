@@ -31,9 +31,9 @@ def load_runtime_config_dict(config_path: str) -> Dict[str, Any]:
     """Legacy dict path — wraps ``scenario_loader.load_scenario_config``.
 
     Use when the consumer still expects the raw merged YAML dict
-    (currently ``run_stage2.py`` and ``run_stage3_monolithic_new.py``).
-    Prefer :func:`load_runtime_config` for new code paths that can consume
-    the pydantic-validated model.
+    (currently ``run_stage2.py`` and the Stage 3 runner). Prefer
+    :func:`load_runtime_config` for new code paths that can consume the
+    pydantic-validated model.
 
     Args:
         config_path: Path to scenario YAML or flat config.

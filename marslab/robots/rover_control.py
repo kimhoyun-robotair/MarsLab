@@ -92,14 +92,39 @@ def ackermann_command(
     for i, (x_w, y_w) in enumerate(steer_xy):
         dy = R - y_w
         if abs(dy) < _EPS_DY:
-            # ICR exactly at wheel lateral position → 90° steer.
-            steer_angles[i] = float(np.copysign(np.pi / 2.0, x_w))
+            # ICR exactly at wheel lateral position → ±90° steer.
+            # np.arctan2(x_w, 0) already returns sign(x_w)*π/2, but we
+            # branch explicitly to handle x_w == 0 (degenerate, pick +)
+            # and to avoid propagating float subnormals into downstream
+            # clamps.
+            steer_angles[i] = float(np.copysign(np.pi / 2.0, x_w if x_w != 0.0 else 1.0))
         else:
-            steer_angles[i] = float(np.arctan(x_w / dy))
+            # arctan2(x_w, dy) instead of arctan(x_w/dy): the division
+            # form silently drops the sign of dy so tight turns (R <
+            # half_ts, dy < 0 on the inside wheel) land in the wrong
+            # quadrant and the "dy == 0" branch above is never reached
+            # for small-but-nonzero dy (reviewer 2 audit 05§C1).  We
+            # wrap the result into the principal wheel-axis range
+            # (-π/2, π/2] — a real steer joint has ±40° limits, so
+            # values outside (-π/2, π/2) must flip the wheel by π and
+            # let the drive velocity compensate (see below).
+            theta = float(np.arctan2(x_w, dy))
+            if theta > np.pi / 2.0:
+                theta -= np.pi
+            elif theta < -np.pi / 2.0:
+                theta += np.pi
+            steer_angles[i] = theta
 
     # Euclidean distance to ICR — matches NVIDIA AckermannController
     # approach.  Each wheel at (x_w, y_w) has distance sqrt(x_w^2 + (R-y_w)^2).
-    # Sign: w*(R-y_w) determines forward vs backward wheel rotation.
+    #
+    # Sign: we keep steer in the (-π/2, π/2] principal range above, so
+    # positive wheel rotation moves along the direction (cos θ, sin θ).
+    # The tangential velocity at the contact is  w × (r_icr_to_wheel) =
+    # (w*dy, w*x_w).  Matching projected onto (cos θ, sin θ) gives
+    # ω_wheel * r = w * dy / cos θ.  Because cos θ > 0 in the principal
+    # range, ω_wheel has the sign of (w * dy) — exactly the original
+    # copysign(w, w*dy) convention.
     drive_xy = [
         (+half_wb, +half_ts),  # LF
         (0.0, +half_tm),  # LM

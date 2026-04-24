@@ -7,9 +7,27 @@ models reference the earlier ones without forward-ref strings.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-__all__ = ["CaveConfig", "CaveGeometryConfig", "DemCropConfig", "TerrainConfig"]
+__all__ = [
+    "CaveConfig",
+    "CaveGeometryConfig",
+    "DemCropConfig",
+    "ProceduralCanyonConfig",
+    "TerrainConfig",
+]
+
+
+# Reviewer 2 #12 (2026-04-24): every terrain-schema BaseModel opts into
+# ``extra="forbid"`` so unknown keys fail loudly.  The public rationale
+# lives in ``marslab/config/schema/mars_env.py``.  One concrete reveal
+# from flipping this on: ``configs/scenarios/procedural_canyon.yaml``
+# had seven ``canyon_*`` keys at the terrain level that
+# ``TerrainConfig`` did not declare, so pydantic v2 silently threw them
+# away.  The new :class:`ProceduralCanyonConfig` below captures them
+# under ``terrain.canyon`` (and a ``model_validator(mode="before")``
+# shim on ``TerrainConfig`` folds the legacy flat keys into the nested
+# block).
 
 
 class CaveGeometryConfig(BaseModel):
@@ -25,6 +43,8 @@ class CaveGeometryConfig(BaseModel):
     YAMLs that omit the ``geometry`` block keep the previous behaviour
     by virtue of the defaults below.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     centerline_path_length_factor: float = Field(
         default=1.1,
@@ -92,6 +112,8 @@ class DemCropConfig(BaseModel):
     pixel indices into the source elevation array.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     row: int = Field(ge=0, description="Top-left row index of the crop window")
     col: int = Field(ge=0, description="Top-left column index of the crop window")
     height: int = Field(ge=1, description="Crop window height in pixels")
@@ -104,6 +126,8 @@ class CaveConfig(BaseModel):
     Science basis: Sauro et al. 2020, Cushing 2007/2012, Theinat 2020,
     Blair 2017, Blank 2024 (BRAILLE). See work_log/scene_generation/mars_cave.md.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     tube_width_m: float = Field(
         default=200.0,
@@ -154,10 +178,16 @@ class CaveConfig(BaseModel):
         description="Skylight opening diameter in meters (5-250m)",
     )
     skylight_depth_m: float = Field(
-        default=90.0,
+        default=110.0,
         ge=20.0,
         le=200.0,
-        description="Skylight depth from surface to tube ceiling (Cushing 2007: 68-178m)",
+        description=(
+            "Skylight depth from surface to tube ceiling (Cushing 2007: 68-178m). "
+            "Default 110m keeps a 10m margin above the default tube ceiling "
+            "(tube_width_m*tube_height_ratio = 200*0.5 = 100m) so ``CaveConfig()`` "
+            "with default ``skylight_count=10`` passes ``check_cave_ranges`` "
+            "without user intervention."
+        ),
     )
     skylight_overhang_deg: float = Field(
         default=5.0,
@@ -191,13 +221,20 @@ class CaveConfig(BaseModel):
         default=0.5,
         ge=0.1,
         le=5.0,
-        description="LogNormal mean block diameter (Blank 2024: mean 0.5m)",
+        description=(
+            "Arithmetic mean block diameter in meters (Blank 2024: mean "
+            "0.5m). Internally the lognormal draw is mean-corrected so "
+            "E[diameter] equals this value."
+        ),
     )
     breakdown_block_sigma: float = Field(
         default=0.3,
         ge=0.05,
         le=1.0,
-        description="LogNormal sigma for block size distribution",
+        description=(
+            "Standard deviation of the underlying normal distribution "
+            "(sigma argument to numpy.random.Generator.lognormal)."
+        ),
     )
     floor_flat_pct: float = Field(
         default=70.0,
@@ -246,8 +283,123 @@ class CaveConfig(BaseModel):
         return self
 
 
+class ProceduralCanyonConfig(BaseModel):
+    """Procedural-canyon preset knobs used by ``marslab.terrain.procedural``.
+
+    Reviewer 2 #12 (2026-04-24) introduced this model to give the
+    ``canyon_*`` keys in ``configs/scenarios/procedural_canyon.yaml`` a
+    schema-validated home.  Before ``extra="forbid"`` was turned on,
+    those keys were read directly from the untyped YAML dict by
+    ``marslab.terrain.procedural.generate_canyon_terrain`` and pydantic
+    silently dropped them from ``TerrainConfig`` — the only reason the
+    canyon scenario still rendered was that the consumer bypassed
+    pydantic entirely.  With forbid on, the keys have to land somewhere;
+    this block is that landing pad.
+
+    Field names mirror the YAML keys 1:1 so grep-ability across scenario
+    files, this schema, and the consumer is trivial.  A legacy
+    ``model_validator(mode="before")`` on :class:`TerrainConfig` folds
+    the historical flat ``canyon_*`` keys into ``terrain.canyon`` so
+    existing YAMLs keep loading without edits.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    canyon_depth: float = Field(
+        ...,
+        gt=0.0,
+        description=(
+            "Depth from rim to floor in metres.  Matches ``canyon_depth`` in "
+            "``configs/scenarios/procedural_canyon.yaml`` (currently 40.0)."
+        ),
+    )
+    canyon_floor_width: float = Field(
+        ...,
+        gt=0.0,
+        description=(
+            "Traversable floor width (metres) — the flat corridor between the "
+            "two rims.  YAML field ``canyon_floor_width``."
+        ),
+    )
+    canyon_total_width: float = Field(
+        ...,
+        gt=0.0,
+        description=(
+            "Full top-of-rim to top-of-rim width (metres).  Must exceed "
+            "``canyon_floor_width`` — enforced by ``check_widths`` below."
+        ),
+    )
+    canyon_curvature: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Sinusoidal curvature amplitude as a fraction of floor width.  "
+            "0 = dead-straight canyon.  Matches ``canyon_curvature``."
+        ),
+    )
+    canyon_craters: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Number of craters to cut into the canyon floor for Nav2 "
+            "obstacle tests.  YAML field ``canyon_craters``."
+        ),
+    )
+    canyon_crater_radius_range: tuple[float, float] = Field(
+        default=(5.0, 15.0),
+        description=(
+            "(min, max) crater radius in metres.  YAML field " "``canyon_crater_radius_range``."
+        ),
+    )
+    canyon_crater_depth_range: tuple[float, float] = Field(
+        default=(2.0, 6.0),
+        description=(
+            "(min, max) crater depth in metres.  YAML field " "``canyon_crater_depth_range``."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def check_widths(self) -> "ProceduralCanyonConfig":
+        """Total width must exceed floor width and ranges must be ordered."""
+        if self.canyon_total_width <= self.canyon_floor_width:
+            raise ValueError(
+                "canyon_total_width must exceed canyon_floor_width "
+                f"(got total={self.canyon_total_width}, floor={self.canyon_floor_width})"
+            )
+        r_lo, r_hi = self.canyon_crater_radius_range
+        if r_lo <= 0.0 or r_hi <= 0.0 or r_lo >= r_hi:
+            raise ValueError(
+                "canyon_crater_radius_range must be (min, max) with 0 < min < max, "
+                f"got {self.canyon_crater_radius_range}"
+            )
+        d_lo, d_hi = self.canyon_crater_depth_range
+        if d_lo <= 0.0 or d_hi <= 0.0 or d_lo >= d_hi:
+            raise ValueError(
+                "canyon_crater_depth_range must be (min, max) with 0 < min < max, "
+                f"got {self.canyon_crater_depth_range}"
+            )
+        return self
+
+
+# Historical flat YAML keys that have to be migrated into
+# ``terrain.canyon`` when ``extra="forbid"`` kicks in on ``TerrainConfig``.
+# Declared at module scope (rather than inside the migrator) so the same
+# set is referenced by the regression test in ``tests/unit``.
+_LEGACY_CANYON_FLAT_KEYS = (
+    "canyon_depth",
+    "canyon_floor_width",
+    "canyon_total_width",
+    "canyon_curvature",
+    "canyon_craters",
+    "canyon_crater_radius_range",
+    "canyon_crater_depth_range",
+)
+
+
 class TerrainConfig(BaseModel):
     """Terrain generation parameters."""
+
+    model_config = ConfigDict(extra="forbid")
 
     source: Literal["hirise", "procedural"] = Field(default="hirise")
     scenario_name: str | None = Field(
@@ -290,6 +442,15 @@ class TerrainConfig(BaseModel):
         description="Cave (lava tube) generation parameters. Required when "
         "procedural_preset is 'cave'.",
     )
+    canyon: ProceduralCanyonConfig | None = Field(
+        default=None,
+        description=(
+            "Procedural canyon preset knobs. Required when "
+            "``procedural_preset='canyon'``. Reviewer 2 #12 (2026-04-24) "
+            "introduced this field; the legacy flat ``canyon_*`` YAML keys "
+            "are auto-migrated into this block by ``_migrate_flat_canyon_keys``."
+        ),
+    )
     texture_dir: str | None = Field(
         default=None, description="Path to PBR texture directory (albedo.png, normal.png, etc.)"
     )
@@ -308,6 +469,37 @@ class TerrainConfig(BaseModel):
     uv_scale: float = Field(default=16.0, ge=1.0, description="Texture UV tiling factor")
     seed: int = Field(default=42, ge=0)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_flat_canyon_keys(cls, data):
+        """Fold legacy flat ``canyon_*`` YAML keys into ``terrain.canyon``.
+
+        Reviewer 2 #12 (2026-04-24).  ``configs/scenarios/procedural_canyon.yaml``
+        historically put ``canyon_depth`` / ``canyon_floor_width`` / ``...`` at
+        the ``terrain:`` top level.  With ``extra="forbid"`` on, those keys
+        would now be rejected.  This pre-validator migrates them into the
+        nested :class:`ProceduralCanyonConfig` block (``terrain.canyon``) so
+        the existing YAML keeps loading without edits.  If ``terrain.canyon``
+        is already provided explicitly, the nested dict wins and the flat
+        keys are dropped silently (explicit user intent beats the shim).
+        """
+        if not isinstance(data, dict):
+            return data
+        present = {k: data[k] for k in _LEGACY_CANYON_FLAT_KEYS if k in data}
+        if not present:
+            return data
+        existing = data.get("canyon")
+        if isinstance(existing, dict) and existing:
+            # Explicit canyon: dict wins, drop legacy flat keys.
+            for k in _LEGACY_CANYON_FLAT_KEYS:
+                data.pop(k, None)
+            return data
+        # No explicit canyon block — lift the flat keys wholesale.
+        data["canyon"] = present
+        for k in _LEGACY_CANYON_FLAT_KEYS:
+            data.pop(k, None)
+        return data
+
     @model_validator(mode="after")
     def check_terrain(self) -> "TerrainConfig":
         """Validate conditional requirements and range ordering."""
@@ -319,5 +511,25 @@ class TerrainConfig(BaseModel):
             raise ValueError(
                 f"rock_diameter_range must be (min, max) with min < max, "
                 f"got {self.rock_diameter_range}"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _check_canyon_required(self) -> "TerrainConfig":
+        """``procedural_preset='canyon'`` requires the ``canyon`` block.
+
+        Reviewer 2 #12 (2026-04-24).  Kept as a separate validator (rather
+        than folded into ``check_terrain``) so the error message stays
+        scoped to the canyon-specific failure mode.
+        """
+        if (
+            self.source == "procedural"
+            and self.procedural_preset == "canyon"
+            and self.canyon is None
+        ):
+            raise ValueError(
+                "terrain.canyon is required when procedural_preset='canyon'. "
+                "Provide canyon_depth / canyon_floor_width / canyon_total_width "
+                "(see marslab.config.schema.terrain.ProceduralCanyonConfig)."
             )
         return self

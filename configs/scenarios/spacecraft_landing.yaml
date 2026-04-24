@@ -14,34 +14,21 @@
 # structure_loader raises FileNotFoundError with a clear pointer when
 # the .usd file is missing, so this YAML validates offline even before
 # the assets land.
+#
+# Reviewer 2 #17 (2026-04-24): mars_env + rendering defaults come from
+# ``_base.yaml`` via the root-level ``base_config`` include; only the
+# morning sun overrides live here.
 # ---------------------------------------------------------------
 
+base_config: _base.yaml
+
 mars_env:
-  gravity: 3.72
-  atmo_pressure: 610
-  atmo_density: 0.020
-  # tau = 0.3: mid-morning, good-visibility day selected so landing
-  # debris is photogenic for the iSpaRo paper figure (no dust storm).
-  dust_optical_depth: 0.3
-  solar_constant_mean: 589
-  surface_albedo_range: [0.10, 0.40]
-  surface_temp_mean: -60
-  sol_duration_seconds: 88642
-  dust_opacity_range: [0.5, 2.0]
-  sun_azimuth_deg: 135   # morning sun, light from east-southeast
+  # Morning sun, light from east-southeast — picked so the landing
+  # debris is photogenic for the iSpaRo paper figure.
+  sun_azimuth_deg: 135
   sun_elevation_deg: 40
-  seed: 42
   dynamic_atmosphere:
-    enabled: True
-    time_scale: 200.0
-    sun_sweep:
-      start_azimuth_deg: 90
-      end_azimuth_deg: 270
-      max_elevation_deg: 60
-    tau_profile: "constant"
-    tau_constant:
-      base_tau: 0.3
-    update_interval_frames: 10
+    enabled: true
 
 terrain:
   source: "hirise"
@@ -62,20 +49,6 @@ terrain:
   rock_texture_dir: "assets/materials/mars_rock"
   uv_scale: 1.0
   seed: 42
-
-rendering:
-  mode: "ray_tracing"
-  sky_dome_hdri_dir: "assets/sky/hdri/"
-  resolution: [1920, 1080]
-  spp: 32
-  total_spp: 256
-  max_bounces: 6
-  sun_intensity_scale: 30.0
-  sun_color: [1.0, 0.95, 0.85]
-  sun_angular_diameter_deg: 0.35
-  dome_brightness_scale: 5000.0
-  fog_density_scale: 0.002
-  fog_color: [0.78, 0.62, 0.42]
 
 # Scene structures — landing debris field -----------------------------------
 # Geometry logic (Mars-2020 / InSight analogue):

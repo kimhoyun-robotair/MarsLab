@@ -1,19 +1,15 @@
 """Stage 3 monolithic runtime CLI parser.
 
-Extracted from ``scripts/phase1/run_stage3_monolithic.py`` (Oracle) L230-251
-during R3-A2 refactor. The Oracle remains untouched (diff=0); this module
-mirrors its ``parse_args()`` contract so the writable twin
-(``run_stage3_monolithic_new.py``) and any future Stage 3 consumers can
-share a single source of truth.
+Shared argparse contract so every Stage 3 consumer parses the same flags.
 
 Contract:
     --config   (required)     Path to Stage 3 scenario YAML.
     --headless (store_true)   Run Isaac Sim without GUI.
     --no-ros2  (store_true)   Skip rclpy / OmniGraph ROS2 bridge.
 
-Whitespace stripping of ``args.config`` is intentionally left to the caller
-(Oracle L248-250 strips after parse). Keeping the parser pure means unit
-tests can exercise argparse behavior without coupling to path sanitation.
+Whitespace stripping of ``args.config`` is intentionally left to the caller.
+Keeping the parser pure means unit tests can exercise argparse behaviour
+without coupling to path sanitation.
 """
 
 from __future__ import annotations
@@ -28,7 +24,7 @@ def build_stage3_parser() -> argparse.ArgumentParser:
     """Construct the Stage 3 argparse.ArgumentParser.
 
     Returns:
-        Configured ArgumentParser mirroring Oracle L230-246.
+        Configured ArgumentParser for ``--config``, ``--headless``, ``--no-ros2``.
     """
     parser = argparse.ArgumentParser(
         description="Phase 1 Stage 3 monolithic runtime: rover + scene + ROS2."

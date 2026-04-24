@@ -114,7 +114,7 @@ class TestSeedDeterminism:
         ]
         first = build_static_sensor_transforms(sensors)
         second = build_static_sensor_transforms(sensors)
-        for a, b in zip(first, second):
+        for a, b in zip(first, second, strict=False):
             assert a.header.frame_id == b.header.frame_id
             assert a.child_frame_id == b.child_frame_id
             assert (

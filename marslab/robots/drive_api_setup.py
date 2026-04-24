@@ -1,12 +1,10 @@
-"""Rover DriveAPI + PD-gain facade (R4-3 extraction, 2026-04-22).
+"""Rover DriveAPI + PD-gain facade.
 
-Extracted from :mod:`marslab.robots.rover` as part of R4-3 of the
-MarsLab refactoring plan.  The three functions below — ``_apply_drive_api``,
-``configure_drives``, ``reinforce_pd_gains`` — used to live inline at
-``marslab/robots/rover.py:218-370``.  They are relocated here verbatim so
-Stage 3 runtime scripts can depend on a focused module, while
-``marslab/robots/rover.py`` re-exports each name to preserve existing
-imports (``from marslab.robots.rover import configure_drives``).
+The three functions below — ``_apply_drive_api``, ``configure_drives``,
+``reinforce_pd_gains`` — provide the Stage 3 runtime scripts with a
+focused module for rover drive configuration.  ``marslab/robots/rover.py``
+re-exports each name to preserve existing imports (``from
+marslab.robots.rover import configure_drives``).
 
 Ordering contract (critical — PhysX tensor-cache semantics):
 
@@ -19,8 +17,8 @@ Ordering contract (critical — PhysX tensor-cache semantics):
    PhysX simulation; USD-level writes at that point are ignored.
 
 The two stages are intentionally two separate callables so the caller
-(``scripts/phase1/run_stage3_monolithic*.py``) can interleave them
-around ``world.reset()`` and the physics warm-up step loop.
+can interleave them around ``world.reset()`` and the physics warm-up
+step loop.
 """
 
 from __future__ import annotations

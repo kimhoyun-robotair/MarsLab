@@ -67,7 +67,7 @@ def main() -> None:
             compute_tau("ramp", t, start_tau=0.3, end_tau=2.0),
             pos.zenith_angle_rad,
         )
-        for t, pos in zip(t_values, sun_positions)
+        for t, pos in zip(t_values, sun_positions, strict=False)
     ]
 
     # --- Panel 4: Sky color swatches ---

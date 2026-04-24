@@ -148,6 +148,100 @@ class TestAckermannShapes:
         assert vel.dtype == np.float32
 
 
+class TestAckermannTightTurn:
+    """Regression for reviewer 2 audit 05§C1 — tight turn where R < half_ts.
+
+    Under the old ``np.arctan(x_w / dy)`` form, ``dy = R - y_w`` silently
+    dropped its sign when crossing zero, landing inside-wheel steer angles
+    in the wrong quadrant.  Switching to ``np.arctan2(x_w, dy)`` plus a
+    ±π wrap keeps steer in the mechanically-reachable (-π/2, π/2]
+    principal range while preserving the original ``copysign(w * dy)``
+    drive-velocity sign.
+    """
+
+    def test_r_below_half_track_no_pi_flip(self) -> None:
+        """R = half_ts / 2 → inside LF wheel: continuous, no ±π jump."""
+        half_ts = TS / 2.0
+        # Pick v, w so that R = half_ts / 2 = 0.53125 < half_ts = 1.0625.
+        w = 1.0
+        v = (half_ts / 2.0) * w
+        steer, vel = ackermann_command(v, w, WB, TS, TM, R)
+        # steer order: [LF, LR, RF, RR]
+        # Inside wheels (LF, LR) are past the ICR laterally → dy < 0.
+        # Post-wrap, every steer angle must remain in (-π/2, π/2].
+        assert np.all(np.abs(steer) <= np.pi / 2.0 + 1e-6), (
+            f"Tight turn produced out-of-range steer {steer} (must stay in "
+            f"±π/2 after principal-range wrap)."
+        )
+        # LF and LR share x-sign only as front/rear mirror, so their
+        # magnitudes should be approximately equal and nonzero.
+        assert abs(steer[0]) > 0.1, f"LF steer should be nontrivial, got {steer[0]}"
+        assert abs(steer[1]) > 0.1, f"LR steer should be nontrivial, got {steer[1]}"
+        # Drive velocities must still be finite and nonzero.
+        assert np.all(np.isfinite(vel)) and np.any(np.abs(vel) > 1e-3)
+
+    def test_r_below_half_track_diagonal_consistency(self) -> None:
+        """Diagonal wheels (LF vs RR) must keep consistent signs at tight R."""
+        w = 1.0
+        v = (TS / 4.0) * w  # R = half_ts / 2
+        steer, _ = ackermann_command(v, w, WB, TS, TM, R)
+        # steer order: [LF, LR, RF, RR]
+        # LF (inside-front) and RR (outside-rear) are diagonal — in the
+        # principal range they share sign (both positive for CCW).
+        assert (
+            steer[0] * steer[3] > 0
+        ), f"Diagonal LF ({steer[0]}) and RR ({steer[3]}) must share sign for CCW tight turn."
+
+    def test_r_below_half_track_matches_arctan2_wrapped(self) -> None:
+        """Numerical check: inside wheel equals arctan2(x, dy) wrapped by π."""
+        w = 1.0
+        v = (TS / 4.0) * w  # R = 0.53125
+        r_icr = v / w
+        steer, _ = ackermann_command(v, w, WB, TS, TM, R)
+        half_wb, half_ts = WB / 2.0, TS / 2.0
+        # Manual principal-range arctan2 for LF:
+        raw = np.arctan2(+half_wb, r_icr - (+half_ts))  # dy < 0 here
+        if raw > np.pi / 2.0:
+            raw -= np.pi
+        elif raw < -np.pi / 2.0:
+            raw += np.pi
+        np.testing.assert_almost_equal(steer[0], raw, decimal=5)
+
+
+class TestAckermannZeroLateralOffset:
+    """dy == 0 branch: arctan(x/0) → NaN; arctan2(x, 0) → ±π/2."""
+
+    def test_dy_zero_gives_half_pi(self) -> None:
+        """When R coincides with a wheel's y coordinate, steer = +π/2."""
+        # Choose v, w such that R = v/w = +half_ts (LF/LR lateral coord).
+        half_ts = TS / 2.0
+        w = 0.5
+        v = half_ts * w
+        steer, vel = ackermann_command(v, w, WB, TS, TM, R)
+        # LF sits at (+half_wb, +half_ts), dy = R - y_w = 0.
+        # x_w > 0 → steer = +π/2.
+        np.testing.assert_almost_equal(steer[0], np.pi / 2.0, decimal=5)
+        # LR sits at (-half_wb, +half_ts), dy = 0, x_w < 0 → steer = -π/2.
+        np.testing.assert_almost_equal(steer[1], -np.pi / 2.0, decimal=5)
+        assert np.all(np.isfinite(steer)), f"Steer must be finite, got {steer}"
+        assert np.all(np.isfinite(vel)), f"Vel must be finite, got {vel}"
+
+
+class TestAckermannSymmetricTurnDirection:
+    """Left/right turn steer magnitudes must be symmetric at every radius,
+    including the tight-turn regime that exposed the arctan bug."""
+
+    @pytest.mark.parametrize("v, w", [(0.5, 1.0), (0.1, 1.0), (0.0, 1.0)])
+    def test_left_right_magnitudes_match(self, v: float, w: float) -> None:
+        steer_l, _ = ackermann_command(v, +w, WB, TS, TM, R)
+        steer_r, _ = ackermann_command(v, -w, WB, TS, TM, R)
+        # Pairwise mirrored: LF↔RF, LR↔RR should have equal magnitude.
+        np.testing.assert_almost_equal(abs(steer_l[0]), abs(steer_r[2]), decimal=5)
+        np.testing.assert_almost_equal(abs(steer_l[1]), abs(steer_r[3]), decimal=5)
+        np.testing.assert_almost_equal(abs(steer_l[2]), abs(steer_r[0]), decimal=5)
+        np.testing.assert_almost_equal(abs(steer_l[3]), abs(steer_r[1]), decimal=5)
+
+
 class TestAckermannValidation:
     """Parameter validation."""
 

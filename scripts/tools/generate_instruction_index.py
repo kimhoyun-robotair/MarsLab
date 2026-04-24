@@ -84,10 +84,7 @@ def main() -> int:
         rel = py.relative_to(REPO_ROOT)  # marslab/config/schema.py
         # module = first path component under marslab/
         parts = rel.parts
-        if len(parts) == 2:
-            module = "(root)"
-        else:
-            module = parts[1]
+        module = "(root)" if len(parts) == 2 else parts[1]
         module_files[module].append(py)
 
     status_counts: dict[str, int] = defaultdict(int)
@@ -124,10 +121,7 @@ def main() -> int:
 
     for module in sorted(module_files.keys()):
         files = module_files[module]
-        if module == "(root)":
-            header = "### marslab/ (root)"
-        else:
-            header = f"### marslab/{module}/"
+        header = "### marslab/ (root)" if module == "(root)" else f"### marslab/{module}/"
         lines.append(header)
         lines.append("")
         lines.append("| 파일 | LOC | status | 역할 | Isaac | ROS2 |")

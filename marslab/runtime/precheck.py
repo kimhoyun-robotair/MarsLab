@@ -1,9 +1,8 @@
 """Runtime preflight checks — raise early and clearly before Isaac Sim boots.
 
 Pure Python (no Isaac Sim imports) so the checks run identically under unit
-tests and inside the Isaac Sim python context. Error messages mirror the
-Oracle ``run_stage3_monolithic.py`` diagnostics so operators see consistent
-text whether the migration is wired in or not.
+tests and inside the Isaac Sim python context. Error messages are shared
+across all Stage 3 entry points so operators see consistent diagnostics.
 """
 
 from __future__ import annotations
@@ -15,17 +14,15 @@ from typing import Any, Dict, Optional
 def check_rover_usd(usd_abs: str) -> None:
     """Raise ``FileNotFoundError`` if the rover USD file is missing.
 
-    Derived from ``scripts/phase1/run_stage3_monolithic.py`` L322-332
-    (Oracle copy). The Oracle prints and returns exit code 3 rather than
-    raising; callers wrapping Isaac Sim startup should translate the
-    exception accordingly.
+    Callers wrapping Isaac Sim startup may translate the exception into
+    an exit code if they prefer a non-raising behaviour.
 
     Args:
         usd_abs: Absolute filesystem path to the converted rover USD.
 
     Raises:
         FileNotFoundError: If ``usd_abs`` does not resolve to a file. The
-            message mirrors the Oracle's operator hint about running
+            message includes the operator hint to run
             ``scripts/phase1/convert_urdf_to_usd.py``.
     """
     if not os.path.isfile(usd_abs):
@@ -37,9 +34,8 @@ def check_rover_usd(usd_abs: str) -> None:
 def check_rover_block(rover_cfg: Optional[Dict[str, Any]]) -> None:
     """Raise ``ValueError`` if the scenario's rover config block is missing.
 
-    Derived from ``scripts/phase1/run_stage3_monolithic.py`` L272-279
-    (Oracle copy). Stage 3 requires a rover block; scene-only scenarios
-    should use ``run_stage2.py``.
+    Stage 3 requires a rover block; scene-only scenarios should use
+    ``run_stage2.py``.
 
     Args:
         rover_cfg: The ``rover`` section from a loaded scenario dict.
@@ -58,9 +54,8 @@ def check_rover_block(rover_cfg: Optional[Dict[str, Any]]) -> None:
 def check_lidar_cfg(lidar_cfg: Optional[Dict[str, Any]]) -> None:
     """Raise ``ValueError`` if the lidar sensor config block is missing.
 
-    Derived from ``scripts/phase1/run_stage3_monolithic.py`` L705-712
-    (Oracle copy). Callers pre-resolve the ``lidar_3d`` / ``lidar`` alias
-    and pass the resolved block (or ``None``) to this helper.
+    Callers pre-resolve the ``lidar_3d`` / ``lidar`` alias and pass the
+    resolved block (or ``None``) to this helper.
 
     Args:
         lidar_cfg: The resolved lidar sensor config block, or ``None``
@@ -79,9 +74,8 @@ def check_lidar_cfg(lidar_cfg: Optional[Dict[str, Any]]) -> None:
 def check_dem_assets(converted_dir: str) -> None:
     """Raise ``FileNotFoundError`` if DEM assets are missing.
 
-    Derived from ``marslab/terrain/dem_loader.py`` L132-141 — abstracted
-    so runtime scripts can pre-check before attempting the full DEM load
-    and reporting both missing files together.
+    Abstracted so runtime scripts can pre-check before attempting the
+    full DEM load and report every missing file together.
 
     Args:
         converted_dir: Directory that should contain ``elevation.npy``

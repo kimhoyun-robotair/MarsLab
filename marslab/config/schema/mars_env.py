@@ -11,7 +11,7 @@ that this migration replaces.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
     "DynamicAtmosphereConfig",
@@ -23,6 +23,16 @@ __all__ = [
 ]
 
 
+# Reviewer 2 #12 (2026-04-24): ``extra="forbid"`` turned on across every
+# schema model in this module.  Before this change pydantic v2's default
+# (``extra="ignore"``) silently dropped unknown YAML keys, hiding typos
+# like ``sun_azimuth`` (no ``_deg`` suffix) as well as entire scenario
+# blocks (``rover:`` -- MarsLabConfig has no ``rover`` field so the
+# whole rover tuning was being thrown away by ``load_and_validate``).
+# Each BaseModel below attaches this ConfigDict so any unknown key fails
+# with ``pydantic.ValidationError`` at config-load time.
+
+
 class SunSweepConfig(BaseModel):
     """Azimuth / elevation envelope for the diurnal sun sweep.
 
@@ -30,6 +40,8 @@ class SunSweepConfig(BaseModel):
     Consumed by ``compute_sol_sun_position`` via
     ``scripts/phase1/run_stage2.py``.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     start_azimuth_deg: float = Field(
         default=90.0, ge=0.0, le=360.0, description="Sunrise azimuth (0=N, 90=E, 180=S, 270=W)."
@@ -52,6 +64,8 @@ class TauConstantConfig(BaseModel):
     Passed through to ``compute_tau_constant``.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     base_tau: float = Field(
         default=0.3, ge=0.0, description="Fixed dust optical depth held across the full sol."
     )
@@ -65,6 +79,8 @@ class TauRampConfig(BaseModel):
     (start > end). Forwarded to ``compute_tau_ramp``.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     start_tau: float = Field(default=0.3, ge=0.0, description="Tau at time_of_sol_fraction = 0.")
     end_tau: float = Field(default=2.0, ge=0.0, description="Tau at time_of_sol_fraction = 1.")
 
@@ -76,6 +92,8 @@ class TauSineConfig(BaseModel):
     ``tau(t) = base_tau + amplitude * sin(2*pi*t/period_fraction)``,
     clamped to 0. Forwarded to ``compute_tau_sine``.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     base_tau: float = Field(
         default=0.5, ge=0.0, description="Mean optical depth around which tau oscillates."
@@ -98,6 +116,8 @@ class DynamicAtmosphereConfig(BaseModel):
     field defaults so existing scenario YAMLs that omit some keys
     continue to validate (backward-compat guarantee).
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     enabled: bool = Field(
         default=False,
@@ -137,6 +157,8 @@ class DynamicAtmosphereConfig(BaseModel):
 
 class MarsEnvConfig(BaseModel):
     """Mars environmental parameters."""
+
+    model_config = ConfigDict(extra="forbid")
 
     gravity: float = Field(default=3.72, ge=3.0, le=4.0, description="Surface gravity in m/s^2")
     atmo_pressure: float = Field(

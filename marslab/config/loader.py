@@ -56,9 +56,9 @@ def propagate_seeds(config: MarsLabConfig, master_seed: int | None = None) -> Ma
 def propagate_seeds_in_dict(cfg: dict, master_seed: int | None = None) -> dict:
     """Dict-level twin of :func:`propagate_seeds` for flows that skip pydantic.
 
-    ``scripts/phase1/run_stage3_monolithic_new.py`` consumes the raw dict
-    returned by :func:`marslab.config.scenario_loader.load_scenario_config`
-    instead of constructing a :class:`MarsLabConfig`. G7 still requires that
+    Runtime scripts that consume the raw dict returned by
+    :func:`marslab.config.scenario_loader.load_scenario_config` (rather than
+    constructing a :class:`MarsLabConfig`) still need G7's invariant that
     ``terrain.seed == mars_env.seed + 1`` so every randomised stage receives
     a deterministic, distinct seed. This helper enforces that invariant on
     the dict path.
