@@ -66,38 +66,24 @@ def test_surface_elevation_shape(cave_default):
 # --- No NaN / valid indices ---
 
 
-def test_no_nan_tube_vertices(cave_default):
-    """No NaN in tube mesh vertices."""
-    assert not np.isnan(cave_default["tube_mesh"].vertices).any()
+@pytest.mark.parametrize(
+    "mesh_key",
+    ["tube_mesh", "floor_mesh", "surface_mesh"],
+    ids=["tube", "floor", "surface"],
+)
+def test_no_nan_vertices(cave_default, mesh_key):
+    """No NaN in {tube,floor,surface} mesh vertices."""
+    assert not np.isnan(cave_default[mesh_key].vertices).any()
 
 
-def test_no_nan_floor_vertices(cave_default):
-    """No NaN in floor mesh vertices."""
-    assert not np.isnan(cave_default["floor_mesh"].vertices).any()
-
-
-def test_no_nan_surface_vertices(cave_default):
-    """No NaN in surface mesh vertices (NaN only in elevation_2d at skylights)."""
-    assert not np.isnan(cave_default["surface_mesh"].vertices).any()
-
-
-def test_face_indices_valid_tube(cave_default):
-    """All face indices within vertex count for tube mesh."""
-    mesh = cave_default["tube_mesh"]
-    assert mesh.faces.max() < len(mesh.vertices)
-    assert mesh.faces.min() >= 0
-
-
-def test_face_indices_valid_floor(cave_default):
-    """All face indices within vertex count for floor mesh."""
-    mesh = cave_default["floor_mesh"]
-    assert mesh.faces.max() < len(mesh.vertices)
-    assert mesh.faces.min() >= 0
-
-
-def test_face_indices_valid_surface(cave_default):
-    """All face indices within vertex count for surface mesh."""
-    mesh = cave_default["surface_mesh"]
+@pytest.mark.parametrize(
+    "mesh_key",
+    ["tube_mesh", "floor_mesh", "surface_mesh"],
+    ids=["tube", "floor", "surface"],
+)
+def test_face_indices_valid(cave_default, mesh_key):
+    """All face indices within vertex count for {tube,floor,surface} mesh."""
+    mesh = cave_default[mesh_key]
     assert mesh.faces.max() < len(mesh.vertices)
     assert mesh.faces.min() >= 0
 

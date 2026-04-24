@@ -87,11 +87,7 @@ def generate_breakdown_positions(
 
     _, perp = tangent_frames(centerline)
     n_stations = len(centerline)
-    widths = np.zeros(n_stations)
-    for i in range(n_stations):
-        left_x = cross_sections[i, 0, 0]
-        right_x = cross_sections[i, -1, 0]
-        widths[i] = abs(right_x - left_x)
+    widths = np.abs(cross_sections[:, -1, 0] - cross_sections[:, 0, 0])
 
     if n_stations > 1:
         segment_lens = np.linalg.norm(centerline[1:, :2] - centerline[:-1, :2], axis=1)

@@ -16,6 +16,8 @@ import argparse
 import os
 from typing import List, Optional
 
+from marslab.cli import add_headless_flag
+
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DEFAULT_CONFIG = os.path.join(_REPO_ROOT, "configs", "mars_env.yaml")
 
@@ -34,11 +36,7 @@ def build_stage2_parser() -> argparse.ArgumentParser:
         default=DEFAULT_CONFIG,
         help="Path to Stage 2 YAML config (default: configs/mars_env.yaml)",
     )
-    parser.add_argument(
-        "--headless",
-        action="store_true",
-        help="Run Isaac Sim without the GUI.",
-    )
+    add_headless_flag(parser, help_text="Run Isaac Sim without the GUI.")
     return parser
 
 

@@ -138,36 +138,23 @@ def build_debris_cone(
     cone_height = base_radius * np.tan(np.radians(angle_of_repose))
 
     theta = np.linspace(0, 2 * np.pi, n_segments, endpoint=False)
-
-    vertices: list[list[float]] = []
     apex_z = floor_z + cone_height
 
-    for i in range(n_rings):
-        t = i / (n_rings - 1)  # 0 = apex, 1 = base
-        z = apex_z - t * cone_height
-        r = t * base_radius
-        r_noise = 1.0 + rng.standard_normal(n_segments) * noise_sigma
-        for j in range(n_segments):
-            vertices.append(
-                [
-                    cx + r * r_noise[j] * np.cos(theta[j]),
-                    cy + r * r_noise[j] * np.sin(theta[j]),
-                    z,
-                ]
-            )
+    t = np.arange(n_rings) / (n_rings - 1)  # (n_rings,)
+    r_noise = 1.0 + rng.standard_normal((n_rings, n_segments)) * noise_sigma
+    r_scaled = (t * base_radius)[:, None] * r_noise  # (n_rings, n_segments)
+    vertex_array = np.empty((n_rings * n_segments, 3), dtype=np.float64)
+    vertex_array[:, 0] = (cx + r_scaled * np.cos(theta)).ravel()
+    vertex_array[:, 1] = (cy + r_scaled * np.sin(theta)).ravel()
+    vertex_array[:, 2] = np.repeat(apex_z - t * cone_height, n_segments)
 
-    vertex_array = np.array(vertices, dtype=np.float64)
-
-    faces: list[list[int]] = []
-    for i in range(n_rings - 1):
-        for j in range(n_segments):
-            j_next = (j + 1) % n_segments
-            v0 = i * n_segments + j
-            v1 = i * n_segments + j_next
-            v2 = (i + 1) * n_segments + j
-            v3 = (i + 1) * n_segments + j_next
-            faces.append([v0, v1, v2])
-            faces.append([v1, v3, v2])
-
-    face_array = np.array(faces, dtype=np.int32)
+    i, j = np.meshgrid(np.arange(n_rings - 1), np.arange(n_segments), indexing="ij")
+    j_next = (j + 1) % n_segments
+    v0 = (i * n_segments + j).ravel()
+    v1 = (i * n_segments + j_next).ravel()
+    v2 = ((i + 1) * n_segments + j).ravel()
+    v3 = ((i + 1) * n_segments + j_next).ravel()
+    face_array = np.empty((v0.size * 2, 3), dtype=np.int32)
+    face_array[0::2] = np.stack([v0, v1, v2], axis=1)
+    face_array[1::2] = np.stack([v1, v3, v2], axis=1)
     return trimesh.Trimesh(vertices=vertex_array, faces=face_array, process=False)

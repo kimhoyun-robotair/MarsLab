@@ -1,9 +1,4 @@
-"""Unit tests for the pure-Python helpers in marslab.robots.rover.
-
-The Isaac-Sim-facing entry points (``load_rover_usd``,
-``apply_spawn_pose``, etc.) are covered by Stage 3 integration smoke
-runs; only the side-effect-free helpers are exercised here.
-"""
+"""Unit tests for pure-Python helpers in marslab.robots.rover."""
 
 import numpy as np
 import pytest

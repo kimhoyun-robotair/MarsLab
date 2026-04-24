@@ -1,17 +1,4 @@
-"""Schema tests for ``DynamicAtmosphereConfig`` and its leaf sub-configs (R2-3a).
-
-The pydantic layer was introduced in R2-A2 (2026-04-22) to replace the
-previously-untyped ``mars_env.dynamic_atmosphere`` YAML block. These tests
-lock down:
-
-* defaults (backward-compat for YAML that omits the block)
-* bounded fields (azimuth 0-360, elevation 0-90, positive ``time_scale``)
-* ``tau_profile`` literal whitelist
-* YAML round-trip via ``MarsLabConfig`` to catch regressions in the root
-  aggregator's import path
-
-All tests are offline (no Isaac Sim, no GPU).
-"""
+"""Schema tests for DynamicAtmosphereConfig and leaf sub-configs (R2-3a). Offline."""
 
 from __future__ import annotations
 
@@ -67,47 +54,44 @@ class TestDefaults:
 class TestBounds:
     """Bounded fields reject out-of-range values at validation time."""
 
-    def test_sun_sweep_azimuth_bounds(self) -> None:
+    @pytest.mark.parametrize(
+        "cls,kwargs",
+        [
+            (SunSweepConfig, {"start_azimuth_deg": -1.0}),
+            (SunSweepConfig, {"start_azimuth_deg": 361.0}),
+            (SunSweepConfig, {"end_azimuth_deg": 400.0}),
+            (SunSweepConfig, {"max_elevation_deg": -0.1}),
+            (SunSweepConfig, {"max_elevation_deg": 91.0}),
+            (DynamicAtmosphereConfig, {"time_scale": 0.0}),
+            (DynamicAtmosphereConfig, {"time_scale": -5.0}),
+            (DynamicAtmosphereConfig, {"update_interval_frames": 0}),
+            (TauConstantConfig, {"base_tau": -0.01}),
+            (TauRampConfig, {"start_tau": -0.01, "end_tau": 0.5}),
+            (TauRampConfig, {"start_tau": 0.3, "end_tau": -0.01}),
+            (TauSineConfig, {"base_tau": -0.01}),
+            (TauSineConfig, {"amplitude": -0.1}),
+            (TauSineConfig, {"period_fraction": 0.0}),
+        ],
+        ids=[
+            "sun_sweep_start_az_negative",
+            "sun_sweep_start_az_above_360",
+            "sun_sweep_end_az_above_360",
+            "sun_sweep_elev_negative",
+            "sun_sweep_elev_above_90",
+            "dyn_atmo_time_scale_zero",
+            "dyn_atmo_time_scale_negative",
+            "dyn_atmo_update_interval_zero",
+            "tau_constant_negative",
+            "tau_ramp_start_negative",
+            "tau_ramp_end_negative",
+            "tau_sine_base_negative",
+            "tau_sine_amplitude_negative",
+            "tau_sine_period_zero",
+        ],
+    )
+    def test_bounds_reject(self, cls: type, kwargs: dict) -> None:
         with pytest.raises(ValidationError):
-            SunSweepConfig(start_azimuth_deg=-1.0)
-        with pytest.raises(ValidationError):
-            SunSweepConfig(start_azimuth_deg=361.0)
-        with pytest.raises(ValidationError):
-            SunSweepConfig(end_azimuth_deg=400.0)
-
-    def test_sun_sweep_elevation_bounds(self) -> None:
-        with pytest.raises(ValidationError):
-            SunSweepConfig(max_elevation_deg=-0.1)
-        with pytest.raises(ValidationError):
-            SunSweepConfig(max_elevation_deg=91.0)
-
-    def test_time_scale_positive(self) -> None:
-        with pytest.raises(ValidationError):
-            DynamicAtmosphereConfig(time_scale=0.0)
-        with pytest.raises(ValidationError):
-            DynamicAtmosphereConfig(time_scale=-5.0)
-
-    def test_update_interval_min_one(self) -> None:
-        with pytest.raises(ValidationError):
-            DynamicAtmosphereConfig(update_interval_frames=0)
-
-    def test_tau_constant_nonneg(self) -> None:
-        with pytest.raises(ValidationError):
-            TauConstantConfig(base_tau=-0.01)
-
-    def test_tau_ramp_nonneg(self) -> None:
-        with pytest.raises(ValidationError):
-            TauRampConfig(start_tau=-0.01, end_tau=0.5)
-        with pytest.raises(ValidationError):
-            TauRampConfig(start_tau=0.3, end_tau=-0.01)
-
-    def test_tau_sine_bounds(self) -> None:
-        with pytest.raises(ValidationError):
-            TauSineConfig(base_tau=-0.01)
-        with pytest.raises(ValidationError):
-            TauSineConfig(amplitude=-0.1)
-        with pytest.raises(ValidationError):
-            TauSineConfig(period_fraction=0.0)
+            cls(**kwargs)
 
 
 class TestTauProfileLiteral:

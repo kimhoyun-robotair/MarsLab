@@ -113,11 +113,9 @@ def spawn_sensors(
 
     from marslab.robots.rover import rpy_to_quat
 
-    camera_cfg = sensors_cfg["camera"]
-    # Stage-3 config uses "lidar_3d"; Stage-1 phase1.yaml used "lidar".
-    # Accept either so this function remains a drop-in for both schemas.
+    camera_cfg, imu_cfg = sensors_cfg["camera"], sensors_cfg["imu"]
+    # Stage-3 uses "lidar_3d"; Stage-1 phase1.yaml used "lidar". Accept both.
     lidar_cfg = sensors_cfg.get("lidar_3d") or sensors_cfg.get("lidar")
-    imu_cfg = sensors_cfg["imu"]
 
     # Camera orientation strategy: ANY xformOp modification on the Camera
     # prim itself corrupts the RTX depth pipeline (vertical striping).

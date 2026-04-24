@@ -39,11 +39,16 @@ _DBL_MAX_RE = r"-?1\.79769e\+308"
 # ±3.14159 caused wheels to lock at 180° rotation. ±1e6 is safe for PhysX
 # float32 while allowing millions of revolutions.
 _DRIVE_JOINT_NAMES = {"LF_DRIVE", "LM_DRIVE", "LR_DRIVE", "RF_DRIVE", "RM_DRIVE", "RR_DRIVE"}
+# (attribute_name, replacement_value) applied in order; order is load-bearing
+# because later passes (drive-joint widening) rely on the ±3.14159 markers.
 _LIMIT_REPLACEMENTS = [
-    (re.compile(rf'lower="{_DBL_MAX_RE}"'), 'lower="-3.14159"'),
-    (re.compile(rf'upper="{_DBL_MAX_RE}"'), 'upper="3.14159"'),
-    (re.compile(rf'effort="{_DBL_MAX_RE}"'), 'effort="100"'),
-    (re.compile(rf'velocity="{_DBL_MAX_RE}"'), 'velocity="10"'),
+    (re.compile(rf'{_attr}="{_DBL_MAX_RE}"'), f'{_attr}="{_val}"')
+    for _attr, _val in (
+        ("lower", "-3.14159"),
+        ("upper", "3.14159"),
+        ("effort", "100"),
+        ("velocity", "10"),
+    )
 ]
 
 _JOINT_ROOT_RE = re.compile(

@@ -151,61 +151,34 @@ def plot_overview(
         f"Elevation range: [{elevation.min():.1f}, {elevation.max():.1f}] m"
     )
 
-    # Draw flat candidates (green)
-    for i, w in enumerate(flat_candidates):
-        x0 = w["col"] * resolution
-        y0 = w["row"] * resolution
-        sz = w["size"] * resolution
-        linestyle = "-" if i == 0 else "--"
-        linewidth = 2.5 if i == 0 else 1.5
-        rect = mpatches.Rectangle(
-            (x0, y0),
-            sz,
-            sz,
-            linewidth=linewidth,
-            edgecolor="lime",
-            facecolor="none",
-            linestyle=linestyle,
-        )
-        ax.add_patch(rect)
-        label = f"Flat #{i + 1}: dz={w['dz']:.1f}m, " f"slope={w['mean_slope']:.1f}\u00b0"
-        ax.text(
-            x0 + 3,
-            y0 + 12,
-            label,
-            color="lime",
-            fontsize=7,
-            fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.2", facecolor="black", alpha=0.7),
-        )
+    def _draw_candidates(cands: list[dict], color: str, tag: str, text_dy_top: bool) -> None:
+        for i, w in enumerate(cands):
+            x0 = w["col"] * resolution
+            y0 = w["row"] * resolution
+            sz = w["size"] * resolution
+            is_primary = i == 0
+            rect = mpatches.Rectangle(
+                (x0, y0),
+                sz,
+                sz,
+                linewidth=2.5 if is_primary else 1.5,
+                edgecolor=color,
+                facecolor="none",
+                linestyle="-" if is_primary else "--",
+            )
+            ax.add_patch(rect)
+            ax.text(
+                x0 + 3,
+                y0 + 12 if text_dy_top else y0 + sz - 5,
+                f"{tag} #{i + 1}: dz={w['dz']:.1f}m, slope={w['mean_slope']:.1f}\u00b0",
+                color=color,
+                fontsize=7,
+                fontweight="bold",
+                bbox=dict(boxstyle="round,pad=0.2", facecolor="black", alpha=0.7),
+            )
 
-    # Draw steep candidates (red)
-    for i, w in enumerate(crater_candidates):
-        x0 = w["col"] * resolution
-        y0 = w["row"] * resolution
-        sz = w["size"] * resolution
-        linestyle = "-" if i == 0 else "--"
-        linewidth = 2.5 if i == 0 else 1.5
-        rect = mpatches.Rectangle(
-            (x0, y0),
-            sz,
-            sz,
-            linewidth=linewidth,
-            edgecolor="red",
-            facecolor="none",
-            linestyle=linestyle,
-        )
-        ax.add_patch(rect)
-        label = f"Steep #{i + 1}: dz={w['dz']:.1f}m, " f"slope={w['mean_slope']:.1f}\u00b0"
-        ax.text(
-            x0 + 3,
-            y0 + sz - 5,
-            label,
-            color="red",
-            fontsize=7,
-            fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.2", facecolor="black", alpha=0.7),
-        )
+    _draw_candidates(flat_candidates, "lime", "Flat", text_dy_top=True)
+    _draw_candidates(crater_candidates, "red", "Steep", text_dy_top=False)
 
     # Legend
     flat_patch = mpatches.Patch(edgecolor="lime", facecolor="none", label="Flat candidates")

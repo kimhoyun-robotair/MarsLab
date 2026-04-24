@@ -1,15 +1,4 @@
-"""Unit tests for :class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig`.
-
-R4-5 extension (2026-04-23) promoted ``GRAPH_PATH`` and
-``cmd_vel_queue_size`` from bare Python constants to pydantic schema
-fields.  These tests lock the validation rules: prim-path hygiene
-(non-empty, ``/``-prefixed, whitespace-free) for ``graph_path`` and
-``[1, 1000]`` range for ``cmd_vel_queue_size``.
-
-Also covers the ``sensor_graph._resolve_graph_path`` helper which is
-the single validation entry point shared by ad-hoc dict callers and
-YAML-loaded configs.
-"""
+"""Unit tests for marslab.config.schema.ros2_bridge.Ros2BridgeConfig (R4-5)."""
 
 from __future__ import annotations
 

@@ -1,33 +1,26 @@
 """Main-loop extraction for the monolithic Stage 3 runtime (R6-1).
 
-This module houses the per-physics-step body of the MarsLab Stage 3 rover
-runtime. It was extracted verbatim from ``scripts/phase1/run_stage3_monolithic_new.py``
-(the writable twin of the frozen Oracle) as part of the R6 modularization
-pass recorded in ``~/.claude/plans/log-md-r4-addendum-jolly-spring.md``.
-
-Design contract:
-
-*   The public entry point :func:`run_main_loop` accepts a :class:`LoopContext`
-    containing every object and scalar the legacy inline loop closed over.
-*   Mutable ramp / atmosphere state lives in the :class:`ControlState` and
-    :class:`AtmosphereLoopState` dataclasses, mutated in place per step so
-    the loop is byte-exact with the Oracle's numerical behaviour.
-*   ``rclpy`` / ``omni.*`` / Isaac Sim symbols are never imported at module
-    scope — they enter through the ``LoopContext`` after ``SimulationApp``
-    has booted. This keeps the module unit-testable offline (P3).
-*   Return policy: normal exit or :class:`KeyboardInterrupt` returns ``0``.
-    Fatal exceptions propagate to the caller's ``finally`` which owns
-    ``simulation_app.close()``. Per-step exceptions are logged to stderr
-    and swallowed for Oracle parity.
+Public entry point :func:`run_main_loop` consumes a :class:`LoopContext`
+bundling every object and scalar the legacy inline loop closed over. Mutable
+ramp / atmosphere state is carried in :class:`ControlState` /
+:class:`AtmosphereLoopState` / :class:`OdomPublishState` (mutated in place for
+Oracle byte-exact parity). Isaac Sim / ``rclpy`` symbols enter via the
+context only — the module itself is offline-importable (P3). Normal exit or
+``KeyboardInterrupt`` returns ``0``; the caller owns ``simulation_app.close()``.
 """
 
 from __future__ import annotations
 
+import logging
 import sys
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
+
+from marslab.math.quaternion import quat_inverse, quat_multiply, quat_rotate_vec
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # State dataclasses — mutated in place by the loop body.
@@ -190,39 +183,6 @@ class LoopContext:
 
 
 # ---------------------------------------------------------------------------
-# Pure quaternion helpers (lifted from run_stage3_monolithic_new.py § 7.22).
-# ---------------------------------------------------------------------------
-
-
-def quat_inverse(q: np.ndarray) -> np.ndarray:
-    """Return the inverse of a unit quaternion ``[w, x, y, z]``."""
-    return np.array([q[0], -q[1], -q[2], -q[3]], dtype=np.float32)
-
-
-def quat_multiply(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
-    """Hamilton product of two quaternions in ``[w, x, y, z]`` order."""
-    w1, x1, y1, z1 = q1
-    w2, x2, y2, z2 = q2
-    return np.array(
-        [
-            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
-            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
-            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-        ],
-        dtype=np.float32,
-    )
-
-
-def quat_rotate_vec(q: np.ndarray, v: np.ndarray) -> np.ndarray:
-    """Rotate 3-vector ``v`` by quaternion ``q`` (``[w, x, y, z]``)."""
-    v_quat = np.array([0.0, v[0], v[1], v[2]], dtype=np.float32)
-    q_inv = quat_inverse(q)
-    result = quat_multiply(quat_multiply(q, v_quat), q_inv)
-    return result[1:4]
-
-
-# ---------------------------------------------------------------------------
 # Main loop.
 # ---------------------------------------------------------------------------
 
@@ -257,6 +217,57 @@ def _apply_ramp(
     delta = np.clip(delta, -step_lim, step_lim)
     current[...] = current + delta
     return current
+
+
+def build_atmosphere_loop_state(
+    atmo_init: Any,
+    tau: float,
+) -> AtmosphereLoopState:
+    """Factory: derive :class:`AtmosphereLoopState` from a boot snapshot.
+
+    Collapses the boilerplate Stage-3 callers used to write inline to
+    wire every ``DynamicAtmosphereConfig`` + ``StageTwoAtmosphereInit``
+    field into a mutable loop state.  Keeps
+    ``scripts/phase1/run_stage4.py`` focused on Stage-3 orchestration.
+
+    Args:
+        atmo_init: :class:`marslab.runtime.stage2_boot.StageTwoAtmosphereInit`
+            produced by :func:`run_stage2_boot`.
+        tau: Initial dust optical depth value (mirrored into the live
+            ``atmosphere_dict`` so the GUI panel sees it on startup).
+
+    Returns:
+        Fully populated :class:`AtmosphereLoopState` ready to pass into
+        a :class:`LoopContext`.
+    """
+    dyn = atmo_init.dynamic
+    # Parity with ``marslab.runtime.stage2_loop.build_atmosphere_state``:
+    # ``sol_duration_seconds`` is required by ``AtmospherePanel._format_mode_status``
+    # when the panel is toggled to Auto mode. Dropping it here caused a KeyError
+    # inside the GUI callback the first time the user clicked the Sun mode
+    # button on ``run_stage4.py``.
+    atmosphere_dict: Dict[str, Any] = {
+        "tau": tau,
+        "sun_mode": "auto" if dyn.enabled else "manual",
+        "sun_azimuth_deg": float(atmo_init.sun_azimuth_deg),
+        "sun_elevation_deg": float(atmo_init.sun_elevation_deg),
+        "time_of_sol": 0.0,
+        "direct_intensity": atmo_init.direct_intensity,
+        "diffuse_fraction": atmo_init.diffuse_fraction,
+        "sol_duration_seconds": atmo_init.sol_duration_seconds,
+    }
+    return AtmosphereLoopState(
+        atmosphere_dict=atmosphere_dict,
+        sol_duration=atmo_init.sol_duration_seconds,
+        solar_constant=atmo_init.solar_constant,
+        dynamic_enabled=dyn.enabled,
+        time_scale=dyn.time_scale,
+        sweep_start_az=dyn.sun_sweep.start_azimuth_deg,
+        sweep_end_az=dyn.sun_sweep.end_azimuth_deg,
+        sweep_max_el=dyn.sun_sweep.max_elevation_deg,
+        update_interval=dyn.update_interval_frames,
+        hdri_dir=atmo_init.hdri_dir,
+    )
 
 
 def run_main_loop(ctx: LoopContext) -> int:
@@ -464,6 +475,7 @@ def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
                 odom_msg.twist.twist.angular.y = float(body_av[1])
                 odom_msg.twist.twist.angular.z = float(body_av[2])
         except Exception as exc:  # noqa: BLE001
+            logger.error("velocity query failed at step=%d: %r", step_count, exc)
             if step_count < 120:
                 print(
                     f"[warn] velocity step={step_count} {repr(exc)[:200]}",
@@ -472,6 +484,7 @@ def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
 
         odom.odom_pub.publish(odom_msg)
     except Exception as odom_exc:  # noqa: BLE001
+        logger.error("odom publish failed at step=%d: %r", step_count, odom_exc)
         if step_count < 120:
             print(
                 f"[run_main_loop] odom publish failed: {odom_exc}",

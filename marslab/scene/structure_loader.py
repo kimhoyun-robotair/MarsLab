@@ -1,33 +1,19 @@
 """Static USD structure loader for spacecraft / base / outpost scenes.
 
-This module attaches pre-authored ``.usd`` / ``.usda`` / ``.usdc``
-assets under a configurable prim path, applies translate/orient/scale,
-and optionally enables collision.  It mirrors the layering used by
-``marslab.robots.rover`` so the call site pattern stays familiar:
-
-    from marslab.scene import StructureConfig, load_structures
-    load_structures(stage, [StructureConfig(name="lander", ...), ...])
-
-Design notes:
-
-* **Pure USD only.**  Per ``reference_rover_usd_source`` the project
-  forbids runtime URDF / OBJ / FBX import.  Callers must convert assets
-  offline first; this loader only knows how to attach a USD reference.
-* **Offline-first (P3).**  ``StructureConfig`` is a plain dataclass and
-  importing this module does not touch Isaac Sim.  The Isaac-Sim /
-  ``pxr`` imports are deferred inside :func:`load_structure` so
-  ``from marslab.scene.structure_loader import StructureConfig`` works
-  from unit tests with no Kit session.
-* **static=True** applies ``UsdPhysics.CollisionAPI`` only; dynamic
-  props (``static=False``) additionally apply ``RigidBodyAPI``.  We do
-  NOT modify mass / damping here -- authored USD values win.
-* **G5.**  Zero Mars-physics constants live in this module; callers
-  drive everything from :class:`StructureConfig` instances built from
-  YAML (see :class:`marslab.config.schema.scene.SceneConfig`).
+Attaches pre-authored ``.usd`` / ``.usda`` / ``.usdc`` assets under a
+configurable prim path, applies translate/orient/scale, and optionally
+enables collision. Pure USD only — per ``reference_rover_usd_source`` runtime
+URDF/OBJ/FBX import is forbidden; callers must convert offline first. Offline-
+first (P3): ``StructureConfig`` is a plain dataclass and importing this module
+does not touch Isaac Sim (``pxr`` + ``isaacsim`` imports are deferred).
+``static=True`` applies ``UsdPhysics.CollisionAPI`` only; ``static=False``
+additionally applies ``RigidBodyAPI``. Mass/damping are not modified —
+authored USD values win. G5: zero Mars-physics constants live here.
 """
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 from dataclasses import dataclass, field
@@ -170,8 +156,6 @@ def load_structure(stage: Any, cfg: StructureConfig) -> str:
 
     # rpy_to_quat takes radians; the dataclass stores degrees for
     # YAML readability, so convert here.
-    import math
-
     roll_rad = math.radians(float(cfg.spawn_rpy_deg[0]))
     pitch_rad = math.radians(float(cfg.spawn_rpy_deg[1]))
     yaw_rad = math.radians(float(cfg.spawn_rpy_deg[2]))

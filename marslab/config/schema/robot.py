@@ -109,12 +109,7 @@ class OdomPublisherConfig(BaseModel):
             "``base_frame`` in the SLAM config and the Nav2 costmap root."
         ),
     )
-    queue_size: int = Field(
-        default=10,
-        ge=1,
-        le=100,
-        description="rclpy publisher QoS depth.",
-    )
+    queue_size: int = Field(default=10, ge=1, le=100, description="rclpy publisher QoS depth.")
 
 
 class SkidSteerDriveConfig(BaseModel):
@@ -145,19 +140,13 @@ class SkidSteerDriveConfig(BaseModel):
 
     wheel_radius: float = Field(default=0.15, gt=0.0, description="Wheel radius in meters")
     track_width: float = Field(
-        default=0.70,
-        gt=0.0,
-        description="Distance between left and right wheel centers in meters",
+        default=0.70, gt=0.0, description="Distance between left/right wheel centers (m)"
     )
     max_linear_vel: float = Field(
-        default=1.0,
-        gt=0.0,
-        description="Upper bound on commanded linear velocity in m/s",
+        default=1.0, gt=0.0, description="Upper bound on commanded linear velocity (m/s)"
     )
     max_angular_vel: float = Field(
-        default=1.5,
-        gt=0.0,
-        description="Upper bound on commanded yaw rate in rad/s",
+        default=1.5, gt=0.0, description="Upper bound on commanded yaw rate (rad/s)"
     )
     cmd_vel_timeout_s: float = Field(
         default=0.5,
@@ -172,17 +161,17 @@ class SkidSteerDriveConfig(BaseModel):
     )
     left_wheel_joints: list[str] = Field(
         default=["joint_fl", "joint_ml", "joint_rl"],
-        description="Articulation joint names for the left wheel bank",
+        description="Articulation joint names for left wheel bank",
     )
     right_wheel_joints: list[str] = Field(
         default=["joint_fr", "joint_mr", "joint_rr"],
-        description="Articulation joint names for the right wheel bank",
+        description="Articulation joint names for right wheel bank",
     )
     # R2-A3 (2026-04-22): G5 — drive_damping / steer_stiffness /
     # steer_damping required.  Dead Python defaults previously lived at
     # marslab/robots/rover.py:260-264 and 322-324 with values that did
     # NOT match configs/robots/rover_m2020.yaml — leaving them optional
-    # here would hide the same mismatch on any future robot YAML. 
+    # here would hide the same mismatch on any future robot YAML.
     drive_damping: float = Field(
         ...,
         gt=0.0,
@@ -302,7 +291,7 @@ class RobotConfig(BaseModel):
     urdf_path: str | None = Field(default=None, description="Path to custom URDF file")
     usd_asset_path: str | None = Field(default=None, description="Path to built-in USD asset")
     spawn_position: list[float] = Field(
-        default=[0.0, 0.0, 0.5], min_length=3, max_length=3, description="[x, y, z] in meters"
+        default=[0.0, 0.0, 0.5], min_length=3, max_length=3, description="[x, y, z] meters"
     )
     sensor_config_paths: list[str] = Field(default_factory=list)
     prim_path: str | None = Field(

@@ -4,9 +4,9 @@ The Oracle runtime (``run_stage3_monolithic.py``) is frozen at
 md5 ``beefa12579dd43f3da27b1dae3c6f852`` (post 2026-04-23 ackermann-shim
 migration; pre-migration md5 ``d4e147cd2345f927db18c4d7ad33b854``); it
 must *not* pick up the new ``marslab.runtime.main_loop`` import.  The
-writable twin (``run_stage3_monolithic_new.py``) is the delegation
-target for R6-1 and must both import and call :func:`run_main_loop`
-exactly once.
+writable twin -- now ``scripts/phase1/run_stage4.py`` after the
+2026-04-24 decomposition -- is the delegation target for R6-1 and must
+both import and call :func:`run_main_loop` exactly once.
 
 These are grep-style assertions on source text — no Isaac Sim, no execution.
 """
@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TWIN_PATH = REPO_ROOT / "scripts" / "phase1" / "run_stage3_monolithic_new.py"
+TWIN_PATH = REPO_ROOT / "scripts" / "phase1" / "run_stage4.py"
 ORACLE_PATH = REPO_ROOT / "scripts" / "phase1" / "run_stage3_monolithic.py"
 
 

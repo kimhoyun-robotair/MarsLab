@@ -1,9 +1,4 @@
-"""Unit tests for DEM pre-conversion (GDAL-free).
-
-Tests save_converted_dem() and load_converted_dem() which use only
-numpy and json -- no GDAL required. These tests run in any Python
-environment including Isaac Sim's bundled Python.
-"""
+"""Unit tests for DEM pre-conversion (GDAL-free)."""
 
 import json
 import os

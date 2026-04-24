@@ -1,12 +1,9 @@
 """SimulationApp boot helper.
 
 ``boot_simulation_app`` mirrors the previous inline logic in
-``scripts/phase1/run_stage3_monolithic_new.py`` L396-415 so the rest
-of the runtime can stay focused on scenario construction.
-
-Must be called **before** any ``omni.*`` / ``isaacsim.*`` / ``rclpy``
-imports.  The Kit app has to be alive first; otherwise those imports
-fail at module level.
+``run_stage3_monolithic_new.py`` so the rest of the runtime can focus on
+scenario construction. Must be called before any ``omni.*`` / ``isaacsim.*``
+/ ``rclpy`` imports — those only resolve after Kit is alive.
 """
 
 from __future__ import annotations

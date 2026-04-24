@@ -1,14 +1,15 @@
-"""Seed propagation regression for ``run_stage3_monolithic_new.py`` (R1-6a).
+"""Seed propagation regression for the Stage 3 twin runner (R1-6a / 2026-04-24).
 
-The twin monolithic runner consumes the raw dict returned by
-:func:`marslab.config.scenario_loader.load_scenario_config` rather than a
-:class:`MarsLabConfig`. G7 still requires that
-``terrain.seed == mars_env.seed + 1``; these tests lock down the dict-level
-helper :func:`marslab.config.loader.propagate_seeds_in_dict` and verify that
-the twin imports and calls it.
+The twin is now ``scripts/phase1/run_stage4.py`` -- the decomposed successor
+of the retired ``run_stage3_monolithic_new.py``.  G7 still requires
+``terrain.seed == mars_env.seed + 1``; enforcement moved from a direct call
+in the twin to :func:`marslab.runtime.stage2_boot.run_stage2_boot`, which
+invokes :func:`propagate_seeds_in_dict` internally.  The tests below lock
+down the dict-level helper and verify that the twin keeps the import surface
+(``propagate_seeds_in_dict``) available and delegates to ``run_stage2_boot``.
 
-Oracle (``run_stage3_monolithic.py``, md5 ``d4e147cd…``) is explicitly
-excluded — it is frozen and does not propagate seeds.
+Oracle (``run_stage3_monolithic.py``, md5 ``beefa125...``) is explicitly
+excluded -- it is frozen and does not propagate seeds.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from pathlib import Path
 from marslab.config.loader import propagate_seeds_in_dict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TWIN_PATH = REPO_ROOT / "scripts" / "phase1" / "run_stage3_monolithic_new.py"
+TWIN_PATH = REPO_ROOT / "scripts" / "phase1" / "run_stage4.py"
 
 
 def test_propagate_seeds_in_dict_default_master():
@@ -117,16 +118,27 @@ def test_twin_imports_propagate_seeds_in_dict():
     )
 
 
-def test_twin_calls_propagate_seeds_in_dict_after_load():
-    """The twin invokes ``propagate_seeds_in_dict`` after ``load_scenario_config``."""
+def test_twin_delegates_seed_propagation_via_run_stage2_boot():
+    """The twin reaches G7 through ``run_stage2_boot`` (which calls the helper).
+
+    After the 2026-04-24 run_stage4 decomposition the twin no longer calls
+    ``load_scenario_config`` / ``propagate_seeds_in_dict`` inline; instead it
+    imports :func:`marslab.runtime.stage2_boot.run_stage2_boot` which invokes
+    ``propagate_seeds_in_dict`` internally.  We still verify (a) the twin
+    imports ``propagate_seeds_in_dict`` (future-proofing: any regression that
+    drops the import surface is caught), and (b) ``run_stage2_boot`` really
+    does call the helper.
+    """
     source = TWIN_PATH.read_text(encoding="utf-8")
-    load_idx = source.find("load_scenario_config(config_path)")
-    propagate_idx = source.find("propagate_seeds_in_dict(cfg)")
-    assert load_idx != -1, "load_scenario_config call missing"
-    assert propagate_idx != -1, "propagate_seeds_in_dict call missing"
-    assert (
-        propagate_idx > load_idx
-    ), "propagate_seeds_in_dict must be invoked AFTER load_scenario_config"
+    assert "from marslab.runtime.stage2_boot import run_stage2_boot" in source
+    assert "run_stage2_boot(" in source
+
+    stage2_boot_path = REPO_ROOT / "marslab" / "runtime" / "stage2_boot.py"
+    boot_source = stage2_boot_path.read_text(encoding="utf-8")
+    assert "propagate_seeds_in_dict(cfg)" in boot_source, (
+        "run_stage2_boot must call propagate_seeds_in_dict so the twin "
+        "inherits G7 (terrain.seed == mars_env.seed + 1) automatically."
+    )
 
 
 def test_oracle_still_unmodified():

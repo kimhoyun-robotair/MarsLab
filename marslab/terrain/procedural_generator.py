@@ -76,6 +76,37 @@ def generate_terrain(
     return elevation, metadata
 
 
+def _normalize_noise(
+    rng: np.random.Generator,
+    rows: int,
+    cols: int,
+    sigma: float,
+    amplitude: float,
+) -> np.ndarray:
+    """Draw Gaussian noise, smooth it, and rescale to the requested amplitude.
+
+    Internally: ``rng.standard_normal((rows, cols))`` ->
+    ``gaussian_filter(..., sigma)`` -> divide by std (``+1e-8`` guard) ->
+    multiply by ``amplitude``. Extracted so the six call sites across
+    ``_generate_flat`` / ``_generate_hills`` / ``_generate_canyon`` /
+    ``_generate_rocky_plain`` share a single numerically stable path.
+
+    Args:
+        rng: Numpy random generator (consumes one draw).
+        rows: Grid rows.
+        cols: Grid cols.
+        sigma: Gaussian blur sigma, in pixels.
+        amplitude: Target standard deviation after normalisation.
+
+    Returns:
+        Shape ``(rows, cols)`` float64 array with empirical std close to
+        ``amplitude``.
+    """
+    raw = rng.standard_normal((rows, cols))
+    smooth = gaussian_filter(raw, sigma=sigma)
+    return smooth / (np.std(smooth) + 1e-8) * amplitude
+
+
 def _add_micro_detail(
     rng: np.random.Generator, elevation: np.ndarray, amplitude: float = 0.15
 ) -> np.ndarray:
@@ -89,9 +120,7 @@ def _add_micro_detail(
 def _generate_flat(rng: np.random.Generator, rows: int, cols: int) -> np.ndarray:
     """Flat desert with low-amplitude noise (~2m variation) + micro detail."""
     base = -2500.0
-    noise = rng.standard_normal((rows, cols))
-    smooth_noise = gaussian_filter(noise, sigma=10.0)
-    smooth_noise = smooth_noise / np.std(smooth_noise) * 2.0
+    smooth_noise = _normalize_noise(rng, rows, cols, sigma=10.0, amplitude=2.0)
     return _add_micro_detail(rng, base + smooth_noise)
 
 
@@ -125,9 +154,7 @@ def _generate_crater(rng: np.random.Generator, rows: int, cols: int) -> np.ndarr
 def _generate_hills(rng: np.random.Generator, rows: int, cols: int) -> np.ndarray:
     """Gently rolling hills with large-scale variation (~30m amplitude)."""
     base = -2500.0
-    noise = rng.standard_normal((rows, cols))
-    smooth_noise = gaussian_filter(noise, sigma=30.0)
-    smooth_noise = smooth_noise / np.std(smooth_noise) * 30.0
+    smooth_noise = _normalize_noise(rng, rows, cols, sigma=30.0, amplitude=30.0)
 
     # Add a few gaussian bumps for distinct hills
     y_grid, x_grid = np.mgrid[0:rows, 0:cols]
@@ -176,9 +203,7 @@ def _generate_canyon(
     base = -2500.0
 
     # Low-frequency base terrain noise (subtle, ~1m)
-    noise = rng.standard_normal((rows, cols))
-    base_noise = gaussian_filter(noise, sigma=15.0)
-    base_noise = base_noise / (np.std(base_noise) + 1e-8) * 1.0
+    base_noise = _normalize_noise(rng, rows, cols, sigma=15.0, amplitude=1.0)
 
     elevation = np.full((rows, cols), base, dtype=np.float64) + base_noise
 
@@ -229,9 +254,7 @@ def _generate_canyon(
         elevation[wall_mask] = base - depth + wall_height + base_noise[wall_mask] * 0.2
 
     # Add wall roughness (medium frequency noise on walls only)
-    wall_noise = rng.standard_normal((rows, cols))
-    wall_noise = gaussian_filter(wall_noise, sigma=3.0)
-    wall_noise = wall_noise / (np.std(wall_noise) + 1e-8) * 1.5
+    wall_noise = _normalize_noise(rng, rows, cols, sigma=3.0, amplitude=1.5)
     elevation[wall_mask] += wall_noise[wall_mask]
 
     # Small craters on canyon floor
@@ -267,19 +290,13 @@ def _generate_rocky_plain(rng: np.random.Generator, rows: int, cols: int) -> np.
     base = -2500.0
 
     # Low-frequency base terrain (~5m variation)
-    raw = rng.standard_normal((rows, cols))
-    low_freq = gaussian_filter(raw, sigma=15.0)
-    low_freq = low_freq / (np.std(low_freq) + 1e-8) * 5.0
+    low_freq = _normalize_noise(rng, rows, cols, sigma=15.0, amplitude=5.0)
 
     # Medium-frequency rocky undulations (~1.5m)
-    raw2 = rng.standard_normal((rows, cols))
-    mid_freq = gaussian_filter(raw2, sigma=5.0)
-    mid_freq = mid_freq / (np.std(mid_freq) + 1e-8) * 1.5
+    mid_freq = _normalize_noise(rng, rows, cols, sigma=5.0, amplitude=1.5)
 
     # High-frequency micro-roughness (~0.3m)
-    raw3 = rng.standard_normal((rows, cols))
-    high_freq = gaussian_filter(raw3, sigma=1.5)
-    high_freq = high_freq / (np.std(high_freq) + 1e-8) * 0.3
+    high_freq = _normalize_noise(rng, rows, cols, sigma=1.5, amplitude=0.3)
 
     # Scattered small mounds (like exposed bedrock)
     y_grid, x_grid = np.mgrid[0:rows, 0:cols]

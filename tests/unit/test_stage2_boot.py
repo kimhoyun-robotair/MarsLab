@@ -1,10 +1,4 @@
-"""Unit tests for :mod:`marslab.runtime.stage2_boot`.
-
-Offline-first (P3): the module under test must not import Isaac Sim, so
-the test suite exercises it with the real ``configs/mars_env.yaml`` and
-scenario YAMLs. The Isaac-Sim-dependent modules (``stage2_scene``,
-``stage2_loop``) are imported structurally but never invoked here.
-"""
+"""Unit tests for marslab.runtime.stage2_boot (offline-first, no Isaac Sim)."""
 
 from __future__ import annotations
 

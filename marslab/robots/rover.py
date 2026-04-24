@@ -4,23 +4,8 @@ Extracted from ``scripts/phase1/run_stage1.py`` so the Stage 3 runtime
 can orchestrate rover + scene + ROS2 without inlining ~400 lines of
 Isaac-Sim boilerplate.  Every function here touches Isaac Sim / USD, so
 imports are deferred inside each function and unit tests are deferred
-to integration smoke runs.
-
-Public surface:
-
-* :func:`rpy_to_quat` — pure ZYX intrinsic RPY → scalar-first quat.
-* :func:`resolve_joint_indices` — name-based DOF index lookup.
-* :func:`load_rover_usd` — add USD reference under a prim path.
-* :func:`apply_spawn_pose` — set Xform translate/orient on the root.
-* :func:`apply_mass_properties` — CoM override + angular/linear damping.
-* :func:`find_rigid_body_path` — locate the RigidBodyAPI child prim.
-* :func:`configure_drives` — pre-reset DriveAPI attribute writes.
-* :func:`reinforce_pd_gains` — post-reset ``set_gains`` to the PhysX tensors.
-* :func:`spawn_rover` — orchestrates the above in the expected order.
-
-The split mirrors the sequence the Stage 1 runtime follows so the
-refactor is mechanically equivalent.  See ``work_log/rover_generation/``
-for the rationale behind each step.
+to integration smoke runs.  Public surface is declared via ``__all__``.
+See ``work_log/rover_generation/`` for the step-by-step rationale.
 """
 
 from __future__ import annotations
@@ -259,15 +244,11 @@ def spawn_rover(
     chassis_path = f"{prim_path}/Body_Chassis"
     # The articulation body lives one level deeper; that's also where
     # damping + CoM overrides belong.
-    art_body_path = f"{chassis_path}/Body_Chassis"
-
     com_offset = rover_cfg.get("com_offset")
-    if com_offset is not None:
-        com_offset = (float(com_offset[0]), float(com_offset[1]), float(com_offset[2]))
     apply_mass_properties(
         stage,
-        art_body_path,
-        com_offset,
+        f"{chassis_path}/Body_Chassis",
+        None if com_offset is None else tuple(float(v) for v in com_offset),
         float(rover_cfg.get("angular_damping", 0.0)),
         float(rover_cfg.get("linear_damping", 0.0)),
     )

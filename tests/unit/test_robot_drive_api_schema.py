@@ -1,18 +1,4 @@
-"""Schema tests for the R2-4a drive-API fields on ``SkidSteerDriveConfig``.
-
-R2-4a (2026-04-23) promoted four ``.get(..., <python-literal>)`` fallbacks in
-``marslab.robots.drive_api_setup`` to required fields on
-:class:`marslab.config.schema.robot.SkidSteerDriveConfig`:
-
-* ``drive_max_force`` (required, ``gt=0``)
-* ``steer_max_force`` (required, ``gt=0``)
-* ``suspension_damping`` (required, ``ge=0``; 0 keeps suspension undamped)
-* ``drive_type`` (required ``Literal["acceleration", "force"]``)
-
-``configs/robots/rover_m2020.yaml`` already declares all four, so making
-them required catches any future rover config that omits a value at load
-time rather than silently shipping Python literals to PhysX.
-"""
+"""Schema tests for R2-4a drive-API required fields on SkidSteerDriveConfig."""
 
 from __future__ import annotations
 

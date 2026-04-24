@@ -82,12 +82,20 @@ def main() -> int:
         fontweight="bold",
     )
 
+    def _setup_panel(
+        ax, title: str, xlabel: str, ylabel: str, equal: bool = False, zlabel: str | None = None
+    ):
+        ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        if zlabel is not None:
+            ax.set_zlabel(zlabel)
+        if equal:
+            ax.set_aspect("equal")
+
     # Panel 1: Plan view (XY) — tube footprint + skylight + breakdowns
     ax1 = fig.add_subplot(2, 2, 1)
-    ax1.set_title("Plan View (Top-Down)")
-    ax1.set_xlabel("X (m)")
-    ax1.set_ylabel("Y (m)")
-    ax1.set_aspect("equal")
+    _setup_panel(ax1, "Plan View (Top-Down)", "X (m)", "Y (m)", equal=True)
 
     # Tube floor outline (scatter floor vertices)
     fv = floor.vertices
@@ -133,10 +141,7 @@ def main() -> int:
 
     # Panel 2: Cross-section at mid-point
     ax2 = fig.add_subplot(2, 2, 2)
-    ax2.set_title("Cross-Section (Mid-Tube)")
-    ax2.set_xlabel("Horizontal offset (m)")
-    ax2.set_ylabel("Z (m)")
-    ax2.set_aspect("equal")
+    _setup_panel(ax2, "Cross-Section (Mid-Tube)", "Horizontal offset (m)", "Z (m)", equal=True)
 
     # Extract a cross-section slice through the middle
     tv = tube.vertices
@@ -158,9 +163,7 @@ def main() -> int:
 
     # Panel 3: Longitudinal section (along tube axis)
     ax3 = fig.add_subplot(2, 2, 3)
-    ax3.set_title("Longitudinal Section (Along Tube)")
-    ax3.set_xlabel("Along-tube distance (m)")
-    ax3.set_ylabel("Z (m)")
+    _setup_panel(ax3, "Longitudinal Section (Along Tube)", "Along-tube distance (m)", "Z (m)")
 
     # Project onto tube direction
     mid_x = np.median(tv[:, 0])
@@ -181,10 +184,7 @@ def main() -> int:
 
     # Panel 4: 3D wireframe
     ax4 = fig.add_subplot(2, 2, 4, projection="3d")
-    ax4.set_title("3D View")
-    ax4.set_xlabel("X")
-    ax4.set_ylabel("Y")
-    ax4.set_zlabel("Z")
+    _setup_panel(ax4, "3D View", "X", "Y", zlabel="Z")
 
     # Subsample for performance
     step = max(1, len(tube.vertices) // 2000)

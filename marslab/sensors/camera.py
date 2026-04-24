@@ -33,25 +33,20 @@ def attach_camera(stage, robot_prim_path: str, config: dict) -> object:
     except ImportError:
         from omni.isaac.sensor import Camera
 
-    name = config["name"]
-    mount_link = config["mount_link"]
+    name, mount_link = config["name"], config["mount_link"]
     prim_path = f"{robot_prim_path}/{mount_link}/{name}"
 
     # Fallback if mount_link doesn't exist
-    parent_prim = stage.GetPrimAtPath(f"{robot_prim_path}/{mount_link}")
-    if not parent_prim.IsValid():
+    if not stage.GetPrimAtPath(f"{robot_prim_path}/{mount_link}").IsValid():
         prim_path = f"{robot_prim_path}/{name}"
 
-    offset_pos = config.get("offset_position", [0.0, 0.0, 0.0])
-    resolution = tuple(config.get("resolution", [1280, 720]))
     clip_range = config.get("clipping_range", [0.1, 100.0])
-    update_rate = config.get("update_rate", 30)
 
     camera = Camera(
         prim_path=prim_path,
-        resolution=resolution,
-        translation=np.array(offset_pos, dtype=np.float64),
-        frequency=update_rate,
+        resolution=tuple(config.get("resolution", [1280, 720])),
+        translation=np.array(config.get("offset_position", [0.0, 0.0, 0.0]), dtype=np.float64),
+        frequency=config.get("update_rate", 30),
     )
     camera.initialize()
 
@@ -67,25 +62,16 @@ def attach_camera(stage, robot_prim_path: str, config: dict) -> object:
     return camera
 
 
-def read_camera_rgb(camera) -> np.ndarray:
-    """Read RGBA image from camera.
+def _read_frame(data, dtype) -> np.ndarray:
+    """Coerce camera frame data to ``np.ndarray`` of ``dtype`` (empty if None)."""
+    return np.array([] if data is None else data, dtype=dtype)
 
-    Returns:
-        (H, W, 4) uint8 array, or empty array if no data.
-    """
-    data = camera.get_rgba()
-    if data is None:
-        return np.array([], dtype=np.uint8)
-    return np.array(data, dtype=np.uint8)
+
+def read_camera_rgb(camera) -> np.ndarray:
+    """Read RGBA image from camera. Returns (H, W, 4) uint8 array or empty."""
+    return _read_frame(camera.get_rgba(), np.uint8)
 
 
 def read_camera_depth(camera) -> np.ndarray:
-    """Read depth image from camera (requires enable_depth=true).
-
-    Returns:
-        (H, W) float32 array of distances in meters, or empty array.
-    """
-    data = camera.get_depth()
-    if data is None:
-        return np.array([], dtype=np.float32)
-    return np.array(data, dtype=np.float32)
+    """Read depth image from camera. Returns (H, W) float32 meters or empty."""
+    return _read_frame(camera.get_depth(), np.float32)

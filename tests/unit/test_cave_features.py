@@ -13,12 +13,6 @@ from marslab.terrain.cave.geometry import build_centerline
 
 
 @pytest.fixture()
-def rng():
-    """Deterministic rng per test."""
-    return np.random.default_rng(42)
-
-
-@pytest.fixture()
 def centerline(rng):
     """Centerline across a 200x200 m domain with 60 stations."""
     return build_centerline((200.0, 200.0), 0.0, 0.15, 60, 0.0, rng)

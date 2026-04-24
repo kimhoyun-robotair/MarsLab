@@ -1,109 +1,21 @@
-"""Unit tests for :mod:`marslab.ros2_bridge.odometry_publisher`.
-
-R8-5 (2026-04-23). The publisher depends on ``rclpy``, ``nav_msgs`` and
-``tf2_ros`` so the test stubs those with ``unittest.mock`` / local
-types (mirrors the pattern in ``test_rclpy_integration.py``).
-
-Focus areas (per R8 plan):
-* TF frame_id / child_frame_id propagation
-* body-frame twist correctness (``world_twist_to_body``)
-* single mocked ``publish`` call (no real rclpy spin)
-* header stamp monotonicity across two calls
-"""
+"""Unit tests for marslab.ros2_bridge.odometry_publisher (R8-5). Stubs rclpy/nav_msgs/tf2_ros."""
 
 from __future__ import annotations
 
 import sys
 import types
-from dataclasses import dataclass, field
 from typing import Any, List
 from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 
-# ---------------------------------------------------------------------------
-# Fake ROS2 message + tf2_ros modules.  Installed once per test via fixture.
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class _FakeStamp:
-    sec: int = 0
-    nanosec: int = 0
-
-
-@dataclass
-class _FakeHeader:
-    stamp: _FakeStamp = field(default_factory=_FakeStamp)
-    frame_id: str = ""
-
-
-@dataclass
-class _FakeVec3:
-    x: float = 0.0
-    y: float = 0.0
-    z: float = 0.0
-
-
-@dataclass
-class _FakeQuat:
-    w: float = 1.0
-    x: float = 0.0
-    y: float = 0.0
-    z: float = 0.0
-
-
-@dataclass
-class _FakeTransform:
-    translation: _FakeVec3 = field(default_factory=_FakeVec3)
-    rotation: _FakeQuat = field(default_factory=_FakeQuat)
-
-
-@dataclass
-class _FakeTransformStamped:
-    header: _FakeHeader = field(default_factory=_FakeHeader)
-    child_frame_id: str = ""
-    transform: _FakeTransform = field(default_factory=_FakeTransform)
-
-
-@dataclass
-class _FakePose:
-    position: _FakeVec3 = field(default_factory=_FakeVec3)
-    orientation: _FakeQuat = field(default_factory=_FakeQuat)
-
-
-@dataclass
-class _FakePoseWithCov:
-    pose: _FakePose = field(default_factory=_FakePose)
-
-
-@dataclass
-class _FakeTwist:
-    linear: _FakeVec3 = field(default_factory=_FakeVec3)
-    angular: _FakeVec3 = field(default_factory=_FakeVec3)
-
-
-@dataclass
-class _FakeTwistWithCov:
-    twist: _FakeTwist = field(default_factory=_FakeTwist)
-
-
-@dataclass
-class _FakeOdometry:
-    header: _FakeHeader = field(default_factory=_FakeHeader)
-    child_frame_id: str = ""
-    pose: _FakePoseWithCov = field(default_factory=_FakePoseWithCov)
-    twist: _FakeTwistWithCov = field(default_factory=_FakeTwistWithCov)
-
-
-class _FakeTransformBroadcaster:
-    def __init__(self, node: Any) -> None:  # noqa: D401 - signature mirrors tf2_ros
-        self.node = node
-        self.sent: List[_FakeTransformStamped] = []
-
-    def sendTransform(self, tf_msg: _FakeTransformStamped) -> None:  # noqa: N802
-        self.sent.append(tf_msg)
+from tests.unit.conftest import (
+    FakeOdometry,
+    FakeStamp,
+    FakeTransformBroadcaster,
+    FakeTransformStamped,
+)
 
 
 @pytest.fixture
@@ -112,17 +24,17 @@ def fake_ros2_modules(monkeypatch: pytest.MonkeyPatch) -> None:
 
     nav_msgs = types.ModuleType("nav_msgs")
     nav_msgs_msg = types.ModuleType("nav_msgs.msg")
-    nav_msgs_msg.Odometry = _FakeOdometry  # type: ignore[attr-defined]
+    nav_msgs_msg.Odometry = FakeOdometry  # type: ignore[attr-defined]
     nav_msgs.msg = nav_msgs_msg  # type: ignore[attr-defined]
 
     geo_msgs = types.ModuleType("geometry_msgs")
     geo_msgs_msg = types.ModuleType("geometry_msgs.msg")
-    geo_msgs_msg.TransformStamped = _FakeTransformStamped  # type: ignore[attr-defined]
+    geo_msgs_msg.TransformStamped = FakeTransformStamped  # type: ignore[attr-defined]
     geo_msgs_msg.Twist = MagicMock()  # type: ignore[attr-defined]
     geo_msgs.msg = geo_msgs_msg  # type: ignore[attr-defined]
 
     tf2_ros = types.ModuleType("tf2_ros")
-    tf2_ros.TransformBroadcaster = _FakeTransformBroadcaster  # type: ignore[attr-defined]
+    tf2_ros.TransformBroadcaster = FakeTransformBroadcaster  # type: ignore[attr-defined]
     tf2_ros.StaticTransformBroadcaster = MagicMock()  # type: ignore[attr-defined]
 
     monkeypatch.setitem(sys.modules, "nav_msgs", nav_msgs)
@@ -132,7 +44,7 @@ def fake_ros2_modules(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "tf2_ros", tf2_ros)
 
 
-def _make_node(stamp_seq: List[_FakeStamp]) -> MagicMock:
+def _make_node(stamp_seq: List[FakeStamp]) -> MagicMock:
     """Node stub whose clock returns successive stamps from ``stamp_seq``."""
     node = MagicMock()
     publisher = MagicMock()
@@ -140,7 +52,7 @@ def _make_node(stamp_seq: List[_FakeStamp]) -> MagicMock:
 
     iterator = iter(stamp_seq)
 
-    def to_msg() -> _FakeStamp:
+    def to_msg() -> FakeStamp:
         return next(iterator)
 
     def now() -> Any:
@@ -163,7 +75,7 @@ class TestCreateOdometryPublisher:
     def test_frame_ids_propagate_into_context(self, fake_ros2_modules: None) -> None:
         from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
 
-        node = _make_node([_FakeStamp(1, 0)])
+        node = _make_node([FakeStamp(1, 0)])
         ctx = create_odometry_publisher(
             node=node,
             topic="/rover/odom",
@@ -181,7 +93,7 @@ class TestCreateOdometryPublisher:
     def test_init_pose_is_copied_not_referenced(self, fake_ros2_modules: None) -> None:
         from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
 
-        node = _make_node([_FakeStamp(0, 0)])
+        node = _make_node([FakeStamp(0, 0)])
         init_pos = np.array([1.0, 2.0, 3.0])
         ctx = create_odometry_publisher(
             node=node,
@@ -200,7 +112,7 @@ class TestPublishOdometrySingleCall:
             publish_odometry,
         )
 
-        node = _make_node([_FakeStamp(5, 0)])
+        node = _make_node([FakeStamp(5, 0)])
         ctx = create_odometry_publisher(
             node=node,
             topic="/rover/odom",
@@ -228,7 +140,7 @@ class TestPublishOdometrySingleCall:
             publish_odometry,
         )
 
-        node = _make_node([_FakeStamp(0, 0)])
+        node = _make_node([FakeStamp(0, 0)])
         ctx = create_odometry_publisher(
             node=node,
             topic="/rover/odom",
@@ -252,7 +164,7 @@ class TestPublishOdometrySingleCall:
             publish_odometry,
         )
 
-        node = _make_node([_FakeStamp(0, 0)])
+        node = _make_node([FakeStamp(0, 0)])
         ctx = create_odometry_publisher(
             node=node,
             topic="/rover/odom",
@@ -284,7 +196,7 @@ class TestHeaderStampMonotonic:
             publish_odometry,
         )
 
-        stamps = [_FakeStamp(10, 0), _FakeStamp(11, 500_000_000)]
+        stamps = [FakeStamp(10, 0), FakeStamp(11, 500_000_000)]
         node = _make_node(stamps)
         ctx = create_odometry_publisher(
             node=node,

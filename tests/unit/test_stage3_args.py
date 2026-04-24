@@ -1,10 +1,4 @@
-"""Unit tests for :mod:`marslab.cli.stage3_args` and :mod:`marslab.cli.stage2_args`.
-
-Offline (P3): pure argparse. No Isaac Sim imports, no filesystem writes.
-Mirrors Oracle contract:
-  Stage 3: --config (required), --headless, --no-ros2.
-  Stage 2: --config (default mars_env.yaml), --headless.
-"""
+"""Unit tests for marslab.cli.stage3_args + stage2_args (offline, P3)."""
 
 from __future__ import annotations
 

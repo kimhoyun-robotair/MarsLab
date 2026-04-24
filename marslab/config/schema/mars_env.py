@@ -32,25 +32,16 @@ class SunSweepConfig(BaseModel):
     """
 
     start_azimuth_deg: float = Field(
-        default=90.0,
-        ge=0.0,
-        le=360.0,
-        description="Sunrise azimuth in degrees (0=N, 90=E, 180=S, 270=W).",
+        default=90.0, ge=0.0, le=360.0, description="Sunrise azimuth (0=N, 90=E, 180=S, 270=W)."
     )
     end_azimuth_deg: float = Field(
-        default=270.0,
-        ge=0.0,
-        le=360.0,
-        description="Sunset azimuth in degrees.",
+        default=270.0, ge=0.0, le=360.0, description="Sunset azimuth in degrees."
     )
     max_elevation_deg: float = Field(
         default=60.0,
         ge=0.0,
         le=90.0,
-        description=(
-            "Noon peak elevation in degrees. Jezero crater (18.4 deg N) "
-            "peaks near 60 deg at equinox."
-        ),
+        description="Noon peak elevation (deg). Jezero (18.4 deg N) peaks near 60 at equinox.",
     )
 
 
@@ -62,9 +53,7 @@ class TauConstantConfig(BaseModel):
     """
 
     base_tau: float = Field(
-        default=0.3,
-        ge=0.0,
-        description="Fixed dust optical depth held across the full sol.",
+        default=0.3, ge=0.0, description="Fixed dust optical depth held across the full sol."
     )
 
 
@@ -76,16 +65,8 @@ class TauRampConfig(BaseModel):
     (start > end). Forwarded to ``compute_tau_ramp``.
     """
 
-    start_tau: float = Field(
-        default=0.3,
-        ge=0.0,
-        description="Tau at time_of_sol_fraction = 0.",
-    )
-    end_tau: float = Field(
-        default=2.0,
-        ge=0.0,
-        description="Tau at time_of_sol_fraction = 1.",
-    )
+    start_tau: float = Field(default=0.3, ge=0.0, description="Tau at time_of_sol_fraction = 0.")
+    end_tau: float = Field(default=2.0, ge=0.0, description="Tau at time_of_sol_fraction = 1.")
 
 
 class TauSineConfig(BaseModel):
@@ -97,22 +78,15 @@ class TauSineConfig(BaseModel):
     """
 
     base_tau: float = Field(
-        default=0.5,
-        ge=0.0,
-        description="Mean optical depth around which tau oscillates.",
+        default=0.5, ge=0.0, description="Mean optical depth around which tau oscillates."
     )
     amplitude: float = Field(
-        default=0.3,
-        ge=0.0,
-        description="Peak-to-mean amplitude of the sine oscillation.",
+        default=0.3, ge=0.0, description="Peak-to-mean amplitude of the sine oscillation."
     )
     period_fraction: float = Field(
         default=1.0,
         gt=0.0,
-        description=(
-            "Period as fraction of one sol. 1.0 = one oscillation per "
-            "sol, 0.5 = two cycles per sol."
-        ),
+        description="Period as fraction of sol. 1.0 = one oscillation/sol, 0.5 = two cycles/sol.",
     )
 
 
@@ -128,23 +102,17 @@ class DynamicAtmosphereConfig(BaseModel):
     enabled: bool = Field(
         default=False,
         description=(
-            "Master switch. When False the run-loop stays with the "
-            "static sun pose configured by ``mars_env.sun_azimuth_deg`` "
-            "and ``mars_env.sun_elevation_deg``."
+            "Master switch. When False the run-loop stays with the static sun pose "
+            "configured by ``mars_env.sun_azimuth_deg`` and ``mars_env.sun_elevation_deg``."
         ),
     )
     time_scale: float = Field(
         default=200.0,
         gt=0.0,
-        description=(
-            "Real-time to Mars-sol acceleration factor. 200x makes a "
-            "24.66-hour sol elapse in ~7.4 minutes of wall clock."
-        ),
+        description="Real-time to Mars-sol acceleration. 200x = ~7.4 min wall clock/sol.",
     )
     update_interval_frames: int = Field(
-        default=10,
-        ge=1,
-        description="Recompute sun/fog/sky every N rendered frames.",
+        default=10, ge=1, description="Recompute sun/fog/sky every N rendered frames."
     )
     sun_sweep: SunSweepConfig = Field(
         default_factory=SunSweepConfig,
@@ -152,10 +120,7 @@ class DynamicAtmosphereConfig(BaseModel):
     )
     tau_profile: Literal["constant", "ramp", "sine"] = Field(
         default="constant",
-        description=(
-            "Tau temporal profile. See ``marslab.environment.tau_profile`` "
-            "for the implementations."
-        ),
+        description="Tau temporal profile. See ``marslab.environment.tau_profile`` for impls.",
     )
     tau_constant: TauConstantConfig = Field(
         default_factory=TauConstantConfig,
@@ -166,8 +131,7 @@ class DynamicAtmosphereConfig(BaseModel):
         description="Parameters used when ``tau_profile='ramp'``.",
     )
     tau_sine: TauSineConfig = Field(
-        default_factory=TauSineConfig,
-        description="Parameters used when ``tau_profile='sine'``.",
+        default_factory=TauSineConfig, description="Parameters used when ``tau_profile='sine'``."
     )
 
 
@@ -224,9 +188,7 @@ class MarsEnvConfig(BaseModel):
     # entirely (the Wk1 probe configs do).
     dynamic_atmosphere: DynamicAtmosphereConfig = Field(
         default_factory=DynamicAtmosphereConfig,
-        description=(
-            "Runtime sun sweep + tau profile. See " "``DynamicAtmosphereConfig`` for nested fields."
-        ),
+        description="Runtime sun sweep + tau profile. See ``DynamicAtmosphereConfig`` for fields.",
     )
 
     @model_validator(mode="after")

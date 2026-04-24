@@ -1,12 +1,9 @@
 """Stage 2 scene construction (Isaac Sim-dependent).
 
-Consumes a :class:`StageTwoBootResult` and populates the live USD stage
-with a Mars world: physics gravity, terrain/cave mesh + materials,
-optional Golombek rock field, and the static sun/sky/fog atmosphere.
-
-Isaac Sim imports are lazy (inside function bodies) so the module can
-be imported by unit tests that only assert on function signatures and
-parameter pass-through contracts.
+Consumes a :class:`StageTwoBootResult` and populates the live USD stage with
+a Mars world: physics gravity, terrain/cave mesh + materials, optional
+Golombek rock field, and the static sun/sky/fog atmosphere. Isaac Sim imports
+are lazy so unit tests can assert on signatures without a live Kit app.
 """
 
 from __future__ import annotations
@@ -57,41 +54,31 @@ def setup_stage2_scene(boot: StageTwoBootResult) -> StageTwoScene:
         :class:`StageTwoScene` with the World / stage / render_config
         handles the loop module needs.
     """
-    import omni.usd
-    from isaacsim.core.api import World
-
     from marslab.config.schema import RenderingConfig
     from marslab.rendering.atmosphere_fog import configure_atmosphere_fog
     from marslab.rendering.render_settings import set_render_mode
     from marslab.rendering.sky_renderer import configure_sky_dome
     from marslab.rendering.sun_renderer import configure_sun_light
+    from marslab.sim.world_setup import create_world
 
     mars_cfg = boot.mars_cfg
     terrain_cfg = boot.terrain_cfg
     rendering_cfg = boot.rendering_cfg
     atmo = boot.atmosphere_init
 
-    # --- Physics world (Mars gravity from config) ---------------------------
-    # P6 G5 (2026-04-23): physics_dt and gravity flow from the pydantic
-    # MarsEnvConfig defaults via ``boot.atmosphere_init`` / ``boot.mars_cfg``
-    # — no local fallback literals.
+    # --- Physics world (Mars gravity + solver iterations from config) --------
+    # 2026-04-24: route World creation through :func:`create_world` so Stage 2
+    # and Stage 3 share a single physics setup path (16/4 solver iterations
+    # needed for the 29-DOF rover articulation; harmless for Stage-2-only
+    # scenes).  Gravity + physics_dt still come from the pydantic-validated
+    # MarsEnvConfig via ``boot.atmosphere_init`` / ``boot.mars_cfg``.
     from marslab.config.schema import MarsEnvConfig
 
     mars_env_model = MarsEnvConfig(**mars_cfg)
     physics_dt = atmo.physics_dt
-    world = World(
-        stage_units_in_meters=1.0,
-        physics_dt=physics_dt,
-        rendering_dt=physics_dt,
-    )
-
     gravity = mars_env_model.gravity
-    physics_ctx = world.get_physics_context()
-    physics_ctx.set_gravity(-gravity)
-    physics_ctx.set_solver_type("TGS")
+    world, stage = create_world(physics_dt=physics_dt, gravity=gravity)
     print(f"[run_stage2] Gravity: {gravity} m/s^2", flush=True)
-
-    stage = omni.usd.get_context().get_stage()
 
     # --- Build terrain / cave mesh ------------------------------------------
     is_cave = terrain_cfg.get("procedural_preset") == "cave"

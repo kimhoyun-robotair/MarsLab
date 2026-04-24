@@ -151,14 +151,17 @@ class TestAckermannShapes:
 class TestAckermannValidation:
     """Parameter validation."""
 
-    def test_zero_wheelbase_raises(self) -> None:
-        with pytest.raises(ValueError, match="wheelbase"):
-            ackermann_command(1.0, 0.0, 0.0, TS, TM, R)
-
-    def test_negative_track_raises(self) -> None:
-        with pytest.raises(ValueError, match="track_steer"):
-            ackermann_command(1.0, 0.0, WB, -1.0, TM, R)
-
-    def test_zero_radius_raises(self) -> None:
-        with pytest.raises(ValueError, match="wheel_radius"):
-            ackermann_command(1.0, 0.0, WB, TS, TM, 0.0)
+    @pytest.mark.parametrize(
+        "wb,ts,tm,r,match",
+        [
+            (0.0, TS, TM, R, "wheelbase"),
+            (WB, -1.0, TM, R, "track_steer"),
+            (WB, TS, TM, 0.0, "wheel_radius"),
+        ],
+        ids=["zero_wheelbase", "negative_track_steer", "zero_wheel_radius"],
+    )
+    def test_invalid_geometry_raises(
+        self, wb: float, ts: float, tm: float, r: float, match: str
+    ) -> None:
+        with pytest.raises(ValueError, match=match):
+            ackermann_command(1.0, 0.0, wb, ts, tm, r)

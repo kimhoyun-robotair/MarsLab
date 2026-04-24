@@ -56,65 +56,84 @@ def load_terrain_elevation(
 
     if source == "procedural":
         preset = terrain_cfg.get("procedural_preset", "flat")
-        size = tuple(terrain_cfg.get("terrain_size", [256, 256]))
-        seed = int(terrain_cfg.get("seed", 42))
-
         if preset == "cave":
-            from marslab.terrain.cave_generator import generate_cave_mesh
-
-            cave_cfg = terrain_cfg.get("cave", {})
-            # ``wall_albedo_range`` is consumed by the material applicator,
-            # ``geometry`` (R5) is a nested block used by future generator
-            # tuning -- neither is a kwarg of ``generate_cave_mesh``.
-            _cave_exclude = {"wall_albedo_range", "geometry"}
-            geom_cfg = {k: v for k, v in cave_cfg.items() if k not in _cave_exclude}
-            cave_data = generate_cave_mesh(
-                domain_size=size,
-                resolution=resolution,
-                seed=seed,
-                **geom_cfg,
-            )
-            elevation = cave_data["surface_elevation"]
-            metadata = cave_data["metadata"]
-            # Stash so scene builder can pick it up without a second generation pass.
-            terrain_cfg["_cave_data"] = cave_data
-            return elevation, metadata, resolution
-
-        from marslab.terrain.procedural_generator import generate_terrain
-
-        preset_params = {k: v for k, v in terrain_cfg.items() if k.startswith("canyon_")}
-        elevation, metadata = generate_terrain(
-            preset,
-            size,
-            resolution,
-            seed,
-            kwargs=preset_params,
-        )
-        return elevation, metadata, resolution
+            return _load_cave(terrain_cfg, resolution)
+        return _load_procedural(terrain_cfg, preset, resolution)
 
     if source == "hirise":
-        from marslab.terrain.dem_loader import crop_dem, load_converted_dem
-
-        converted_dir = terrain_cfg.get("converted_dem_dir")
-        if converted_dir is None:
-            raise ValueError("terrain.converted_dem_dir required for source='hirise'")
-
-        dem_dir = (
-            converted_dir if os.path.isabs(converted_dir) else os.path.join(root, converted_dir)
-        )
-        elevation, metadata = load_converted_dem(dem_dir)
-        resolution = float(metadata.get("resolution_x", resolution))
-
-        crop = terrain_cfg.get("dem_crop")
-        if crop is not None:
-            elevation, metadata = crop_dem(
-                elevation,
-                metadata,
-                row=int(crop["row"]),
-                col=int(crop["col"]),
-                height=int(crop["height"]),
-                width=int(crop["width"]),
-            )
-        return elevation, metadata, resolution
+        return _load_hirise(terrain_cfg, root, resolution)
 
     raise ValueError(f"Unknown terrain source: {source!r}")
+
+
+def _load_cave(
+    terrain_cfg: Dict[str, Any], resolution: float
+) -> Tuple[np.ndarray, Dict[str, Any], float]:
+    """Generate a cave elevation grid and stash the full generator payload."""
+    from marslab.terrain.cave_generator import generate_cave_mesh
+
+    size = tuple(terrain_cfg.get("terrain_size", [256, 256]))
+    seed = int(terrain_cfg.get("seed", 42))
+    cave_cfg = terrain_cfg.get("cave", {})
+    # ``wall_albedo_range`` is consumed by the material applicator,
+    # ``geometry`` (R5) is a nested block used by future generator
+    # tuning -- neither is a kwarg of ``generate_cave_mesh``.
+    _cave_exclude = {"wall_albedo_range", "geometry"}
+    geom_cfg = {k: v for k, v in cave_cfg.items() if k not in _cave_exclude}
+    cave_data = generate_cave_mesh(
+        domain_size=size,
+        resolution=resolution,
+        seed=seed,
+        **geom_cfg,
+    )
+    elevation = cave_data["surface_elevation"]
+    metadata = cave_data["metadata"]
+    # Stash so scene builder can pick it up without a second generation pass.
+    terrain_cfg["_cave_data"] = cave_data
+    return elevation, metadata, resolution
+
+
+def _load_procedural(
+    terrain_cfg: Dict[str, Any], preset: str, resolution: float
+) -> Tuple[np.ndarray, Dict[str, Any], float]:
+    """Generate a procedural (flat/crater/hills/rocky_plain/canyon) elevation grid."""
+    from marslab.terrain.procedural_generator import generate_terrain
+
+    size = tuple(terrain_cfg.get("terrain_size", [256, 256]))
+    seed = int(terrain_cfg.get("seed", 42))
+    preset_params = {k: v for k, v in terrain_cfg.items() if k.startswith("canyon_")}
+    elevation, metadata = generate_terrain(
+        preset,
+        size,
+        resolution,
+        seed,
+        kwargs=preset_params,
+    )
+    return elevation, metadata, resolution
+
+
+def _load_hirise(
+    terrain_cfg: Dict[str, Any], root: str, resolution: float
+) -> Tuple[np.ndarray, Dict[str, Any], float]:
+    """Load a pre-converted HiRISE DEM and apply an optional crop window."""
+    from marslab.terrain.dem_loader import crop_dem, load_converted_dem
+
+    converted_dir = terrain_cfg.get("converted_dem_dir")
+    if converted_dir is None:
+        raise ValueError("terrain.converted_dem_dir required for source='hirise'")
+
+    dem_dir = converted_dir if os.path.isabs(converted_dir) else os.path.join(root, converted_dir)
+    elevation, metadata = load_converted_dem(dem_dir)
+    resolution = float(metadata.get("resolution_x", resolution))
+
+    crop = terrain_cfg.get("dem_crop")
+    if crop is not None:
+        elevation, metadata = crop_dem(
+            elevation,
+            metadata,
+            row=int(crop["row"]),
+            col=int(crop["col"]),
+            height=int(crop["height"]),
+            width=int(crop["width"]),
+        )
+    return elevation, metadata, resolution

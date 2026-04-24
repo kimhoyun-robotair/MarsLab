@@ -1,17 +1,4 @@
-"""Unit tests for :mod:`marslab.sensors.sensor_spawner`.
-
-Isaac Sim is unavailable in the unit-test environment, so
-``isaacsim.sensors.*`` and ``pxr`` are stubbed via ``sys.modules``
-monkeypatching.  The tests exercise the orchestrator logic end-to-end:
-
-* all four sensors active → every :class:`SensorHandles` field populated,
-* ``lidar_2d`` absent → the 2D slot stays ``None``,
-* camera with non-zero RPY → parent Xform path is constructed and the
-  Camera prim is nested under it,
-* camera with zero RPY → Camera prim path is a direct child of the
-  rigid body,
-* IMU frequency passed through from ``ros2_cfg["rates"]["imu"]``.
-"""
+"""Unit tests for marslab.sensors.sensor_spawner (isaacsim.sensors/pxr stubbed)."""
 
 from __future__ import annotations
 

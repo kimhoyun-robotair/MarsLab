@@ -27,10 +27,7 @@ def load_config(config_path: str) -> MarsLabConfig:
     with open(abs_path, "r") as f:
         data = yaml.safe_load(f)
 
-    if data is None:
-        data = {}
-
-    return MarsLabConfig(**data)
+    return MarsLabConfig(**(data or {}))
 
 
 def propagate_seeds(config: MarsLabConfig, master_seed: int | None = None) -> MarsLabConfig:
@@ -129,9 +126,7 @@ def load_and_validate(
     if not os.path.isfile(abs_path):
         raise FileNotFoundError(f"Configuration file not found: {abs_path}")
 
-    data = read_yaml(abs_path)
-    if not isinstance(data, dict):
-        data = {}
+    data = read_yaml(abs_path)  # read_yaml returns {} for empty, raises on non-mapping.
 
     if "base_config" in data:
         base_rel = data.pop("base_config")
@@ -143,11 +138,6 @@ def load_and_validate(
         )
         if not os.path.isfile(base_abs):
             raise FileNotFoundError(f"base_config referenced by {abs_path} not found: {base_abs}")
-        base = read_yaml(base_abs)
-        if not isinstance(base, dict):
-            base = {}
-        data = deep_merge(base, data)
+        data = deep_merge(read_yaml(base_abs), data)
 
-    config = MarsLabConfig(**data)
-    config = propagate_seeds(config, master_seed=master_seed)
-    return config
+    return propagate_seeds(MarsLabConfig(**data), master_seed=master_seed)

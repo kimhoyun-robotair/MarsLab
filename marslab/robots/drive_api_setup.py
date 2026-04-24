@@ -97,15 +97,9 @@ def configure_drives(
     steer_joint_names = list(control_cfg["steer_joint_names"])
     suspension_names = list(control_cfg.get("suspension_joint_names", []))
 
-    # R2-A3 + R2-4a (2026-04-22/23): G5 — all six values below are required
-    # keys in the ``control:`` block. The old ``.get(..., <python-literal>)``
-    # fallbacks were dead code (Python defaults never matched
-    # ``configs/robots/rover_m2020.yaml``; relying on the fallback would have
-    # silently driven the rover with wrong gains / forces). See
-    # ``marslab.config.schema.robot.SkidSteerDriveConfig`` for the canonical
-    # spec; this module mirrors those requirements at the dict boundary so a
-    # missing YAML key raises ``KeyError`` at load time instead of propagating
-    # a Python literal into PhysX.
+    # R2-A3 + R2-4a: G5 — all keys below are required in the ``control:``
+    # block. ``SkidSteerDriveConfig`` validates at load time so a missing YAML
+    # key raises ``KeyError`` rather than silently substituting a literal.
     drive_damping = float(control_cfg["drive_damping"])
     drive_max_force = float(control_cfg["drive_max_force"])
     steer_stiffness = float(control_cfg["steer_stiffness"])
@@ -170,9 +164,8 @@ def reinforce_pd_gains(
     steer_joint_names = list(control_cfg["steer_joint_names"])
     suspension_names = list(control_cfg.get("suspension_joint_names", []))
 
-    # R2-A3 + R2-4a: see rationale in ``configure_drives`` above. All four
-    # keys are required — ``SkidSteerDriveConfig`` validates them at load
-    # time.
+    # R2-A3 + R2-4a: see ``configure_drives``; all required keys validated by
+    # ``SkidSteerDriveConfig`` at load time.
     drive_damping = float(control_cfg["drive_damping"])
     steer_stiffness = float(control_cfg["steer_stiffness"])
     steer_damping = float(control_cfg["steer_damping"])

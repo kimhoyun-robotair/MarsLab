@@ -1,13 +1,4 @@
-"""Module-focused tests for ``marslab.config.schema.mars_env``.
-
-R8-5 (2026-04-23) added this file to exercise ``MarsEnvConfig`` at the
-domain-module level (field existence, invalid tau rejection, default
-gravity, YAML round-trip) independently of the aggregated
-``test_config_schema.py`` suite. Coverage here intentionally does not
-duplicate the existing atmosphere / dynamic-atmosphere tests — it
-focuses on the leaf ``MarsEnvConfig`` invariants that matter for the
-Mars physics guarantees called out in CLAUDE.md Testing Requirements.
-"""
+"""Module-focused tests for marslab.config.schema.mars_env.MarsEnvConfig (R8-5)."""
 
 from __future__ import annotations
 

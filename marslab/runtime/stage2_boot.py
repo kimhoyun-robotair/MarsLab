@@ -2,14 +2,9 @@
 
 Loads the scenario config, resolves DEM paths, and pre-computes every
 atmospheric parameter (sun position, direct intensity, diffuse fraction,
-sky dome params) before Isaac Sim is launched. Keeping this step pure
-Python lets the unit test suite exercise it without a GPU (P3).
-
-Data flow (P2 unidirectional):
-    Config YAML -> load_runtime_config_dict -> validate required sections
-    -> load_scenario_terrain (offline) -> resolve_dem_paths
-    -> static atmosphere pre-compute -> DynamicAtmosphereConfig parse
-    -> StageTwoBootResult (frozen dataclass consumed by scene + loop).
+sky dome params) before Isaac Sim is launched. Pure Python so the unit
+test suite can exercise it without a GPU (P3). Returns a frozen
+:class:`StageTwoBootResult` consumed downstream by the scene + loop stages.
 """
 
 from __future__ import annotations
@@ -21,6 +16,7 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 
+from marslab.config.loader import propagate_seeds_in_dict
 from marslab.config.schema import DynamicAtmosphereConfig, MarsEnvConfig
 from marslab.runtime.config_loader import load_runtime_config_dict
 from marslab.terrain.terrain_loader import load_scenario_terrain, resolve_dem_paths
@@ -133,6 +129,10 @@ def run_stage2_boot(config_path: str, repo_root: str = REPO_ROOT) -> StageTwoBoo
 
     abs_config_path = os.path.abspath(config_path)
     cfg = load_runtime_config_dict(abs_config_path)
+    # G7 (2026-04-24): enforce ``terrain.seed == mars_env.seed + 1`` on the
+    # raw dict path so Stage 2/3 callers share a single seed-propagation
+    # site.  Pydantic's ``propagate_seeds`` already covers the typed path.
+    cfg = propagate_seeds_in_dict(cfg)
     for key in _REQUIRED_SECTIONS:
         if key not in cfg:
             raise ValueError(f"Config missing required section: '{key}'")

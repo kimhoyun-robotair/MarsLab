@@ -14,12 +14,6 @@ RING_PTS = 20
 
 
 @pytest.fixture()
-def rng():
-    """Deterministic rng per test."""
-    return np.random.default_rng(42)
-
-
-@pytest.fixture()
 def geometry(rng):
     """Shared centerline / cross_sections for breakdown tests."""
     centerline = build_centerline(DOMAIN_M, 0.0, 0.15, N_STATIONS, 0.0, rng)

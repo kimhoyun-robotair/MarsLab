@@ -1,9 +1,4 @@
-"""Unit tests for :func:`marslab.sim.world_setup.create_world`.
-
-The Isaac Sim + USD surfaces are stubbed so the gravity sign, solver
-type, and PhysxScene solver iteration counts can be verified without
-a live Kit app.
-"""
+"""Unit tests for marslab.sim.world_setup.create_world (Isaac Sim stubbed)."""
 
 from __future__ import annotations
 

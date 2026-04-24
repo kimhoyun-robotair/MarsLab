@@ -41,7 +41,20 @@ def read_yaml(path: str) -> Dict[str, Any]:
         ValueError: If the YAML root is not a mapping.
     """
     if not os.path.isfile(path):
-        raise FileNotFoundError(_format_missing_file_message(path))
+        # List up to 8 sibling YAMLs so a mistyped path (trailing ``2``,
+        # ``.yml`` vs ``.yaml``) is diagnosable without a separate ``ls``.
+        parent = os.path.dirname(path) or "."
+        nearby: list[str] = []
+        if os.path.isdir(parent):
+            for name in sorted(os.listdir(parent)):
+                if name.endswith((".yaml", ".yml")):
+                    nearby.append(name)
+                if len(nearby) >= 8:
+                    break
+        msg = f"Config not found: {path!r}"
+        if nearby:
+            msg += f" (nearby YAMLs in {parent}: {', '.join(nearby)})"
+        raise FileNotFoundError(msg)
     with open(path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     if data is None:
@@ -49,27 +62,6 @@ def read_yaml(path: str) -> Dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"YAML root must be a mapping: {path}")
     return data
-
-
-def _format_missing_file_message(path: str) -> str:
-    """Build a FileNotFoundError message that lists sibling YAMLs.
-
-    When a user mistypes a scenario path (trailing ``2``, stray ``.yml``
-    vs ``.yaml``, etc.), showing up to 8 real YAML files in the same
-    directory lets them fix the typo without a separate ``ls`` step.
-    """
-    parent = os.path.dirname(path) or "."
-    nearby: list[str] = []
-    if os.path.isdir(parent):
-        for name in sorted(os.listdir(parent)):
-            if name.endswith((".yaml", ".yml")):
-                nearby.append(name)
-            if len(nearby) >= 8:
-                break
-    if nearby:
-        listing = ", ".join(nearby)
-        return f"Config not found: {path!r} (nearby YAMLs in {parent}: {listing})"
-    return f"Config not found: {path!r}"
 
 
 def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:

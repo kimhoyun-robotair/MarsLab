@@ -1,10 +1,4 @@
-"""Unit tests for :mod:`marslab.robots.drive_api_setup` (R4-3).
-
-The module touches USD DriveAPI + Isaac Sim Articulation surfaces.  We
-stub ``pxr.Sdf`` + ``pxr.UsdPhysics`` via ``sys.modules`` so all three
-functions (``_apply_drive_api``, ``configure_drives``, ``reinforce_pd_gains``)
-can be exercised without a live Kit app.
-"""
+"""Unit tests for marslab.robots.drive_api_setup (R4-3). pxr stubbed."""
 
 from __future__ import annotations
 

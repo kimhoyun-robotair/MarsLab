@@ -1,18 +1,4 @@
-"""Offline-first unit tests for :mod:`marslab.runtime.main_loop` (R6-1).
-
-These tests lock down the public surface of the main-loop facade without
-booting Isaac Sim.  They:
-
-*   Verify ``LoopContext`` exposes every field the twin monolithic runner
-    populates.
-*   Confirm the three state dataclasses (``ControlState``,
-    ``AtmosphereLoopState``, ``OdomPublishState``) have the documented
-    default values.
-*   Check that :func:`run_main_loop` declares an ``int`` return annotation
-    so shutdown semantics match the Oracle contract.
-
-No Isaac Sim, no ROS2, no filesystem writes.
-"""
+"""Offline-first unit tests for marslab.runtime.main_loop facade (R6-1)."""
 
 from __future__ import annotations
 

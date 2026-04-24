@@ -1,15 +1,4 @@
-"""Unit tests for :mod:`marslab.ros2_bridge.cmd_vel_subscriber`.
-
-R8-5 (2026-04-23). The subscriber copies ``linear.x`` / ``angular.z``
-from incoming ``Twist`` messages into a shared state dict. These tests
-cover the happy path (Twist -> wheel state), the 0-cmd resting state,
-and the safety limit enforced by the state-dict contract.
-
-R4-5 made ``queue_size`` keyword-only with *no* Python default; every
-call site must source the value from
-:class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig` so the tests
-always pass it explicitly.
-"""
+"""Unit tests for marslab.ros2_bridge.cmd_vel_subscriber (R8-5). Twist -> wheel state."""
 
 from __future__ import annotations
 

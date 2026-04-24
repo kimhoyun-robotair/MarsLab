@@ -1,10 +1,4 @@
-"""Structural / schema tests for stage2 scene + loop modules.
-
-These modules carry Isaac Sim imports inside function bodies only; we
-assert that the module-level import surface stays P3-safe and that the
-public functions advertise the expected signatures so callers (the thin
-``scripts/phase1/run_stage2.py`` shim) remain unbroken after the split.
-"""
+"""Structural / schema tests for stage2 scene + loop modules (P3-safe surface)."""
 
 from __future__ import annotations
 

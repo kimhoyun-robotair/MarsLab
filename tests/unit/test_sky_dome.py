@@ -15,11 +15,11 @@ def test_butterscotch_at_low_tau():
     assert r > g > b, f"Expected R > G > B, got ({r}, {g}, {b})"
 
 
-def test_brightness_positive():
+@pytest.mark.parametrize("tau", [0.1, 0.5, 1.0, 2.0, 3.0])
+def test_brightness_positive(tau: float) -> None:
     """Brightness is always positive."""
-    for tau in [0.1, 0.5, 1.0, 2.0, 3.0]:
-        sky = compute_sky_dome_params(tau, "assets/sky/hdri/")
-        assert sky.brightness > 0
+    sky = compute_sky_dome_params(tau, "assets/sky/hdri/")
+    assert sky.brightness > 0
 
 
 def test_brightness_decreases_with_tau():
@@ -45,12 +45,12 @@ def test_negative_tau_raises():
         compute_sky_dome_params(-0.1, "assets/sky/hdri/")
 
 
-def test_color_rgb_range():
+@pytest.mark.parametrize("tau", [0.0, 0.3, 1.0, 3.0, 5.0])
+def test_color_rgb_range(tau: float) -> None:
     """All color channels are in [0, 1]."""
-    for tau in [0.0, 0.3, 1.0, 3.0, 5.0]:
-        sky = compute_sky_dome_params(tau, "assets/sky/hdri/")
-        for c in sky.base_color_rgb:
-            assert 0.0 <= c <= 1.0
+    sky = compute_sky_dome_params(tau, "assets/sky/hdri/")
+    for c in sky.base_color_rgb:
+        assert 0.0 <= c <= 1.0
 
 
 def test_hdri_selection_by_tau():

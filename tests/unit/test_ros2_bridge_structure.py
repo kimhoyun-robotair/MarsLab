@@ -1,11 +1,4 @@
-"""Import-level tests for marslab.ros2_bridge.
-
-These tests ensure the package assembles correctly and that the
-pure-Python surface (no rclpy, no Isaac Sim) is accessible without
-side-effects.  Behavioural tests for the quaternion math live in
-``test_odometry_math.py``; graph construction is exercised by the
-Stage-3 integration smoke (Isaac Sim required).
-"""
+"""Import-level tests for marslab.ros2_bridge (pure-Python surface, offline)."""
 
 from __future__ import annotations
 

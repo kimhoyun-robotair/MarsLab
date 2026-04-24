@@ -11,7 +11,7 @@ that the orchestrator then feeds into
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def _ns_topic(ns: str, name: str) -> str:
@@ -19,9 +19,15 @@ def _ns_topic(ns: str, name: str) -> str:
     return f"/{ns}/{name}"
 
 
-def _build_create_nodes() -> List[Tuple[str, str]]:
-    """List of ``(node_name, node_type)`` tuples for the Stage-3 graph."""
-    return [
+def _build_create_nodes(include_lidar_2d: bool = False) -> List[Tuple[str, str]]:
+    """List of ``(node_name, node_type)`` tuples for the Stage-3 graph.
+
+    Args:
+        include_lidar_2d: When True, appends the ``RPLidar2D`` +
+            ``Lidar2DHelper`` pair so a 2-D RTX LiDAR sensor can publish
+            ``sensor_msgs/LaserScan``.
+    """
+    nodes: List[Tuple[str, str]] = [
         ("OnTick", "omni.graph.action.OnPlaybackTick"),
         ("ReadSimTime", "isaacsim.core.nodes.IsaacReadSimulationTime"),
         ("PubClock", "isaacsim.ros2.bridge.ROS2PublishClock"),
@@ -35,11 +41,17 @@ def _build_create_nodes() -> List[Tuple[str, str]]:
         ("RPLidar3D", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
         ("Lidar3DHelper", "isaacsim.ros2.bridge.ROS2RtxLidarHelper"),
     ]
+    if include_lidar_2d:
+        nodes += [
+            ("RPLidar2D", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
+            ("Lidar2DHelper", "isaacsim.ros2.bridge.ROS2RtxLidarHelper"),
+        ]
+    return nodes
 
 
-def _build_connections() -> List[Tuple[str, str]]:
+def _build_connections(include_lidar_2d: bool = False) -> List[Tuple[str, str]]:
     """List of ``(src_attr, dst_attr)`` pairs describing graph edges."""
-    return [
+    edges: List[Tuple[str, str]] = [
         ("OnTick.outputs:tick", "PubClock.inputs:execIn"),
         ("ReadSimTime.outputs:simulationTime", "PubClock.inputs:timeStamp"),
         ("OnTick.outputs:tick", "PubTF.inputs:execIn"),
@@ -60,6 +72,13 @@ def _build_connections() -> List[Tuple[str, str]]:
         ("RPLidar3D.outputs:execOut", "Lidar3DHelper.inputs:execIn"),
         ("RPLidar3D.outputs:renderProductPath", "Lidar3DHelper.inputs:renderProductPath"),
     ]
+    if include_lidar_2d:
+        edges += [
+            ("OnTick.outputs:tick", "RPLidar2D.inputs:execIn"),
+            ("RPLidar2D.outputs:execOut", "Lidar2DHelper.inputs:execIn"),
+            ("RPLidar2D.outputs:renderProductPath", "Lidar2DHelper.inputs:renderProductPath"),
+        ]
+    return edges
 
 
 def _build_set_values(
@@ -69,14 +88,18 @@ def _build_set_values(
     camera_prim_path: str,
     camera_resolution: Tuple[int, int],
     lidar_3d_prim_path: str,
+    lidar_2d_prim_path: Optional[str] = None,
 ) -> List[Tuple[str, Any]]:
     """List of ``(attr, value)`` pairs applied via SET_VALUES.
 
     The articulation joint TF is published on ``/tf_raw`` so it does
     not collide with the rclpy ``odom->base_link`` publisher on
     ``/tf`` per user directive.
+
+    When ``lidar_2d_prim_path`` is provided **and** ``topics["scan"]`` is
+    defined, the 2-D LiDAR pair is appended (``laser_scan`` type).
     """
-    return [
+    values: List[Tuple[str, Any]] = [
         ("PubClock.inputs:topicName", "/clock"),
         ("PubTF.inputs:topicName", "/tf_raw"),
         ("ReadIMU.inputs:imuPrim", [imu_prim_path]),
@@ -99,6 +122,14 @@ def _build_set_values(
         ("Lidar3DHelper.inputs:frameId", "lidar_link"),
         ("Lidar3DHelper.inputs:type", "point_cloud"),
     ]
+    if lidar_2d_prim_path is not None and "scan" in topics:
+        values += [
+            ("RPLidar2D.inputs:cameraPrim", [lidar_2d_prim_path]),
+            ("Lidar2DHelper.inputs:topicName", _ns_topic(ns, topics["scan"])),
+            ("Lidar2DHelper.inputs:frameId", "scan_frame"),
+            ("Lidar2DHelper.inputs:type", "laser_scan"),
+        ]
+    return values
 
 
 __all__ = [

@@ -1,11 +1,4 @@
-"""Unit tests for :mod:`marslab.ros2_bridge.sensor_graph`.
-
-R8-5 (2026-04-23). Focuses on the orchestrator-level invariants that
-``test_sensor_graph_builder.py`` does not: the public ``GRAPH_PATH``
-constant, the re-export surface, the topic dict shape (RGB + Depth +
-IMU + LiDAR branches), and seed-style determinism (same ros2_cfg yields
-the same SET_VALUES list).
-"""
+"""Unit tests for marslab.ros2_bridge.sensor_graph orchestrator invariants (R8-5)."""
 
 from __future__ import annotations
 

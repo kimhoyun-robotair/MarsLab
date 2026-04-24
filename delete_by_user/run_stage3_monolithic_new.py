@@ -45,6 +45,7 @@ Usage:
     scripts/isaac_python.sh scripts/phase1/run_stage3_monolithic.py \\
         --config configs/scenarios/jezero_flat.yaml 2>&1 | tee ~/stage3.log
 """
+
 import os
 import sys
 from typing import Any, Dict, List, Tuple
@@ -69,7 +70,6 @@ from marslab.config.scenario_loader import (  # noqa: E402
     load_scenario_config,
     resolve_spawn_pose,
 )
-
 from marslab.math.quaternion import rpy_to_quat  # noqa: E402, F401
 from marslab.robots.rover_control import ackermann_command  # noqa: E402
 

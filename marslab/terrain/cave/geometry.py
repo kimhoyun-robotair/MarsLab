@@ -142,12 +142,10 @@ def build_cross_sections(
     else:
         smooth_noise = np.zeros_like(smooth_noise)
 
-    profiles = np.zeros((n_stations, ring_pts, 2), dtype=np.float64)
-    for i in range(n_stations):
-        scale = 1.0 + smooth_noise[i]
-        profiles[i, :, 0] = base_x * scale
-        profiles[i, :, 1] = base_z * scale
-
+    scale = 1.0 + smooth_noise  # (n_stations, ring_pts)
+    profiles = np.empty((n_stations, ring_pts, 2), dtype=np.float64)
+    profiles[..., 0] = base_x * scale
+    profiles[..., 1] = base_z * scale
     return profiles
 
 
@@ -168,22 +166,13 @@ def tangent_frames(centerline: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     n = len(centerline)
     tangent = np.zeros((n, 3), dtype=np.float64)
-
     tangent[1:-1] = centerline[2:] - centerline[:-2]
     tangent[0] = centerline[1] - centerline[0]
     tangent[-1] = centerline[-1] - centerline[-2]
-
-    norms = np.linalg.norm(tangent, axis=1, keepdims=True)
-    norms = np.maximum(norms, 1e-8)
-    tangent = tangent / norms
+    tangent = tangent / np.maximum(np.linalg.norm(tangent, axis=1, keepdims=True), 1e-8)
 
     perp = np.zeros_like(tangent)
     perp[:, 0] = -tangent[:, 1]
     perp[:, 1] = tangent[:, 0]
-    perp[:, 2] = 0.0
-
-    perp_norms = np.linalg.norm(perp, axis=1, keepdims=True)
-    perp_norms = np.maximum(perp_norms, 1e-8)
-    perp = perp / perp_norms
-
+    perp = perp / np.maximum(np.linalg.norm(perp, axis=1, keepdims=True), 1e-8)
     return tangent, perp

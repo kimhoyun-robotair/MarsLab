@@ -17,12 +17,6 @@ RING_PTS = 20
 
 
 @pytest.fixture()
-def rng():
-    """Fresh deterministic rng for each test."""
-    return np.random.default_rng(42)
-
-
-@pytest.fixture()
 def centerline(rng):
     """Default centerline for a 100x100 m domain, 30 stations."""
     return build_centerline(DOMAIN_M, 0.0, 0.15, N_STATIONS, 0.0, rng)

@@ -1,11 +1,8 @@
 """World + Mars gravity + PhysxScene solver iteration setup.
 
-Extracted from ``scripts/phase1/run_stage3_monolithic_new.py``
-L426-462 during R4-1 so the Mars gravity / solver iteration knobs
-live in one tested spot.
-
-``create_world`` assumes ``boot_simulation_app`` has already been
-called -- the Isaac Sim imports only resolve after Kit is alive.
+Extracted during R4-1 so the Mars gravity / solver iteration knobs live in
+one tested spot. ``create_world`` assumes ``boot_simulation_app`` has already
+been called — the Isaac Sim imports only resolve after Kit is alive.
 """
 
 from __future__ import annotations

@@ -1,10 +1,4 @@
-"""Unit tests for :mod:`marslab.terrain.terrain_loader` (R3-A3 facade).
-
-Covers the thin Option-B facade plus the scenario-wide DEM-path resolver.
-All tests are offline (P3) — procedural branches generate real terrain,
-while cave and HiRISE branches use ``monkeypatch`` to stub the heavy
-generator / loader so the suite remains fast and dependency-light.
-"""
+"""Unit tests for marslab.terrain.terrain_loader facade + DEM-path resolver (offline, R3-A3)."""
 
 from __future__ import annotations
 

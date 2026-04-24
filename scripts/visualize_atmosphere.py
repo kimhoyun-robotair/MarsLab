@@ -82,16 +82,8 @@ def main() -> None:
 
     # Plot 4: Total irradiance breakdown
     ax4 = axes[1, 1]
-    total = []
-    direct_part = []
-    diffuse_part = []
-    for t in taus:
-        d = compute_direct_intensity(solar_constant, t, zenith)
-        df = compute_diffuse_fraction(t)
-        total_irr = d / (1.0 - df) if df < 1.0 else d
-        direct_part.append(d)
-        diffuse_part.append(total_irr - d)
-        total.append(total_irr)
+    direct_part = list(direct)
+    total = [d / (1.0 - df) if df < 1.0 else d for d, df in zip(direct_part, diffuse_frac)]
 
     ax4.fill_between(taus, 0, direct_part, alpha=0.6, label="Direct", color="gold")
     ax4.fill_between(taus, direct_part, total, alpha=0.6, label="Diffuse", color="lightskyblue")

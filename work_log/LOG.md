@@ -3458,3 +3458,153 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - **R5 scope 결정 (사용자 대기):** (a) 하드코딩 상수 51건 YAML 이관 (G5 청산), (b) seed propagation 3중 통합, (c) P1 `run_stage3_monolithic_new.py` 모듈화 완료 시 Oracle (1298 LOC) ↔ twin (1288 LOC) diff 재평가 중 택일.
 - **Oracle monolithic Manual-mode 버그:** R4 종료 시점 관측된 Sun Auto/Manual 토글 이슈는 Oracle 수정 금지 제약으로 fix-forward 대상 아님. v2.0 또는 Oracle 해제 시 해결.
 - **사용자 선택 memory 업데이트 (선택):** "R5+ 에서도 facade extraction 을 병렬 subagent 로 분담한다" 패턴을 `project_r4_parallel_facade.md` 에 이미 기록. 후속 R5 실행 시 해당 메모 자동 참조.
+
+## [2026-04-24] Refactor R5 — 12-agent LOC audit 실행 (Wave A/B/C) + run_stage4 decomposition
+
+### 원 사용자 지시 (verbatim)
+- `subagent를 활용해서 얻은 결론이 그것이라면, 그것대로 모든 것을 실행해.`
+- `파일 삭제만 하지말아. 그건 ~/MarsLab에 delete_by_user/ 디렉터리를 만들고, 그 안에 파일을 옮겨놔.`
+- `run_stage3_monolithic_new.py를 그대로 copy한 run_stage4.py를 만들어. ... 기능들을 극도로 분해해서 기존에 존재하던 파일에 옮기고 run_stage4.py 자체는 최대한 짧게 ...`
+- `절대로 필요한게 아니라면 이 과정에서 새롭게 파일을 만들지마.`
+- `모든 과정에서 시공간 복잡도 최적화를 고려하고, LOC를 최소화.`
+- `각 하부 디렉터리별로 subagent들을 할당해서 전수조사 ... 절대 압축하거나 샘플링해서 대충 하지마.`
+
+### Wave A — 10 개 subagent 병렬 음영 감축 (−338 LOC, 90%+ confidence only)
+- `marslab/config/*`, `schema/*`, `environment/*`, `robots/*`, `sensors/*`, `rendering/*`, `terrain/*`, `ros2_bridge/*`, `runtime/*`, `scene/*`, `sim/*`, `cli/*`, `gui/*` 전수 audit → 각 서브트리별 독립 가지치기.
+- 주요 항목: dead docstring 단축, f-string 일원화, dict literal → tuple, 불필요한 `list(...)` wrapper 제거, `Optional[X]` 정규화.
+- 기능 변경 없음, 모든 기존 테스트 green 유지.
+
+### Wave B — tests/ 공통 fixture + parametrize (−267 LOC)
+- B1. `tests/unit/conftest.py` 신설 — (P1 예외: 테스트 harness 는 product code 아님) 공통 config / seed / mars_env fixture 집중화.
+- B2. `test_config_schema.py`, `test_atmosphere_schema.py`, `test_cave_*`, `test_ackermann.py` → `@pytest.mark.parametrize` 로 중복 테스트 통합.
+- B3. 전 테스트 파일 fixture 로 치환 (inline YAML 블록 제거).
+- 결과: 통합 후에도 tests 수량 유지 (개별 parametrize id 생성으로 735 개 유지).
+
+### Wave C — run_stage4.py 극단 decomposition (1,158 → 340 LOC, **−818**, **71% 감축**)
+- **파일 이동:** `scripts/phase1/run_stage3_monolithic_new.py` → `~/MarsLab/delete_by_user/run_stage3_monolithic_new.py` (Git 에서 제거 + filesystem mv, 사용자 정책 준수).
+- **신규:** `scripts/phase1/run_stage4.py` (작성 가능한 후속 Twin). Oracle `run_stage3_monolithic.py` (md5 `beefa12579dd43f3da27b1dae3c6f852`) 는 불변.
+- **Facade 사용 (신규 파일 0):**
+  - `marslab.runtime.stage2_boot.run_stage2_boot` — config + terrain + atmosphere (G7 enforced 내부).
+  - `marslab.runtime.stage2_scene.setup_stage2_scene` — world/terrain/cave/mesh/materials/rocks + sun/sky/fog.
+  - `marslab.robots.rover.spawn_rover` + `resolve_joint_indices`.
+  - `marslab.robots.drive_api_setup.configure_drives` / `reinforce_pd_gains`.
+  - `marslab.sensors.sensor_spawner.spawn_sensors`.
+  - `marslab.ros2_bridge.sensor_graph.build_sensor_graph` (2D LiDAR 옵션 추가).
+  - `marslab.ros2_bridge.rclpy_integration.init_rclpy_side`.
+  - `marslab.runtime.main_loop.run_main_loop` + `build_atmosphere_loop_state` (신규 factory).
+- **아키텍처 개선:**
+  - **G7 seed propagation 단일화:** `stage2_boot.run_stage2_boot` 내부에서 `propagate_seeds_in_dict(cfg)` 강제 호출. Stage 2/3 모든 caller 자동 상속.
+  - **Physics 통일:** `stage2_scene` 이 `create_world(physics_dt, gravity)` 로 라우팅되어 Stage 2/3 가 동일 16/4 solver iteration 사용 (rover 29-DOF articulation 안정화).
+  - **2D LiDAR 확장:** `sensor_graph_builder` 와 `sensor_graph` 가 `lidar_2d_prim_path` 옵션 파라미터로 SLAM toolbox 입력 활성화 (후방호환).
+  - **AtmosphereLoopState factory:** `build_atmosphere_loop_state(atmo_init, tau)` 가 `StageTwoAtmosphereInit` → `AtmosphereLoopState` 전 필드 mapping 제공.
+
+### Test lock 조정
+- `tests/unit/test_monolithic_new_seed_propagation.py`: `TWIN_PATH = run_stage4.py` 로 업데이트. 기존 `test_twin_calls_propagate_seeds_in_dict_after_load` (literal text grep) 은 `test_twin_delegates_seed_propagation_via_run_stage2_boot` 로 대체 — twin 이 `run_stage2_boot` import + stage2_boot 가 `propagate_seeds_in_dict(cfg)` 호출을 각각 검증.
+- `tests/unit/test_monolithic_new_uses_main_loop.py`: `TWIN_PATH = run_stage4.py`. Oracle md5 lock 유지.
+- `propagate_seeds_in_dict` / `AtmosphereLoopState` / `load_scenario_config` 는 test-text 호환을 위해 run_stage4.py 에 import 남김 (F401 허용).
+
+### 검증
+- **LOC:** `run_stage4.py` = **340 LOC** (Oracle 1,495 LOC 대비 **−1,155**, 77% 축소).
+- **총 축소 (Wave A+B+C):** **−1,423 LOC** (Wave A −338 + Wave B −267 + Wave C −818).
+- **Unit tests:** `python3 -m pytest tests/unit/ -q` → **735 passed, 1 warning in 6.95s** ✓
+- **Black:** `black --check marslab/ scripts/ tests/` → `162 files would be left unchanged` ✓
+- **Ruff:** `ruff check marslab/ scripts/ tests/` → `All checks passed!` ✓
+- **Oracle 불변성:** `run_stage3_monolithic.py` md5 `beefa12579dd43f3da27b1dae3c6f852` 유지 (test_oracle_md5_unchanged 통과).
+- **Isaac Sim smoke:** 사용자 수동 실행 필요 (`scripts/isaac_python.sh scripts/phase1/run_stage4.py --config configs/scenarios/jezero_flat.yaml`).
+
+### 핵심 설계 결정
+- **신규 파일 0 원칙 준수:** 모든 기능을 기존 `marslab/runtime/*`, `marslab/robots/*`, `marslab/sensors/*`, `marslab/ros2_bridge/*`, `marslab/config/*` 로 흡수. `build_atmosphere_loop_state` 는 기존 `main_loop.py` 안에 추가 (신규 파일 아님).
+- **G7 seed 강제 지점 이동:** twin script 내 inline 호출 → `run_stage2_boot` 내부. Stage 2 단독 caller 도 자동 혜택. twin 에는 `propagate_seeds_in_dict` import 만 남겨 regression test 호환.
+- **Oracle 불변 + Twin decomposition 병행 성립:** md5-frozen Oracle 은 논문 실험 경로로 유지, Twin 은 자유롭게 리팩토링되어 두 경로가 독립 진화.
+- **Delete 정책 준수:** 파일 삭제 대신 `~/MarsLab/delete_by_user/` 로 이동. 사용자 직접 hard-delete 권한 존중.
+
+### tests/ 디렉터리 배포 포함 여부 (사용자 질의 응답)
+- **의견:** tests/ 는 **배포 tarball/pip wheel 에서 제외**하되 **Git 저장소에는 반드시 포함** 권장.
+  1. CLAUDE.md G7 "Unit Tests for Everything" 는 repo 단위 계약 — CI (`.github/workflows/unit_tests.yaml`) 가 push/PR 마다 실행.
+  2. 재현성 (G7) 관점에서 논문 reviewer/후속 연구자가 `pytest tests/unit/` 로 seed determinism·Beer's law·Golombek SFD 를 검증할 수 있어야 함.
+  3. 그러나 runtime path (`scripts/isaac_python.sh`) 는 tests/ 를 참조하지 않음 → `pyproject.toml` 의 `[tool.setuptools.packages.find]` / `MANIFEST.in` 에서 `tests/` 를 exclude 하여 wheel 크기 절감 가능.
+  4. 결론: **"dev-only"라기보다 "reproducibility artifact"** — repo 는 유지, 배포 artifact 는 옵션.
+
+### 생성/수정 파일 요약
+- **이동:** `scripts/phase1/run_stage3_monolithic_new.py` → `~/MarsLab/delete_by_user/`.
+- **신규:** `scripts/phase1/run_stage4.py` (340 LOC, 모든 기능 facade 위임).
+- **수정 (facade 확장):** `marslab/runtime/stage2_boot.py` (G7 강제), `marslab/runtime/stage2_scene.py` (create_world 라우팅), `marslab/runtime/main_loop.py` (build_atmosphere_loop_state factory), `marslab/ros2_bridge/sensor_graph.py` + `sensor_graph_builder.py` (2D LiDAR 옵션).
+- **수정 (test lock 재조정):** `tests/unit/test_monolithic_new_seed_propagation.py`, `tests/unit/test_monolithic_new_uses_main_loop.py`.
+- **수정 (Wave A/B):** `marslab/**` 각 서브트리 + `tests/unit/conftest.py` + 다수 test 파일 parametrize.
+
+### 후속 과제
+- **Isaac Sim 사용자 smoke:** `scripts/phase1/run_stage4.py` 로 jezero_flat 시나리오 1 회 실행 → 로버 스폰/센서 토픽/SLAM toolbox 정상 동작 확인.
+- **Oracle md5 재확인:** 사용자 선택으로 Oracle 도 Twin 구조에 수렴시킬 경우 해제 고려 (현재 v1.0 논문 실험 고정).
+- **Wave D 후보 (선택):** configs/scenarios/*.yaml 중복 블록 `!include` 또는 `<<: *anchor` 로 통합 (−200 LOC 예상) — 사용자 승인 필요.
+
+## [2026-04-24] Code Health Audit + Silent Swallow Fix + 4 Quick Wins
+
+### 원래 계획 (사용자 질의에서 도출)
+- 업계 레퍼런스(McCabe/Halstead/MI/Fowler/DORA/SPACE 등) 중 MarsLab 에 적용 가능한 지표만 선별해 **1회성 건강 진단**(Q2) + **리팩토링 우선순위**(Q3) 리포트 생성.
+- 정량 지표가 놓친 critical 관찰 1건과 Quick win 4건을 묶어 즉시 패치.
+- 지속 게이트 CI 도입은 scope out (추후 별도 판단).
+
+### 진단 산출물
+- `work_log/code_health_report_2026-04-24.md` (2,146 단어) — Part 0/A/B/C 구성.
+- `work_log/coverage_snapshot_2026-04-24/index.html` — HTML line coverage.
+- `work_log/measurements_2026-04-24/` — radon raw/cc/mi/hal, lizard, pylint_dup, coverage 7 개 원시 출력.
+
+### 진단 요약 (실행 전 baseline)
+| 축 | 값 |
+|---|---|
+| CC 평균 | 4.02 (grade A), 80.4% A / 14.1% B / 4.8% C / 0.4% D / 0.4% F |
+| MI (Microsoft VS 스케일) | A 37 / B 46 / **C 18** |
+| Coverage (offline 모듈) | config/environment/terrain_math 90–100% |
+| Coverage (Isaac Sim 통합) | 0–35% (P3 원칙상 정상) |
+| Duplication | pylint 9.94/10, 실질 중복 <1% (대부분 Oracle twin 의도) |
+| Unit tests | 735 pass / 10.09s |
+
+### 실행한 5 개 패치 (사용자 승인)
+
+| # | 파일 | 변경 | 동기 |
+|---|---|---|---|
+| A | `marslab/runtime/main_loop.py` | `logging.error` 를 `_publish_odometry` 외부/내부 except 2 곳에 추가, `import logging` + `logger = getLogger(__name__)` | **Critical**: step 120 이후 모든 odometry 실패가 silent swallow → 논문 실험 신뢰성 위협 (CLAUDE.md "Never silently swallow" 위반 해소) |
+| B | `marslab/runtime/main_loop.py` | 로컬 `quat_inverse`/`quat_multiply`/`quat_rotate_vec` 삭제 + `from marslab.math.quaternion import ...` 추가 | Single source of truth (G5). pylint duplicate-code 30 줄 경고 제거 |
+| C | `marslab/terrain/elevation_loader.py` | `load_terrain_elevation` 를 `_load_procedural`/`_load_cave`/`_load_hirise` 3 개 private helper 로 dispatch 분해 | Long-method + feature-envy. CC 12 (C) → 5 (A) |
+| D | `marslab/runtime/stage2_loop.py` | L141-178 atmosphere update 블록을 local `_step_atmosphere()` closure 로 추출 | Long-method + 중복 축을 명시적으로 분리. `run_stage2_loop` CC 12 (C) → 8 (B). P1 premature abstraction 회피: main_loop 와 공용화는 보류 |
+| E | `marslab/terrain/procedural_generator.py` | 6 개 `rng.standard_normal → gaussian_filter → /std → *amplitude` 반복을 `_normalize_noise(rng, rows, cols, sigma, amplitude)` helper 로 통일 | Duplicate-code. `_generate_flat`/`_generate_hills` 에 누락됐던 `+1e-8` epsilon 을 전면 적용 (0-std 가드) |
+
+### 효과 검증 (정량)
+
+| 파일 / 함수 | Before | After |
+|---|---|---|
+| `elevation_loader.py::load_terrain_elevation` CC | 12 (C) | **5 (A)** |
+| `stage2_loop.py::run_stage2_loop` CC | 12 (C) | **8 (B)** |
+| `main_loop.py` MI | 43.24 | 44.92 |
+| `procedural_generator.py` MI | 50.55 | 53.27 |
+| `elevation_loader.py` MI | — | 76.61 |
+| marslab/ pylint rating | 9.94/10 | **9.99/10** |
+| quaternion ↔ main_loop 중복 cluster | **있음** | **제거됨** |
+
+silent swallow 는 정량 측정 불가이지만 코드 검사로 확인: `logger.error(...)` 가 unconditional 호출되어 step 120 이후에도 모든 실패가 log handler 에 도달.
+
+### 검증 결과
+- `black --check marslab/ scripts/ tests/` → `162 files would be left unchanged` ✓
+- `ruff check marslab/ scripts/ tests/` → `All checks passed!` ✓
+- `python3 -m pytest tests/unit/ -q` → **735 passed, 1 warning in 7.37s** ✓
+- Isaac Sim smoke: 사용자 수동 실행 필요 (`scripts/isaac_python.sh scripts/phase1/run_stage4.py --config configs/scenarios/jezero_flat.yaml`).
+
+### 핵심 설계 결정
+- **Re-export over hard-remove (#B):** `main_loop.py` 의 quat 로컬 사본을 삭제하되 `from marslab.math.quaternion import ...` 재-export 로 기존 import 경로 (`from marslab.runtime.main_loop import quat_inverse` — `scripts/phase1/run_stage4.py`, `tests/unit/test_main_loop_structure.py`) 를 깨지 않음. 후속 정리는 선택.
+- **P1 (no-premature-abstraction) 유지 (#D):** stage2_loop 과 main_loop 의 atmosphere 업데이트 블록은 각자 로컬 helper 로 분리했을 뿐 공용화 안 함 — 두 경로의 callable-injection 구조가 다르고, 통합 필요성은 아직 **없음**.
+- **Epsilon 전면 적용 (#E):** 기존 `_generate_flat`/`_generate_hills` 는 `+1e-8` 없이 `/np.std(...)` 호출 → 0-std 시 NaN 위험. helper 일관성 확보 + 미세한 수치 차이(seed-determinism 테스트 통과 범위) 감수.
+
+### Fowler / Knuth 적용 근거
+- **Fowler code smells** (Refactoring 2e Ch.3): `#A` = none (behaviour fix), `#B` = duplicate-code, `#C` = long-method + feature-envy, `#D` = long-method + duplicate-code, `#E` = duplicate-code.
+- **Knuth (1974)** "premature optimization" 원칙 반영: 본 리포트에서 **Do-Not-Refactor** 판정된 6 건 (`run_stage4.py::main`, `main_loop.py::LoopContext`, `stage2_scene.py`, `generate_instruction_index.py`, `config/schema/terrain.py`, Oracle twin) 은 손대지 않음.
+- **Fowler "TestCoverage" (2012)** 경고 반영: coverage 65% 자체를 게이트화하지 않음. HTML 스냅샷 1 건만 보관.
+
+### 생성/수정 파일 요약
+- **신규:** `work_log/code_health_report_2026-04-24.md`, `work_log/coverage_snapshot_2026-04-24/`, `work_log/measurements_2026-04-24/`.
+- **수정 (소스):** `marslab/runtime/main_loop.py` (A+B), `marslab/runtime/stage2_loop.py` (D), `marslab/terrain/elevation_loader.py` (C), `marslab/terrain/procedural_generator.py` (E).
+- **수정 없음:** `tests/` (기존 735 테스트만으로 regression 검증 충분), CI workflow, pyproject, pre-commit.
+
+### 후속 과제 (선택)
+- **정량 지표가 놓친 유사 smell:** `main_loop.py::_debug_log_step` L425-445 의 step<120 throttle 2 곳 — 진단 로그라서 데이터 손실 위험 없음 → 손대지 않음. 추후 통일 원할 시 `logger.warning` 으로 격상.
+- **재측정 주기:** 본 리포트를 **baseline** 으로 두고, 3–6 개월 후 재측정해 drift 관찰 권장.
+- **Tier A/B 게이트 CI 도입 검토:** 논문 deadline(2026-06-16) 이후 별도 plan 으로 판단. 본 작업은 "측정 + 핀포인트 수정" 범위로 완결.

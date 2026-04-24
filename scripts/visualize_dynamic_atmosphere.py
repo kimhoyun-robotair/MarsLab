@@ -46,12 +46,9 @@ def main() -> None:
     t_values = np.linspace(0.0, 1.0, 200)
 
     # --- Panel 1: Sun trajectory ---
-    azimuths = []
-    elevations = []
-    for t in t_values:
-        pos = compute_sol_sun_position(t)
-        azimuths.append(pos.azimuth_deg)
-        elevations.append(pos.elevation_deg)
+    sun_positions = [compute_sol_sun_position(t) for t in t_values]
+    azimuths = [pos.azimuth_deg for pos in sun_positions]
+    elevations = [pos.elevation_deg for pos in sun_positions]
 
     # --- Panel 2: Tau profiles ---
     tau_constant = [compute_tau("constant", t, base_tau=0.3) for t in t_values]
@@ -61,30 +58,32 @@ def main() -> None:
     ]
 
     # --- Panel 3: Direct irradiance ---
-    intensity_const = []
-    intensity_ramp = []
-    for t in t_values:
-        pos = compute_sol_sun_position(t)
-        i_c = compute_direct_intensity(solar_constant, 0.3, pos.zenith_angle_rad)
-        i_r = compute_direct_intensity(
+    intensity_const = [
+        compute_direct_intensity(solar_constant, 0.3, pos.zenith_angle_rad) for pos in sun_positions
+    ]
+    intensity_ramp = [
+        compute_direct_intensity(
             solar_constant,
             compute_tau("ramp", t, start_tau=0.3, end_tau=2.0),
             pos.zenith_angle_rad,
         )
-        intensity_const.append(i_c)
-        intensity_ramp.append(i_r)
+        for t, pos in zip(t_values, sun_positions)
+    ]
 
     # --- Panel 4: Sky color swatches ---
     swatch_times = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
-    swatch_colors_const = []
-    swatch_colors_ramp = []
-    for t in swatch_times:
-        tau_c = compute_tau("constant", min(t, 0.999), base_tau=0.3)
-        tau_r = compute_tau("ramp", min(t, 0.999), start_tau=0.3, end_tau=2.0)
-        sky_c = compute_sky_dome_params(tau_c, HDRI_DIR)
-        sky_r = compute_sky_dome_params(tau_r, HDRI_DIR)
-        swatch_colors_const.append(sky_c.base_color_rgb)
-        swatch_colors_ramp.append(sky_r.base_color_rgb)
+    swatch_colors_const = [
+        compute_sky_dome_params(
+            compute_tau("constant", min(t, 0.999), base_tau=0.3), HDRI_DIR
+        ).base_color_rgb
+        for t in swatch_times
+    ]
+    swatch_colors_ramp = [
+        compute_sky_dome_params(
+            compute_tau("ramp", min(t, 0.999), start_tau=0.3, end_tau=2.0), HDRI_DIR
+        ).base_color_rgb
+        for t in swatch_times
+    ]
 
     # --- Plot ---
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))

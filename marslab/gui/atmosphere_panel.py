@@ -132,8 +132,20 @@ class AtmospherePanel:
 
     def _update_slider_enabled(self) -> None:
         is_manual = self._state.get("sun_mode") == "manual"
-        self._az_slider.enabled = is_manual
-        self._el_slider.enabled = is_manual
+        # omni.ui FloatSlider widgets are owned by the VStack context; once
+        # the Python-side reference outlives the builder scope the C++ proxy
+        # may be finalized, so `.enabled` can raise AttributeError/RuntimeError
+        # even though the attribute binding still exists. Model-level gating
+        # in _on_{azimuth,elevation}_changed already enforces state safety,
+        # so silently skipping here is behaviourally equivalent.
+        for attr in ("_az_slider", "_el_slider"):
+            widget = getattr(self, attr, None)
+            if widget is None:
+                continue
+            try:
+                widget.enabled = is_manual
+            except (AttributeError, RuntimeError):
+                continue
 
     # --- Status formatting ---
 

@@ -1,9 +1,4 @@
-"""Unit tests for :func:`marslab.sim.boot.boot_simulation_app`.
-
-Isaac Sim is not available in the unit-test environment, so we stub
-``isaacsim.SimulationApp`` + ``isaacsim.core.utils.extensions`` via
-``sys.modules`` monkeypatching and assert on the call sequence.
-"""
+"""Unit tests for marslab.sim.boot.boot_simulation_app (isaacsim stubbed)."""
 
 from __future__ import annotations
 

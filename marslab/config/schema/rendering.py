@@ -43,8 +43,7 @@ class FogConfig(BaseModel):
     """
 
     enabled: bool = Field(
-        default=True,
-        description="Master switch written to ``/rtx/fog/enabled``.",
+        default=True, description="Master switch written to ``/rtx/fog/enabled``."
     )
     color_amount: float = Field(
         default=1.0,
@@ -62,10 +61,7 @@ class FogConfig(BaseModel):
     height_falloff: float = Field(
         default=0.01,
         ge=0.0,
-        description=(
-            "Exponential falloff rate above ``start_height``. Written "
-            "to ``/rtx/fog/fogHeightFalloff``."
-        ),
+        description="Exponential falloff above ``start_height`` (``/rtx/fog/fogHeightFalloff``).",
     )
     height_density_ratio: float = Field(
         default=0.5,
@@ -73,17 +69,15 @@ class FogConfig(BaseModel):
         le=2.0,
         description=(
             "Multiplier applied to the tau-derived density when setting "
-            "``/rtx/fog/fogHeightDensity`` (ratio of height to distance "
-            "density)."
+            "``/rtx/fog/fogHeightDensity`` (ratio of height to distance density)."
         ),
     )
     color: Tuple[float, float, float] = Field(
         default=(0.83, 0.47, 0.28),
         description=(
-            "Reserved. The live fog color is still driven by "
-            "``RenderingConfig.fog_color`` (top-level) because that field "
-            "participates in the butterscotch R>G>B invariant tests. "
-            "``FogConfig.color`` stays for future scenario overrides."
+            "Reserved. Live fog color is still driven by ``RenderingConfig.fog_color`` "
+            "(top-level) because that field participates in the butterscotch R>G>B invariant "
+            "tests. ``FogConfig.color`` stays for future scenario overrides."
         ),
     )
 
@@ -100,27 +94,19 @@ class RayTracingConfig(BaseModel):
         default=3,
         ge=0,
         le=5,
-        description=(
-            "Value written to ``/rtx/post/aa/op``. 0=off, 1=FXAA, 2=TAA, "
-            "3=DLAA, 4=DLSS, 5=reserved."
-        ),
+        description="``/rtx/post/aa/op``. 0=off, 1=FXAA, 2=TAA, 3=DLAA, 4=DLSS, 5=reserved.",
     )
     dlss_exec_mode: int = Field(
         default=1,
         ge=0,
         le=3,
-        description=(
-            "Value written to ``/rtx/post/dlss/execMode``. 0=Performance, "
-            "1=Balanced, 2=Quality, 3=Auto."
-        ),
+        description="``/rtx/post/dlss/execMode``. 0=Performance, 1=Balanced, 2=Quality, 3=Auto.",
     )
     denoiser_indirect_diffuse: bool = Field(
-        default=True,
-        description="Enable the indirect-diffuse denoiser in RTX mode.",
+        default=True, description="Enable the indirect-diffuse denoiser in RTX mode."
     )
     denoiser_reflections: bool = Field(
-        default=True,
-        description="Enable the reflections denoiser in RTX mode.",
+        default=True, description="Enable the reflections denoiser in RTX mode."
     )
 
 
@@ -132,29 +118,12 @@ class PathTracingConfig(BaseModel):
     ``RenderingConfig``.
     """
 
-    spp: int = Field(
-        default=32,
-        ge=1,
-        le=256,
-        description="Samples per pixel per frame.",
-    )
-    total_spp: int = Field(
-        default=256,
-        ge=1,
-        description="Total accumulated samples.",
-    )
-    max_bounces: int = Field(
-        default=8,
-        ge=1,
-        le=64,
-        description="Max ray bounces.",
-    )
+    spp: int = Field(default=32, ge=1, le=256, description="Samples per pixel per frame.")
+    total_spp: int = Field(default=256, ge=1, description="Total accumulated samples.")
+    max_bounces: int = Field(default=8, ge=1, le=64, description="Max ray bounces.")
     denoiser_optix: bool = Field(
         default=True,
-        description=(
-            "Enable the OptiX denoiser in path_tracing mode. Ignored when "
-            "``mode='ray_tracing'``."
-        ),
+        description="Enable OptiX denoiser in path_tracing. Ignored if ``mode='ray_tracing'``.",
     )
 
 
@@ -170,33 +139,29 @@ class SkyDomeConfig(BaseModel):
     clear_rgb: Tuple[float, float, float] = Field(
         default=(0.76, 0.57, 0.35),
         description=(
-            "Butterscotch clear-sky RGB at tau=0. Mirrors the legacy "
-            "``_CLEAR_SKY_RGB`` constant (Bell et al. 2006 MER Pancam)."
+            "Butterscotch clear-sky RGB at tau=0. Mirrors legacy ``_CLEAR_SKY_RGB`` "
+            "(Bell et al. 2006 MER Pancam)."
         ),
     )
     dusty_rgb: Tuple[float, float, float] = Field(
         default=(0.85, 0.75, 0.60),
         description=(
-            "Dust-storm sky RGB used as the interpolation endpoint at "
-            "tau >= 3. Mirrors the legacy ``_DUSTY_SKY_RGB`` constant."
+            "Dust-storm sky RGB used as interpolation endpoint at tau >= 3. "
+            "Mirrors legacy ``_DUSTY_SKY_RGB``."
         ),
     )
     brightness_min: float = Field(
         default=0.1,
         ge=0.0,
         le=1.0,
-        description=(
-            "Lower clamp for the sky-dome brightness. Previously the "
-            "hardcoded 0.1 floor in ``compute_sky_dome_params``."
-        ),
+        description="Lower clamp for sky-dome brightness. Was 0.1 in ``compute_sky_dome_params``.",
     )
     brightness_decay: float = Field(
         default=0.3,
         ge=0.0,
         description=(
-            "Slope of the brightness = 1 - decay * t ramp where t is the "
-            "tau interpolation factor. Previously the hardcoded 0.3 "
-            "multiplier in ``compute_sky_dome_params``."
+            "Slope of brightness = 1 - decay * t where t is the tau interpolation factor. "
+            "Previously the 0.3 multiplier in ``compute_sky_dome_params``."
         ),
     )
 
@@ -210,13 +175,10 @@ class RenderingConfig(BaseModel):
         default=[1280, 720], min_length=2, max_length=2, description="[width, height] in pixels"
     )
     sun_intensity_scale: float = Field(
-        default=30.0, ge=0.1, description="W/m^2 to Isaac Sim light units scale factor"
+        default=30.0, ge=0.1, description="W/m^2 to Isaac Sim light units scale"
     )
     sun_color: list[float] = Field(
-        default=[1.0, 0.95, 0.85],
-        min_length=3,
-        max_length=3,
-        description="Sun light RGB color [0-1]",
+        default=[1.0, 0.95, 0.85], min_length=3, max_length=3, description="Sun light RGB [0-1]"
     )
     sun_angular_diameter_deg: float = Field(
         default=0.35, ge=0.1, le=5.0, description="Sun angular diameter from Mars"
@@ -231,23 +193,22 @@ class RenderingConfig(BaseModel):
         default=[0.78, 0.62, 0.42],
         min_length=3,
         max_length=3,
-        description="Mars dust haze fog color RGB [0-1]",
+        description="Mars dust haze fog RGB [0-1]",
     )
 
     # R3 (2026-04-22) additions — prim path overrides.
     sun_prim_path: str = Field(
         default="/World/SunLight",
         description=(
-            "USD prim path for the DistantLight created by "
-            "``sun_renderer.py``. Override when a scenario spawns multiple "
-            "sun lights or when a non-default stage layout is needed."
+            "USD prim path for DistantLight from ``sun_renderer.py``. Override for scenarios "
+            "spawning multiple sun lights or non-default stage layouts."
         ),
     )
     dome_prim_path: str = Field(
         default="/World/DomeLight",
         description=(
-            "USD prim path for the DomeLight created by ``sky_renderer.py``. "
-            "Override when a scenario uses multiple dome lights."
+            "USD prim path for DomeLight from ``sky_renderer.py``. Override for scenarios "
+            "with multiple dome lights."
         ),
     )
 

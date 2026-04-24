@@ -1,13 +1,4 @@
-"""Unit tests for marslab/terrain/mesh_builder.py (offline, no Isaac Sim).
-
-Tests only the pure-numpy Layer 1 functions: ``compute_mesh_arrays()``
-and ``terrain_z_at()``. The USD writer (Layer 2) requires Isaac Sim and
-is tested via integration tests.
-
-The most important test is ``test_all_face_normals_positive_z_flat``
-which guarantees the CCW winding produces +Z face normals, preventing
-the PhysX collision bug from Wk1 #40.
-"""
+"""Unit tests for marslab/terrain/mesh_builder.py Layer 1 (offline)."""
 
 import inspect
 

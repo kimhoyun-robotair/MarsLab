@@ -1,9 +1,4 @@
-"""Unit tests for :class:`marslab.ros2_bridge.context.BridgeContext`.
-
-These tests keep the dataclass semantics pinned so downstream callers
-(``rclpy_integration``, Stage-3 runtime, tests) can treat
-``BridgeContext`` as a plain value type.
-"""
+"""Unit tests for marslab.ros2_bridge.context.BridgeContext dataclass semantics."""
 
 from __future__ import annotations
 

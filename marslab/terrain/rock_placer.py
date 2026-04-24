@@ -124,32 +124,23 @@ def sample_rocks_golombek(
     n_bins = 50
 
     bin_edges = np.logspace(np.log10(d_min), np.log10(d_max), n_bins + 1)
+    d_lo = bin_edges[:-1]
+    d_hi = bin_edges[1:]
+    d_mid = (d_lo + d_hi) / 2.0
+    delta_cfa = k * np.exp(-q * d_lo) - k * np.exp(-q * d_hi)
+    expected = area_m2 * delta_cfa / (np.pi / 4.0 * d_mid**2)
+    expected = np.where(expected > 0, expected, 0.0)
+
     rocks: list[RockPlacement] = []
-
     for i in range(n_bins):
-        d_lo = bin_edges[i]
-        d_hi = bin_edges[i + 1]
-        d_mid = (d_lo + d_hi) / 2.0
-
-        # CFA difference: area fraction covered by rocks in this bin
-        delta_cfa = k * math.exp(-q * d_lo) - k * math.exp(-q * d_hi)
-
-        # Expected count: total covered area / single rock area
-        rock_area = math.pi / 4.0 * d_mid**2
-        if rock_area <= 0:
+        if expected[i] <= 0:
             continue
-        expected_count = area_m2 * delta_cfa / rock_area
-        if expected_count <= 0:
-            continue
-
-        count = rng.poisson(expected_count)
-
+        count = rng.poisson(expected[i])
         for _ in range(count):
-            d = rng.uniform(d_lo, d_hi)
+            d = rng.uniform(d_lo[i], d_hi[i])
             x = rng.uniform(0, side)
             y = rng.uniform(0, side)
-            h = height_ratio * d
-            rocks.append(RockPlacement(x=x, y=y, diameter=d, height=h))
+            rocks.append(RockPlacement(x=x, y=y, diameter=d, height=height_ratio * d))
 
     rocks.sort(key=lambda r: r.diameter, reverse=True)
     return rocks

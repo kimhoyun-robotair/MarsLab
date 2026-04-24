@@ -16,11 +16,8 @@ import numpy as np
 from marslab.ros2_bridge.cmd_vel_subscriber import create_cmd_vel_subscriber
 from marslab.ros2_bridge.context import BridgeContext
 from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
+from marslab.ros2_bridge.sensor_graph_builder import _ns_topic
 from marslab.ros2_bridge.tf_broadcaster import publish_static_sensor_tfs
-
-
-def _ns_topic(ns: str, name: str) -> str:
-    return f"/{ns}/{name}"
 
 
 def init_rclpy_side(

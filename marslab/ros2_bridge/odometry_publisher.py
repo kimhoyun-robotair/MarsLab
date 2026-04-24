@@ -19,6 +19,21 @@ from marslab.ros2_bridge.odometry_math import (
 )
 
 
+def _set_xyz(target: Any, vec: np.ndarray) -> None:
+    """Copy a shape-(3,) vector into a ROS2 message's ``.x/.y/.z`` fields."""
+    target.x = float(vec[0])
+    target.y = float(vec[1])
+    target.z = float(vec[2])
+
+
+def _set_wxyz(target: Any, quat: np.ndarray) -> None:
+    """Copy a scalar-first shape-(4,) quaternion into ``.w/.x/.y/.z`` fields."""
+    target.w = float(quat[0])
+    target.x = float(quat[1])
+    target.y = float(quat[2])
+    target.z = float(quat[3])
+
+
 @dataclass
 class OdometryPublisherContext:
     """Handles + state carried across step-loop calls.
@@ -117,30 +132,16 @@ def publish_odometry(
     tf_msg.header.stamp = now
     tf_msg.header.frame_id = ctx.frame_id
     tf_msg.child_frame_id = ctx.child_frame_id
-    tf_msg.transform.translation.x = float(delta_pos_odom[0])
-    tf_msg.transform.translation.y = float(delta_pos_odom[1])
-    tf_msg.transform.translation.z = float(delta_pos_odom[2])
-    tf_msg.transform.rotation.w = float(delta_quat_odom[0])
-    tf_msg.transform.rotation.x = float(delta_quat_odom[1])
-    tf_msg.transform.rotation.y = float(delta_quat_odom[2])
-    tf_msg.transform.rotation.z = float(delta_quat_odom[3])
+    _set_xyz(tf_msg.transform.translation, delta_pos_odom)
+    _set_wxyz(tf_msg.transform.rotation, delta_quat_odom)
     ctx.tf_broadcaster.sendTransform(tf_msg)
 
     odom = Odometry()
     odom.header.stamp = now
     odom.header.frame_id = ctx.frame_id
     odom.child_frame_id = ctx.child_frame_id
-    odom.pose.pose.position.x = float(delta_pos_odom[0])
-    odom.pose.pose.position.y = float(delta_pos_odom[1])
-    odom.pose.pose.position.z = float(delta_pos_odom[2])
-    odom.pose.pose.orientation.w = float(delta_quat_odom[0])
-    odom.pose.pose.orientation.x = float(delta_quat_odom[1])
-    odom.pose.pose.orientation.y = float(delta_quat_odom[2])
-    odom.pose.pose.orientation.z = float(delta_quat_odom[3])
-    odom.twist.twist.linear.x = float(linear_body[0])
-    odom.twist.twist.linear.y = float(linear_body[1])
-    odom.twist.twist.linear.z = float(linear_body[2])
-    odom.twist.twist.angular.x = float(angular_body[0])
-    odom.twist.twist.angular.y = float(angular_body[1])
-    odom.twist.twist.angular.z = float(angular_body[2])
+    _set_xyz(odom.pose.pose.position, delta_pos_odom)
+    _set_wxyz(odom.pose.pose.orientation, delta_quat_odom)
+    _set_xyz(odom.twist.twist.linear, linear_body)
+    _set_xyz(odom.twist.twist.angular, angular_body)
     ctx.publisher.publish(odom)

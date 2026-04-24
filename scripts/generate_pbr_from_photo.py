@@ -134,25 +134,22 @@ def main() -> None:
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    albedo_path = os.path.join(args.output_dir, "albedo.png")
-    normal_path = os.path.join(args.output_dir, "normal.png")
-    roughness_path = os.path.join(args.output_dir, "roughness.png")
+    albedo, normal, rough = (
+        os.path.join(args.output_dir, f"{n}.png") for n in ("albedo", "normal", "roughness")
+    )
 
     print(f"[generate_pbr] Input: {args.input}")
     print(f"[generate_pbr] Output: {args.output_dir}/ ({args.size}x{args.size})")
 
     print("  Generating albedo (Mars tint)...")
-    photo_to_albedo(args.input, albedo_path, size=args.size)
-
+    photo_to_albedo(args.input, albedo, size=args.size)
     print("  Generating normal map (Sobel)...")
-    albedo_to_normal(albedo_path, normal_path, strength=args.normal_strength)
-
+    albedo_to_normal(albedo, normal, strength=args.normal_strength)
     print("  Generating roughness map...")
-    albedo_to_roughness(albedo_path, roughness_path)
+    albedo_to_roughness(albedo, rough)
 
-    for f in [albedo_path, normal_path, roughness_path]:
-        sz = os.path.getsize(f) / 1024 / 1024
-        print(f"  {os.path.basename(f)}: {sz:.1f} MB")
+    for f in (albedo, normal, rough):
+        print(f"  {os.path.basename(f)}: {os.path.getsize(f) / 1024 / 1024:.1f} MB")
 
     print("\n[generate_pbr] Done. Set in YAML:")
     print(f'  texture_dir: "{args.output_dir}"')

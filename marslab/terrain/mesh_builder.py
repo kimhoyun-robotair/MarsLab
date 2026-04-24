@@ -1,29 +1,12 @@
 """DEM elevation grid to 3D terrain mesh converter.
 
-Converts a 2D numpy elevation array into mesh geometry suitable for
-Isaac Sim rendering and PhysX collision. Designed in two layers per
-P3 (Offline-First Testing):
+Two layers per P3 (Offline-First Testing):
+  Layer 1: ``compute_mesh_arrays()`` -- pure numpy, offline-testable.
+  Layer 2: ``build_terrain_mesh()`` -- USD writer requiring Isaac Sim.
 
-  Layer 1: ``compute_mesh_arrays()`` — pure numpy, no Isaac Sim.
-           Returns points, normals, face indices, UVs as numpy arrays.
-           Fully unit-testable offline.
-
-  Layer 2: ``build_terrain_mesh()`` — USD writer requiring Isaac Sim.
-           Calls Layer 1 internally, then creates a UsdGeom.Mesh prim
-           with collision.
-
-Triangle winding uses CCW order when viewed from +Z so that PhysX
-collision normals point upward (+Z). This is critical — see work_log
-Wk1 #40 for the root cause of the previous winding bug.
-
-    Correct winding per quad cell:
-        Triangle 1: [i00, i01, i10]  (top-left, top-right, bottom-left)
-        Triangle 2: [i01, i11, i10]  (top-right, bottom-right, bottom-left)
-
-    Proof (flat surface, resolution r):
-        edge1 = p01 - p00 = (+r, 0, 0)
-        edge2 = p10 - p00 = (0, +r, 0)
-        cross(edge1, edge2) = (0, 0, +r^2) → +Z normal ✓
+Triangle winding is CCW from +Z so PhysX normals point upward:
+  Triangle 1: [i00, i01, i10]   Triangle 2: [i01, i11, i10]
+See work_log Wk1 #40 for the root cause of the previous winding bug.
 """
 
 import numpy as np
@@ -88,10 +71,7 @@ def compute_mesh_arrays(
     points[:, 1] = (row_grid * resolution).ravel()
     points[:, 2] = elev.ravel()
 
-    # --- Face indices (CCW winding for +Z normals) ---
-    # For each quad cell (r, c) → (r, c+1) → (r+1, c) → (r+1, c+1):
-    #   Triangle 1: [i00, i01, i10]
-    #   Triangle 2: [i01, i11, i10]
+    # --- Face indices (CCW winding for +Z normals; see module docstring) ---
     n_quads = (rows - 1) * (cols - 1)
     face_indices = np.empty(n_quads * 6, dtype=np.int32)
 
@@ -190,12 +170,8 @@ def terrain_z_at(
         Interpolated elevation in meters.
     """
     rows, cols = elevation.shape
-    col_f = x / resolution
-    row_f = y / resolution
-
-    # Clamp to grid bounds
-    col_f = max(0.0, min(col_f, cols - 1.0))
-    row_f = max(0.0, min(row_f, rows - 1.0))
+    col_f = float(np.clip(x / resolution, 0.0, cols - 1.0))
+    row_f = float(np.clip(y / resolution, 0.0, rows - 1.0))
 
     c0 = int(col_f)
     r0 = int(row_f)

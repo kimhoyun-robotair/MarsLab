@@ -1,9 +1,4 @@
-"""Unit tests for :mod:`marslab.ros2_bridge.rclpy_integration`.
-
-The real ``init_rclpy_side`` depends on rclpy, which in turn needs a
-running DDS fabric.  Here we patch the rclpy module and the three
-factory helpers so the orchestration logic can be tested offline.
-"""
+"""Unit tests for marslab.ros2_bridge.rclpy_integration (rclpy patched for offline)."""
 
 from __future__ import annotations
 

@@ -1,11 +1,9 @@
 """Runtime preflight checks — raise early and clearly before Isaac Sim boots.
 
-All checks are pure Python (no Isaac Sim imports) so they can run inside
-unit tests and inside the Isaac Sim python context with identical
-behaviour. Error messages mirror the original inline ``print`` + ``return``
-patterns from ``scripts/phase1/run_stage3_monolithic.py`` (Oracle) so
-operators see the same diagnostic text whether the migration is wired in
-or not.
+Pure Python (no Isaac Sim imports) so the checks run identically under unit
+tests and inside the Isaac Sim python context. Error messages mirror the
+Oracle ``run_stage3_monolithic.py`` diagnostics so operators see consistent
+text whether the migration is wired in or not.
 """
 
 from __future__ import annotations

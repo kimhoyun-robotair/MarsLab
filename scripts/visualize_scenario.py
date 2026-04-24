@@ -72,6 +72,12 @@ def _slope_map(elevation: np.ndarray, resolution: float) -> np.ndarray:
 
 def visualize(config: MarsLabConfig, output_png: str) -> None:
     """Render a 2x2 offline scenario figure and write it to disk."""
+
+    def _setup_panel(ax, title: str, xlabel: str = "X (m)", ylabel: str = "Y (m)") -> None:
+        ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+
     terrain = config.terrain
     elevation, metadata = _resolve_dem(terrain)
     elev, meta = _apply_crop(terrain, elevation, metadata)
@@ -103,56 +109,47 @@ def visualize(config: MarsLabConfig, output_png: str) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(14, 11))
 
     ax1 = axes[0][0]
-    im1 = ax1.imshow(
-        elev,
-        cmap="terrain",
-        origin="lower",
-        extent=[0, side_x, 0, side_y],
-    )
+    im1 = ax1.imshow(elev, cmap="terrain", origin="lower", extent=[0, side_x, 0, side_y])
     fig.colorbar(im1, ax=ax1, label="Elevation (m)")
-    ax1.set_title(
+    _setup_panel(
+        ax1,
         f"{terrain.scenario_name or 'scenario'} — DEM crop "
-        f"({meta['width']}x{meta['height']} @ {res_x:.1f} m/px)"
+        f"({meta['width']}x{meta['height']} @ {res_x:.1f} m/px)",
     )
-    ax1.set_xlabel("X (m)")
-    ax1.set_ylabel("Y (m)")
     if config.robots:
         rx, ry, _ = config.robots[0].spawn_position
         ax1.plot(rx, ry, marker="*", color="red", markersize=16, label="rover spawn")
         ax1.legend(loc="upper right")
 
     ax2 = axes[0][1]
-    im2 = ax2.imshow(
-        slope,
-        cmap="magma",
-        origin="lower",
-        extent=[0, side_x, 0, side_y],
-        vmin=0.0,
-    )
+    im2 = ax2.imshow(slope, cmap="magma", origin="lower", extent=[0, side_x, 0, side_y], vmin=0.0)
     fig.colorbar(im2, ax=ax2, label="Slope (deg)")
-    ax2.set_title(
+    _setup_panel(
+        ax2,
         "Slope magnitude — "
         f"mean={slope_stats['mean']:.1f} p90={slope_stats['p90']:.1f} "
-        f"max={slope_stats['max']:.1f} deg"
+        f"max={slope_stats['max']:.1f} deg",
     )
-    ax2.set_xlabel("X (m)")
-    ax2.set_ylabel("Y (m)")
 
     ax3 = axes[1][0]
     if rocks:
-        xs = [r.x for r in rocks]
-        ys = [r.y for r in rocks]
         sizes = [max(4.0, r.diameter * 20) for r in rocks]
-        ax3.scatter(xs, ys, s=sizes, alpha=0.35, c="sienna", edgecolors="none")
+        ax3.scatter(
+            [r.x for r in rocks],
+            [r.y for r in rocks],
+            s=sizes,
+            alpha=0.35,
+            c="sienna",
+            edgecolors="none",
+        )
     ax3.set_xlim(0, side_x)
     ax3.set_ylim(0, side_y)
     ax3.set_aspect("equal")
-    ax3.set_title(
+    _setup_panel(
+        ax3,
         f"Rock placement — k={terrain.rock_sfd_k} "
-        f"(n={len(rocks)}, measured CFA={measured_cfa:.3f})"
+        f"(n={len(rocks)}, measured CFA={measured_cfa:.3f})",
     )
-    ax3.set_xlabel("X (m)")
-    ax3.set_ylabel("Y (m)")
 
     ax4 = axes[1][1]
     d_theory = np.linspace(0.01, terrain.rock_diameter_range[1], 200)
@@ -163,10 +160,10 @@ def visualize(config: MarsLabConfig, output_png: str) -> None:
         0.95 * terrain.rock_diameter_range[1],
         30,
     )
-    cfa_sampled = []
-    for d in d_thresh:
-        covered = sum(math.pi / 4.0 * r.diameter**2 for r in rocks if r.diameter >= d)
-        cfa_sampled.append(max(covered / area_m2, 1e-6))
+    cfa_sampled = [
+        max(sum(math.pi / 4.0 * r.diameter**2 for r in rocks if r.diameter >= d) / area_m2, 1e-6)
+        for d in d_thresh
+    ]
     ax4.semilogy(d_thresh, cfa_sampled, "ro", label="Sampled", markersize=4)
     ax4.set_title("Size-Frequency Distribution")
     ax4.set_xlabel("Diameter threshold (m)")

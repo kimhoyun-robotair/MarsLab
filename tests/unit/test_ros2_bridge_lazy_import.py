@@ -1,13 +1,4 @@
-"""Regression tests that ``marslab.ros2_bridge`` imports lazily.
-
-R4-4 (2026-04-22) inspection found that ``rclpy`` / ``geometry_msgs``
-/ ``sensor_msgs`` / ``nav_msgs`` were already pushed to function-body
-scope during earlier refactors.  These tests pin that invariant so
-nobody accidentally reintroduces a module-level ROS2 import.
-
-We cannot test ``init_rclpy_side`` "causes rclpy to load" directly
-without a real DDS fabric, so we stick to the negative assertions.
-"""
+"""Regression tests that marslab.ros2_bridge imports rclpy/geometry_msgs lazily (R4-4)."""
 
 from __future__ import annotations
 

@@ -17,40 +17,6 @@ import numpy as np
 from PIL import Image, ImageEnhance
 
 
-def mars_color_grade(
-    input_path: str,
-    output_path: str,
-    red_boost: float = 1.3,
-    green_scale: float = 0.85,
-    blue_scale: float = 0.70,
-    saturation: float = 0.6,
-    brightness: float = 0.8,
-) -> None:
-    """Apply Mars color grading to an RGB texture.
-
-    Args:
-        input_path: Source texture (PNG/JPG).
-        output_path: Output Mars-graded texture.
-        red_boost: Red channel multiplier (>1 = more red).
-        green_scale: Green channel multiplier (<1 = less green).
-        blue_scale: Blue channel multiplier (<1 = less blue).
-        saturation: Color saturation (0=gray, 1=original).
-        brightness: Brightness multiplier (<1 = darker).
-    """
-    img = Image.open(input_path).convert("RGB")
-    arr = np.array(img, dtype=np.float32)
-
-    # Channel scaling for Mars reddish-brown
-    arr[:, :, 0] = np.clip(arr[:, :, 0] * red_boost, 0, 255)
-    arr[:, :, 1] = np.clip(arr[:, :, 1] * green_scale, 0, 255)
-    arr[:, :, 2] = np.clip(arr[:, :, 2] * blue_scale, 0, 255)
-
-    result = Image.fromarray(arr.astype(np.uint8))
-    result = ImageEnhance.Color(result).enhance(saturation)
-    result = ImageEnhance.Brightness(result).enhance(brightness)
-    result.save(output_path)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Mars color grading for PBR textures")
     parser.add_argument("--input-dir", default="assets/materials/mars_terrain")
@@ -77,15 +43,16 @@ def main() -> None:
         f"  red_boost={args.red_boost}, green={args.green_scale}, "
         f"blue={args.blue_scale}, sat={args.saturation}, bright={args.brightness}"
     )
-    mars_color_grade(
-        albedo_in,
-        albedo_out,
-        red_boost=args.red_boost,
-        green_scale=args.green_scale,
-        blue_scale=args.blue_scale,
-        saturation=args.saturation,
-        brightness=args.brightness,
-    )
+
+    # Apply Mars reddish-brown color grading: channel scaling + saturation + brightness
+    arr = np.array(Image.open(albedo_in).convert("RGB"), dtype=np.float32)
+    arr[:, :, 0] = np.clip(arr[:, :, 0] * args.red_boost, 0, 255)
+    arr[:, :, 1] = np.clip(arr[:, :, 1] * args.green_scale, 0, 255)
+    arr[:, :, 2] = np.clip(arr[:, :, 2] * args.blue_scale, 0, 255)
+    result = Image.fromarray(arr.astype(np.uint8))
+    result = ImageEnhance.Color(result).enhance(args.saturation)
+    result = ImageEnhance.Brightness(result).enhance(args.brightness)
+    result.save(albedo_out)
     print(f"  → {albedo_out}")
 
     # Copy normal and roughness unchanged (color-independent)

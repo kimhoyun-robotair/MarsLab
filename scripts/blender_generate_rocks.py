@@ -44,26 +44,22 @@ def generate_rock(seed: int, output_path: str, target_faces: int = 2000) -> None
     obj.scale = (sx, sy, sz)
     bpy.ops.object.transform_apply(scale=True)
 
-    # 3. Displace modifier with cloud noise (angular deformation)
-    tex = bpy.data.textures.new(f"RockNoise_{seed}", type="CLOUDS")
-    tex.noise_scale = random.uniform(0.3, 0.9)
-    tex.noise_depth = random.randint(2, 6)
+    # 3. Two displacement passes (cloud noise for angular shape, musgrave for detail)
+    def _apply_displace(mod_name: str, tex_name: str, tex_type: str, strength: float) -> None:
+        tex = bpy.data.textures.new(tex_name, type=tex_type)
+        tex.noise_scale = (
+            random.uniform(0.3, 0.9) if tex_type == "CLOUDS" else random.uniform(0.5, 1.5)
+        )
+        if tex_type == "CLOUDS":
+            tex.noise_depth = random.randint(2, 6)
+        mod = obj.modifiers.new(mod_name, "DISPLACE")
+        mod.texture = tex
+        mod.strength = strength
+        mod.mid_level = 0.5
+        bpy.ops.object.modifier_apply(modifier=mod_name)
 
-    mod = obj.modifiers.new("Displace1", "DISPLACE")
-    mod.texture = tex
-    mod.strength = random.uniform(0.12, 0.35)
-    mod.mid_level = 0.5
-    bpy.ops.object.modifier_apply(modifier="Displace1")
-
-    # 4. Second displacement for finer detail
-    tex2 = bpy.data.textures.new(f"RockDetail_{seed}", type="MUSGRAVE")
-    tex2.noise_scale = random.uniform(0.5, 1.5)
-
-    mod2 = obj.modifiers.new("Displace2", "DISPLACE")
-    mod2.texture = tex2
-    mod2.strength = random.uniform(0.03, 0.10)
-    mod2.mid_level = 0.5
-    bpy.ops.object.modifier_apply(modifier="Displace2")
+    _apply_displace("Displace1", f"RockNoise_{seed}", "CLOUDS", random.uniform(0.12, 0.35))
+    _apply_displace("Displace2", f"RockDetail_{seed}", "MUSGRAVE", random.uniform(0.03, 0.10))
 
     # 5. Decimate to target poly count
     current_faces = len(obj.data.polygons)

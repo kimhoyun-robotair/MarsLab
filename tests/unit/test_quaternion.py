@@ -1,11 +1,4 @@
-"""Unit tests for :mod:`marslab.math.quaternion`.
-
-Covers the five public helpers (``quat_inverse``, ``quat_multiply``,
-``quat_rotate_vec``, ``rpy_to_quat``, ``quat_to_rpy``) using the
-scalar-first ``[w, x, y, z]`` convention.
-
-All tests are pure-NumPy and run offline (P3 offline-first).
-"""
+"""Unit tests for marslab.math.quaternion helpers ([w,x,y,z] convention)."""
 
 from __future__ import annotations
 

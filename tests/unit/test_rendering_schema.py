@@ -1,12 +1,4 @@
-"""Module-focused tests for ``marslab.config.schema.rendering``.
-
-R8-5 (2026-04-23). Focuses on lighting spec, sky-dome parameters, and
-sun azimuth range at the module level — orthogonal to the aggregated
-``test_config_schema.py`` coverage. The sun azimuth / elevation range
-guards live on ``MarsEnvConfig`` (not ``RenderingConfig``) but the
-``RenderingConfig.sun_*`` colour / intensity fields own their own
-invariants and are covered here.
-"""
+"""Module-focused tests for marslab.config.schema.rendering (R8-5)."""
 
 from __future__ import annotations
 

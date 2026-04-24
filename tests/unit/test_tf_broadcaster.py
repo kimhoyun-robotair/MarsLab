@@ -1,80 +1,25 @@
-"""Unit tests for :mod:`marslab.ros2_bridge.tf_broadcaster`.
-
-R8-5 (2026-04-23). Covers the body-frame Y/Z flip (180 deg X-roll USD
-import convention), identity quaternion normalization, and determinism
-across repeated calls with the same seed-equivalent input list.
-"""
+"""Unit tests for marslab.ros2_bridge.tf_broadcaster (R8-5). Y/Z flip + quat normalization."""
 
 from __future__ import annotations
 
 import sys
 import types
-from dataclasses import dataclass, field
-from typing import Any, List
 from unittest.mock import MagicMock
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Fake geometry_msgs.msg.TransformStamped and tf2_ros modules
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class _FakeVec3:
-    x: float = 0.0
-    y: float = 0.0
-    z: float = 0.0
-
-
-@dataclass
-class _FakeQuat:
-    w: float = 1.0
-    x: float = 0.0
-    y: float = 0.0
-    z: float = 0.0
-
-
-@dataclass
-class _FakeTransform:
-    translation: _FakeVec3 = field(default_factory=_FakeVec3)
-    rotation: _FakeQuat = field(default_factory=_FakeQuat)
-
-
-@dataclass
-class _FakeHeader:
-    frame_id: str = ""
-
-
-@dataclass
-class _FakeTransformStamped:
-    header: _FakeHeader = field(default_factory=_FakeHeader)
-    child_frame_id: str = ""
-    transform: _FakeTransform = field(default_factory=_FakeTransform)
-
-
-class _FakeStaticBroadcaster:
-    def __init__(self, node: Any) -> None:
-        self.node = node
-        self.sent: List[Any] = []
-
-    def sendTransform(self, msgs: Any) -> None:  # noqa: N802
-        # tf2_ros accepts either a single msg or a list.
-        if isinstance(msgs, list):
-            self.sent.extend(msgs)
-        else:
-            self.sent.append(msgs)
+from tests.unit.conftest import FakeStaticTransformBroadcaster, FakeTransformStamped
 
 
 @pytest.fixture
 def fake_ros2_tf_modules(monkeypatch: pytest.MonkeyPatch) -> None:
     geo_msgs = types.ModuleType("geometry_msgs")
     geo_msgs_msg = types.ModuleType("geometry_msgs.msg")
-    geo_msgs_msg.TransformStamped = _FakeTransformStamped  # type: ignore[attr-defined]
+    geo_msgs_msg.TransformStamped = FakeTransformStamped  # type: ignore[attr-defined]
     geo_msgs.msg = geo_msgs_msg  # type: ignore[attr-defined]
 
     tf2_ros = types.ModuleType("tf2_ros")
-    tf2_ros.StaticTransformBroadcaster = _FakeStaticBroadcaster  # type: ignore[attr-defined]
+    tf2_ros.StaticTransformBroadcaster = FakeStaticTransformBroadcaster  # type: ignore[attr-defined]
     tf2_ros.TransformBroadcaster = MagicMock()  # type: ignore[attr-defined]
 
     monkeypatch.setitem(sys.modules, "geometry_msgs", geo_msgs)

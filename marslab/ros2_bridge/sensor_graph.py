@@ -30,7 +30,7 @@ YAML key is absent.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from marslab.ros2_bridge.sensor_graph_builder import (
     _build_connections,
@@ -58,6 +58,7 @@ def build_sensor_graph(
     camera_resolution: Tuple[int, int],
     lidar_3d_prim_path: str,
     imu_prim_path: str,
+    lidar_2d_prim_path: Optional[str] = None,
 ) -> SensorGraphHandle:
     """Build the Stage-3 ROS2 OmniGraph.
 
@@ -73,6 +74,10 @@ def build_sensor_graph(
         camera_resolution: ``(width, height)`` tuple.
         lidar_3d_prim_path: USD path of the 3-D RTX LiDAR prim.
         imu_prim_path: USD path of the IMU prim.
+        lidar_2d_prim_path: Optional USD path of the 2-D RTX LiDAR prim.
+            When provided and ``topics["scan"]`` is set in ``ros2_cfg``,
+            a ``RPLidar2D``/``Lidar2DHelper`` pair is added with
+            ``type="laser_scan"``.
 
     Returns:
         :class:`SensorGraphHandle`.
@@ -82,13 +87,14 @@ def build_sensor_graph(
     ns = str(ros2_cfg["namespace"])
     topics = dict(ros2_cfg["topics"])
     graph_path = _resolve_graph_path(ros2_cfg)
+    include_2d = lidar_2d_prim_path is not None and "scan" in topics
 
     keys = og.Controller.Keys
     graph_handle, _, _, _ = og.Controller.edit(
         {"graph_path": graph_path, "evaluator_name": "execution"},
         {
-            keys.CREATE_NODES: _build_create_nodes(),
-            keys.CONNECT: _build_connections(),
+            keys.CREATE_NODES: _build_create_nodes(include_lidar_2d=include_2d),
+            keys.CONNECT: _build_connections(include_lidar_2d=include_2d),
             keys.SET_VALUES: _build_set_values(
                 ns=ns,
                 topics=topics,
@@ -96,6 +102,7 @@ def build_sensor_graph(
                 camera_prim_path=camera_prim_path,
                 camera_resolution=camera_resolution,
                 lidar_3d_prim_path=lidar_3d_prim_path,
+                lidar_2d_prim_path=lidar_2d_prim_path if include_2d else None,
             ),
         },
     )

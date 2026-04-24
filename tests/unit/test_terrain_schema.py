@@ -1,9 +1,4 @@
-"""Module-focused tests for ``marslab.config.schema.terrain``.
-
-R8-5 (2026-04-23). Locks down the ``TerrainConfig``, ``DemCropConfig``,
-``CaveConfig`` and ``CaveGeometryConfig`` invariants at the leaf-module
-level. Offline-first (P3) — never touches Isaac Sim or GDAL.
-"""
+"""Module-focused tests for marslab.config.schema.terrain (offline, P3, R8-5)."""
 
 from __future__ import annotations
 

@@ -69,19 +69,18 @@ def test_marslab_config_full():
 # --- Invalid / out-of-range ---
 
 
-def test_gravity_too_low():
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("gravity", 2.0),
+        ("gravity", 5.0),
+        ("dust_optical_depth", -1.0),
+    ],
+    ids=["gravity_too_low", "gravity_too_high", "dust_optical_depth_too_low"],
+)
+def test_mars_env_bounds_reject(field: str, value: float) -> None:
     with pytest.raises(ValidationError):
-        MarsEnvConfig(gravity=2.0)
-
-
-def test_gravity_too_high():
-    with pytest.raises(ValidationError):
-        MarsEnvConfig(gravity=5.0)
-
-
-def test_dust_optical_depth_too_low():
-    with pytest.raises(ValidationError):
-        MarsEnvConfig(dust_optical_depth=-1.0)
+        MarsEnvConfig(**{field: value})
 
 
 def test_terrain_source_invalid():
@@ -236,26 +235,27 @@ def test_fog_config_defaults():
     assert c.height_density_ratio == 0.5
 
 
-def test_fog_config_color_amount_out_of_range():
-    """``color_amount`` must live in [0, 1]."""
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("color_amount", 1.5),
+        ("color_amount", -0.1),
+        ("height_falloff", -0.5),
+        ("height_density_ratio", 2.5),
+        ("height_density_ratio", -0.1),
+    ],
+    ids=[
+        "color_amount_above_1",
+        "color_amount_negative",
+        "height_falloff_negative",
+        "height_density_ratio_above_2",
+        "height_density_ratio_negative",
+    ],
+)
+def test_fog_config_bounds_reject(field: str, value: float) -> None:
+    """Fog scalar bounds: color_amount in [0,1], height_falloff>=0, ratio in [0,2]."""
     with pytest.raises(ValidationError):
-        FogConfig(color_amount=1.5)
-    with pytest.raises(ValidationError):
-        FogConfig(color_amount=-0.1)
-
-
-def test_fog_config_negative_falloff_rejected():
-    """Negative ``height_falloff`` violates the ``ge=0`` constraint."""
-    with pytest.raises(ValidationError):
-        FogConfig(height_falloff=-0.5)
-
-
-def test_fog_config_height_density_ratio_bounds():
-    """``height_density_ratio`` must stay within [0, 2]."""
-    with pytest.raises(ValidationError):
-        FogConfig(height_density_ratio=2.5)
-    with pytest.raises(ValidationError):
-        FogConfig(height_density_ratio=-0.1)
+        FogConfig(**{field: value})
 
 
 def test_ray_tracing_config_defaults():
@@ -267,18 +267,19 @@ def test_ray_tracing_config_defaults():
     assert c.denoiser_reflections is True
 
 
-def test_ray_tracing_config_antialiasing_out_of_range():
-    """``antialiasing_op`` outside [0, 5] is rejected."""
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("antialiasing_op", 9),
+        ("antialiasing_op", -1),
+        ("dlss_exec_mode", 4),
+    ],
+    ids=["antialiasing_op_above_5", "antialiasing_op_negative", "dlss_exec_mode_above_3"],
+)
+def test_ray_tracing_config_bounds_reject(field: str, value: int) -> None:
+    """RayTracingConfig: antialiasing_op in [0,5], dlss_exec_mode in [0,3]."""
     with pytest.raises(ValidationError):
-        RayTracingConfig(antialiasing_op=9)
-    with pytest.raises(ValidationError):
-        RayTracingConfig(antialiasing_op=-1)
-
-
-def test_ray_tracing_config_dlss_exec_mode_bounds():
-    """``dlss_exec_mode`` must stay within [0, 3]."""
-    with pytest.raises(ValidationError):
-        RayTracingConfig(dlss_exec_mode=4)
+        RayTracingConfig(**{field: value})
 
 
 def test_path_tracing_config_defaults():
@@ -290,22 +291,19 @@ def test_path_tracing_config_defaults():
     assert c.denoiser_optix is True
 
 
-def test_path_tracing_config_spp_too_high():
-    """``spp`` upper bound is 256."""
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("spp", 999),
+        ("max_bounces", 0),
+        ("total_spp", -10),
+    ],
+    ids=["spp_above_256", "max_bounces_zero", "total_spp_negative"],
+)
+def test_path_tracing_config_bounds_reject(field: str, value: int) -> None:
+    """PathTracingConfig: spp<=256, max_bounces>=1, total_spp>=1."""
     with pytest.raises(ValidationError):
-        PathTracingConfig(spp=999)
-
-
-def test_path_tracing_config_max_bounces_zero_rejected():
-    """``max_bounces=0`` violates the ``ge=1`` constraint."""
-    with pytest.raises(ValidationError):
-        PathTracingConfig(max_bounces=0)
-
-
-def test_path_tracing_config_total_spp_negative():
-    """``total_spp`` must be >= 1."""
-    with pytest.raises(ValidationError):
-        PathTracingConfig(total_spp=-10)
+        PathTracingConfig(**{field: value})
 
 
 def test_sky_dome_config_defaults():
@@ -317,18 +315,19 @@ def test_sky_dome_config_defaults():
     assert c.brightness_decay == 0.3
 
 
-def test_sky_dome_config_brightness_min_out_of_range():
-    """``brightness_min`` must be in [0, 1]."""
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("brightness_min", 1.5),
+        ("brightness_min", -0.1),
+        ("brightness_decay", -0.5),
+    ],
+    ids=["brightness_min_above_1", "brightness_min_negative", "brightness_decay_negative"],
+)
+def test_sky_dome_config_bounds_reject(field: str, value: float) -> None:
+    """SkyDomeConfig: brightness_min in [0,1], brightness_decay>=0."""
     with pytest.raises(ValidationError):
-        SkyDomeConfig(brightness_min=1.5)
-    with pytest.raises(ValidationError):
-        SkyDomeConfig(brightness_min=-0.1)
-
-
-def test_sky_dome_config_negative_decay_rejected():
-    """``brightness_decay`` cannot be negative (``ge=0``)."""
-    with pytest.raises(ValidationError):
-        SkyDomeConfig(brightness_decay=-0.5)
+        SkyDomeConfig(**{field: value})
 
 
 def test_rendering_nested_structure_access():
@@ -417,24 +416,25 @@ def test_dynamic_atmosphere_config_defaults():
     assert isinstance(c.tau_sine, TauSineConfig)
 
 
-def test_dynamic_atmosphere_time_scale_must_be_positive():
-    """``time_scale`` must be > 0."""
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"time_scale": 0.0},
+        {"time_scale": -10.0},
+        {"update_interval_frames": 0},
+        {"tau_profile": "gaussian"},
+    ],
+    ids=[
+        "time_scale_zero",
+        "time_scale_negative",
+        "update_interval_frames_zero",
+        "tau_profile_unknown",
+    ],
+)
+def test_dynamic_atmosphere_bounds_reject(kwargs: dict) -> None:
+    """DynamicAtmosphereConfig: time_scale>0, update_interval_frames>=1, tau_profile literal."""
     with pytest.raises(ValidationError):
-        DynamicAtmosphereConfig(time_scale=0.0)
-    with pytest.raises(ValidationError):
-        DynamicAtmosphereConfig(time_scale=-10.0)
-
-
-def test_dynamic_atmosphere_update_interval_frames_min():
-    """``update_interval_frames`` must be >= 1."""
-    with pytest.raises(ValidationError):
-        DynamicAtmosphereConfig(update_interval_frames=0)
-
-
-def test_dynamic_atmosphere_tau_profile_literal():
-    """``tau_profile`` accepts only {constant, ramp, sine}."""
-    with pytest.raises(ValidationError):
-        DynamicAtmosphereConfig(tau_profile="gaussian")
+        DynamicAtmosphereConfig(**kwargs)
 
 
 def test_sun_sweep_config_defaults():
@@ -445,18 +445,19 @@ def test_sun_sweep_config_defaults():
     assert c.max_elevation_deg == 60.0
 
 
-def test_sun_sweep_azimuth_out_of_range():
-    """Azimuth must be in [0, 360]."""
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("start_azimuth_deg", 361.0),
+        ("end_azimuth_deg", -1.0),
+        ("max_elevation_deg", 95.0),
+    ],
+    ids=["start_az_above_360", "end_az_negative", "max_elev_above_90"],
+)
+def test_sun_sweep_bounds_reject(field: str, value: float) -> None:
+    """SunSweepConfig: azimuths in [0,360], max_elevation in [0,90]."""
     with pytest.raises(ValidationError):
-        SunSweepConfig(start_azimuth_deg=361.0)
-    with pytest.raises(ValidationError):
-        SunSweepConfig(end_azimuth_deg=-1.0)
-
-
-def test_sun_sweep_elevation_out_of_range():
-    """``max_elevation_deg`` must be in [0, 90]."""
-    with pytest.raises(ValidationError):
-        SunSweepConfig(max_elevation_deg=95.0)
+        SunSweepConfig(**{field: value})
 
 
 def test_tau_constant_config_defaults():
@@ -478,12 +479,15 @@ def test_tau_ramp_config_defaults():
     assert c.end_tau == 2.0
 
 
-def test_tau_ramp_negative_tau_rejected():
+@pytest.mark.parametrize(
+    "start,end",
+    [(-0.5, 1.0), (0.5, -1.0)],
+    ids=["start_negative", "end_negative"],
+)
+def test_tau_ramp_negative_tau_rejected(start: float, end: float) -> None:
     """Both ramp endpoints must be >= 0."""
     with pytest.raises(ValidationError):
-        TauRampConfig(start_tau=-0.5, end_tau=1.0)
-    with pytest.raises(ValidationError):
-        TauRampConfig(start_tau=0.5, end_tau=-1.0)
+        TauRampConfig(start_tau=start, end_tau=end)
 
 
 def test_tau_sine_config_defaults():
@@ -494,18 +498,19 @@ def test_tau_sine_config_defaults():
     assert c.period_fraction == 1.0
 
 
-def test_tau_sine_period_fraction_must_be_positive():
-    """``period_fraction`` must be > 0."""
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("period_fraction", 0.0),
+        ("period_fraction", -1.0),
+        ("amplitude", -0.1),
+    ],
+    ids=["period_fraction_zero", "period_fraction_negative", "amplitude_negative"],
+)
+def test_tau_sine_bounds_reject(field: str, value: float) -> None:
+    """TauSineConfig: period_fraction>0, amplitude>=0."""
     with pytest.raises(ValidationError):
-        TauSineConfig(period_fraction=0.0)
-    with pytest.raises(ValidationError):
-        TauSineConfig(period_fraction=-1.0)
-
-
-def test_tau_sine_negative_amplitude_rejected():
-    """``amplitude`` must be >= 0."""
-    with pytest.raises(ValidationError):
-        TauSineConfig(amplitude=-0.1)
+        TauSineConfig(**{field: value})
 
 
 def test_mars_env_embeds_dynamic_atmosphere_by_default():

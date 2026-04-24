@@ -1,10 +1,4 @@
-"""Unit tests for :mod:`marslab.ros2_bridge.sensor_graph_builder`.
-
-These exercise the list-building helpers extracted during R4-5 so
-they can be tested without Isaac Sim.  Smoke coverage for the
-``og.Controller.edit`` orchestrator lives in the Stage-3 integration
-smoke (user-run).
-"""
+"""Unit tests for marslab.ros2_bridge.sensor_graph_builder helpers (no Isaac Sim)."""
 
 from __future__ import annotations
 

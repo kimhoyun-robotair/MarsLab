@@ -60,9 +60,10 @@ def main() -> None:
     # Stage 1: Load GeoTIFF with GDAL
     print(f"[convert_dem] Loading GeoTIFF: {config.terrain.dem_path}")
     elevation, metadata = load_hirise_dem(config.terrain.dem_path)
-    print(f"  Shape: {elevation.shape}")
-    print(f"  Resolution: {metadata['resolution_x']:.4f} m/px")
-    print(f"  Elevation: {metadata['elevation_min']:.1f} ~ {metadata['elevation_max']:.1f} m")
+    print(
+        f"  Shape: {elevation.shape} | Resolution: {metadata['resolution_x']:.4f} m/px | "
+        f"Elevation: {metadata['elevation_min']:.1f} ~ {metadata['elevation_max']:.1f} m"
+    )
 
     # Stage 2: Save as numpy + JSON
     print(f"[convert_dem] Saving to: {output_dir}/")
@@ -78,8 +79,7 @@ def main() -> None:
     assert loaded_meta["resolution_x"] == metadata["resolution_x"], "Resolution mismatch"
 
     npy_size = os.path.getsize(os.path.join(output_dir, "elevation.npy"))
-    print("  Round-trip verification: PASSED")
-    print(f"  Output size: {npy_size / 1024:.1f} KB")
+    print(f"  Round-trip verification: PASSED | Output size: {npy_size / 1024:.1f} KB")
     print("\n[convert_dem] Done. Isaac Sim can now load this with:")
     print(f'  converted_dem_dir: "{output_dir}"')
 

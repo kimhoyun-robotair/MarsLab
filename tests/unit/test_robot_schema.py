@@ -1,12 +1,4 @@
-"""Module-focused tests for ``marslab.config.schema.robot``.
-
-R8-5 (2026-04-23). Complements ``test_robot_drive_api_schema.py``
-(which focuses on the R2-4a drive-only required fields) by covering
-the broader ``RobotConfig`` surface: robot spec load, sensor list
-typing, and URDF / USD path resolution.
-
-These tests are offline-first (P3) and never import Isaac Sim.
-"""
+"""Module-focused tests for marslab.config.schema.robot.RobotConfig (R8-5)."""
 
 from __future__ import annotations
 

@@ -21,6 +21,8 @@ from __future__ import annotations
 import argparse
 from typing import List, Optional
 
+from marslab.cli import add_headless_flag
+
 
 def build_stage3_parser() -> argparse.ArgumentParser:
     """Construct the Stage 3 argparse.ArgumentParser.
@@ -36,11 +38,7 @@ def build_stage3_parser() -> argparse.ArgumentParser:
         required=True,
         help="Path to Stage 3 scenario YAML (e.g. configs/scenarios/jezero_flat.yaml).",
     )
-    parser.add_argument(
-        "--headless",
-        action="store_true",
-        help="Run Isaac Sim without the GUI. Default is GUI mode.",
-    )
+    add_headless_flag(parser, help_text="Run Isaac Sim without the GUI. Default is GUI mode.")
     parser.add_argument(
         "--no-ros2",
         action="store_true",

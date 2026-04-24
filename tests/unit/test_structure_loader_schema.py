@@ -1,10 +1,4 @@
-"""Unit tests for marslab.scene.structure_loader and scene schema.
-
-Offline-only (P3): no Isaac-Sim / pxr imports.  The loader's Isaac-Sim
-path is exercised by the Wk3 integration smoke; this file covers the
-dataclass surface, the pydantic mirror, and the YAML round-trip for
-the two scenario files introduced in P1-2 / P1-3.
-"""
+"""Unit tests for marslab.scene.structure_loader + scene schema (offline, P3)."""
 
 from __future__ import annotations
 

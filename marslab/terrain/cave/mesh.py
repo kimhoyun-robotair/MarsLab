@@ -62,28 +62,21 @@ def build_tube_shell(
     n_stations = len(centerline)
     _, perp = tangent_frames(centerline)
 
-    vertices = np.zeros((n_stations * ring_pts, 3), dtype=np.float64)
-    for i in range(n_stations):
-        cx, cy, cz = centerline[i]
-        px, py, _ = perp[i]
-        for j in range(ring_pts):
-            local_x, local_z = cross_sections[i, j]
-            wx = cx + local_x * px
-            wy = cy + local_x * py
-            wz = cz + local_z
-            vertices[i * ring_pts + j] = [wx, wy, wz]
+    local_x = cross_sections[..., 0]  # (n_stations, ring_pts)
+    local_z = cross_sections[..., 1]
+    vertices = np.empty((n_stations * ring_pts, 3), dtype=np.float64)
+    vertices[:, 0] = (centerline[:, 0:1] + local_x * perp[:, 0:1]).ravel()
+    vertices[:, 1] = (centerline[:, 1:2] + local_x * perp[:, 1:2]).ravel()
+    vertices[:, 2] = (centerline[:, 2:3] + local_z).ravel()
 
-    faces = []
-    for i in range(n_stations - 1):
-        for j in range(ring_pts - 1):
-            v0 = i * ring_pts + j
-            v1 = i * ring_pts + j + 1
-            v2 = (i + 1) * ring_pts + j
-            v3 = (i + 1) * ring_pts + j + 1
-            faces.append([v0, v2, v1])
-            faces.append([v1, v2, v3])
-
-    faces = np.array(faces, dtype=np.int32)
+    i, j = np.meshgrid(np.arange(n_stations - 1), np.arange(ring_pts - 1), indexing="ij")
+    v0 = (i * ring_pts + j).ravel()
+    v1 = v0 + 1
+    v2 = v0 + ring_pts
+    v3 = v2 + 1
+    faces = np.empty((v0.size * 2, 3), dtype=np.int32)
+    faces[0::2] = np.stack([v0, v2, v1], axis=1)
+    faces[1::2] = np.stack([v1, v2, v3], axis=1)
     return trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
 
@@ -131,32 +124,25 @@ def build_tube_floor(
     for i in range(n_stations):
         cx, cy, cz = centerline[i]
         px, py, _ = perp[i]
-        left_x = cross_sections[i, 0, 0]
-        right_x = cross_sections[i, -1, 0]
-        floor_x = np.linspace(left_x, right_x, floor_pts)
-
-        for j in range(floor_pts):
-            wx = cx + floor_x[j] * px
-            wy = cy + floor_x[j] * py
-            wz = cz
-            vertices[i * floor_pts + j] = [wx, wy, wz]
+        floor_x = np.linspace(cross_sections[i, 0, 0], cross_sections[i, -1, 0], floor_pts)
+        base = i * floor_pts
+        vertices[base : base + floor_pts, 0] = cx + floor_x * px
+        vertices[base : base + floor_pts, 1] = cy + floor_x * py
+        vertices[base : base + floor_pts, 2] = cz
 
     debris_mask = rng.random(n_stations * floor_pts) > (flat_pct / 100.0)
     noise = rng.standard_normal(n_stations * floor_pts) * debris_height_scale
     noise = gaussian_filter(noise.reshape(n_stations, floor_pts), sigma=debris_smooth_sigma).ravel()
     vertices[debris_mask, 2] += np.abs(noise[debris_mask])
 
-    faces = []
-    for i in range(n_stations - 1):
-        for j in range(floor_pts - 1):
-            v0 = i * floor_pts + j
-            v1 = i * floor_pts + j + 1
-            v2 = (i + 1) * floor_pts + j
-            v3 = (i + 1) * floor_pts + j + 1
-            faces.append([v0, v1, v2])
-            faces.append([v1, v3, v2])
-
-    faces = np.array(faces, dtype=np.int32)
+    i, j = np.meshgrid(np.arange(n_stations - 1), np.arange(floor_pts - 1), indexing="ij")
+    v0 = (i * floor_pts + j).ravel()
+    v1 = v0 + 1
+    v2 = v0 + floor_pts
+    v3 = v2 + 1
+    faces = np.empty((v0.size * 2, 3), dtype=np.int32)
+    faces[0::2] = np.stack([v0, v1, v2], axis=1)
+    faces[1::2] = np.stack([v1, v3, v2], axis=1)
     return trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
 
@@ -199,29 +185,21 @@ def build_skylight_shaft(
 
     theta = np.linspace(0, 2 * np.pi, n_segments, endpoint=False)
 
-    vertices = np.zeros((n_rings * n_segments, 3), dtype=np.float64)
-    for i, z in enumerate(z_levels):
-        depth = surface_z - z
-        r = r_surface + depth * np.tan(overhang_rad)
-        for j in range(n_segments):
-            vertices[i * n_segments + j] = [
-                cx + r * np.cos(theta[j]),
-                cy + r * np.sin(theta[j]),
-                z,
-            ]
+    radii = r_surface + (surface_z - z_levels) * np.tan(overhang_rad)  # (n_rings,)
+    vertices = np.empty((n_rings * n_segments, 3), dtype=np.float64)
+    vertices[:, 0] = (cx + radii[:, None] * np.cos(theta)).ravel()
+    vertices[:, 1] = (cy + radii[:, None] * np.sin(theta)).ravel()
+    vertices[:, 2] = np.repeat(z_levels, n_segments)
 
-    faces = []
-    for i in range(n_rings - 1):
-        for j in range(n_segments):
-            j_next = (j + 1) % n_segments
-            v0 = i * n_segments + j
-            v1 = i * n_segments + j_next
-            v2 = (i + 1) * n_segments + j
-            v3 = (i + 1) * n_segments + j_next
-            faces.append([v0, v2, v1])
-            faces.append([v1, v2, v3])
-
-    faces = np.array(faces, dtype=np.int32)
+    i, j = np.meshgrid(np.arange(n_rings - 1), np.arange(n_segments), indexing="ij")
+    j_next = (j + 1) % n_segments
+    v0 = (i * n_segments + j).ravel()
+    v1 = (i * n_segments + j_next).ravel()
+    v2 = ((i + 1) * n_segments + j).ravel()
+    v3 = ((i + 1) * n_segments + j_next).ravel()
+    faces = np.empty((v0.size * 2, 3), dtype=np.int32)
+    faces[0::2] = np.stack([v0, v2, v1], axis=1)
+    faces[1::2] = np.stack([v1, v2, v3], axis=1)
     return trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
 
@@ -275,36 +253,25 @@ def build_surface_cap(
     vertices[:, 1] = (row_grid * resolution).ravel()
     vertices[:, 2] = elevation_2d.ravel()
 
-    faces = []
-    for r in range(rows - 1):
-        for c in range(cols - 1):
-            v00 = r * cols + c
-            v01 = r * cols + c + 1
-            v10 = (r + 1) * cols + c
-            v11 = (r + 1) * cols + c + 1
-            faces.append([v00, v01, v10])
-            faces.append([v01, v11, v10])
-
-    faces = np.array(faces, dtype=np.int32)
+    r, c = np.meshgrid(np.arange(rows - 1), np.arange(cols - 1), indexing="ij")
+    v00 = (r * cols + c).ravel()
+    v01 = v00 + 1
+    v10 = v00 + cols
+    v11 = v10 + 1
+    faces = np.empty((v00.size * 2, 3), dtype=np.int32)
+    faces[0::2] = np.stack([v00, v01, v10], axis=1)
+    faces[1::2] = np.stack([v01, v11, v10], axis=1)
 
     if skylight_positions:
         skylight_r = skylight_diameter / 2.0
         face_centroids = vertices[faces].mean(axis=1)
         keep = np.ones(len(faces), dtype=bool)
+        x_grid = col_grid * resolution
+        y_grid = row_grid * resolution
         for sx, sy in skylight_positions:
-            dx = face_centroids[:, 0] - sx
-            dy = face_centroids[:, 1] - sy
-            dist = np.sqrt(dx**2 + dy**2)
-            keep &= dist > skylight_r
+            keep &= np.hypot(face_centroids[:, 0] - sx, face_centroids[:, 1] - sy) > skylight_r
+            elevation_2d[(x_grid - sx) ** 2 + (y_grid - sy) ** 2 < skylight_r**2] = np.nan
         faces = faces[keep]
-
-        for sx, sy in skylight_positions:
-            for r in range(rows):
-                for c in range(cols):
-                    x = c * resolution
-                    y = r * resolution
-                    if (x - sx) ** 2 + (y - sy) ** 2 < skylight_r**2:
-                        elevation_2d[r, c] = np.nan
 
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
     return mesh, elevation_2d

@@ -1,14 +1,10 @@
 """Stage 2 infinite render loop (Isaac Sim-dependent).
 
-Owns the **mutable** per-frame atmosphere state, spawns the GUI panel
-(when not headless), and drives the dynamic sun sweep / tau slider
-updates. Isaac Sim imports stay lazy so the module can be imported for
-unit tests without a live Kit app.
-
-Consistent naming convention with the R6 Stage 3 extraction:
-``setup_*_scene`` for construction, ``run_*_loop`` for the render loop.
-The two loop modules deliberately do **not** share a base class (P1
-no-premature-abstraction).
+Owns the mutable per-frame atmosphere state, spawns the GUI panel (when not
+headless), and drives the dynamic sun sweep / tau slider updates. Isaac Sim
+imports stay lazy so the module is importable offline. Naming mirrors the
+R6 Stage 3 extraction (``setup_*_scene`` + ``run_*_loop``); the two loop
+modules deliberately do not share a base class (P1 no-premature-abstraction).
 """
 
 from __future__ import annotations
@@ -134,6 +130,57 @@ def run_stage2_loop(
     print("[run_stage2] Scene ready. Explore in GUI. Ctrl+C to exit.", flush=True)
     frame = 0
     elapsed = 0.0
+
+    def _step_atmosphere() -> None:
+        """Advance the dynamic atmosphere one cadence tick.
+
+        Closes over the outer-loop locals (``elapsed``, render handles,
+        env callables). Returns nothing; mutates ``atmosphere_state`` and
+        ``elapsed`` in place. Kept local to :func:`run_stage2_loop` — the
+        twin mutator in :mod:`marslab.runtime.main_loop` uses a different
+        callable-injection layout so we do not share a base (P1).
+        """
+        nonlocal elapsed
+
+        current_tau = atmosphere_state["tau"]
+
+        if atmosphere_state["sun_mode"] == "auto" and dynamic_enabled:
+            elapsed += physics_dt * update_interval * time_scale
+            t = (elapsed % sol_duration) / sol_duration
+            atmosphere_state["time_of_sol"] = t
+
+            dyn_sun_pos = compute_sol_sun_position(
+                time_of_sol_fraction=t,
+                start_azimuth_deg=sweep_start_az,
+                end_azimuth_deg=sweep_end_az,
+                max_elevation_deg=sweep_max_el,
+            )
+            atmosphere_state["sun_azimuth_deg"] = dyn_sun_pos.azimuth_deg
+            atmosphere_state["sun_elevation_deg"] = dyn_sun_pos.elevation_deg
+        elif atmosphere_state["sun_mode"] == "manual":
+            dyn_sun_pos = compute_sun_position(
+                azimuth_deg=atmosphere_state["sun_azimuth_deg"],
+                elevation_deg=max(0.5, min(89.5, atmosphere_state["sun_elevation_deg"])),
+            )
+        else:
+            return
+
+        dyn_intensity = compute_direct_intensity(
+            solar_constant, current_tau, dyn_sun_pos.zenith_angle_rad
+        )
+        dyn_diffuse = compute_diffuse_fraction(current_tau)
+        dyn_sky = compute_sky_dome_params(current_tau, hdri_dir)
+
+        atmosphere_state["direct_intensity"] = dyn_intensity
+        atmosphere_state["diffuse_fraction"] = dyn_diffuse
+
+        update_sun_light(stage, dyn_sun_pos, dyn_intensity, dyn_diffuse, render_config)
+        update_sky_dome(stage, dyn_sky, dyn_diffuse, render_config)
+        configure_atmosphere_fog(stage, current_tau, render_config)
+
+        if atmo_panel is not None:
+            atmo_panel.update_display()
+
     try:
         while simulation_app.is_running():
             world.step(render=True)
@@ -142,44 +189,7 @@ def run_stage2_loop(
             if frame % update_interval != 0:
                 continue
 
-            current_tau = atmosphere_state["tau"]
-
-            if atmosphere_state["sun_mode"] == "auto" and dynamic_enabled:
-                elapsed += physics_dt * update_interval * time_scale
-                t = (elapsed % sol_duration) / sol_duration
-                atmosphere_state["time_of_sol"] = t
-
-                dyn_sun_pos = compute_sol_sun_position(
-                    time_of_sol_fraction=t,
-                    start_azimuth_deg=sweep_start_az,
-                    end_azimuth_deg=sweep_end_az,
-                    max_elevation_deg=sweep_max_el,
-                )
-                atmosphere_state["sun_azimuth_deg"] = dyn_sun_pos.azimuth_deg
-                atmosphere_state["sun_elevation_deg"] = dyn_sun_pos.elevation_deg
-            elif atmosphere_state["sun_mode"] == "manual":
-                dyn_sun_pos = compute_sun_position(
-                    azimuth_deg=atmosphere_state["sun_azimuth_deg"],
-                    elevation_deg=max(0.5, min(89.5, atmosphere_state["sun_elevation_deg"])),
-                )
-            else:
-                continue
-
-            dyn_intensity = compute_direct_intensity(
-                solar_constant, current_tau, dyn_sun_pos.zenith_angle_rad
-            )
-            dyn_diffuse = compute_diffuse_fraction(current_tau)
-            dyn_sky = compute_sky_dome_params(current_tau, hdri_dir)
-
-            atmosphere_state["direct_intensity"] = dyn_intensity
-            atmosphere_state["diffuse_fraction"] = dyn_diffuse
-
-            update_sun_light(stage, dyn_sun_pos, dyn_intensity, dyn_diffuse, render_config)
-            update_sky_dome(stage, dyn_sky, dyn_diffuse, render_config)
-            configure_atmosphere_fog(stage, current_tau, render_config)
-
-            if atmo_panel is not None:
-                atmo_panel.update_display()
+            _step_atmosphere()
 
     except KeyboardInterrupt:
         print("[run_stage2] KeyboardInterrupt -- shutting down.", flush=True)

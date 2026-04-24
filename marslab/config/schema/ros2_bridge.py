@@ -46,13 +46,11 @@ class Ros2BridgeConfig(BaseModel):
     graph_path: str = Field(
         default="/World/Stage3ROS2Graph",
         description=(
-            "USD prim path for the Stage-3 OmniGraph action graph.  The "
-            "Isaac Sim stage must not already contain a prim at this "
-            "path.  Previously hardcoded as ``GRAPH_PATH`` in "
-            "``marslab/ros2_bridge/sensor_graph.py``.  Promoted to "
-            "schema in R4-5 (2026-04-23) so scenarios with unusual "
-            "stage layouts (e.g. multi-robot Stage-4) can relocate the "
-            "graph without a source edit."
+            "USD prim path for the Stage-3 OmniGraph action graph.  The Isaac Sim stage "
+            "must not already contain a prim at this path.  Previously hardcoded as "
+            "``GRAPH_PATH`` in ``marslab/ros2_bridge/sensor_graph.py``.  Promoted to "
+            "schema in R4-5 (2026-04-23) so scenarios with unusual stage layouts "
+            "(e.g. multi-robot Stage-4) can relocate the graph without a source edit."
         ),
     )
     cmd_vel_queue_size: int = Field(
@@ -60,14 +58,11 @@ class Ros2BridgeConfig(BaseModel):
         ge=1,
         le=1000,
         description=(
-            "rclpy subscription queue depth for the ``/<ns>/cmd_vel`` "
-            "topic.  Previously hardcoded as ``queue_size=10`` in "
-            "``marslab/ros2_bridge/cmd_vel_subscriber.py``.  Promoted "
-            "in R4-5 (2026-04-23) so Nav2 tuning that needs a deeper "
-            "buffer (bursty controller_server output) can be expressed "
-            "in YAML.  Upper bound of 1000 prevents accidental "
-            "misconfigurations that would swamp rclpy with unbounded "
-            "queues."
+            "rclpy subscription queue depth for ``/<ns>/cmd_vel``.  Previously hardcoded "
+            "as ``queue_size=10`` in ``marslab/ros2_bridge/cmd_vel_subscriber.py``.  "
+            "Promoted in R4-5 (2026-04-23) so Nav2 tuning that needs a deeper buffer "
+            "(bursty controller_server output) can be expressed in YAML.  Upper bound "
+            "1000 prevents misconfigurations that would swamp rclpy with unbounded queues."
         ),
     )
 
@@ -75,11 +70,9 @@ class Ros2BridgeConfig(BaseModel):
     def check_graph_path(self) -> "Ros2BridgeConfig":
         """Enforce USD prim-path hygiene on ``graph_path``.
 
-        Rules:
-        * Non-empty.
-        * Must start with ``/`` (USD absolute prim path convention).
-        * No internal whitespace (whitespace in USD prim paths is a
-          syntax error downstream inside ``omni.graph.core``).
+        Rules: non-empty, must start with ``/`` (USD absolute prim path convention),
+        no internal whitespace (whitespace in USD prim paths is a syntax error
+        downstream inside ``omni.graph.core``).
         """
         value = self.graph_path
         if not value:
