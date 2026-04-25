@@ -107,9 +107,15 @@ class TestRgbDepthImuBranches:
         assert sv["Lidar3DHelper.inputs:topicName"] == "/rover/lidar/points"
         assert sv["Lidar3DHelper.inputs:type"] == "point_cloud"
 
-    def test_tf_raw_does_not_collide_with_rclpy_tf(self, topics: dict) -> None:
-        """User directive: articulation TF on ``/tf_raw`` to avoid conflict
-        with the rclpy ``odom->base_link`` publisher on ``/tf``."""
+    def test_articulation_tf_uses_tf_raw_topic(self, topics: dict) -> None:
+        """Articulation TF publishes on ``/tf_raw``, kept separate from ``/tf``.
+
+        The OmniGraph ``PubTF`` and the rclpy ``TransformBroadcaster``
+        intentionally do NOT share one ``/tf`` topic: empirically the
+        two backends emit duplicated / out-of-phase frames when they
+        co-publish, which jitters Nav2's TF buffer and breaks RViz.
+        See memory ``feedback_no_tf_consolidation``.
+        """
         sv = dict(
             _build_set_values(
                 ns="rover",

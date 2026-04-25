@@ -38,8 +38,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_DIR = REPO_ROOT / "configs" / "scenarios"
 BASE_YAML = SCENARIO_DIR / "_base.yaml"
 
-# Runnable scenario YAMLs — excludes shared include fragments (underscore prefix).
-_SCENARIOS = sorted(p for p in SCENARIO_DIR.glob("*.yaml") if not p.name.startswith("_"))
+# Runnable scenario YAMLs — excludes shared include fragments (underscore prefix)
+# and self-contained templates (``template_*.yaml``).  Templates demonstrate the
+# inline / no-base_config pattern by design and therefore opt out of the
+# Reviewer 2 #17 dedup invariants enforced below (every other scenario MUST
+# pull from ``_base.yaml``).
+_SCENARIOS = sorted(
+    p
+    for p in SCENARIO_DIR.glob("*.yaml")
+    if not p.name.startswith("_") and not p.name.startswith("template_")
+)
 
 # Common keys that MUST live only in ``_base.yaml``, not in scenario overrides.
 # These are the values every scenario shares; a scenario re-declaring them
@@ -219,6 +227,12 @@ def test_base_yaml_uses_lowercase_boolean_only() -> None:
     discipline.  Scan the raw text for the capitalised variant.
     """
     offenders: list[str] = []
+    # ``_SCENARIOS`` already excludes ``_*.yaml`` and ``template_*.yaml``; we
+    # additionally scan ``_base.yaml`` here because the boolean-casing rule
+    # applies to the shared include fragment too. Templates are out of scope
+    # because they re-declare every block inline — the YAML 1.2 boolean rule
+    # still applies to them, but the dedup invariants do not, so leaving them
+    # excluded keeps ownership clean.
     for path in [BASE_YAML, *_SCENARIOS]:
         text = path.read_text(encoding="utf-8")
         # Look for YAML boolean tokens after ``:``. ``: True`` / ``: False``

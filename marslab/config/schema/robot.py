@@ -633,33 +633,28 @@ class _LidarBaseConfig(BaseModel):
     migration (legacy ``profile`` -> ``profile_name``) lives on the subclasses
     so each one logs an unambiguous source class name when it fires.
 
-    Field categories (Sprint Day 3 Task H1, 2026-04-25):
+    Field semantics (Day 7 H1 rollback, 2026-04-25):
 
-    * **Runtime-overridable** — these YAML values are written into a
-      runtime-generated JSON copy of the bundled profile by
-      :func:`marslab.sensors.sensor_spawner._write_runtime_lidar_profile`
-      and reach Isaac Sim via ``LidarRtx(config_file_name=...)``:
+    All seven numeric YAML fields below (``range_min``, ``range_max``,
+    ``horizontal_fov_deg``, ``vertical_fov_deg``, ``horizontal_resolution_deg``,
+    ``vertical_resolution_deg``, ``rotation_rate_hz``) are **descriptive
+    only** in MarsLab v1.0.  They validate via pydantic and document the
+    intent of the chosen bundled profile, but they do NOT reach Isaac Sim
+    at runtime — ``LidarRtx.config_file_name`` accepts only profile *names*
+    that match ``isaacsim.sensors.rtx.SUPPORTED_LIDAR_CONFIGS`` (a
+    hardcoded Python dict; see
+    ``isaacsim/sensors/rtx/impl/supported_lidar_configs.py``).  The bundled
+    JSON encodes per-emitter azimuth / elevation tables, range / rate
+    constants, and intensity-mapping coefficients all together.
 
-      - ``range_min``         -> ``profile.nearRangeM``
-      - ``range_max``         -> ``profile.farRangeM``
-      - ``rotation_rate_hz``  -> ``profile.scanRateBaseHz``
-
-    * **Descriptive only** — these YAML values document the bundled
-      profile's behaviour and are validated by pydantic, but they do
-      NOT flow into Isaac Sim at runtime because the bundled JSON
-      encodes per-emitter azimuth / elevation tables that cannot be
-      regenerated from two scalars:
-
-      - ``horizontal_fov_deg``
-      - ``vertical_fov_deg`` (3D only)
-      - ``horizontal_resolution_deg``
-      - ``vertical_resolution_deg`` (3D only)
-
-      To actually change those four values at runtime, swap to a
-      different bundled profile via ``profile_name`` (e.g. ``Velodyne_VLS128``
-      for higher channel count) or supply a custom JSON via
-      ``profile_json_path`` (escape hatch).  Auto-generation of
-      ``emitterStates`` from FOV+resolution is a v1.5 follow-up.
+    To actually change LiDAR behaviour at runtime, swap ``profile_name``
+    to a different bundled profile (e.g. ``Example_Rotary`` -> ``Velodyne_VLS128``
+    for higher channel count) or supply a fully authored custom JSON via
+    ``profile_json_path`` (escape hatch).  See
+    ``~/MarsLab/tmp/task_H1_finding.md`` for the v1.5 plan (USD asset
+    injection + ``SUPPORTED_LIDAR_CONFIGS`` monkey-patch +
+    ``app.sensors.nv.lidar.profileBaseFolder`` carb setting extension)
+    that would unlock truly fine-grained YAML control.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -685,18 +680,18 @@ class _LidarBaseConfig(BaseModel):
         gt=0.0,
         description=(
             "Minimum reportable range in meters (returns < this are dropped). "
-            "**Runtime-overridable** — written into ``profile.nearRangeM`` of "
-            "a runtime JSON copy of the bundled profile by "
-            "``marslab.sensors.sensor_spawner._write_runtime_lidar_profile`` "
-            "and forwarded to Isaac Sim via ``LidarRtx.config_file_name``."
+            "**Descriptive only** in v1.0 (see class docstring): documents the "
+            "bundled profile's ``profile.nearRangeM`` but does NOT override "
+            "it at runtime."
         ),
     )
     range_max: float = Field(
         ...,
         gt=0.0,
         description=(
-            "Maximum reportable range in meters.  **Runtime-overridable** — "
-            "patched into ``profile.farRangeM`` at runtime (see ``range_min``)."
+            "Maximum reportable range in meters.  **Descriptive only** in v1.0 "
+            "(see class docstring): documents ``profile.farRangeM``, no runtime "
+            "override."
         ),
     )
     horizontal_fov_deg: float = Field(

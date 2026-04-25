@@ -1,7 +1,9 @@
 """Skylight placement and debris cone construction.
 
-Extracted from ``marslab/terrain/cave_generator.py`` in R5
-(2026-04-23). Pure numpy + trimesh. No Isaac Sim.
+Extracted from the pre-R5 monolithic ``cave_generator.py`` in R5
+(2026-04-23); the orchestrator now lives at
+:mod:`marslab.terrain.cave.orchestrator`. Pure numpy + trimesh. No
+Isaac Sim.
 
 RNG consumption order preserved from the pre-split module:
 

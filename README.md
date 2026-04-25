@@ -1,249 +1,474 @@
 # MarsLab
 
-Photorealistic Mars simulation platform for heterogeneous planetary robotics research,
-built on NVIDIA Isaac Sim 5.1.0.
+**Standardized Mars simulation platform for SLAM, autonomous navigation, and
+field-robotics research, built on NVIDIA Isaac Sim 5.x.**
 
-**Target:** ICRA 2027 Seoul submission
+MarsLab gives planetary-robotics researchers a single, scriptable, ROS2-native
+testbed for repeatable Mars experiments. Nine reference scenarios — from a
+flat Jezero plain to a 200 m wide lava tube — ship as YAML configs that load
+the same M2020 Perseverance rover and the same Mars-calibrated atmosphere,
+so a SLAM or Nav2 result on one scenario is directly comparable to results on
+the others.
 
-**License:** Apache 2.0
+* **Reproducible by design** — every randomized process accepts a `seed`; one
+  YAML, one seed, identical output every run.
+* **Real and procedural terrain** — load HiRISE GeoTIFFs of Jezero / Cerberus
+  Fossae or generate procedural terrain (`flat`, `crater`, `hills`,
+  `rocky_plain`, `canyon`) with zero external assets.
+* **ROS2 Jazzy native** — `cmd_vel`, odometry, IMU, RGB, depth, RGB-D point
+  cloud, 3D + 2D LiDAR, full TF tree.
+* **Drop-in `.obj` / `.stl` assets** — add a boulder, a lander, a habitat
+  module by pointing one YAML field at a file path.
+* **SLAM + Nav2 wired** — `slam_toolbox` and `nav2_bringup` configs ship in
+  `configs/slam/` and `configs/nav2/`.
+* **Pydantic-validated** — every YAML field is type-checked at load time;
+  typos fail loudly before Isaac Sim boots.
 
-## Overview
+**Target paper:** iSpaRo 2026 (regular paper, deadline 2026-06-16).
+**License:** Apache 2.0.
+**Korean readers:** dev-side guide is in `CLAUDE_kor.md`. End-user docs
+(this README, `docs/scenario_format.md`, `docs/colored_pointcloud.md`) are
+English-only by design.
 
-MarsLab generates photorealistic synthetic Mars imagery for perception tasks:
-object detection, semantic segmentation, and sensor data generation. It supports
-multiple robot types (rover, rotorcraft, quadruped) in physically accurate Mars
-environments with configurable atmospheric conditions.
+---
 
-### Key Features
-
-- **Mars terrain**: HiRISE DEM loading + procedural generation (flat, crater, hills)
-- **Mars atmosphere**: Beer's Law irradiance, COMIMART diffuse model, butterscotch sky
-- **Rock distribution**: Golombek & Rapp (1997) size-frequency distribution
-- **Multi-robot**: Rover (URDF), rotorcraft (kinematic), quadruped (Go2 USD)
-- **Rendering**: RTX path-tracing with Mars-calibrated fog, lighting, sky dome
-- **Config-driven**: All parameters in YAML, zero hardcoded constants
-- **Seed reproducibility**: Every randomized process accepts a seed parameter
-
-### v1.0 Rover Scope
-
-v1.0 ships a **single M2020 Perseverance rover** per scenario.  Every
-reference scenario in `configs/scenarios/` declares one `rover:` block
-that points at `configs/robots/rover_m2020.yaml`.  The rotorcraft and
-quadruped robot modules (`marslab/robots/rotorcraft.py`,
-`marslab/robots/quadruped.py`) remain in the codebase as scaffolding
-for v1.5 multi-robot work but are **not** wired into v1.0 scenarios.
-
-Multi-rover coordination (two M2020 rovers in the same scene, or one
-rover plus one quadruped) is deferred to **v1.5** (post-iSpaRo 2026).
-The `RobotConfig.prim_path` field already supports per-instance prim
-paths so the schema is multi-rover-ready; only the runtime
-orchestration (sensor namespacing, TF tree composition, two articulated
-drive loops) remains.  Calibrated M2020 sensor presets shipped in v1.0:
-
-* `configs/sensors/m2020_navcam.yaml` — Navcam (RSM, LEFT) RGB-D camera.
-* `configs/sensors/m2020_hazcam.yaml` — Hazcam (FRONT-LEFT) wide-FOV.
-* `configs/sensors/velodyne_vlp16.yaml` — generic 3D LiDAR drop-in.
-* `configs/sensors/hokuyo_ust_10lx.yaml` — generic 2D LaserScan drop-in.
-
-See `docs/scenario_format.md` for the full sensor preset reference
-pattern and how to author a custom scenario.
-
-## Requirements
-
-- **NVIDIA Isaac Sim 5.1.0** (standalone installation)
-- **Python 3.10+** (system Python for offline modules)
-- **GPU**: NVIDIA RTX series (tested on RTX 5070 Ti)
-- **OS**: Ubuntu 22.04+
-
-### Python Dependencies
-
-```
-pydantic>=2.0    # Config schema validation
-pyyaml>=6.0      # YAML loading
-numpy>=1.24      # Numerical computation
-GDAL>=3.8        # HiRISE DEM loading (system libgdal-dev required)
-scipy>=1.10      # Procedural terrain generation
-```
-
-## Installation
-
-### 1. Isaac Sim
-
-Install Isaac Sim 5.1.0 following the
-[official guide](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/quick-install.html).
-
-### 2. System Dependencies
+## 1. Quick Start (60 seconds)
 
 ```bash
-# GDAL C libraries (required for DEM loading)
-sudo apt-get install -y libgdal-dev gdal-bin
-```
-
-### 3. MarsLab Package
-
-```bash
-git clone https://github.com/kimhoyun-robotair/MarsLab.git
+# 1. Clone (with submodules — pulls the M2020 URDF + meshes fork)
+git clone --recurse-submodules https://github.com/kimhoyun-robotair/MarsLab.git
 cd MarsLab
+# (If you already cloned without --recurse-submodules:
+#   git submodule update --init)
 
-# Install with development dependencies
-pip install -e ".[dev]"
+# 2. Install Python deps (Isaac Sim 5.x must already be installed locally)
+sudo apt-get install -y libgdal-dev gdal-bin
+pip install -e ".[dev]" --break-system-packages
+
+# 3. Run a fully self-contained procedural scenario.
+#    No external DEM, no external assets, no other YAMLs to read.
+scripts/isaac_python.sh scripts/phase1/run_stage4.py \
+    --config configs/scenarios/template_single_file.yaml
 ```
 
-## Quick Start
+That's it. The simulator boots a 256 m × 256 m procedurally-generated rocky
+plain with one M2020 rover, a butterscotch sky at τ=0.3, the full ROS2
+bridge advertising `/rover/*`, and a sun sweep that animates over the
+duration of a Sol.
 
-### Run Unit Tests (no GPU needed)
+Drive it (a second terminal):
 
 ```bash
-pytest tests/unit/ -v
+ros2 run teleop_twist_keyboard teleop_twist_keyboard \
+    --ros-args -r __ns:=/rover
 ```
 
-### Developer Hygiene (black + ruff + mypy + pip-audit)
-
-All three CI checks plus a typing scope and a dependency audit are wired to
-`pyproject.toml` (Reviewer 2 #18, 2026-04-24):
+Watch it in RViz:
 
 ```bash
-# Manual full sweep (matches CI):
-black --check marslab/ scripts/ tests/
-ruff  check   marslab/ scripts/ tests/
-pytest tests/unit/ -q
-mypy                           # scoped to marslab/config + marslab/environment
-pip-audit --strict             # fails on any known CVE in installed deps
+ros2 launch slam_toolbox online_async_launch.py \
+    params_file:=$(pwd)/configs/slam/slam_toolbox_async.yaml
+rviz2  # add /rover/scan, /rover/depth/points, /rover/lidar/points, /map
 ```
 
-The ruff ruleset is `E,F,W,I,B,SIM`.  Adding `UP` (pyupgrade) is deferred to a
-dedicated refactor — it currently surfaces ~290 violations, almost all of them
-`List[X]` -> `list[X]` / `Optional[X]` -> `X | None`.
+---
 
-### Run Full Mars Scene (Isaac Sim required)
+## 2. Two Terrain Modes
+
+MarsLab supports two complementary terrain pipelines. The choice is one
+field in the scenario YAML.
+
+### 2a. Procedural (zero external assets)
+
+```yaml
+# configs/scenarios/template_single_file.yaml
+terrain:
+  source: "procedural"
+  procedural_preset: "rocky_plain"   # flat | crater | hills | rocky_plain | canyon
+  terrain_size: [256, 256]           # rows, cols (px)
+  terrain_resolution: 1.0            # m / px
+  rock_sfd_k: 0.05                   # Golombek CFA (0.0–0.15)
+  seed: 42                           # ← change this for a brand-new terrain
+```
+
+Five presets ship in v1.0 (canyon and cave require small extra blocks; see
+`configs/scenarios/procedural_canyon.yaml` and
+`configs/scenarios/cave_lava_tube.yaml`). The presets are pure-Python — no
+GDAL, no GeoTIFF download — so they run on a machine that has only the base
+MarsLab install.
+
+**Reproducibility:** flip `seed: 42` to `seed: 12345` and re-run; the
+terrain mesh, rock placement, and rover spawn relative to the new
+elevation are entirely different but bit-exact reproducible the next time.
+
+### 2b. HiRISE DEM (real Mars topography)
+
+Two-step workflow. **Step 1 is offline preprocessing** (no Isaac Sim, no
+GPU); step 2 is the same `run_stage4.py` invocation as the procedural
+case.
 
 ```bash
-PYTHONPATH=/path/to/MarsLab ~/isaacsim/python.sh scripts/run_scene.py
+# Step 1: convert a HiRISE GeoTIFF to numpy + metadata.
+#         Uses GDAL on the host CPU. Output is cached under
+#         assets/dem/processed/<name>.npy + .yaml.
+scripts/isaac_python.sh scripts/convert_dem.py \
+    --config configs/dem_conversion/sample_jezero.yaml
+
+# Step 2: run the simulator with a scenario that points at the
+#         processed DEM via terrain.dem_path.
+scripts/isaac_python.sh scripts/phase1/run_stage4.py \
+    --config configs/scenarios/template_hirise.yaml
 ```
 
-### Run Integration Tests (Isaac Sim required)
+`configs/dem_conversion/sample_jezero.yaml` ships with a Jezero crater
+crop. To swap regions, edit the GeoTIFF source, the crop window
+(`row_offset`, `col_offset`, `crop_size`), and the optional vertical
+exaggeration in that one file.
 
-The integration suite lives under `tests/integration/` and is VCS-tracked
-(Reviewer 2 #15 reinstate, 2026-04-24).  All tests are gated on
-`pytest.importorskip("isaacsim")` and marked `@pytest.mark.integration`,
-so the default `pytest tests/unit/` run skips them cleanly on hosts
-without a GPU.
+---
 
-Current inventory (3 integration tests + scaffolding):
+## 3. Available Scenarios
 
-| Test file                                               | What it proves                                               |
-|--------------------------------------------------------|---------------------------------------------------------------|
-| `tests/integration/test_imu_gravity_actual.py`         | Rover IMU z-axis within 3.72 +/- 0.05 m/s^2 (Wk1 gate)        |
-| `tests/integration/test_robot_spawn_ros2_topics.py`    | `/rover/odom` publishes within 30 s of Stage-3 boot           |
-| `tests/integration/test_slam_toolbox_receives_scan.py` | `/rover/scan` visible under slam_toolbox QoS (BEST_EFFORT)    |
+Nine reference scenarios ship with v1.0:
 
-Invoke through the `scripts/isaac_python.sh` wrapper, which strips the
-system ROS 2 Jazzy environment before handing off to Isaac Sim's bundled
-Python.  The `scripts/run_integration_test.py` entry point overrides
-`addopts=-m 'not integration'` and runs exactly the integration suite:
+| Scenario                  | Source                    | One-line description                                                  |
+|---------------------------|---------------------------|-----------------------------------------------------------------------|
+| `jezero_flat`             | HiRISE Jezero crater W    | dz=3 m, mean slope ≈2°. Baseline / SLAM regression.                  |
+| `jezero_crater`           | HiRISE Jezero crater NE   | dz=12.6 m, max slope 30°. Slope-handling test.                       |
+| `jezero_rocks`            | HiRISE Jezero (same crop) | Same DEM, dense Golombek rocks (CFA k=0.08). Obstacle field.         |
+| `cerberus_canyon_easy`    | HiRISE Cerberus Fossae S  | 82% traversable. Approach-with-crater nav baseline.                   |
+| `cerberus_canyon`         | HiRISE Cerberus Fossae    | 28% impassable, mean slope 25°. Path-planning stress test.           |
+| `cave_lava_tube`          | Procedural (MARS-LT-B)    | 200 m wide lava tube, 1 skylight. GPS-denied SLAM.                   |
+| `mars_base`               | HiRISE Jezero + structures| Crewed-outpost layout, 40 m goal-pose for Nav2 evaluation.            |
+| `spacecraft_landing`      | HiRISE Jezero + structures| InSight-style lander + heat shield + parachute debris field.          |
+| `procedural_canyon`       | Procedural                | Synthetic canyon corridor, 30 m floor, 40 m walls. Confined nav.      |
+
+Plus three first-class **templates** — copy these to start a new scenario:
+
+| Template                                          | Use it when …                                                  |
+|---------------------------------------------------|-----------------------------------------------------------------|
+| `configs/scenarios/template_single_file.yaml`     | You want a 240-line self-contained scenario, no `base_config:` includes (best for demos / academic reproducibility). |
+| `configs/scenarios/template_hirise.yaml`          | You're authoring a new HiRISE DEM scenario and want to follow the standard 2-step pipeline. |
+| `configs/dem_conversion/sample_jezero.yaml`       | You're writing the DEM-to-numpy preprocessing config for step 1. |
+
+Paper figures for each scenario will be regenerated post-paper via
+`scripts/visualize_scenario.py` and friends; they are not committed to this
+repo.
+
+---
+
+## 4. ROS2 Topics
+
+Default rover namespace is `/rover/` (override via
+`rover.ros2.namespace` in the scenario YAML).
+
+### Subscribed (input)
+
+| Topic                       | Type                       | QoS preset       | Schema field                       |
+|-----------------------------|----------------------------|------------------|------------------------------------|
+| `/rover/cmd_vel`            | `geometry_msgs/Twist`      | RELIABLE/depth=10| `Ros2BridgeConfig.cmd_vel_qos`     |
+
+### Published (output)
+
+| Topic                          | Type                          | QoS preset                  | Schema field                       |
+|--------------------------------|-------------------------------|------------------------------|------------------------------------|
+| `/rover/odom`                  | `nav_msgs/Odometry`           | RELIABLE/depth=10            | `Ros2BridgeConfig.odom_qos`        |
+| `/rover/imu`                   | `sensor_msgs/Imu`             | BEST_EFFORT/depth=5          | `Ros2BridgeConfig.sensor_qos`      |
+| `/rover/rgb/image_raw`         | `sensor_msgs/Image`           | BEST_EFFORT/depth=5          | `Ros2BridgeConfig.sensor_qos`      |
+| `/rover/depth/image_raw`       | `sensor_msgs/Image`           | BEST_EFFORT/depth=5          | `Ros2BridgeConfig.sensor_qos`      |
+| `/rover/depth/points`          | `sensor_msgs/PointCloud2`     | BEST_EFFORT/depth=5          | `Ros2BridgeConfig.sensor_qos`      |
+| `/rover/lidar/points`          | `sensor_msgs/PointCloud2`     | BEST_EFFORT/depth=5          | `Ros2BridgeConfig.sensor_qos`      |
+| `/rover/scan`                  | `sensor_msgs/LaserScan`       | BEST_EFFORT/depth=5          | `Ros2BridgeConfig.sensor_qos`      |
+| `/clock`                       | `rosgraph_msgs/Clock`         | (Isaac Sim default)          | OmniGraph node                     |
+| `/tf`                          | `tf2_msgs/TFMessage`          | RELIABLE + TRANSIENT_LOCAL/100 | `Ros2BridgeConfig.tf_qos`        |
+| `/tf_static`                   | `tf2_msgs/TFMessage`          | RELIABLE + TRANSIENT_LOCAL/100 | `Ros2BridgeConfig.tf_qos`        |
+
+`/rover/depth/points` carries `frame_id: camera_optical_frame` (REP-103
+optical convention). `/rover/lidar/points` and `/rover/scan` use
+`camera_link`-style sensor frames published on `/tf_static` at boot.
+
+`/tf` has **two authorities** by REP-105 design:
+
+* The Isaac Sim OmniGraph publishes the articulation chain
+  (`base_link → wheels`, `base_link → camera_link`, etc.).
+* `marslab.ros2_bridge.odometry_publisher` publishes `odom → base_link`
+  every physics step.
+
+This is canonical multi-publisher TF — all of RViz, Nav2, and
+`slam_toolbox` subscribe to `/tf` and merge the trees automatically.
+
+### QoS preset reasoning
+
+The four QoS profiles map to ROS2 conventions:
+
+* **`cmd_vel_qos`** → RELIABLE/depth=10. Matches Nav2 `controller_server`
+  output (REP-2003 SystemDefault). Flip to `best_effort` if driving with
+  `teleop_twist_keyboard`.
+* **`odom_qos`** → RELIABLE/depth=10. `nav_msgs/Odometry` REP-2003
+  SystemDefault.
+* **`sensor_qos`** → BEST_EFFORT/depth=5. The ROS2 `sensor_data`
+  convention. **Required** for `slam_toolbox` LaserScan subscribers,
+  which default to BEST_EFFORT.
+* **`tf_qos`** → RELIABLE + TRANSIENT_LOCAL/depth=100. Matches `tf2_ros`
+  defaults. TRANSIENT_LOCAL on `/tf_static` lets a late-joining
+  `slam_toolbox` still latch the static sensor frames.
+
+Override any of them in `rover.ros2` of your scenario YAML — see
+`marslab/config/schema/ros2_bridge.py::Ros2BridgeConfig` for the full
+field list.
+
+### Note on color RGB-D point clouds
+
+`/rover/depth/points` carries **XYZ + intensity**, not XYZRGB. Isaac Sim's
+RGB-D camera does not emit a color-fused point cloud natively. To get an
+XYZRGB stream, run the standard ROS2 fusion node externally:
 
 ```bash
-# Run every integration test
-scripts/isaac_python.sh scripts/run_integration_test.py
-
-# Run a specific file
-scripts/isaac_python.sh scripts/run_integration_test.py \
-    tests/integration/test_imu_gravity_actual.py
-
-# Run a specific nodeid
-scripts/isaac_python.sh scripts/run_integration_test.py \
-    tests/integration/test_imu_gravity_actual.py::test_imu_z_gravity_within_mars_band
+ros2 run depth_image_proc point_cloud_xyzrgb_node \
+    --ros-args \
+    -r rgb/image_rect_color:=/rover/rgb/image_raw \
+    -r rgb/camera_info:=/rover/rgb/camera_info \
+    -r depth_registered/image_rect:=/rover/depth/image_raw \
+    -r points:=/rover/depth/points_xyzrgb
 ```
 
-> The older `scripts/run_scene_test.py` / `scripts/run_multi_robot_test.py`
-> entry points advertised in the Phase 1a README have been retired — the
-> equivalents now live as `scripts/phase1/run_stage4.py` (Stage-3 runtime)
-> and the scenario-specific YAMLs under `configs/scenarios/`.
+See `docs/colored_pointcloud.md` for the full pattern, including TF
+alignment and frame conventions.
 
-### Offline Visualizations (no GPU needed)
+---
 
-```bash
-python3 scripts/visualize_terrain.py       # DEM + rock placement
-python3 scripts/visualize_atmosphere.py    # Atmosphere physics plots
-python3 scripts/visualize_procedural.py    # Procedural terrain comparison
+## 5. Authoring a Custom Scenario
+
+The fastest path is to copy
+`configs/scenarios/template_single_file.yaml`, save under a new name, and
+edit four fields. Every field below is annotated inline in the template
+with a `← 자주 바꾸는 곳` ("frequently changed") marker.
+
+### 5a. Change rover top speed
+
+```yaml
+rover:
+  control:
+    max_linear_velocity: 1.0       # was 0.5 m/s
+    max_angular_velocity: 0.8      # was 0.5 rad/s
 ```
 
-## Project Structure
+### 5b. Move the rover spawn
 
-```
-MarsLab/
-├── marslab/                    # Main Python package
-│   ├── config/                 # YAML loading + pydantic validation
-│   ├── environment/            # Mars physics (pure Python, no Isaac Sim)
-│   │   ├── sun_position.py     # Sun azimuth/elevation
-│   │   ├── light_intensity.py  # Beer's Law direct irradiance
-│   │   ├── diffuse_fraction.py # COMIMART diffuse model
-│   │   └── sky_dome.py         # Sky color/brightness from tau
-│   ├── terrain/                # Terrain generation
-│   │   ├── dem_loader.py       # HiRISE GeoTIFF loading (GDAL)
-│   │   ├── rock_placer.py      # Golombek SFD rock distribution
-│   │   ├── procedural_generator.py  # Flat/crater/hills presets
-│   │   ├── mesh_builder.py     # Elevation → USD mesh (Isaac Sim)
-│   │   └── material_applicator.py   # Mars PBR materials (Isaac Sim)
-│   ├── rendering/              # Isaac Sim rendering config
-│   │   ├── render_settings.py  # Path-tracing / ray-tracing mode
-│   │   ├── sky_renderer.py     # Dome light configuration
-│   │   ├── sun_renderer.py     # Directional light (sun)
-│   │   └── atmosphere_fog.py   # Dust haze / fog
-│   ├── robots/                 # Robot spawning (Isaac Sim)
-│   │   ├── rover.py            # 6-wheeled rover (URDF)
-│   │   ├── rotorcraft.py       # Ingenuity-class (kinematic)
-│   │   └── quadruped.py        # Unitree Go2 (built-in USD)
-│   └── utils/                  # Shared utilities
-│       └── seed.py             # Global seed management
-├── configs/                    # All YAML configurations
-├── tests/                      # Unit + integration tests
-├── scripts/                    # Entry points + visualization
-├── assets/                     # Robot URDFs, terrain data
-└── work_log/                   # Development history
+```yaml
+rover:
+  spawn:
+    mode: "absolute"               # dem_center | dem_relative | absolute
+    xy: [10.0, -5.0]               # m, world frame
+    z_offset: 0.5                  # clearance above terrain at (xy)
+    orientation_rpy: [3.14159, 0.0, 0.0]
 ```
 
-## Configuration
-
-All parameters are in `configs/mars_env.yaml`. Key sections:
+### 5c. Crank up the dust storm
 
 ```yaml
 mars_env:
-  gravity: 3.72              # Mars surface gravity (m/s^2)
-  dust_optical_depth: 0.3    # Atmosphere dust (tau)
-  sun_elevation_deg: 45      # Sun position
-
-terrain:
-  source: "procedural"       # or "hirise"
-  procedural_preset: "crater" # flat, crater, hills
-
-robots:
-  - type: "rover"
-  - type: "rotorcraft"
-  - type: "quadruped"
+  dust_optical_depth: 2.5          # 0.3 = clear, 1.0 = hazy, 4.0 = global storm
 ```
 
-## Current Status (Phase 1a Complete)
+### 5d. Re-roll the procedural terrain
 
-| Module | Status | Tests |
-|--------|--------|-------|
-| config/ | Complete | 27 |
-| environment/ | Complete | 30 |
-| terrain/ | Complete | 46 |
-| rendering/ | Complete | Isaac Sim integration |
-| robots/ | Complete (3 types) | Isaac Sim integration |
-| **Total** | | **130 unit + 11 integration** |
+```yaml
+terrain:
+  seed: 99                         # any integer
+```
 
-## References
+### Pydantic validation
 
-- Golombek, M.P. & Rapp, D. (1997). Size-frequency distributions of rocks on Mars. JGR Planets.
-- Vicente-Retortillo, A. et al. (2015). Solar radiation fluxes on Mars. JSWSC.
-- Appelbaum, J. & Flood, D.J. (1990). Solar radiation on Mars. NASA TM-102299.
-- Bell, J.F. et al. (2006). Chromaticity of the Martian sky. JGR Planets.
+Every field listed above is enforced by a `pydantic.BaseModel` with
+`model_config = ConfigDict(extra="forbid")`. **Typos fail at YAML load
+time** with a `pydantic.ValidationError` that names the offending key
+and the closest valid alternative — long before Isaac Sim boots. See
+`marslab/config/schema/` and the full schema reference at
+`docs/scenario_format.md` (473 lines, every field documented).
 
+---
 
-scripts/isaac_python.sh scripts/phase1/run_stage4.py --config configs/scenarios/jezero_flat.yaml
-# 여기서 YAML 파일 이름만 바꿔가면서 진행하면 됨.
+## 6. Drop-in 3D Assets (`.obj` / `.stl`)
 
-scripts/isaac_python.sh scripts/phase1/run_stage2.py --config configs/mars_env.yaml
-scripts/isaac_python.sh scripts/phase1/run_stage4.py --config configs/scenarios/jezero_flat.yaml
+Any `.obj` or `.stl` file on disk can be placed in the scene by adding one
+block to the scenario YAML. From `configs/scenarios/jezero_flat.yaml:54-60`:
+
+```yaml
+scene:
+  structure_assets:
+    - path: "tests/fixtures/sample_rock.obj"
+      position: [10.0, 5.0, 0.0]
+      rotation_rpy_deg: [0.0, 0.0, 45.0]
+      scale: 1.0
+      name: "boulder_01"
+```
+
+Both `.obj` and `.stl` flow through the same `marslab.scene.structure_loader`
+code path — pick whichever exporter your modelling tool supports. The path
+is resolved relative to the MarsLab repo root.
+
+For richer scenes, see `configs/scenarios/mars_base.yaml` (habitat + solar
+arrays + airlock + comm dish + ISRU plant) and
+`configs/scenarios/spacecraft_landing.yaml` (lander + heat shield +
+parachute debris field).
+
+---
+
+## 7. SLAM + Nav2 Integration
+
+SLAM and Nav2 configs ship under `configs/slam/` and `configs/nav2/`. They
+are vanilla `slam_toolbox` and `nav2_bringup` parameter files — no MarsLab
+fork — so any tutorial that targets stock ROS2 Jazzy applies directly.
+
+```bash
+# 2D SLAM with slam_toolbox.
+ros2 launch slam_toolbox online_async_launch.py \
+    params_file:=$(pwd)/configs/slam/slam_toolbox_async.yaml
+
+# Autonomous navigation with Nav2.
+ros2 launch nav2_bringup navigation_launch.py \
+    params_file:=$(pwd)/configs/nav2/nav2_params.yaml
+```
+
+`slam_toolbox` requires BEST_EFFORT QoS on `/rover/scan`. MarsLab's default
+already satisfies this — `Ros2BridgeConfig.sensor_qos.reliability =
+"best_effort"` ships out of the box, so no QoS overrides are needed.
+
+For Nav2 smoke testing, set goals interactively in RViz with the
+**"2D Goal Pose"** tool. (We deliberately do not ship a waypoint-runner
+script — RViz is the canonical Nav2 driver and reproducibility comes
+from logging `/tf` + `/rosout`, not from re-running a Python script.)
+
+---
+
+## 8. Architecture
+
+Three principles govern every structural decision:
+
+* **P1 — Flat.** No premature abstraction. No plugin systems, no god
+  objects, no registration mechanisms. Procedural code first; classes only
+  when complexity demands it.
+* **P2 — Unidirectional data flow.** Config → pure-Python compute →
+  Isaac Sim scene → native sim loop. No module modifies the simulation
+  loop. No circular imports.
+* **P3 — Offline-first testing.** Every pure-compute module (Beer's law,
+  COMIMART, Golombek SFD, config validation, label conversion) runs in
+  CI without Isaac Sim or a GPU.
+
+### Module map
+
+| Module             | Responsibility                                   | Isaac Sim required? |
+|--------------------|--------------------------------------------------|---------------------|
+| `marslab/config/`  | YAML load, pydantic validation, seed propagation | No                  |
+| `marslab/environment/` | Mars physics: sun, Beer's law, COMIMART, sky | No                  |
+| `marslab/terrain/` | DEM loading, mesh build, rock placement, materials | Partial           |
+| `marslab/scene/`   | Structure loader (`.obj`/`.stl` drop-in)         | Yes                 |
+| `marslab/rendering/` | Sky dome, sun light, atmosphere fog, render mode | Yes               |
+| `marslab/robots/`  | URDF→USD spawn, articulation, drive API          | Yes                 |
+| `marslab/sensors/` | Camera, LiDAR, IMU attachment + config           | Yes                 |
+| `marslab/ros2_bridge/` | rclpy + OmniGraph publishers / subscribers   | Yes                 |
+| `marslab/runtime/` | Stage-2 / Stage-3 boot + main loop               | Yes                 |
+| `marslab/gui/`     | Atmosphere panel + interactive controls          | Yes                 |
+
+The full guideline catalogue (G1-G13 and CLAUDE.md operating principles
+OP-1 through OP-5) lives in `CLAUDE.md`. This README mentions them only in
+passing — they're a developer concern, not a user concern.
+
+---
+
+## 9. Citation, License, Roadmap
+
+### License
+
+Apache 2.0 — see `LICENSE`. All MarsLab source code is original. We study
+OmniLRS, RLRoverLab, SRB, and `unitree_sim_isaaclab` for algorithmic and
+pattern inspiration but do not copy code or naming.
+
+### Third-Party Assets
+
+The Perseverance (M2020) rover URDF and glTF meshes are vendored as a
+git submodule under `assets/m2020-urdf-models/` (a fork of
+`github.com/nasa-jpl/m2020-urdf-models`, NASA/JPL release IDs URS307049
+and URS309682). Models courtesy of the Mars 2020 Perseverance and
+Ingenuity teams; URDF conversion by JPL RSVP team. See
+`THIRD_PARTY_LICENSES.md` for the full attribution and license note.
+
+### Citation
+
+```bibtex
+@inproceedings{kim2026marslab,
+  title     = {MarsLab: A Standardized Mars Simulation Platform for Field
+               Robotics},
+  author    = {Kim, Hoyun and ...},
+  booktitle = {Proceedings of the International Symposium on Space Robotics
+               (iSpaRo)},
+  year      = {2026},
+  note      = {Paper not yet accepted; placeholder citation.}
+}
+```
+
+### Roadmap
+
+* **v1.0 (current, iSpaRo 2026 submission):** engineering quality. Nine
+  scenarios, single M2020 rover, ROS2 bridge, SLAM + Nav2, dynamic
+  atmosphere, pydantic-validated YAML throughout.
+* **v1.5 (post-iSpaRo, engineering follow-ons):**
+    * GUI `.obj` / `.stl` loader (no YAML edit needed).
+    * Non-ROS2 dataset export (HDF5 / Parquet) for ML training pipelines.
+    * Scenario DSL — a lightweight shorthand for the most common scenario
+      patterns.
+    * Multi-rover coordination (the schema is already multi-rover-ready;
+      runtime orchestration is the remaining work).
+    * Fault injection (sensor dropout, wheel slip, IMU bias drift).
+* **v2.0 (post-iSpaRo, photorealism):** Hapke BRDF on regolith, dust
+  dynamics, 4K HDRI, anti-tiling, photogrammetry rocks, OmniLRS-level
+  shading.
+* **v3.0 (future):** Bekker / Janosi terramechanics, RL environments
+  (Isaac Lab Gym API), Ls-parameterized seasonal variation.
+
+---
+
+## Requirements
+
+* **NVIDIA Isaac Sim 5.x** (standalone install)
+* **Python 3.10+**
+* **ROS2 Jazzy** (for the runtime bridge; not needed for unit tests)
+* **GPU:** NVIDIA RTX series (tested on RTX 5070 Ti)
+* **OS:** Ubuntu 22.04+
+* `libgdal-dev`, `gdal-bin` (for HiRISE GeoTIFF preprocessing)
+
+Python dependencies pin in `pyproject.toml` (`pydantic>=2.0`, `pyyaml>=6.0`,
+`numpy>=1.24`, `GDAL>=3.8`, `scipy>=1.10`, `trimesh`).
+
+---
+
+## Running the Test Suite
+
+Unit tests run on CPU, no Isaac Sim required:
+
+```bash
+pytest tests/unit/ -q                      # 1151+ tests
+black --check marslab/ scripts/ tests/
+ruff check   marslab/ scripts/ tests/
+```
+
+Isaac Sim integration tests (manual; user-driven per project convention):
+
+```bash
+scripts/isaac_python.sh scripts/run_integration_test.py
+```
+
+See `tests/integration/` for the IMU-gravity, ROS2-topic, and
+slam_toolbox integration gates.
+
+---
+
+## Where to Read Next
+
+* `docs/scenario_format.md` — full scenario YAML schema reference.
+* `docs/colored_pointcloud.md` — `depth_image_proc` XYZRGB fusion pattern.
+* `CLAUDE.md` (English) / `CLAUDE_kor.md` (Korean) — developer-side
+  guidelines, principles, and the 8-week sprint plan toward iSpaRo 2026.
+* `work_log/LOG.md` — append-only development history. A new contributor
+  reads this file to catch up on every decision MarsLab has made.

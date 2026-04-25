@@ -34,7 +34,7 @@ def test_load_scenario_terrain_procedural_flat() -> None:
 
 
 def test_load_scenario_terrain_cave_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cave preset routes through ``cave_generator.generate_cave_mesh``.
+    """Cave preset routes through ``cave.orchestrator.generate_cave_mesh``.
 
     Stubbed so the test does not execute trimesh-heavy generation.
     """
@@ -50,7 +50,7 @@ def test_load_scenario_terrain_cave_branch(monkeypatch: pytest.MonkeyPatch) -> N
         return fake_cave
 
     monkeypatch.setattr(
-        "marslab.terrain.cave_generator.generate_cave_mesh",
+        "marslab.terrain.cave.orchestrator.generate_cave_mesh",
         fake_generate_cave_mesh,
     )
 

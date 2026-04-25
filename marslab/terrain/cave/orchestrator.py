@@ -12,7 +12,7 @@ Blair 2017, Blank 2024 (BRAILLE). Full references in
 Design follows P3 (Offline-First Testing):
 
     Layer 1 (this module): pure numpy + trimesh, no Isaac Sim.
-    Layer 2 (``cave_mesh_builder.py``): USD prim creation, separate file.
+    Layer 2 (``marslab.terrain.cave.usd_builder``): USD prim creation, separate file.
 
 Architecture -- cross-section sweep (ring stacking):
 

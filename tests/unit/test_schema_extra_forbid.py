@@ -309,7 +309,14 @@ _SCENARIO_DIR = REPO_ROOT / "configs" / "scenarios"
 # real scenario via the root-level ``base_config`` mechanism. Exclude them
 # from the full-validation sweep so the sweep stays focused on "does every
 # runnable scenario round-trip through pydantic cleanly?".
-_SCENARIO_YAMLS = sorted(p for p in _SCENARIO_DIR.glob("*.yaml") if not p.name.startswith("_"))
+# 2026-04-25: template_*.yaml are self-contained UX templates (Items 1+2);
+# they validate via load_and_validate but live outside the ship-with set.
+# Their dedicated tests live in ``tests/unit/test_scenario_templates.py``.
+_SCENARIO_YAMLS = sorted(
+    p
+    for p in _SCENARIO_DIR.glob("*.yaml")
+    if not p.name.startswith("_") and not p.name.startswith("template_")
+)
 
 
 @pytest.mark.parametrize("yaml_path", _SCENARIO_YAMLS, ids=lambda p: p.name)

@@ -3,8 +3,13 @@
 Composes a single action graph that drives:
 
 * ``/clock`` from Isaac Sim simulation time.
-* Articulation joint TF on ``/tf_raw`` (kept separate from the rclpy
-  ``odom->base_link`` publisher on ``/tf`` per user directive).
+* Articulation joint TF on a dedicated ``/tf_raw`` topic, kept
+  separate from the rclpy ``odom -> base_link`` broadcaster on ``/tf``
+  in :mod:`marslab.ros2_bridge.odometry_publisher`.  Sharing one
+  ``/tf`` was tried (Apr-25 fix-up) and rolled back because the two
+  publishers produced duplicated / out-of-phase frames in RViz and
+  Nav2.  The split is enforced by user feedback (see memory
+  ``feedback_no_tf_consolidation``).
 * IMU (``sensor_msgs/Imu``).
 * Camera RGB + Depth via independent render products.
 * 3-D LiDAR point cloud.
@@ -129,7 +134,7 @@ def _resolve_qos_presets(ros2_cfg: Dict[str, Any]) -> Tuple[str, str]:
     QoSProfile.  This helper reads the matching ``sensor_qos`` and
     ``tf_qos`` YAML blocks (or the schema defaults) and maps each to
     the closest bundled preset via
-    :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_preset`.
+    :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json`.
 
     Reviewer 2 #04 (2026-04-24).  Kept separate from
     :func:`_resolve_graph_path` so tests can exercise it without
@@ -139,7 +144,7 @@ def _resolve_qos_presets(ros2_cfg: Dict[str, Any]) -> Tuple[str, str]:
     # so this module stays importable without rclpy / pydantic schema
     # on the path.
     from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
-    from marslab.ros2_bridge.qos import to_omnigraph_qos_preset
+    from marslab.ros2_bridge.qos import to_omnigraph_qos_json
 
     defaults = Ros2BridgeConfig()
 
@@ -151,7 +156,7 @@ def _resolve_qos_presets(ros2_cfg: Dict[str, Any]) -> Tuple[str, str]:
 
     sensor_cfg = _pick("sensor_qos", defaults.sensor_qos)
     tf_cfg = _pick("tf_qos", defaults.tf_qos)
-    return to_omnigraph_qos_preset(sensor_cfg), to_omnigraph_qos_preset(tf_cfg)
+    return to_omnigraph_qos_json(sensor_cfg), to_omnigraph_qos_json(tf_cfg)
 
 
 def _resolve_publish_pointcloud2(ros2_cfg: Dict[str, Any]) -> bool:

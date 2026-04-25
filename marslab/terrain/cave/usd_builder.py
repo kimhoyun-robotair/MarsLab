@@ -1,7 +1,8 @@
 """Cave mesh USD builder (Layer 2).
 
-Converts trimesh objects from cave_generator.py into USD prims for
-Isaac Sim rendering and PhysX collision. Requires Isaac Sim runtime.
+Converts trimesh objects from :mod:`marslab.terrain.cave.orchestrator`
+into USD prims for Isaac Sim rendering and PhysX collision. Requires
+Isaac Sim runtime.
 
 Pattern follows mesh_builder.build_terrain_mesh() and
 rock_instancer.place_rocks_on_terrain().
@@ -103,13 +104,14 @@ def build_cave_scene(
         {base}/Breakdown  — PointInstancer for breakdown blocks
 
     Args:
-        cave_data: Dict from cave_generator.generate_cave_mesh().
+        cave_data: Dict from
+            :func:`marslab.terrain.cave.orchestrator.generate_cave_mesh`.
         stage: USD stage.
         prim_base_path: Base USD prim path.
         seed: Optional RNG seed for the breakdown block orientation /
             scale draws.  When ``None`` the seed is sourced from
             ``cave_data["metadata"]["seed"]`` (populated by
-            :func:`marslab.terrain.cave_generator.generate_cave_mesh`)
+            :func:`marslab.terrain.cave.orchestrator.generate_cave_mesh`)
             so the USD builder stays deterministic with the upstream
             mesh generator.  A hardcoded ``42`` fallback would silently
             break user-supplied seeds (Reviewer 2 H-16, 2026-04-24).

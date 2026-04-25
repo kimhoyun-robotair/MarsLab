@@ -72,6 +72,14 @@ class TestBuildSetValues:
         assert isinstance(sets["RPCamera.inputs:height"], int)
 
     def test_joint_tf_goes_to_tf_raw(self, topics: dict) -> None:
+        """Articulation TF publishes on the dedicated ``/tf_raw`` topic.
+
+        The OmniGraph ``PubTF`` node is intentionally split from the
+        rclpy ``odom -> base_link`` broadcaster on ``/tf``: sharing one
+        ``/tf`` was tried (Apr-25 final fix-up) and rolled back because
+        the two backends produced duplicated / out-of-phase frames in
+        RViz and Nav2.  See memory ``feedback_no_tf_consolidation``.
+        """
         from marslab.ros2_bridge.sensor_graph_builder import _build_set_values
 
         sets = dict(

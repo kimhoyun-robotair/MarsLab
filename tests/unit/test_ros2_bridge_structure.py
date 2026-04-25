@@ -64,8 +64,15 @@ class TestSensorGraphOfflineHelpers:
             assert src_node in declared, f"undeclared source node: {src_node}"
             assert dst_node in declared, f"undeclared dest node: {dst_node}"
 
-    def test_set_values_uses_tf_raw_for_joint_tf(self) -> None:
-        """User directive: articulation TF stays on /tf_raw (not /tf)."""
+    def test_set_values_publishes_articulation_tf_on_tf_raw(self) -> None:
+        """Articulation TF publishes on ``/tf_raw`` (split from ``/tf``).
+
+        Sharing one ``/tf`` between the OmniGraph ``PubTF`` and the
+        rclpy ``TransformBroadcaster`` was tried and rolled back: the
+        two backends produced duplicated / out-of-phase frames in RViz
+        and Nav2.  See memory ``feedback_no_tf_consolidation`` for the
+        rationale and the user-facing constraint.
+        """
         from marslab.ros2_bridge.sensor_graph import _build_set_values
 
         sets = _build_set_values(

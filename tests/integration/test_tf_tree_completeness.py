@@ -2,12 +2,14 @@
 
 This test boots the Stage-3 runtime headless (mirroring
 ``tests/integration/test_robot_spawn_ros2_topics.py``), waits for the
-articulation joint chain to be published on ``/tf_raw`` and the static
+articulation joint chain to be published on ``/tf`` and the static
 sensor frames on ``/tf_static``, then asserts:
 
 1. **Both TF topics produce at least one message within budget**.
    ``/tf_static`` is latched (TRANSIENT_LOCAL) so it should arrive in
-   one tick; ``/tf_raw`` requires the OmniGraph tick.
+   one tick; ``/tf`` requires the OmniGraph tick.  Final fix-up item 4
+   (2026-04-25): articulation TF migrated from ``/tf_raw`` to ``/tf``
+   per REP-105 (multi-authority TF tree).
 2. **The static TF tree contains an edge for every sensor declared in
    the YAML**: ``base_link -> camera_link``, ``base_link -> lidar_link``,
    ``base_link -> scan_frame`` (if lidar_2d is configured), and
@@ -239,8 +241,9 @@ def test_tf_tree_contains_all_sensor_frames() -> None:
         assert live_msgs, (
             "No /tf messages received within budget. The articulation joint TF "
             "publisher (PubTF in marslab/ros2_bridge/sensor_graph_builder.py) "
-            "did not tick — check OmniGraph wiring and ensure the rclpy "
-            "side is forwarding /tf_raw to /tf via the bridge."
+            "did not tick — check OmniGraph wiring.  Since the 2026-04-25 "
+            "final fix-up (item 4) PubTF publishes directly on /tf (REP-105 "
+            "multi-authority pattern); no /tf_raw -> /tf relay is involved."
         )
 
         # --- Assertion 3: parent frame is base_link for every static edge --

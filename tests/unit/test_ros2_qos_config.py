@@ -25,7 +25,7 @@ import pytest
 from pydantic import ValidationError
 
 from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
-from marslab.ros2_bridge.qos import to_omnigraph_qos_preset
+from marslab.ros2_bridge.qos import to_omnigraph_qos_json
 
 
 class TestQoSProfileConfigDefaults:
@@ -129,7 +129,7 @@ class TestRos2BridgeConfigQoSFields:
 
 
 class TestOmniGraphPresetMapping:
-    """``to_omnigraph_qos_preset`` returns JSON-encoded QoS dict.
+    """``to_omnigraph_qos_json`` returns JSON-encoded QoS dict.
 
     Day 5 fix-up (2026-04-25): switched from bare preset names
     (``"SystemDefault"``, ``"SensorData"``) to JSON encoding matching
@@ -141,7 +141,7 @@ class TestOmniGraphPresetMapping:
         import json
 
         cfg = QoSProfileConfig(reliability="best_effort", durability="volatile", depth=5)
-        result = json.loads(to_omnigraph_qos_preset(cfg))
+        result = json.loads(to_omnigraph_qos_json(cfg))
         assert result["reliability"] == "bestEffort"
         assert result["durability"] == "volatile"
         assert result["depth"] == 5
@@ -151,7 +151,7 @@ class TestOmniGraphPresetMapping:
         import json
 
         cfg = QoSProfileConfig(reliability="reliable", durability="volatile", depth=10)
-        result = json.loads(to_omnigraph_qos_preset(cfg))
+        result = json.loads(to_omnigraph_qos_json(cfg))
         assert result["reliability"] == "reliable"
         assert result["durability"] == "volatile"
         assert result["depth"] == 10
@@ -173,7 +173,7 @@ class TestOmniGraphPresetMapping:
         try:
             cfg = QoSProfileConfig(reliability="reliable", durability="transient_local", depth=100)
             with caplog.at_level(logging.WARNING):
-                result_json = to_omnigraph_qos_preset(cfg)
+                result_json = to_omnigraph_qos_json(cfg)
         finally:
             qos_logger.propagate = prev_propagate
 
@@ -186,7 +186,7 @@ class TestOmniGraphPresetMapping:
         """Identical configs produce identical strings."""
         cfg_a = QoSProfileConfig(reliability="best_effort", durability="volatile", depth=5)
         cfg_b = QoSProfileConfig(reliability="best_effort", durability="volatile", depth=5)
-        assert to_omnigraph_qos_preset(cfg_a) == to_omnigraph_qos_preset(cfg_b)
+        assert to_omnigraph_qos_json(cfg_a) == to_omnigraph_qos_json(cfg_b)
 
 
 class TestToRclpyQosAdapter:
@@ -250,6 +250,18 @@ class TestOmniGraphSetValuesIncludeQoS:
         sets = self._default_sets()
         assert sets["PubTF.inputs:qosProfile"] == "SystemDefault"
 
+    def test_pubtf_topic_is_tf_raw(self) -> None:
+        """Articulation joint TF publishes on ``/tf_raw`` (split from ``/tf``).
+
+        Sharing one ``/tf`` between the OmniGraph ``PubTF`` and the
+        rclpy ``TransformBroadcaster`` was tried (Apr-25 final fix-up)
+        and rolled back: the two backends produced duplicated /
+        out-of-phase frames that broke RViz and Nav2.  See memory
+        ``feedback_no_tf_consolidation`` for the user-facing rule.
+        """
+        sets = self._default_sets()
+        assert sets["PubTF.inputs:topicName"] == "/tf_raw"
+
     def test_lidar2d_qos_applied_when_included(self) -> None:
         from marslab.ros2_bridge.sensor_graph_builder import _build_set_values
 
@@ -287,7 +299,7 @@ class TestResolveQosPresets:
     """``sensor_graph._resolve_qos_presets`` reads YAML overrides."""
 
     def test_defaults_when_yaml_absent(self) -> None:
-        # Day 5 fix-up: ``to_omnigraph_qos_preset`` now returns JSON.
+        # Day 5 fix-up: ``to_omnigraph_qos_json`` now returns JSON.
         import json
 
         from marslab.ros2_bridge.sensor_graph import _resolve_qos_presets

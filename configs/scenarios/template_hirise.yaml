@@ -1,0 +1,239 @@
+# =============================================================================
+# Self-contained scenario template (HiRISE DEM source, 2-step workflow).
+# =============================================================================
+#
+# 동반 파일: ``configs/scenarios/template_single_file.yaml`` (procedural 버전).
+# 두 템플릿의 차이는 ``terrain.source`` 만 다르며, 이 파일은 NASA HiRISE
+# GeoTIFF 를 입력으로 받습니다.
+#
+# 실행 워크플로우 (2-step):
+# -----------------------------------------------------------------------------
+# Step 1) HiRISE GeoTIFF -> elevation.npy + metadata.json (오프라인, 1회):
+#
+#     python3 scripts/convert_dem.py \
+#         --config configs/dem_conversion/sample_jezero.yaml
+#
+#   결과: ``assets/terrain/dem/jezero_crater_converted/`` 에
+#         ``elevation.npy`` + ``metadata.json`` 생성.
+#
+# Step 2) 실제 시뮬레이션 (Isaac Sim 런타임에서 GDAL-free 로딩):
+#
+#     scripts/isaac_python.sh scripts/phase1/run_stage3_monolithic.py \
+#         --config configs/scenarios/template_hirise.yaml
+#
+# Step 1 의 출력 디렉터리가 아래 ``terrain.converted_dem_dir`` 와 일치해야
+# 합니다. 두 파일 모두 동일한 pydantic schema 를 통과하므로
+# ``configs/dem_conversion/sample_jezero.yaml`` 도 ``MarsLabConfig`` 로
+# 검증되며 (``terrain.source: hirise`` 필수), ``convert_dem.py`` 는
+# ``config.terrain.dem_path`` / ``config.terrain.converted_dem_dir`` 만
+# 사용합니다 (scripts/convert_dem.py:51-58 참조).
+#
+# 검증 방법 (DEM 디렉터리가 비어 있어도 통과):
+#   from marslab.config.loader import load_and_validate
+#   cfg = load_and_validate("configs/scenarios/template_hirise.yaml")
+#
+# 이유: 스키마는 ``terrain.source`` / ``terrain.dem_crop`` / ``terrain.
+# converted_dem_dir`` 키만 검증하고 디렉터리 내용은 런타임에 읽습니다.
+# =============================================================================
+
+
+# ============================================================================
+# mars_env: 화성 환경 상수
+# ----------------------------------------------------------------------------
+# ← template_single_file.yaml 와 동일. 자세한 주석은 그쪽을 참고.
+# ============================================================================
+mars_env:
+  gravity: 3.72                    # ← 거의 안 바꾸는 곳
+  atmo_pressure: 610               # ← 거의 안 바꾸는 곳
+  atmo_density: 0.020              # ← 거의 안 바꾸는 곳
+  dust_optical_depth: 0.3          # ← 자주 바꾸는 곳: tau (0.3=clear, 4.0=storm)
+  solar_constant_mean: 589
+  surface_albedo_range: [0.10, 0.40]
+  surface_temp_mean: -60
+  sol_duration_seconds: 88642
+  dust_opacity_range: [0.5, 2.0]
+  sun_azimuth_deg: 180             # ← 자주 바꾸는 곳: 0=N, 90=E, 180=S, 270=W
+  sun_elevation_deg: 45            # ← 자주 바꾸는 곳: 0=horizon, 90=zenith
+  seed: 42                         # ← 재현성 실험 시 변경
+  dynamic_atmosphere:
+    enabled: true                  # ← 자주 바꾸는 곳: false=static sun
+    time_scale: 200.0
+    sun_sweep:
+      start_azimuth_deg: 90
+      end_azimuth_deg: 270
+      max_elevation_deg: 60
+    tau_profile: "constant"
+    tau_constant:
+      base_tau: 0.3
+    update_interval_frames: 10
+
+# ============================================================================
+# terrain: HiRISE DEM 기반 (Jezero crater)
+# ----------------------------------------------------------------------------
+# ← 가장 자주 바꾸는 곳: dem_crop (DEM 의 어느 영역을 잘라쓸지)
+# ----------------------------------------------------------------------------
+# 사전 준비물:
+#   1. HiRISE GeoTIFF 다운로드 (USGS Astrogeology / NASA PDS)
+#   2. ``configs/dem_conversion/sample_jezero.yaml`` 의 ``dem_path`` 를
+#      위에서 받은 GeoTIFF 경로로 수정
+#   3. ``python3 scripts/convert_dem.py --config <위 yaml>`` 실행
+#   4. 출력 디렉터리가 아래 ``converted_dem_dir`` 과 동일한지 확인
+# ============================================================================
+terrain:
+  source: "hirise"                 # ← 절대 안 바꿈: HiRISE 쓰면 hirise
+  scenario_name: "template_hirise"
+  converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"
+  dem_crop:                        # ← 자주 바꾸는 곳: 200x200 px window
+    row: 180                       # ← DEM 내 시작 행 (px)
+    col: 0                         # ← DEM 내 시작 열 (px)
+    height: 200                    # ← 잘라낼 높이 (px)
+    width: 200                     # ← 잘라낼 너비 (px)
+  rock_sfd_k: 0.05                 # ← 자주 바꾸는 곳: Golombek CFA 0.0~0.15
+  rock_diameter_range: [0.20, 3.0]
+  semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
+  texture_dir: "assets/materials/mars_hirise"
+  rock_color: [0.42, 0.28, 0.20]
+  rock_roughness: 0.92
+  rock_mesh_dir: "assets/rocks"
+  rock_texture_dir: "assets/materials/mars_rock"
+  uv_scale: 1.0
+  seed: 42
+
+# ============================================================================
+# rendering: RTX 렌더링 설정 (template_single_file 와 동일)
+# ============================================================================
+rendering:
+  mode: "ray_tracing"              # ← 자주 바꾸는 곳: 데이터 생성은 path_tracing
+  sky_dome_hdri_dir: "assets/sky/hdri/"
+  resolution: [1920, 1080]
+  sun_intensity_scale: 30.0
+  sun_color: [1.0, 0.95, 0.85]
+  sun_angular_diameter_deg: 0.35
+  dome_brightness_scale: 5000.0
+  fog_density_scale: 0.002
+  fog_color: [0.78, 0.62, 0.42]
+  spp: 32
+  total_spp: 256
+  max_bounces: 6
+
+scene:
+  structure_assets: []
+
+# ============================================================================
+# rover: M2020 Perseverance (모든 물리/센서/제어/ROS2 인라인)
+# ----------------------------------------------------------------------------
+# ← template_single_file.yaml 와 동일한 인라인 블록. 운영 환경에서는
+# ``rover.base_config: configs/robots/rover_m2020.yaml`` 로 짧게 쓰는 것이
+# 권장됩니다.
+# ============================================================================
+rover:
+  enabled: true
+  usd_path: "assets/robots/rover/m2020.usd"
+  prim_path: "/World/Rover"
+  com_offset: [0.2, 0.0, 0.0]
+  angular_damping: 12.0
+  linear_damping: 0.5
+  spawn:
+    mode: "dem_center"             # ← 자주 바꾸는 곳: dem_center | dem_relative | absolute
+    xy: [0.0, 0.0]
+    z_offset: 0.5
+    orientation_rpy: [3.14159, 0.0, 0.0]
+  chassis:
+    mass: 1025.0
+    inertia_xx: 1036.1
+    inertia_yy: 1182.2
+    inertia_zz: 1391.4
+    bbox_lwh: [3.0, 2.7, 2.2]
+  wheels:
+    radius: 0.2667
+    diameter_reference: 0.525
+    mass: 9.0
+    width: 0.40
+    inertia_spin: 0.310
+    inertia_transverse: 0.275
+    friction_static: 0.6
+    friction_dynamic: 0.5
+    restitution: 0.0
+  suspension:
+    rocker_damping: 75.0
+    bogie_damping: 50.0
+  sensors:
+    camera:
+      parent_link: "Body_Chassis"
+      local_translation: [0.3, 0.0, -2.1]
+      local_orientation_rpy_deg: [180.0, 0.0, 0.0]
+      resolution: [640, 480]
+      focal_length: 24.0
+      clipping_range: [0.1, 1000.0]
+    lidar_3d:
+      parent_link: "Body_Chassis"
+      local_translation: [0.3, 0.0, -0.5]
+      local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+      range_min: 0.5
+      range_max: 100.0
+      horizontal_fov_deg: 360.0
+      vertical_fov_deg: 30.0
+      horizontal_resolution_deg: 0.4
+      vertical_resolution_deg: 1.875
+      rotation_rate_hz: 10.0
+      profile_name: "Example_Rotary"
+    lidar_2d:
+      parent_link: "Body_Chassis"
+      local_translation: [0.3, 0.0, -0.25]
+      local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+      range_min: 0.5
+      range_max: 50.0
+      horizontal_fov_deg: 360.0
+      horizontal_resolution_deg: 0.25
+      rotation_rate_hz: 30.0
+      profile_name: "Example_Rotary_2D"
+    imu:
+      parent_link: "Body_Chassis"
+      local_translation: [0.0, 0.0, 0.0]
+      local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+  control:
+    wheel_radius: 0.2667
+    wheelbase: 2.26
+    track_steer: 2.125
+    track_middle: 2.369
+    max_linear_velocity: 0.5
+    max_angular_velocity: 0.5
+    drive_joint_names: ["LF_DRIVE", "LM_DRIVE", "LR_DRIVE", "RF_DRIVE", "RM_DRIVE", "RR_DRIVE"]
+    steer_joint_names: ["LF_STEER", "LR_STEER", "RF_STEER", "RR_STEER"]
+    suspension_joint_names: ["CENTER_DIFFERENTIAL", "LEFT_DIFFERENTIAL", "RIGHT_DIFFERENTIAL", "LEFT_BOGIE", "RIGHT_BOGIE"]
+    suspension_damping: 50.0
+    drive_damping: 1000.0
+    drive_max_force: 1000000.0
+    steer_stiffness: 50000.0
+    steer_damping: 5000.0
+    steer_max_force: 100000.0
+    drive_type: "acceleration"
+    negate_steer: true
+    max_wheel_accel_rate: 0.5
+    max_steer_angle: 0.7
+    steer_ramp_rate: 2.0
+    decel_multiplier: 3.0
+    debug_logging: false
+  ros2:
+    namespace: "rover"
+    topics:
+      cmd_vel: "cmd_vel"
+      imu: "imu"
+      odom: "odom"
+      rgb: "rgb/image_raw"
+      depth: "depth/image_raw"
+      points: "depth/points"
+      lidar: "lidar/points"
+      scan: "scan"
+    rates:
+      imu: 100
+      odom: 50
+      rgb: 30
+      depth: 30
+      points: 30
+      lidar: 10
+      scan: 30
+    odom_publisher:
+      frame_id: "odom"
+      child_frame_id: "base_link"
+      queue_size: 10

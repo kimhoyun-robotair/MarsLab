@@ -18,6 +18,7 @@ Usage:
         --config configs/mars_env.yaml
 """
 
+import argparse
 import os
 import sys
 
@@ -25,13 +26,27 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from marslab.cli.stage2_args import parse_stage2_args  # noqa: E402
 from marslab.runtime.stage2_boot import run_stage2_boot  # noqa: E402
+
+DEFAULT_CONFIG = os.path.join(REPO_ROOT, "configs", "mars_env.yaml")
 
 
 def main() -> int:
     """Entry point for the Stage 2 viewer."""
-    args = parse_stage2_args()
+    parser = argparse.ArgumentParser(
+        description="Phase 1 Stage 2 runtime: Mars terrain + atmosphere viewer."
+    )
+    parser.add_argument(
+        "--config",
+        default=DEFAULT_CONFIG,
+        help="Path to Stage 2 YAML config (default: configs/mars_env.yaml)",
+    )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run Isaac Sim without the GUI.",
+    )
+    args = parser.parse_args()
 
     boot = run_stage2_boot(args.config, repo_root=REPO_ROOT)
 

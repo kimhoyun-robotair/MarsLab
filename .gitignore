@@ -48,8 +48,7 @@ assets/terrain/dem/*.npy
 assets/terrain/dem/*.IMG
 assets/terrain/dem/*_converted/
 
-# reference for development
-reference/
+# Personal notes / external papers (not committed)
 reference_paper/
 
 # my own skills for development (root-level only, do NOT match .claude/skills/)

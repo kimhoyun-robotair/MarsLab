@@ -1,8 +1,10 @@
 """One-shot URDF -> USD conversion for the Perseverance (M2020) rover.
 
-Reads the NASA JPL m2020-urdf-models URDF from reference/ and writes a
-standalone USD into assets/robots/rover/. Runtime code must load the
-resulting USD; it must not re-run URDF import at simulation time.
+Reads the NASA JPL m2020-urdf-models URDF from
+``assets/m2020-urdf-models/`` (a fork of github.com/nasa-jpl/m2020-urdf-models
+shipped as a git submodule) and writes a standalone USD into
+``assets/robots/rover/``.  Runtime code must load the resulting USD; it
+must not re-run URDF import at simulation time.
 
 The NASA JPL URDF is authored for visualization tools (rviz / browser
 viewers) and contains constructs that Isaac Sim's URDF importer rejects:
@@ -30,7 +32,7 @@ import re
 import sys
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-DEFAULT_URDF = os.path.join(REPO_ROOT, "reference", "m2020-urdf-models", "rover", "m2020.urdf")
+DEFAULT_URDF = os.path.join(REPO_ROOT, "assets", "m2020-urdf-models", "rover", "m2020.urdf")
 DEFAULT_USD = os.path.join(REPO_ROOT, "assets", "robots", "rover", "m2020.usd")
 
 _DBL_MAX_RE = r"-?1\.79769e\+308"

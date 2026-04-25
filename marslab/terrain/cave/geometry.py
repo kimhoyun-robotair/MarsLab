@@ -1,7 +1,8 @@
 """Centerline, cross-section, tangent frame math for cave generation.
 
 Pure numpy + scipy. No Isaac Sim, no trimesh. Extracted from the
-original ``marslab/terrain/cave_generator.py`` in R5 (2026-04-23).
+pre-R5 monolithic ``cave_generator.py`` in R5 (2026-04-23); the
+orchestrator now lives at :mod:`marslab.terrain.cave.orchestrator`.
 
 Consumption order of the shared ``rng`` must be preserved bit-exactly
 with the pre-split module:

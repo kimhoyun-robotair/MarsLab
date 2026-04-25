@@ -19,7 +19,7 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from marslab.terrain.cave_generator import generate_cave_mesh  # noqa: E402
+from marslab.terrain.cave.orchestrator import generate_cave_mesh  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:

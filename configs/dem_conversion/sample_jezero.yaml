@@ -1,0 +1,48 @@
+# =============================================================================
+# DEM conversion config (offline preprocessing): HiRISE GeoTIFF -> numpy.
+# =============================================================================
+#
+# 동반 스크립트: ``scripts/convert_dem.py``.
+# 이 파일은 한 번만 실행되는 오프라인 변환을 위한 입력입니다.
+#
+# 실행:
+#   python3 scripts/convert_dem.py \
+#       --config configs/dem_conversion/sample_jezero.yaml
+#
+# 결과:
+#   ``assets/terrain/dem/jezero_crater_converted/`` 디렉터리에
+#   ``elevation.npy`` (float32) + ``metadata.json`` 생성.
+#   Isaac Sim 5.1 런타임은 GDAL 없이 이 디렉터리를 읽습니다.
+#
+# 스키마 메모:
+# -----------------------------------------------------------------------------
+# 이 파일은 ``MarsLabConfig`` (``marslab.config.schema.root.MarsLabConfig``)
+# 와 동일한 pydantic 스키마를 통과합니다. ``convert_dem.py`` 는 그 중
+# ``terrain.source`` / ``terrain.dem_path`` / ``terrain.converted_dem_dir``
+# 만 사용합니다 (scripts/convert_dem.py:39, 46, 51-58).
+# 즉 별도 변환-전용 스키마가 있는 것이 아니라, scenario 와 같은 schema 의
+# subset 만 사용합니다. 그래서 ``mars_env`` / ``rendering`` 블록은 비워둬도
+# pydantic 기본값으로 검증을 통과합니다.
+# =============================================================================
+
+# ----- terrain (변환에 실제로 사용되는 유일한 블록) -----
+# ← 자주 바꾸는 곳: dem_path, converted_dem_dir
+# ← scenario YAML 의 dem_crop 과 동일한 위치를 선택하면 동작 일관성 유지
+#   (configs/scenarios/jezero_flat.yaml::terrain.dem_crop 와 매칭).
+terrain:
+  source: "hirise"                                                  # ← 절대 안 바꿈
+  dem_path: "assets/terrain/dem/jezero_crater.tif"                  # ← HiRISE GeoTIFF 경로 (변경)
+  converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"   # ← 출력 디렉터리 (변경)
+  # dem_crop 은 변환 단계에서는 사용하지 않습니다 (전체 DEM 을 변환).
+  # 실제 시뮬레이션 scenario YAML 에서 dem_crop 으로 영역을 선택하세요.
+  # 예: configs/scenarios/jezero_flat.yaml -> row=180, col=0, 200x200.
+
+# ----- mars_env / rendering (스키마 검증을 위한 placeholder) -----
+# 변환 스크립트는 이 두 블록을 사용하지 않습니다. ``MarsLabConfig`` 의
+# pydantic 기본값이 자동으로 채워지므로 비워둬도 무방하지만,
+# 명시적으로 한 줄씩 두어 "schema-compliant" 을 강조합니다.
+mars_env:
+  seed: 42                                                          # 변환 결정성과는 무관 (placeholder).
+
+rendering:
+  mode: "ray_tracing"                                               # placeholder; 변환은 이 값 사용 안 함.

@@ -60,7 +60,7 @@ terrain:
 rover:
   enabled: true
   base_config: "configs/robots/rover_m2020.yaml"
-  # Cave frame (R5 post-split, marslab/terrain/cave_generator.py:135):
+  # Cave frame (R5 post-split, marslab/terrain/cave/orchestrator.py:135):
   # tube floor normalized to z=0, surface cap at z=150. Centerline passes
   # through the domain center (200, 200) along tube_direction_deg=45°.
   # For seed=42 skylight #4 lands at (181.2, 190.5) — spawn directly beneath

@@ -159,7 +159,7 @@ def test_build_cave_scene_seed_is_parameterized():
     """
     import inspect
 
-    from marslab.terrain.cave_mesh_builder import (
+    from marslab.terrain.cave.usd_builder import (
         _build_breakdown_instancer,
         build_cave_scene,
     )
@@ -184,7 +184,7 @@ def test_build_cave_scene_seed_respects_metadata(monkeypatch):
     Drives the seed-threading logic without needing Isaac Sim by
     intercepting the inner ``_build_breakdown_instancer`` call.
     """
-    from marslab.terrain import cave_mesh_builder as cmb
+    from marslab.terrain.cave import usd_builder as cmb
 
     recorded: list[int] = []
 

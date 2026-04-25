@@ -115,7 +115,7 @@ def setup_stage2_scene(boot: StageTwoBootResult) -> StageTwoScene:
 
 def _build_cave_scene(stage: Any, boot: StageTwoBootResult) -> np.ndarray:
     """Build the cave 3D-mesh scene and apply per-prim materials."""
-    from marslab.terrain.cave_mesh_builder import build_cave_scene
+    from marslab.terrain.cave.usd_builder import build_cave_scene
     from marslab.terrain.material_applicator import apply_cave_material, apply_terrain_material
 
     terrain_cfg = boot.terrain_cfg

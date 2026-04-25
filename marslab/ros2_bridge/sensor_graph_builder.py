@@ -137,9 +137,21 @@ def _build_set_values(
 ) -> List[Tuple[str, Any]]:
     """List of ``(attr, value)`` pairs applied via SET_VALUES.
 
-    The articulation joint TF is published on ``/tf_raw`` so it does
-    not collide with the rclpy ``odom->base_link`` publisher on
-    ``/tf`` per user directive.
+    The articulation joint TF is published on ``/tf_raw`` while the
+    rclpy side publishes ``odom -> base_link`` on the canonical ``/tf``.
+    The two topics are deliberately kept separate: empirically, sharing
+    one ``/tf`` between an OmniGraph ``PubTF`` and an rclpy
+    ``TransformBroadcaster`` produces duplicated frames in RViz and
+    Nav2's TF buffer (the two backends serialise identical frames out
+    of phase, and downstream consumers see ``/tf`` jitter that breaks
+    SLAM / localisation).  The split mirrors the historical Stage-1
+    layout and is enforced by user feedback (see memory
+    ``feedback_no_tf_consolidation``); do not propose merging them
+    again unless the user explicitly asks.
+
+    Consumers that need the joint chain (RViz ``RobotModel`` display,
+    debug tools) can run a one-line ``tf2_ros static_transform_publisher``
+    style relay or subscribe to ``/tf_raw`` directly.
 
     When ``lidar_2d_prim_path`` is provided **and** ``topics["scan"]`` is
     defined, the 2-D LiDAR pair is appended (``laser_scan`` type).
@@ -149,7 +161,7 @@ def _build_set_values(
     ``CamDepth``, ``Lidar3DHelper``, ``Lidar2DHelper``, ``PubTF``) is
     now wired from ``sensor_qos_preset`` / ``tf_qos_preset``.  The
     caller should pass the preset returned by
-    :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_preset` so the
+    :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json` so the
     OmniGraph side agrees with the rclpy-side QoS whenever a bundled
     preset exists.  Defaults match the rclpy-side defaults
     (``SensorData`` for sensors, ``SystemDefault`` for TF).
@@ -176,6 +188,12 @@ def _build_set_values(
     """
     values: List[Tuple[str, Any]] = [
         ("PubClock.inputs:topicName", "/clock"),
+        # Articulation joint chain on a dedicated ``/tf_raw`` topic so it
+        # does not collide with the rclpy ``odom -> base_link``
+        # broadcaster on ``/tf``.  Sharing one topic was tried and
+        # produced duplicated/out-of-phase frames in RViz and Nav2.
+        # See ``_build_set_values`` docstring + memory
+        # ``feedback_no_tf_consolidation``.
         ("PubTF.inputs:topicName", "/tf_raw"),
         ("PubTF.inputs:qosProfile", tf_qos_preset),
         ("ReadIMU.inputs:imuPrim", [imu_prim_path]),

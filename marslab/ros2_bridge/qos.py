@@ -34,7 +34,7 @@ Isaac Sim 5.1) is::
      "leaseDuration": <double seconds>}
 
 Day 5 v1.0 sprint fix-up (2026-04-25):
-:func:`to_omnigraph_qos_preset` previously returned bare preset names
+:func:`to_omnigraph_qos_json` previously returned bare preset names
 (``"SystemDefault"``, ``"SensorData"``).  The downstream OmniGraph
 node ran ``json.loads("SystemDefault")`` on every step and emitted
 ``Parsing error: ... last read: 'S'`` to stderr, flooding the log
@@ -54,7 +54,7 @@ from marslab.config.schema.ros2_bridge import QoSProfileConfig
 
 __all__ = [
     "to_rclpy_qos",
-    "to_omnigraph_qos_preset",
+    "to_omnigraph_qos_json",
 ]
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ def to_rclpy_qos(cfg: QoSProfileConfig) -> Any:
     )
 
 
-def to_omnigraph_qos_preset(cfg: QoSProfileConfig) -> str:
+def to_omnigraph_qos_json(cfg: QoSProfileConfig) -> str:
     """Build the JSON-encoded QoS dict for Isaac Sim ``inputs:qosProfile``.
 
     Isaac Sim's ``isaacsim.ros2.bridge`` helper nodes (``ROS2PublishImu``,
@@ -156,7 +156,7 @@ def to_omnigraph_qos_preset(cfg: QoSProfileConfig) -> str:
 
     if cfg.durability == "transient_local":
         logger.warning(
-            "to_omnigraph_qos_preset: transient_local durability is "
+            "to_omnigraph_qos_json: transient_local durability is "
             "honoured on the rclpy publish path but the OmniGraph "
             "writer's transient-local support is unverified in Isaac "
             "Sim 5.1.  Late joiners may still miss the first message "

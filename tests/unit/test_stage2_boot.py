@@ -30,6 +30,12 @@ def _find_scenario_without_cave() -> Path:
     for candidate in sorted(scenarios_dir.glob("*.yaml")):
         if candidate.name.startswith("_"):
             continue
+        # 2026-04-25: skip ``template_*.yaml`` self-contained templates so
+        # the scan stays on ship-with scenarios (alphabetical order picks
+        # cerberus_canyon.yaml first anyway, but the explicit guard makes
+        # the intent obvious to future readers).
+        if candidate.name.startswith("template_"):
+            continue
         name = candidate.name.lower()
         if "cave" in name:
             continue

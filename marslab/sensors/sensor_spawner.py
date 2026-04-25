@@ -33,61 +33,16 @@ that previously lived in :mod:`marslab.sensors.imu` / ``.camera`` /
 
 from __future__ import annotations
 
-import copy
-import glob
-import hashlib
-import json
 import logging
 import math
-import os
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Mapping, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
 
 _MARS_GRAVITY_MS2 = 3.72
 _MARS_GRAVITY_TOL_STRICT = 0.05  # attach-time hard assertion (THE critical test)
 _MARS_GRAVITY_TOL_WARN = 0.5  # read-time soft warning threshold
-
-# Sprint Day 3 Task H1 (2026-04-25): runtime LiDAR JSON override.
-# The Isaac Sim 5.1 install ships LiDAR JSON profiles in two locations.
-# We search them in order — the older ``omni.sensors.nv.common`` extscache
-# tree holds the canonical ``Example_Rotary*`` examples that every MarsLab
-# scenario depends on; the newer ``isaacsim.sensors.rtx`` exts tree holds
-# vendor-specific profiles (Velodyne / Hesai / Ouster / SICK …).
-#
-# Both paths are searched recursively because the rtx tree groups vendor
-# profiles into subdirectories (``Velodyne/Velodyne_VLS128.json`` etc.).
-# A profile name passed in by the caller is matched on the file's basename
-# (without ``.json``) so YAML keeps using the bare profile name (G5).
-_LIDAR_PROFILE_SEARCH_GLOBS: tuple[str, ...] = (
-    "/home/hoyunkim/isaacsim/extscache/omni.sensors.nv.common-*/data/lidar/{name}.json",
-    "/home/hoyunkim/isaacsim/exts/isaacsim.sensors.rtx/data/lidar_configs/**/{name}.json",
-)
-
-# Hash-based filename for generated runtime profiles — same overrides on
-# the same base profile collapse to the same path so the regeneration is
-# idempotent and reproducible across runs (no temp-dir cleanup needed).
-_LIDAR_RUNTIME_DIR_DEFAULT = os.path.expanduser("~/MarsLab/tmp/runtime_lidar_profiles")
-
-# YAML keys that the runtime knows how to thread into the bundled JSON.
-# All other YAML numerics (FOV horizontal/vertical, angular resolutions)
-# are descriptive of the bundled profile — generating ``emitterStates``
-# from ``vertical_fov_deg`` + ``vertical_resolution_deg`` is v1.5 follow-up
-# territory because the bundled JSON encodes per-channel azimuth /
-# elevation tables that are not trivially recoverable from two scalars.
-_LIDAR_RUNTIME_OVERRIDABLE_KEYS: tuple[str, ...] = (
-    "range_min",
-    "range_max",
-    "rotation_rate_hz",
-)
-
-# Mapping from MarsLab YAML key -> Isaac Sim bundled JSON ``profile`` key.
-_LIDAR_YAML_TO_JSON_KEY: Mapping[str, str] = {
-    "range_min": "nearRangeM",
-    "range_max": "farRangeM",
-    "rotation_rate_hz": "scanRateBaseHz",
-}
 
 _LOG = logging.getLogger(__name__)
 
@@ -201,195 +156,6 @@ def _resolve_lidar_profile(lidar_cfg: Dict[str, Any]) -> str:
         "``profile_json_path`` (escape hatch), or the legacy ``profile`` "
         "key.  None were found on the supplied lidar_cfg block."
     )
-
-
-def _locate_lidar_profile_json(base_profile_name: str) -> str:
-    """Resolve a bundled LiDAR profile *name* to the JSON file on disk.
-
-    Sprint Day 3 Task H1 (2026-04-25): the helper underpinning runtime
-    YAML overrides.  Searches the two Isaac Sim 5.1 directories that
-    ship LiDAR JSON profiles, in order:
-
-    1. ``/home/hoyunkim/isaacsim/extscache/omni.sensors.nv.common-*/data/lidar/{name}.json``
-       — Example_Rotary, Example_Rotary_2D, Example_Rotary_BEAMS,
-       Velodyne_VLS128 (the canonical examples MarsLab v1.0 ships against).
-    2. ``/home/hoyunkim/isaacsim/exts/isaacsim.sensors.rtx/data/lidar_configs/**/{name}.json``
-       — vendor-specific profiles (Velodyne_VLS128, Hesai_XT32_SD10,
-       SICK_*, Ouster_OS*, ZVISION_*, SLAMTEC_RPLIDAR_S2E …).  ``**``
-       handles the vendor subdirectory layout.
-
-    Args:
-        base_profile_name: Bundled profile name (e.g. ``"Example_Rotary"``)
-            with no path prefix and no ``.json`` extension — the same string
-            that gets passed to ``LidarRtx(config_file_name=...)`` today.
-
-    Returns:
-        Absolute path to the matched ``.json`` file.
-
-    Raises:
-        FileNotFoundError: If neither search location contains a matching
-            file.  The message lists both globs so the operator can verify
-            against the live Isaac Sim install.
-    """
-    if not base_profile_name:
-        raise ValueError("base_profile_name must be a non-empty string")
-
-    # ``profile_name`` is a base name; if a caller already passed a full
-    # path (escape-hatch ``profile_json_path`` flow), short-circuit.
-    if os.path.isabs(base_profile_name) and os.path.exists(base_profile_name):
-        return base_profile_name
-
-    searched: list[str] = []
-    for glob_template in _LIDAR_PROFILE_SEARCH_GLOBS:
-        pattern = glob_template.format(name=base_profile_name)
-        searched.append(pattern)
-        matches = sorted(glob.glob(pattern, recursive=True))
-        if matches:
-            return matches[0]
-
-    raise FileNotFoundError(
-        f"LiDAR profile JSON for '{base_profile_name}' not found. "
-        f"Searched (in order): {searched!r}.  "
-        "Either install the Isaac Sim package that ships this profile, or "
-        "use ``profile_json_path`` (escape hatch) to point at a custom JSON."
-    )
-
-
-def _collect_runtime_lidar_overrides(lidar_cfg: Mapping[str, Any]) -> Dict[str, float]:
-    """Filter ``lidar_cfg`` down to the runtime-overridable numerics.
-
-    Only the three YAML keys in ``_LIDAR_RUNTIME_OVERRIDABLE_KEYS``
-    actually flow into the generated JSON:
-
-    * ``range_min``  -> ``profile.nearRangeM``
-    * ``range_max``  -> ``profile.farRangeM``
-    * ``rotation_rate_hz`` -> ``profile.scanRateBaseHz``
-
-    The other YAML numerics (``horizontal_fov_deg`` / ``vertical_fov_deg`` /
-    ``horizontal_resolution_deg`` / ``vertical_resolution_deg``) are
-    documentation-only descriptors of the bundled profile and are NOT
-    overridden here — Isaac Sim's RTX-LiDAR JSON encodes per-emitter
-    azimuth / elevation tables that cannot be regenerated from two
-    scalars.  Changing those four values requires either a profile swap
-    via ``profile_name`` or a full custom JSON via ``profile_json_path``.
-    Generating ``emitterStates`` from FOV+resolution is a v1.5 follow-up.
-    """
-    overrides: Dict[str, float] = {}
-    for key in _LIDAR_RUNTIME_OVERRIDABLE_KEYS:
-        if key in lidar_cfg and lidar_cfg[key] is not None:
-            overrides[key] = float(lidar_cfg[key])
-    return overrides
-
-
-def _hash_runtime_overrides(base_profile_name: str, overrides: Mapping[str, float]) -> str:
-    """Stable short hex digest for the (base, overrides) pair.
-
-    The digest is folded into the generated JSON filename so identical
-    overrides on the same base profile resolve to the same path across
-    runs (idempotent regeneration, no temp-dir cleanup needed).  We sort
-    keys before hashing so dict ordering does not perturb the digest.
-    """
-    payload = json.dumps(
-        {"base": base_profile_name, "overrides": dict(sorted(overrides.items()))},
-        sort_keys=True,
-    )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
-
-
-def _write_runtime_lidar_profile(
-    base_profile_name: str,
-    overrides: Mapping[str, float],
-    output_dir: str = _LIDAR_RUNTIME_DIR_DEFAULT,
-) -> str:
-    """Materialise an Isaac-Sim-compatible JSON profile with overrides applied.
-
-    Sprint Day 3 Task H1 (2026-04-25): closes the H1 finding from Day 2
-    review — YAML numerics ``range_min`` / ``range_max`` / ``rotation_rate_hz``
-    actually reach Isaac Sim instead of being pydantic-validated and then
-    dropped.
-
-    Workflow:
-
-    1. Resolve ``base_profile_name`` to an on-disk ``.json`` via
-       :func:`_locate_lidar_profile_json`.
-    2. ``json.load`` and deep-copy.  Mutate
-       ``profile.nearRangeM`` / ``profile.farRangeM`` / ``profile.scanRateBaseHz``
-       per the supplied ``overrides``.
-    3. Write to
-       ``{output_dir}/marslab_{base_profile_name}_{hash}.json``.  The
-       hash is sha256 of ``{base, sorted(overrides)}`` truncated to 16
-       hex chars so identical overrides produce the same path
-       (reproducibility).
-    4. Return the absolute path.
-
-    If ``overrides`` is empty, this falls back to returning the located
-    base JSON path unmodified — callers that want bare ``profile_name``
-    semantics should branch on the empty-overrides case before calling
-    this helper rather than rely on the no-op behaviour.
-
-    Args:
-        base_profile_name: Bundled profile name (e.g. ``"Example_Rotary"``).
-        overrides: Mapping of MarsLab YAML keys to override values.  Only
-            keys in ``_LIDAR_RUNTIME_OVERRIDABLE_KEYS`` are applied;
-            unknown keys are ignored with a debug log.
-        output_dir: Directory that will hold the generated JSON.  Created
-            with ``os.makedirs(exist_ok=True)`` if missing.  Defaults to
-            ``~/MarsLab/tmp/runtime_lidar_profiles`` (per the user's
-            "no /tmp" policy).
-
-    Returns:
-        Absolute path to the generated JSON file (or the bundled JSON
-        when ``overrides`` is empty).
-
-    Raises:
-        FileNotFoundError: Propagated from
-            :func:`_locate_lidar_profile_json`.
-        ValueError: If ``base_profile_name`` is empty or the resolved JSON
-            does not contain a top-level ``profile`` object (unexpected
-            schema — every Isaac Sim LiDAR JSON should have one).
-    """
-    base_path = _locate_lidar_profile_json(base_profile_name)
-
-    # No overrides? Cheaper to point ``LidarRtx.config_file_name`` at the
-    # bundled JSON directly than to copy it.
-    filtered = {
-        k: float(v)
-        for k, v in overrides.items()
-        if k in _LIDAR_RUNTIME_OVERRIDABLE_KEYS and v is not None
-    }
-    if not filtered:
-        return base_path
-
-    with open(base_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    if not isinstance(data, dict) or "profile" not in data or not isinstance(data["profile"], dict):
-        raise ValueError(
-            f"Base LiDAR JSON {base_path!r} does not contain a top-level "
-            "'profile' object — refusing to apply runtime overrides."
-        )
-
-    payload = copy.deepcopy(data)
-    profile_block = payload["profile"]
-    for yaml_key, value in filtered.items():
-        json_key = _LIDAR_YAML_TO_JSON_KEY[yaml_key]
-        profile_block[json_key] = float(value)
-
-    digest = _hash_runtime_overrides(base_profile_name, filtered)
-    os.makedirs(output_dir, exist_ok=True)
-    out_path = os.path.abspath(
-        os.path.join(output_dir, f"marslab_{base_profile_name}_{digest}.json")
-    )
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
-
-    _LOG.debug(
-        "Wrote runtime LiDAR profile: base=%s overrides=%s -> %s",
-        base_profile_name,
-        filtered,
-        out_path,
-    )
-    return out_path
 
 
 def _rpy_deg_to_quat_wxyz(rpy_deg: Optional[Iterable[float]]) -> tuple:
@@ -586,7 +352,8 @@ def spawn_sensors(
     from pxr import Gf, UsdGeom
 
     camera_cfg, imu_cfg = sensors_cfg["camera"], sensors_cfg["imu"]
-    # Stage-3 uses "lidar_3d"; Stage-1 phase1.yaml used "lidar". Accept both.
+    # ``lidar_3d`` is the canonical key; ``lidar`` accepted for backward
+    # compatibility with pre-Stage-3 configs that did not yet split 2D/3D.
     lidar_cfg = sensors_cfg.get("lidar_3d") or sensors_cfg.get("lidar")
 
     # Camera orientation strategy: ANY xformOp modification on the Camera
@@ -752,7 +519,4 @@ def spawn_sensors(
 __all__: List[str] = [
     "SensorHandles",
     "spawn_sensors",
-    "_locate_lidar_profile_json",
-    "_collect_runtime_lidar_overrides",
-    "_write_runtime_lidar_profile",
 ]

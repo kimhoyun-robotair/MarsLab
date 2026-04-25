@@ -11,7 +11,21 @@
 # the scenario YAML instead.
 
 usd_path: "assets/robots/rover/m2020.usd"
-urdf_source_path: "reference/m2020-urdf-models/rover/m2020.urdf"
+# URDF source: NASA JPL m2020-urdf-models, vendored as a git submodule
+# under ``assets/m2020-urdf-models/``.  Forked from
+# github.com/nasa-jpl/m2020-urdf-models to pin a commit and decouple
+# from upstream availability.  See ``THIRD_PARTY_LICENSES.md`` for
+# attribution (NASA/JPL release IDs URS307049, URS309682).  Run
+# ``git submodule update --init`` after cloning MarsLab for the URDF
+# + meshes to appear on disk.
+#
+# This field is documentation only -- the URDF -> USD conversion
+# script ``scripts/phase1/convert_urdf_to_usd.py`` has its own
+# ``DEFAULT_URDF`` constant pointing at the same path and accepts
+# a ``--urdf`` CLI override.  Runtime code does NOT consume this
+# URDF; it loads the converted USD at ``usd_path`` above.  Keep this
+# key in sync with ``DEFAULT_URDF`` if either path changes.
+urdf_source_path: "assets/m2020-urdf-models/rover/m2020.urdf"
 prim_path: "/World/Rover"
 
 # Stage-1 spawn pose is a fallback only; Stage-3 scenarios override

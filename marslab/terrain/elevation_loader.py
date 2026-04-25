@@ -70,7 +70,7 @@ def _load_cave(
     terrain_cfg: Dict[str, Any], resolution: float
 ) -> Tuple[np.ndarray, Dict[str, Any], float]:
     """Generate a cave elevation grid and stash the full generator payload."""
-    from marslab.terrain.cave_generator import generate_cave_mesh
+    from marslab.terrain.cave.orchestrator import generate_cave_mesh
 
     size = tuple(terrain_cfg.get("terrain_size", [256, 256]))
     seed = int(terrain_cfg.get("seed", 42))

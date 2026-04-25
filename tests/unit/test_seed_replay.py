@@ -25,7 +25,7 @@ Modules covered (call-surface discovered with
 * :mod:`marslab.environment.tau_profile` -- :func:`compute_tau` for all
   three profile types (also no seed; deterministic given config).
 
-The Isaac Sim-dependent modules (``cave_mesh_builder``, ``material_applicator``)
+The Isaac Sim-dependent modules (``cave.usd_builder``, ``material_applicator``)
 are intentionally skipped here because they import Isaac Sim and the
 guideline P3 says offline tests must not require it. Their RNG draws
 are exercised indirectly through ``cave.geometry`` / ``cave.features``

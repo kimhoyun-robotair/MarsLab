@@ -29,6 +29,7 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import os
 import sys
@@ -43,7 +44,6 @@ if REPO_ROOT not in sys.path:
 # G7 safety: propagate_seeds_in_dict is re-exported here so the twin-lock
 # regression tests stay green even though run_stage2_boot already enforces
 # ``terrain.seed == mars_env.seed + 1`` internally.
-from marslab.cli.stage3_args import parse_stage3_args  # noqa: E402
 from marslab.config.loader import propagate_seeds_in_dict  # noqa: E402, F401
 from marslab.config.scenario_loader import load_scenario_config, resolve_spawn_pose  # noqa: E402
 from marslab.robots.drive_api_setup import configure_drives, reinforce_pd_gains  # noqa: E402
@@ -70,7 +70,25 @@ from marslab.runtime.stage2_scene import setup_stage2_scene  # noqa: E402
 
 
 def main() -> int:
-    args = parse_stage3_args()
+    parser = argparse.ArgumentParser(
+        description="Phase 1 Stage 3 monolithic runtime: rover + scene + ROS2."
+    )
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to Stage 3 scenario YAML (e.g. configs/scenarios/jezero_flat.yaml).",
+    )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run Isaac Sim without the GUI. Default is GUI mode.",
+    )
+    parser.add_argument(
+        "--no-ros2",
+        action="store_true",
+        help="Skip rclpy / OmniGraph ROS2 bridge (offline rover+scene diagnostic).",
+    )
+    args = parser.parse_args()
     args.config = args.config.strip()
 
     # --- Stage-2 boot (config + terrain + atmosphere, G7 enforced) ----------

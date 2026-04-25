@@ -1,19 +1,24 @@
-"""Cave submodule package: geometry, mesh, features, breakdown.
+"""Cave subpackage: geometry, mesh, features, breakdown, orchestrator, USD builder.
 
-Introduced in R5 (2026-04-23) to split the previously 884-LOC
-``marslab/terrain/cave_generator.py`` into focused submodules while
-preserving the public ``generate_cave_mesh`` entry point at the
-original import path. Consumers that already import from
-``marslab.terrain.cave_generator`` keep working unchanged; new code
-may reach directly into the submodules below.
+R5 (2026-04-23) split the previously 884-LOC ``cave_generator.py`` into
+four focused submodules. The 2026-04-26 follow-up moved the thin
+orchestrator and the USD builder into this same subpackage so all
+cave-related code lives under one folder:
+
+* ``orchestrator`` (was top-level ``cave_generator.py``) -- thin numpy +
+  trimesh assembly entry point :func:`generate_cave_mesh`.
+* ``usd_builder`` (was top-level ``cave_mesh_builder.py``) -- Isaac Sim
+  USD prim creation :func:`build_cave_scene`.
 
 Submodules:
-    geometry  -- centerline, cross-section, tangent frames (pure math)
-    mesh      -- trimesh ring-stitching for tube/floor/shaft/surface
-    features  -- skylight placement, debris cone construction
-    breakdown -- lognormal rejection-sampled breakdown blocks
-    _constants -- private literal defaults consumed when YAML omits
-                  the optional ``geometry`` block
+    geometry     -- centerline, cross-section, tangent frames (pure math)
+    mesh         -- trimesh ring-stitching for tube/floor/shaft/surface
+    features     -- skylight placement, debris cone construction
+    breakdown    -- lognormal rejection-sampled breakdown blocks
+    orchestrator -- thin generate_cave_mesh entry point (Layer 1)
+    usd_builder  -- USD prim creation for Isaac Sim (Layer 2)
+    _constants   -- private literal defaults consumed when YAML omits
+                    the optional ``geometry`` block
 """
 
 from marslab.terrain.cave.breakdown import generate_breakdown_positions
@@ -32,6 +37,7 @@ from marslab.terrain.cave.mesh import (
     build_tube_floor,
     build_tube_shell,
 )
+from marslab.terrain.cave.orchestrator import generate_cave_mesh
 
 __all__ = [
     "build_centerline",
@@ -43,5 +49,6 @@ __all__ = [
     "build_tube_shell",
     "compute_skylight_positions",
     "generate_breakdown_positions",
+    "generate_cave_mesh",
     "tangent_frames",
 ]

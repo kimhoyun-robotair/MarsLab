@@ -1,11 +1,11 @@
-"""Unit tests for marslab.terrain.cave_generator."""
+"""Unit tests for marslab.terrain.cave.orchestrator."""
 
 import hashlib
 
 import numpy as np
 import pytest
 
-from marslab.terrain.cave_generator import generate_cave_mesh
+from marslab.terrain.cave.orchestrator import generate_cave_mesh
 
 # Shared small-domain params for fast tests
 SMALL = {

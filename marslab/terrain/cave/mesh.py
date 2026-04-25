@@ -1,8 +1,10 @@
 """Trimesh ring-stitching for cave tube/floor/shaft/surface meshes.
 
-Extracted from ``marslab/terrain/cave_generator.py`` in R5
-(2026-04-23). Every function is pure: it takes numpy arrays and
-returns a :class:`trimesh.Trimesh`, with no Isaac Sim dependency.
+Extracted from the pre-R5 monolithic ``cave_generator.py`` in R5
+(2026-04-23); the thin orchestrator that previously lived at that
+top-level path is now :mod:`marslab.terrain.cave.orchestrator`. Every
+function is pure: it takes numpy arrays and returns a
+:class:`trimesh.Trimesh`, with no Isaac Sim dependency.
 
 RNG consumption order preserved from the pre-split module:
 

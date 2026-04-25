@@ -1,7 +1,9 @@
 """Lognormal rejection-sampled breakdown block placement.
 
-Extracted from ``marslab/terrain/cave_generator.py`` in R5
-(2026-04-23). Pure numpy. No Isaac Sim, no trimesh.
+Extracted from the pre-R5 monolithic ``cave_generator.py`` in R5
+(2026-04-23); the orchestrator now lives at
+:mod:`marslab.terrain.cave.orchestrator`. Pure numpy. No Isaac Sim,
+no trimesh.
 
 Size distribution follows Blank 2024 / BRAILLE: lognormal diameters
 with a hard cap at :data:`BREAKDOWN_DIAMETER_CAP_M`.
