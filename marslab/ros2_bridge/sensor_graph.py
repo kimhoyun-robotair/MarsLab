@@ -89,13 +89,20 @@ def build_sensor_graph(
     graph_path = _resolve_graph_path(ros2_cfg)
     sensor_preset, tf_preset = _resolve_qos_presets(ros2_cfg)
     include_2d = lidar_2d_prim_path is not None and "scan" in topics
+    include_pcl = _resolve_publish_pointcloud2(ros2_cfg) and "points" in topics
 
     keys = og.Controller.Keys
     graph_handle, _, _, _ = og.Controller.edit(
         {"graph_path": graph_path, "evaluator_name": "execution"},
         {
-            keys.CREATE_NODES: _build_create_nodes(include_lidar_2d=include_2d),
-            keys.CONNECT: _build_connections(include_lidar_2d=include_2d),
+            keys.CREATE_NODES: _build_create_nodes(
+                include_lidar_2d=include_2d,
+                include_pointcloud2=include_pcl,
+            ),
+            keys.CONNECT: _build_connections(
+                include_lidar_2d=include_2d,
+                include_pointcloud2=include_pcl,
+            ),
             keys.SET_VALUES: _build_set_values(
                 ns=ns,
                 topics=topics,
@@ -106,6 +113,7 @@ def build_sensor_graph(
                 lidar_2d_prim_path=lidar_2d_prim_path if include_2d else None,
                 sensor_qos_preset=sensor_preset,
                 tf_qos_preset=tf_preset,
+                include_pointcloud2=include_pcl,
             ),
         },
     )
@@ -146,6 +154,35 @@ def _resolve_qos_presets(ros2_cfg: Dict[str, Any]) -> Tuple[str, str]:
     return to_omnigraph_qos_preset(sensor_cfg), to_omnigraph_qos_preset(tf_cfg)
 
 
+def _resolve_publish_pointcloud2(ros2_cfg: Dict[str, Any]) -> bool:
+    """Return whether to wire the depth-derived ``CamPCL`` helper.
+
+    Reads ``ros2_cfg["publish_pointcloud2"]`` when present (validated via
+    :class:`Ros2BridgeConfig`) and falls back to the schema default
+    (``True`` -- RealSense-style RGB-D PointCloud2 ON) when absent.
+
+    Day 2 sprint task F (2026-04-25): keeping the resolver parallel to
+    :func:`_resolve_graph_path` means the orchestrator never reads the
+    raw dict directly -- pydantic enforces the bool type for both ad-hoc
+    dict callers and YAML-loaded callers.
+
+    Args:
+        ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
+            compatibility).
+
+    Returns:
+        ``True`` to append the ``CamPCL`` node + edges + values, else
+        ``False`` to skip the PointCloud2 publisher entirely.
+    """
+    from marslab.config.schema.ros2_bridge import Ros2BridgeConfig
+
+    raw = ros2_cfg.get("publish_pointcloud2") if isinstance(ros2_cfg, dict) else None
+    if raw is None:
+        return Ros2BridgeConfig().publish_pointcloud2
+    validated = Ros2BridgeConfig(publish_pointcloud2=bool(raw))
+    return validated.publish_pointcloud2
+
+
 def _resolve_graph_path(ros2_cfg: Dict[str, Any]) -> str:
     """Return the action-graph prim path for the Stage-3 bridge.
 
@@ -184,4 +221,5 @@ __all__ = [
     "_build_set_values",
     "_ns_topic",
     "_resolve_graph_path",
+    "_resolve_publish_pointcloud2",
 ]

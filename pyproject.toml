@@ -21,7 +21,6 @@ dev = [
     "mypy>=1.8",
     "types-PyYAML>=6.0",
     "pip-audit>=2.7",
-    "pre-commit>=3.6",
     "matplotlib>=3.5",
 ]
 

@@ -1,12 +1,9 @@
 """Mars environmental parameters (gravity, atmosphere, solar, albedo, seed).
 
-R2-A2 (2026-04-22) added ``DynamicAtmosphereConfig`` (plus the
-``SunSweepConfig`` / ``TauConstantConfig`` / ``TauRampConfig`` /
-``TauSineConfig`` leaves) so the previously-untyped
-``mars_env.dynamic_atmosphere`` YAML block gets pydantic validation.
-See ``refactoring/_risks.md`` §4.1 for the risk record and
-``scripts/phase1/run_stage2.py`` L365-408 for the dict.get() parsing
-that this migration replaces.
+Adds ``DynamicAtmosphereConfig`` (plus the ``SunSweepConfig`` /
+``TauConstantConfig`` / ``TauRampConfig`` / ``TauSineConfig`` leaves) so
+the ``mars_env.dynamic_atmosphere`` YAML block gets pydantic validation
+instead of the previous untyped ``dict.get()`` parsing.
 """
 
 from typing import Literal

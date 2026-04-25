@@ -1,0 +1,39 @@
+# Hokuyo UST-10LX preset for the MarsLab 2D LiDAR slot.
+#
+# Sprint Day 2 Task D + E (2026-04-25): drop-in replacement for the
+# ``sensors.lidar_2d`` block in ``configs/robots/rover_m2020.yaml``.
+# Every numeric parameter is exposed (G5).
+#
+# Datasheet reference (Hokuyo UST-10LX):
+#   * Single-beam planar scanner (no vertical FOV)
+#   * 270° horizontal angular range (-135° to +135°)
+#   * 0.25° angular resolution
+#   * 25 ms scan period (40 Hz update rate)
+#   * 10 m maximum range, 0.06 m minimum range (rounded to 0.1 m for
+#     parity with the Isaac Sim Example_Rotary_2D minimum)
+#
+# Day 3 H1 fix-up (2026-04-25): Isaac Sim 5.1 does NOT bundle
+# ``Hokuyo_UST_10LX.json``; using ``Example_Rotary_2D`` (bundled) as the
+# base profile so the runtime JSON override (``range_min``/``range_max``/
+# ``rotation_rate_hz``) succeeds. ``horizontal_fov_deg: 270.0`` is
+# descriptive of the *target* UST-10LX spec but does NOT override the
+# bundled emitter angular range. v1.5 follow-up: emitterStates generation
+# (see ``~/MarsLab/tmp/task_H1_finding.md``).
+
+parent_link: "Body_Chassis"
+local_translation: [0.3, 0.0, -0.25]
+local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+
+# Runtime-overridable (will reach Isaac Sim via generated JSON).
+range_min: 0.1
+range_max: 10.0
+rotation_rate_hz: 40.0
+# Descriptive of UST-10LX (270 deg, 0.25 deg) but do NOT override the
+# bundled Example_Rotary_2D emitter geometry (Day 3 H1 limitation).
+horizontal_fov_deg: 270.0
+horizontal_resolution_deg: 0.25
+
+# Base profile: must match a JSON file that ships with Isaac Sim 5.1.
+profile_name: "Example_Rotary_2D"
+profile_json_path: null
+usd_profile: null

@@ -46,6 +46,13 @@ mars_env:
       base_tau: 0.3
     update_interval_frames: 10
 
+scene:
+  # Sprint Day-2 Task H (2026-04-26): empty default so every scenario
+  # inherits a parsable ``scene.structure_assets`` list. Scenarios that
+  # actually want OBJ/STL drop-ins override this list; unrelated
+  # scenarios pick up the empty default and parse without change.
+  structure_assets: []
+
 rendering:
   mode: "ray_tracing"
   sky_dome_hdri_dir: "assets/sky/hdri/"

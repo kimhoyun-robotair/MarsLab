@@ -207,6 +207,28 @@ class Ros2BridgeConfig(BaseModel):
             "1000 prevents misconfigurations that would swamp rclpy with unbounded queues."
         ),
     )
+    publish_pointcloud2: bool = Field(
+        default=True,
+        description=(
+            "When ``True`` the Stage-3 OmniGraph appends a second "
+            "``isaacsim.ros2.bridge.ROS2CameraHelper`` node fed off the depth "
+            "render product with ``inputs:type='depth_pcl'`` so the RGB-D "
+            "camera publishes a ``sensor_msgs/PointCloud2`` topic at the "
+            "depth camera rate (RealSense D435/D455-style behaviour).  "
+            "Source: ``isaacsim/exts/isaacsim.ros2.bridge/isaacsim/ros2/bridge/"
+            "ogn/python/nodes/OgnROS2CameraHelper.py:141-155`` -- the "
+            "``depth_pcl`` token routes through ``ROS2PublishPointCloud`` with "
+            "``DistanceToImagePlane`` as the source render variable, so depth "
+            "+ camera intrinsics are converted into XYZ points inside the "
+            "writer.  Topic name comes from ``rover.ros2.topics.points`` "
+            "(default ``depth/points``); ``frameId`` reuses ``camera_link`` so "
+            "the publisher joins the existing static TF chain instead of "
+            "introducing an unattached optical frame.  Default ``True`` "
+            "matches the RealSense convention -- flip to ``False`` for "
+            "headless data-gen scenarios where the extra bandwidth is not "
+            "wanted.  Added on Day 2 of the MarsLab v1.0 sprint (2026-04-25)."
+        ),
+    )
     cmd_vel_qos: QoSProfileConfig = Field(
         default_factory=_cmd_vel_qos_default,
         description=(

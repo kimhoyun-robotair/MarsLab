@@ -22,13 +22,22 @@ from marslab.config.schema.rendering import (
     SkyDomeConfig,
 )
 from marslab.config.schema.robot import (
+    CameraConfig,
+    IMUConfig,
+    Lidar2DConfig,
+    Lidar3DConfig,
     OdometryCovarianceConfig,
     RobotConfig,
+    SensorsConfig,
     SkidSteerDriveConfig,
 )
 from marslab.config.schema.root import MarsLabConfig
 from marslab.config.schema.ros2_bridge import Ros2BridgeConfig
-from marslab.config.schema.scene import SceneConfig, StructureConfigSchema
+from marslab.config.schema.scene import (
+    SceneConfig,
+    StructureAssetConfig,
+    StructureConfigSchema,
+)
 from marslab.config.schema.terrain import (
     CaveConfig,
     CaveGeometryConfig,
@@ -45,11 +54,15 @@ from marslab.config.schema.terrain import (
 # ``from marslab.config.schema import DynamicAtmosphereConfig`` works
 # without reaching into ``marslab.config.schema.mars_env``.
 __all__ = [
+    "CameraConfig",
     "CaveConfig",
     "CaveGeometryConfig",
     "DemCropConfig",
     "DynamicAtmosphereConfig",
     "FogConfig",
+    "IMUConfig",
+    "Lidar2DConfig",
+    "Lidar3DConfig",
     "MarsEnvConfig",
     "MarsLabConfig",
     "OdometryCovarianceConfig",
@@ -60,8 +73,10 @@ __all__ = [
     "RobotConfig",
     "Ros2BridgeConfig",
     "SceneConfig",
+    "SensorsConfig",
     "SkidSteerDriveConfig",
     "SkyDomeConfig",
+    "StructureAssetConfig",
     "StructureConfigSchema",
     "SunSweepConfig",
     "TauConstantConfig",

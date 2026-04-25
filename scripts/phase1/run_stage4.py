@@ -154,6 +154,27 @@ def main() -> int:
             flush=True,
         )
 
+    # --- Day 3 Reviewer 2 fix-up (M3, 2026-04-25): structure_assets runtime
+    # ``structure_assets:`` is the OBJ/STL drop-in block from Day 2 Task H.
+    # Without this wiring, the schema/loader/test stack added in
+    # ``marslab/scene/structure_loader.py:230-414`` is unreachable from
+    # the live Stage-3 runtime. Empty list = zero overhead.
+    structure_assets = scene_cfg.get("structure_assets") if isinstance(scene_cfg, dict) else None
+    if structure_assets:
+        from marslab.config.schema.scene import StructureAssetConfig
+        from marslab.scene.structure_loader import (
+            build_structure_asset,
+            load_structure_assets,
+        )
+
+        validated_assets = [StructureAssetConfig.model_validate(a) for a in structure_assets]
+        runtime_assets = [build_structure_asset(a) for a in validated_assets]
+        attached_paths = load_structure_assets(stage, runtime_assets)
+        print(
+            f"[run_stage4] Attached {len(attached_paths)} structure_asset(s).",
+            flush=True,
+        )
+
     # --- Sensors + OmniGraph ROS2 bridge -------------------------------------
     handles = spawn_sensors(stage, sensors_cfg, ros2_cfg, rigid_body_path)
     imu = handles.imu

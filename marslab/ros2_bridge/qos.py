@@ -18,32 +18,35 @@ single conversion point so the mapping
     depth:       int
 
 is declared in one place.  The OmniGraph side (Isaac Sim ROS2 bridge
-helper nodes) accepts a different encoding: the
-``ROS2PublishImu`` / ``ROS2CameraHelper`` / ``ROS2RtxLidarHelper``
-nodes take a **string preset** on the ``inputs:qosProfile`` attribute,
-not a structured QoSProfile object.  The preset strings accepted by
-Isaac Sim 5.x (verified against the ``isaacsim.ros2.bridge``
-extension shipped with Kit 106+) are:
+helper nodes) accepts the ``inputs:qosProfile`` string as a
+**JSON-encoded QoS dict** matching the schema produced by
+``isaacsim.ros2.bridge.ROS2QoSProfile``.  The schema (verified at
+``isaacsim/ros2/bridge/ogn/python/nodes/OgnROS2QoSProfile.py:101-113``,
+Isaac Sim 5.1) is::
 
-* ``"SystemDefault"`` — RELIABLE + VOLATILE + KEEP_LAST(10)
-* ``"ServicesDefault"`` — RELIABLE + VOLATILE + KEEP_LAST(10) (shallower keep)
-* ``"SensorData"`` — BEST_EFFORT + VOLATILE + KEEP_LAST(5)
-* ``"ParameterEvents"`` — RELIABLE + VOLATILE + KEEP_LAST(1000)
-* ``""`` (empty) — the node falls back to SystemDefault
+    {"history": "keepLast" | "keepAll" | "systemDefault" | "unknown",
+     "depth": <uint64>,
+     "reliability": "reliable" | "bestEffort" | "systemDefault" | "unknown",
+     "durability": "volatile" | "transientLocal" | "systemDefault" | "unknown",
+     "deadline": <double seconds>,
+     "lifespan": <double seconds>,
+     "liveliness": "automatic" | "manualByTopic" | "systemDefault",
+     "leaseDuration": <double seconds>}
 
-We expose :func:`to_omnigraph_qos_preset` to pick the closest preset
-for a given :class:`QoSProfileConfig`.  When the config does not map
-cleanly to a bundled preset (for example RELIABLE + TRANSIENT_LOCAL,
-which Isaac Sim has no named preset for in 5.0), the helper returns
-``"SystemDefault"`` and emits a warning so the user knows the
-OmniGraph side is NOT honouring their TRANSIENT_LOCAL request.  The
-rclpy side (``create_publisher`` / ``create_subscription``) receives
-the exact ``QoSProfile`` regardless, so the ``/tf_static``
-transient-local guarantee is preserved on at least one publish path.
+Day 5 v1.0 sprint fix-up (2026-04-25):
+:func:`to_omnigraph_qos_preset` previously returned bare preset names
+(``"SystemDefault"``, ``"SensorData"``).  The downstream OmniGraph
+node ran ``json.loads("SystemDefault")`` on every step and emitted
+``Parsing error: ... last read: 'S'`` to stderr, flooding the log
+(verified ``~/MarsLab/log.txt:520+`` ~5500 lines per session).  The
+preset name was non-fatally interpreted by the C++ writer so the
+simulation worked, but the noise made other warnings unreadable.
+The helper now returns proper JSON which the writer parses cleanly.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -107,44 +110,67 @@ def to_rclpy_qos(cfg: QoSProfileConfig) -> Any:
 
 
 def to_omnigraph_qos_preset(cfg: QoSProfileConfig) -> str:
-    """Pick the closest Isaac Sim OmniGraph ``qosProfile`` preset string.
+    """Build the JSON-encoded QoS dict for Isaac Sim ``inputs:qosProfile``.
 
     Isaac Sim's ``isaacsim.ros2.bridge`` helper nodes (``ROS2PublishImu``,
     ``ROS2CameraHelper``, ``ROS2RtxLidarHelper``,
     ``ROS2PublishRawTransformTree``) expose a string ``qosProfile``
-    input rather than a structured profile.  The preset vocabulary is
-    fixed by the extension; this helper maps our schema to the
-    closest preset.
+    input.  The string is parsed as JSON by the C++ writer matching
+    the schema produced by ``OgnROS2QoSProfile``
+    (``isaacsim/ros2/bridge/ogn/python/nodes/OgnROS2QoSProfile.py:101-113``,
+    Isaac Sim 5.1).
 
-    Mapping (verified against Isaac Sim 5.x ``isaacsim.ros2.bridge``):
+    Mapping from MarsLab schema to Isaac Sim QoS JSON keys:
 
-    * ``best_effort`` + ``volatile`` → ``"SensorData"``  (matches the
-      sensor_data convention: LiDAR scans, raw camera frames, IMU).
-    * ``reliable`` + ``transient_local`` → ``"SystemDefault"`` + warning
-      (no bundled preset is transient-local; the caller must wire a
-      rclpy-side republisher if TRANSIENT_LOCAL is essential).
-    * everything else → ``"SystemDefault"`` (RELIABLE + VOLATILE +
-      depth 10).  Matches Nav2 controller_server output for cmd_vel
-      and nav_msgs/Odometry for odom.
+    * ``reliability``: ``"reliable"`` → ``"reliable"``,
+      ``"best_effort"`` → ``"bestEffort"`` (camelCase).
+    * ``durability``: ``"volatile"`` → ``"volatile"``,
+      ``"transient_local"`` → ``"transientLocal"``.
+    * ``history``: ``"keep_last"`` → ``"keepLast"``,
+      ``"keep_all"`` → ``"keepAll"``.
+    * ``depth``: passed through.
+    * ``deadline`` / ``lifespan`` / ``leaseDuration``: 0.0 (no policy).
+    * ``liveliness``: ``"systemDefault"`` (we do not expose this knob).
+
+    Day 5 fix-up (2026-04-25): switched from bare preset names
+    (``"SystemDefault"``, ``"SensorData"``) to the JSON encoding that
+    the C++ writer expects.  The bare-name path produced
+    ``Parsing error: ... last read: 'S'`` log spam on every step
+    (verified ``~/MarsLab/log.txt:520+``).  The bare-name fallback in
+    the C++ writer was non-fatal, so behaviour was correct, but the
+    noise made other diagnostic output unreadable.
 
     Args:
         cfg: The validated :class:`QoSProfileConfig`.
 
     Returns:
-        The preset string to assign to ``inputs:qosProfile`` on the
-        Isaac Sim helper node.  Never returns empty (which would fall
-        back to SystemDefault implicitly) — always explicit for
-        audit / grep-friendliness.
+        A JSON-encoded string suitable for direct assignment to
+        ``inputs:qosProfile`` on any of the Isaac Sim ROS2 helper
+        nodes.  Single-line, deterministic key order (alphabetical via
+        ``sort_keys=True``) so identical configs produce identical
+        strings, which keeps unit tests stable.
     """
-    if cfg.reliability == "best_effort" and cfg.durability == "volatile":
-        return "SensorData"
+    reliability_map = {"reliable": "reliable", "best_effort": "bestEffort"}
+    durability_map = {"volatile": "volatile", "transient_local": "transientLocal"}
+    history_map = {"keep_last": "keepLast", "keep_all": "keepAll"}
+
     if cfg.durability == "transient_local":
         logger.warning(
-            "to_omnigraph_qos_preset: no bundled Isaac Sim preset for "
-            "transient_local durability; falling back to SystemDefault. "
-            "The rclpy-side publisher (if any) will still honour "
-            "transient_local; OmniGraph-only topics (e.g. PubTF on "
-            "/tf_raw) will NOT be latched to late joiners."
+            "to_omnigraph_qos_preset: transient_local durability is "
+            "honoured on the rclpy publish path but the OmniGraph "
+            "writer's transient-local support is unverified in Isaac "
+            "Sim 5.1.  Late joiners may still miss the first message "
+            "on OmniGraph-only topics."
         )
-        return "SystemDefault"
-    return "SystemDefault"
+
+    qos_dict = {
+        "history": history_map[cfg.history],
+        "depth": int(cfg.depth),
+        "reliability": reliability_map[cfg.reliability],
+        "durability": durability_map[cfg.durability],
+        "deadline": 0.0,
+        "lifespan": 0.0,
+        "liveliness": "systemDefault",
+        "leaseDuration": 0.0,
+    }
+    return json.dumps(qos_dict, sort_keys=True)

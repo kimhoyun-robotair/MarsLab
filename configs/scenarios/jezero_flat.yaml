@@ -43,3 +43,16 @@ rover:
     xy: [0.0, 0.0]
     z_offset: 0.5
     orientation_rpy: [3.14159, 0.0, 0.0]
+
+# Sprint Day-2 Task H (2026-04-26): single drop-in OBJ smoke. Demonstrates
+# the ``structure_assets:`` block end-to-end against the procedurally
+# generated test fixture (``tests/fixtures/sample_rock.obj`` is a 209-byte
+# tetrahedron). Scenarios that do not want a drop-in inherit the empty
+# default from ``_base.yaml``.
+scene:
+  structure_assets:
+    - path: "tests/fixtures/sample_rock.obj"
+      position: [10.0, 5.0, 0.0]
+      rotation_rpy_deg: [0.0, 0.0, 45.0]
+      scale: 1.0
+      name: "boulder_01"

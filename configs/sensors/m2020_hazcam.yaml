@@ -1,0 +1,70 @@
+# M2020 Perseverance Hazcam (Hazard Avoidance Camera, FRONT-LEFT) preset.
+#
+# Sprint Day 4-5 Task I-B (2026-04-25): drop-in replacement for the
+# ``sensors.camera`` block in ``configs/robots/rover_m2020.yaml`` when a
+# wide-FOV, body-mounted camera is needed instead of the mast-mounted
+# Navcam.  Validates against
+# :class:`marslab.config.schema.robot.CameraConfig`.  Every numeric
+# parameter is exposed (G5).
+#
+# ---------------------------------------------------------------
+# Datasheet reference
+#
+# Primary source: Maki, J. N. et al. (2020), "The Mars 2020 Engineering
+# Cameras and Microphone on the Perseverance Rover", Space Science
+# Reviews 216:137.  DOI 10.1007/s11214-020-00765-9.  Tables 2 and 3.
+# Cross-check: NASA M2020 Mission Press Kit (Feb 2021).
+#
+#   * Detector: 5120 x 3840 RGB Bayer mosaic (same chip as Navcam,
+#     Maki 2020 Table 2).
+#   * Pixel pitch: 4.6 um (Maki 2020 Table 2).
+#   * Focal length: 7.4 mm fixed-focus, wide-angle (Maki 2020 Table 3).
+#   * Best focus: ~1 m, hyperfocal usable from 0.4 m to infinity (Maki
+#     2020 Table 3).
+#   * Geometry-derived HFOV at the sensor edge:
+#       sensor_w = 5120 * 4.6 um = 23.55 mm
+#       HFOV = 2 * arctan(23.55 / (2 * 7.4)) = 116.6 deg
+#     The Maki 2020 paper quotes 136 deg in Table 3 (diagonal-corrected
+#     FOV including lens distortion).  Isaac Sim's Camera projection
+#     matrix uses the geometry-derived 117 deg HFOV.  See
+#     ``~/MarsLab/tmp/task_IB_finding.md`` for the reconciliation.
+#   * Mount: body-mounted at four chassis corners (Front-L, Front-R,
+#     Rear-L, Rear-R), ~0.68 m above ground (Maki 2020 Section 2.1
+#     + Fig 3).  This preset captures the FRONT-LEFT location.
+# ---------------------------------------------------------------
+#
+# Resolution choice:
+#   Per Maki 2020 Section 2.6 the rover downsamples to 1280 x 960 (4x
+#   binning) before downlink.  v1.0 MarsLab uses the binned size to keep
+#   sensor graph throughput tractable; downstream perception models do
+#   not benefit from the full 5120 x 3840 image.  Edit ``resolution`` to
+#   ``[5120, 3840]`` if your workflow needs the full detector format.
+#
+# Mount note (M2020 frame -> MarsLab Body_Chassis frame):
+#   The flight Hazcam sits at +0.85 m forward of the chassis center,
+#   0.0 m lateral, ~0.68 m above ground.  In the MarsLab URDF the
+#   ``Body_Chassis`` origin is ~2 m above ground, so the chassis-relative
+#   Z offset is approximately -1.4 m.  The +/- 0.21 m lateral offset
+#   matches the M2020 Hazcam stereo pair (0.42 m baseline mirrors the
+#   Navcam baseline).
+#
+#   TODO verify exact translation against Maki 2020 Section 2.1 + URDF
+#   kinematic chain (m2020-urdf-models repo).  The values below are
+#   best-effort literature ballpark and are sufficient for v1.0 SLAM /
+#   Nav2 development; paper figures should re-derive against the JPL
+#   primary source.
+
+parent_link: "Body_Chassis"
+local_translation: [0.85, -0.21, -1.4]
+local_orientation_rpy_deg: [180.0, 0.0, 0.0]
+
+# Binned 4x detector format (see "Resolution choice" comment above).
+resolution: [1280, 960]
+
+# Maki 2020 Table 3: 7.4 mm fixed-focus wide-angle lens.
+focal_length: 7.4
+
+# Hazcam hyperfocal range starts at 0.4 m (Maki 2020 Table 3).  100 m
+# far plane covers the local hazard zone — Hazcams are not used for
+# long-range SLAM.
+clipping_range: [0.4, 100.0]

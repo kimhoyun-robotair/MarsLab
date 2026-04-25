@@ -24,6 +24,30 @@ environments with configurable atmospheric conditions.
 - **Config-driven**: All parameters in YAML, zero hardcoded constants
 - **Seed reproducibility**: Every randomized process accepts a seed parameter
 
+### v1.0 Rover Scope
+
+v1.0 ships a **single M2020 Perseverance rover** per scenario.  Every
+reference scenario in `configs/scenarios/` declares one `rover:` block
+that points at `configs/robots/rover_m2020.yaml`.  The rotorcraft and
+quadruped robot modules (`marslab/robots/rotorcraft.py`,
+`marslab/robots/quadruped.py`) remain in the codebase as scaffolding
+for v1.5 multi-robot work but are **not** wired into v1.0 scenarios.
+
+Multi-rover coordination (two M2020 rovers in the same scene, or one
+rover plus one quadruped) is deferred to **v1.5** (post-iSpaRo 2026).
+The `RobotConfig.prim_path` field already supports per-instance prim
+paths so the schema is multi-rover-ready; only the runtime
+orchestration (sensor namespacing, TF tree composition, two articulated
+drive loops) remains.  Calibrated M2020 sensor presets shipped in v1.0:
+
+* `configs/sensors/m2020_navcam.yaml` — Navcam (RSM, LEFT) RGB-D camera.
+* `configs/sensors/m2020_hazcam.yaml` — Hazcam (FRONT-LEFT) wide-FOV.
+* `configs/sensors/velodyne_vlp16.yaml` — generic 3D LiDAR drop-in.
+* `configs/sensors/hokuyo_ust_10lx.yaml` — generic 2D LaserScan drop-in.
+
+See `docs/scenario_format.md` for the full sensor preset reference
+pattern and how to author a custom scenario.
+
 ## Requirements
 
 - **NVIDIA Isaac Sim 5.1.0** (standalone installation)
@@ -79,10 +103,6 @@ All three CI checks plus a typing scope and a dependency audit are wired to
 `pyproject.toml` (Reviewer 2 #18, 2026-04-24):
 
 ```bash
-# One-time per clone: install pre-commit hooks so black/ruff run on every commit.
-pip install pre-commit
-pre-commit install
-
 # Manual full sweep (matches CI):
 black --check marslab/ scripts/ tests/
 ruff  check   marslab/ scripts/ tests/

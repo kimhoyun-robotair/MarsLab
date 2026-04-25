@@ -7,13 +7,25 @@ import — see ``reference_rover_usd_source``).
 """
 
 from marslab.scene.structure_loader import (
+    STRUCTURE_ASSET_EXTENSIONS,
+    StructureAsset,
     StructureConfig,
+    build_structure_asset,
+    convert_mesh_to_usd,
     load_structure,
+    load_structure_assets,
     load_structures,
+    resolve_asset_name,
 )
 
 __all__ = [
+    "STRUCTURE_ASSET_EXTENSIONS",
+    "StructureAsset",
     "StructureConfig",
+    "build_structure_asset",
+    "convert_mesh_to_usd",
     "load_structure",
+    "load_structure_assets",
     "load_structures",
+    "resolve_asset_name",
 ]

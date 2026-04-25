@@ -33,6 +33,67 @@ com_offset: [0.2, 0.0, 0.0]
 angular_damping: 12.0
 linear_damping: 0.5
 
+# --- Day 2 Task B (2026-04-26): M2020 ballpark physics override ---
+# Values below are M2020 Perseverance order-of-magnitude correct (NOT exact).
+# Speed/control limits stay user-tunable (see ``control:`` block); these
+# blocks pin chassis mass / wheel mass / friction / inertia so the URDF
+# auto-computed placeholders never reach PhysX.  Sources cited inline.
+
+chassis:
+  # Total dry mass of M2020 Perseverance per NASA fact sheet (1025 kg).
+  # mars.nasa.gov/mars2020/spacecraft/rover/  (M2020 actual).
+  mass: 1025.0
+  # Bounding-box inertia tensor from chassis envelope 3.0 m x 2.7 m x 2.2 m
+  # at M = 1025 kg.  Solid uniform rectangular cuboid:
+  #   ixx = M/12 * (W^2 + H^2)
+  #   iyy = M/12 * (L^2 + H^2)
+  #   izz = M/12 * (L^2 + W^2)
+  # Computed offline (see test_rover_physics_inject.py::test_chassis_inertia_matches_bbox).
+  # Replaces URDF auto-computed placeholder so PhysX sees a deterministic
+  # tensor.  M2020 ballpark — NOT a calibrated CAD-derived inertia.
+  inertia_xx: 1036.1   # kg*m^2  (W=2.7, H=2.2)
+  inertia_yy: 1182.2   # kg*m^2  (L=3.0, H=2.2)
+  inertia_zz: 1391.4   # kg*m^2  (L=3.0, W=2.7)
+  bbox_lwh: [3.0, 2.7, 2.2]   # documentation only — used by the unit test
+                              #   to recompute inertia from first principles.
+
+wheels:
+  # M2020 wheel diameter is 0.525 m (52.5 cm) — see Heverly et al., 2013
+  # IEEE Aerospace Conference (M2020 actual).  The current ``control.wheel_radius``
+  # of 0.2667 m corresponds to a 0.5334 m diameter (URDF-derived); we keep
+  # that value for kinematic IK consistency and document the 1.6 % gap below.
+  radius: 0.2667           # m  — matches ``control.wheel_radius`` exactly.
+  diameter_reference: 0.525  # m  — M2020 actual; documentation only.
+  # Per-wheel mass estimate (M2020 ballpark).  Public M2020 papers do not
+  # publish a per-wheel mass; 9.0 kg is a literature-aligned estimate for an
+  # aluminum-machined, spoked rover wheel of this diameter.  6 wheels x 9 kg
+  # = 54 kg total — leaves the 1025 kg chassis dominating articulation
+  # inertia, which matches the M2020 mass distribution.
+  mass: 9.0                # kg per wheel — M2020 estimate.
+  # Cylinder inertia about the spin axis (X) and the two transverse axes:
+  #   I_spin       = m * r^2 / 2
+  #   I_transverse = m * (3 r^2 + h^2) / 12   with h = wheel width
+  # Wheel width assumed h = 0.40 m (M2020 ballpark).  Inertia values are
+  # offline-computed in the unit test for evidence.
+  width: 0.40              # m  — wheel width (M2020 ballpark).
+  inertia_spin: 0.310      # kg*m^2  (about spin axis)
+  inertia_transverse: 0.275  # kg*m^2  (radial axes)
+  # PhysX material friction.  Mars regolith literature (Sullivan et al. 2017,
+  # JGR; Heverly et al. 2013) places effective wheel-soil friction in the
+  # 0.4-0.7 range; we adopt the midpoint as a starting point.  Static >
+  # dynamic so the rover does not creep on slope hold.
+  friction_static: 0.6     # mu_s — Mars regolith literature.
+  friction_dynamic: 0.5    # mu_d — Mars regolith literature.
+  restitution: 0.0         # No bounce on regolith (literature consensus).
+
+suspension:
+  # Rocker-bogie joint damping (passive viscous resistance).  The pre-existing
+  # ``control.suspension_damping = 50`` covered every rocker/bogie joint with
+  # one number; we now distinguish rocker vs bogie so future tuning can
+  # target the differential beam without touching the bogie pivot.
+  rocker_damping: 75.0     # N*m*s/rad  — primary rocker arms.
+  bogie_damping: 50.0      # N*m*s/rad  — bogie sub-arms (matches legacy).
+
 # Offline URDF-to-USD converter flags.  Runtime must NOT re-run URDF
 # import; these are consumed only by scripts/phase1/convert_urdf_to_usd.py.
 urdf_merge_fixed_joints: false
@@ -48,6 +109,7 @@ ros2:
     odom: "odom"
     rgb: "rgb/image_raw"
     depth: "depth/image_raw"
+    points: "depth/points"       # RGB-D PointCloud2 (RealSense-style); Day 2 sprint task F (2026-04-25).
     lidar: "lidar/points"
     scan: "scan"                 # 2D LaserScan for slam_toolbox / Nav2
   rates:
@@ -55,6 +117,7 @@ ros2:
     odom: 50
     rgb: 30
     depth: 30
+    points: 30                   # depth-derived PointCloud2 matches the depth rate
     lidar: 10
     scan: 30                     # Example_Rotary_2D scanRateBaseHz = 30 Hz
   # R3 (2026-04-22) G5 — frame names previously hardcoded in
@@ -76,22 +139,48 @@ sensors:
     focal_length: 24.0
     clipping_range: [0.1, 1000.0]
 
+  # 3D rotary RTX LiDAR.  Sprint Day 2 Task D (2026-04-25): every
+  # numeric parameter that used to hide inside Isaac Sim's
+  # ``Example_Rotary.json`` profile is now declared here so the YAML is
+  # the single source of truth (G5).  Values mirror the bundled JSON for
+  # behaviour-preserving migration: 16-beam Velodyne-style scanner,
+  # 30 deg vertical FOV, 360 deg horizontal at 0.4 deg horizontal step,
+  # 10 Hz rotation, 0.5–100 m range.
   lidar_3d:
     parent_link: "Body_Chassis"
     local_translation: [0.3, 0.0, -0.5]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
-    profile: "Example_Rotary"
+    range_min: 0.5
+    range_max: 100.0
+    horizontal_fov_deg: 360.0
+    vertical_fov_deg: 30.0
+    horizontal_resolution_deg: 0.4
+    vertical_resolution_deg: 1.875
+    rotation_rate_hz: 10.0
+    profile_name: "Example_Rotary"
+    profile_json_path: null
+    # Task E (2026-04-25): swap the LiDAR USD model by changing this
+    # key (e.g. ``Velodyne_VLP16``).  ``null`` falls back to
+    # ``profile_name`` so the runtime behaviour matches pre-Task-E.
+    usd_profile: null
 
   # 2D LaserScan sensor for slam_toolbox / Nav2.  Clones the RTX Lidar
   # pipeline used by ``lidar_3d``; only the bundled profile and mount
-  # height differ (0.25 m below the 3D lidar).  Profile is the Isaac
-  # Sim bundled ``Example_Rotary_2D`` (single emitter, elevation -2°,
-  # 30 Hz rotation) — reference by *name* only (see §10.8).
+  # height differ (0.25 m below the 3D lidar).  Numerics mirror the
+  # Isaac Sim bundled ``Example_Rotary_2D`` JSON (single beam at -2°
+  # elevation, 360° horizontal, 0.25° step, 30 Hz rotation).
   lidar_2d:
     parent_link: "Body_Chassis"
     local_translation: [0.3, 0.0, -0.25]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
-    profile: "Example_Rotary_2D"
+    range_min: 0.5
+    range_max: 50.0
+    horizontal_fov_deg: 360.0
+    horizontal_resolution_deg: 0.25
+    rotation_rate_hz: 30.0
+    profile_name: "Example_Rotary_2D"
+    profile_json_path: null
+    usd_profile: null
 
   imu:
     parent_link: "Body_Chassis"

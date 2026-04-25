@@ -19,13 +19,26 @@ def _ns_topic(ns: str, name: str) -> str:
     return f"/{ns}/{name}"
 
 
-def _build_create_nodes(include_lidar_2d: bool = False) -> List[Tuple[str, str]]:
+def _build_create_nodes(
+    include_lidar_2d: bool = False,
+    include_pointcloud2: bool = False,
+) -> List[Tuple[str, str]]:
     """List of ``(node_name, node_type)`` tuples for the Stage-3 graph.
 
     Args:
         include_lidar_2d: When True, appends the ``RPLidar2D`` +
             ``Lidar2DHelper`` pair so a 2-D RTX LiDAR sensor can publish
             ``sensor_msgs/LaserScan``.
+        include_pointcloud2: When True, appends a second
+            ``isaacsim.ros2.bridge.ROS2CameraHelper`` node (``CamPCL``)
+            wired off the existing depth render product (``RPDepth``)
+            with ``inputs:type='depth_pcl'`` so the RGB-D camera publishes
+            a ``sensor_msgs/PointCloud2`` topic at the depth-camera rate.
+            Source: ``isaacsim/exts/isaacsim.ros2.bridge/isaacsim/ros2/
+            bridge/ogn/python/nodes/OgnROS2CameraHelper.py:141-155`` --
+            the ``depth_pcl`` token routes through ``ROS2PublishPointCloud``
+            with ``DistanceToImagePlane`` as the source render variable.
+            Day 2 sprint task F (2026-04-25).
     """
     nodes: List[Tuple[str, str]] = [
         ("OnTick", "omni.graph.action.OnPlaybackTick"),
@@ -41,6 +54,11 @@ def _build_create_nodes(include_lidar_2d: bool = False) -> List[Tuple[str, str]]
         ("RPLidar3D", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
         ("Lidar3DHelper", "isaacsim.ros2.bridge.ROS2RtxLidarHelper"),
     ]
+    if include_pointcloud2:
+        # Re-uses the RPDepth render product, no new IsaacCreateRenderProduct.
+        # The helper consumes depth + camera intrinsics internally so we only
+        # need a second ROS2CameraHelper sibling to ``CamDepth``.
+        nodes.append(("CamPCL", "isaacsim.ros2.bridge.ROS2CameraHelper"))
     if include_lidar_2d:
         nodes += [
             ("RPLidar2D", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
@@ -49,8 +67,20 @@ def _build_create_nodes(include_lidar_2d: bool = False) -> List[Tuple[str, str]]
     return nodes
 
 
-def _build_connections(include_lidar_2d: bool = False) -> List[Tuple[str, str]]:
-    """List of ``(src_attr, dst_attr)`` pairs describing graph edges."""
+def _build_connections(
+    include_lidar_2d: bool = False,
+    include_pointcloud2: bool = False,
+) -> List[Tuple[str, str]]:
+    """List of ``(src_attr, dst_attr)`` pairs describing graph edges.
+
+    Args:
+        include_lidar_2d: Append 2-D LiDAR edges when the
+            ``Lidar2DHelper`` pair is present.
+        include_pointcloud2: Append the ``CamPCL`` edges so the
+            depth-derived PointCloud2 helper triggers off ``OnTick`` and
+            shares the existing ``RPDepth`` render product.  Day 2
+            sprint task F (2026-04-25).
+    """
     edges: List[Tuple[str, str]] = [
         ("OnTick.outputs:tick", "PubClock.inputs:execIn"),
         ("ReadSimTime.outputs:simulationTime", "PubClock.inputs:timeStamp"),
@@ -72,6 +102,17 @@ def _build_connections(include_lidar_2d: bool = False) -> List[Tuple[str, str]]:
         ("RPLidar3D.outputs:execOut", "Lidar3DHelper.inputs:execIn"),
         ("RPLidar3D.outputs:renderProductPath", "Lidar3DHelper.inputs:renderProductPath"),
     ]
+    if include_pointcloud2:
+        # Trigger ``CamPCL`` off the same ``OnTick`` pulse so the depth
+        # helper and the PointCloud2 helper run in lock-step on the same
+        # render product.  Re-using ``RPDepth.outputs:renderProductPath``
+        # avoids a second ``IsaacCreateRenderProduct`` (which would double
+        # the rendering cost) -- the OmniGraph allows multiple
+        # ``ROS2CameraHelper`` consumers per render product.
+        edges += [
+            ("OnTick.outputs:tick", "CamPCL.inputs:execIn"),
+            ("RPDepth.outputs:renderProductPath", "CamPCL.inputs:renderProductPath"),
+        ]
     if include_lidar_2d:
         edges += [
             ("OnTick.outputs:tick", "RPLidar2D.inputs:execIn"),
@@ -92,6 +133,7 @@ def _build_set_values(
     *,
     sensor_qos_preset: str = "SensorData",
     tf_qos_preset: str = "SystemDefault",
+    include_pointcloud2: bool = False,
 ) -> List[Tuple[str, Any]]:
     """List of ``(attr, value)`` pairs applied via SET_VALUES.
 
@@ -120,6 +162,17 @@ def _build_set_values(
             OmniGraph node itself rejects unknown strings at
             ``og.Controller.edit`` time.
         tf_qos_preset: Isaac Sim preset for the TF publisher.
+        include_pointcloud2: When True **and** ``topics["points"]`` is
+            present, append the ``CamPCL`` value bindings
+            (``inputs:type='depth_pcl'``, topic name from
+            ``topics["points"]``, ``frameId='camera_link'`` to share the
+            existing depth helper TF, and the same sensor QoS preset as
+            the other camera helpers).  Day 2 sprint task F (2026-04-25).
+            ``frameId`` deliberately reuses ``camera_link`` rather than
+            introducing a separate ``camera_optical_frame`` so the
+            PointCloud2 publisher joins the existing static TF tree
+            broadcast by ``publish_static_sensor_tfs`` without
+            requiring a new TF link.
     """
     values: List[Tuple[str, Any]] = [
         ("PubClock.inputs:topicName", "/clock"),
@@ -132,16 +185,25 @@ def _build_set_values(
         ("RPCamera.inputs:cameraPrim", [camera_prim_path]),
         ("RPCamera.inputs:width", int(camera_resolution[0])),
         ("RPCamera.inputs:height", int(camera_resolution[1])),
+        # Day 5 (2026-04-25): camera RGB/Depth/PointCloud2 messages
+        # carry coordinates in the **optical frame convention**
+        # (Z forward, X right, Y down — REP-105) because Isaac Sim's
+        # ``ROS2CameraHelper`` outputs in that convention regardless of
+        # the camera prim's mount orientation.  The static TF
+        # ``camera_link → camera_optical_frame`` is published by
+        # ``marslab.ros2_bridge.tf_broadcaster.publish_static_sensor_tfs``;
+        # frame_id here references that child frame so RViz /
+        # image_pipeline / depth_image_proc see correct geometry.
         ("CamRGB.inputs:type", "rgb"),
         ("CamRGB.inputs:topicName", _ns_topic(ns, topics["rgb"])),
-        ("CamRGB.inputs:frameId", "camera_link"),
+        ("CamRGB.inputs:frameId", "camera_optical_frame"),
         ("CamRGB.inputs:qosProfile", sensor_qos_preset),
         ("RPDepth.inputs:cameraPrim", [camera_prim_path]),
         ("RPDepth.inputs:width", int(camera_resolution[0])),
         ("RPDepth.inputs:height", int(camera_resolution[1])),
         ("CamDepth.inputs:type", "depth"),
         ("CamDepth.inputs:topicName", _ns_topic(ns, topics["depth"])),
-        ("CamDepth.inputs:frameId", "camera_link"),
+        ("CamDepth.inputs:frameId", "camera_optical_frame"),
         ("CamDepth.inputs:qosProfile", sensor_qos_preset),
         ("RPLidar3D.inputs:cameraPrim", [lidar_3d_prim_path]),
         ("Lidar3DHelper.inputs:topicName", _ns_topic(ns, topics["lidar"])),
@@ -149,6 +211,18 @@ def _build_set_values(
         ("Lidar3DHelper.inputs:type", "point_cloud"),
         ("Lidar3DHelper.inputs:qosProfile", sensor_qos_preset),
     ]
+    if include_pointcloud2 and "points" in topics:
+        values += [
+            ("CamPCL.inputs:type", "depth_pcl"),
+            ("CamPCL.inputs:topicName", _ns_topic(ns, topics["points"])),
+            # Day 5 (2026-04-25): point cloud in optical frame
+            # convention.  RViz expects the frame_id label to match
+            # the data's coordinate handedness; ``camera_optical_frame``
+            # is the REP-105 child of camera_link broadcast via
+            # ``tf_broadcaster.publish_static_sensor_tfs``.
+            ("CamPCL.inputs:frameId", "camera_optical_frame"),
+            ("CamPCL.inputs:qosProfile", sensor_qos_preset),
+        ]
     if lidar_2d_prim_path is not None and "scan" in topics:
         values += [
             ("RPLidar2D.inputs:cameraPrim", [lidar_2d_prim_path]),

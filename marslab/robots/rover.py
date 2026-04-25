@@ -38,6 +38,9 @@ __all__ = [
     "load_rover_usd",
     "apply_spawn_pose",
     "apply_mass_properties",
+    "apply_chassis_physics",
+    "apply_wheel_physics",
+    "apply_suspension_damping_split",
     "find_rigid_body_path",
     "_apply_drive_api",
     "configure_drives",
@@ -178,6 +181,255 @@ def apply_mass_properties(
         attr.Set(float(linear_damping))
 
 
+# --- Day 2 Task B (2026-04-26): M2020 ballpark physics injection -----------
+# Three small helpers below replace the URDF auto-computed mass / inertia /
+# friction placeholders with the values declared in
+# ``configs/robots/rover_m2020.yaml`` ``chassis:`` / ``wheels:`` /
+# ``suspension:`` blocks.  They run pre-reset (right after USD spawn) so
+# PhysX picks up the overrides during the first ``world.reset()`` tensor
+# sync.  Each helper takes its config block as a plain ``dict`` (the same
+# block ``SkidSteerDriveConfig`` validates) so the unit test can mock the
+# stage without booting Isaac Sim.
+
+
+def _set_mass_and_inertia(
+    stage: Any,
+    prim_path: str,
+    mass_kg: float,
+    diagonal_inertia: Tuple[float, float, float],
+) -> bool:
+    """Apply ``UsdPhysics.MassAPI`` mass + diagonal inertia to a single prim.
+
+    Returns ``True`` on success, ``False`` if the prim is missing.  All
+    USD imports are deferred so unit tests can pass a mock ``stage`` whose
+    ``GetPrimAtPath`` returns a mock prim with ``IsValid()`` = False (no
+    USD import needed for the negative-path test).
+    """
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        return False
+
+    from pxr import Gf, UsdPhysics  # noqa: WPS433  (deferred Isaac Sim import)
+
+    if not prim.HasAPI(UsdPhysics.MassAPI):
+        UsdPhysics.MassAPI.Apply(prim)
+    mass_api = UsdPhysics.MassAPI(prim)
+    mass_api.GetMassAttr().Set(float(mass_kg))
+    mass_api.GetDiagonalInertiaAttr().Set(
+        Gf.Vec3f(
+            float(diagonal_inertia[0]),
+            float(diagonal_inertia[1]),
+            float(diagonal_inertia[2]),
+        )
+    )
+    return True
+
+
+def apply_chassis_physics(
+    stage: Any,
+    rigid_body_path: str,
+    chassis_cfg: Dict[str, Any],
+) -> bool:
+    """Inject chassis mass + diagonal inertia from the YAML ``chassis:`` block.
+
+    Args:
+        stage: USD stage (or a duck-typed mock with ``GetPrimAtPath``).
+        rigid_body_path: Articulation root path returned by
+            :func:`find_rigid_body_path` (the prim that actually carries
+            ``RigidBodyAPI``).
+        chassis_cfg: Validated dict matching
+            :class:`marslab.config.schema.robot.ChassisConfig`.
+
+    Returns:
+        True if the override was applied, False if the prim was missing
+        (the caller logs a warning and continues — sensors / drive joints
+        may still be configurable from the rover root).
+
+    The inertia tensor is M2020-ballpark (NOT a CAD-derived calibration).
+    See ``configs/robots/rover_m2020.yaml`` ``chassis:`` block for the
+    bounding-box derivation; the unit test asserts the YAML values match
+    the bbox formula to 1 % so a future edit cannot silently desync the
+    documented formula from the numbers PhysX sees.
+    """
+    return _set_mass_and_inertia(
+        stage,
+        rigid_body_path,
+        float(chassis_cfg["mass"]),
+        (
+            float(chassis_cfg["inertia_xx"]),
+            float(chassis_cfg["inertia_yy"]),
+            float(chassis_cfg["inertia_zz"]),
+        ),
+    )
+
+
+def apply_wheel_physics(
+    stage: Any,
+    chassis_path: str,
+    wheel_link_names: List[str],
+    wheels_cfg: Dict[str, Any],
+) -> Dict[str, bool]:
+    """Inject per-wheel mass / inertia / friction.
+
+    Walks each ``wheel_link_names`` entry under ``chassis_path/{name}``
+    and applies:
+
+      * ``UsdPhysics.MassAPI`` mass + diagonal inertia (spin axis = X).
+        The two transverse axes share ``inertia_transverse``; the spin
+        axis uses ``inertia_spin``.
+      * ``UsdPhysics.MaterialAPI`` static + dynamic friction +
+        restitution on a freshly-bound material.  Friction lives on a
+        ``PhysicsMaterial`` so the same coefficients apply to every
+        contact pair this collider participates in (ground plane, rocks,
+        DEM mesh).
+
+    Args:
+        stage: USD stage handle.
+        chassis_path: Path to the chassis Xform whose direct children are
+            the wheel links (``LF_DRIVE``, ``LM_DRIVE``, …).  The current
+            M2020 USD nests wheels at ``{chassis_path}/{link_name}``.
+        wheel_link_names: List of wheel link names to override.  Typically
+            the six ``*_DRIVE`` link names taken from the URDF.
+        wheels_cfg: Validated dict matching
+            :class:`marslab.config.schema.robot.WheelsConfig`.
+
+    Returns:
+        Mapping ``{link_name -> bool}`` recording whether the override
+        landed on each wheel.  False values indicate a missing prim — the
+        caller logs and continues so a typo in the YAML wheel-name list
+        does not abort the entire spawn.
+    """
+    mass = float(wheels_cfg["mass"])
+    inertia = (
+        float(wheels_cfg["inertia_spin"]),
+        float(wheels_cfg["inertia_transverse"]),
+        float(wheels_cfg["inertia_transverse"]),
+    )
+    friction_static = float(wheels_cfg["friction_static"])
+    friction_dynamic = float(wheels_cfg["friction_dynamic"])
+    restitution = float(wheels_cfg.get("restitution", 0.0))
+
+    results: Dict[str, bool] = {}
+    for name in wheel_link_names:
+        wheel_prim_path = f"{chassis_path}/{name}"
+        results[name] = _set_mass_and_inertia(stage, wheel_prim_path, mass, inertia)
+        # Friction lands on the wheel collider via a dedicated PhysX
+        # material.  Failure to find the prim has already been recorded
+        # in ``results[name]``; we still attempt the friction binding so
+        # a follow-up fix to the wheel-link name list takes effect on
+        # the next spawn without revisiting this helper.
+        _bind_wheel_friction_material(
+            stage,
+            wheel_prim_path,
+            friction_static=friction_static,
+            friction_dynamic=friction_dynamic,
+            restitution=restitution,
+        )
+    return results
+
+
+def _bind_wheel_friction_material(
+    stage: Any,
+    wheel_prim_path: str,
+    *,
+    friction_static: float,
+    friction_dynamic: float,
+    restitution: float,
+) -> bool:
+    """Bind a per-wheel ``PhysicsMaterial`` carrying the friction coefficients.
+
+    Material lives at ``{wheel_prim_path}/PhysicsMaterial`` so each wheel
+    owns its own material prim (cheaper than rebinding a shared material
+    six times and easier to inspect in usdview).  Returns False if the
+    wheel prim is missing — caller already logged.
+    """
+    prim = stage.GetPrimAtPath(wheel_prim_path)
+    if not prim.IsValid():
+        return False
+
+    from pxr import Sdf, UsdPhysics, UsdShade  # noqa: WPS433  (deferred)
+
+    material_path = f"{wheel_prim_path}/PhysicsMaterial"
+    material = UsdShade.Material.Define(stage, Sdf.Path(material_path))
+    material_prim = material.GetPrim()
+    if not material_prim.HasAPI(UsdPhysics.MaterialAPI):
+        UsdPhysics.MaterialAPI.Apply(material_prim)
+    physics_material = UsdPhysics.MaterialAPI(material_prim)
+    physics_material.GetStaticFrictionAttr().Set(float(friction_static))
+    physics_material.GetDynamicFrictionAttr().Set(float(friction_dynamic))
+    physics_material.GetRestitutionAttr().Set(float(restitution))
+
+    # Bind the material to the wheel collider so PhysX picks it up for
+    # every contact this wheel participates in.
+    binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
+    binding_api.Bind(material, materialPurpose="physics")
+    return True
+
+
+def apply_suspension_damping_split(
+    stage: Any,
+    chassis_path: str,
+    suspension_cfg: Dict[str, Any],
+    rocker_joint_names: Optional[List[str]] = None,
+    bogie_joint_names: Optional[List[str]] = None,
+) -> Dict[str, bool]:
+    """Apply rocker / bogie damping separately to the suspension joints.
+
+    The legacy ``control.suspension_damping`` covered every rocker / bogie
+    joint with one number; this helper writes ``rocker_damping`` to the
+    rocker joints and ``bogie_damping`` to the bogie joints via the same
+    ``drive:angular:physics:damping`` USD attribute used by
+    :func:`marslab.robots.drive_api_setup._apply_drive_api`.
+
+    Defaults for the two joint-name lists match the M2020 URDF kinematic
+    chain — caller can override for a different rover variant.
+
+    Returns:
+        Mapping ``{joint_name -> bool}`` recording whether the damping
+        attribute was written.  False = joint prim missing.
+    """
+    rocker_names = (
+        list(rocker_joint_names)
+        if rocker_joint_names is not None
+        else ["CENTER_DIFFERENTIAL", "LEFT_DIFFERENTIAL", "RIGHT_DIFFERENTIAL"]
+    )
+    bogie_names = (
+        list(bogie_joint_names) if bogie_joint_names is not None else ["LEFT_BOGIE", "RIGHT_BOGIE"]
+    )
+    rocker_damping = float(suspension_cfg["rocker_damping"])
+    bogie_damping = float(suspension_cfg["bogie_damping"])
+    joints_scope = f"{chassis_path}/joints"
+
+    results: Dict[str, bool] = {}
+    for jname in rocker_names:
+        results[jname] = _write_joint_damping(stage, f"{joints_scope}/{jname}", rocker_damping)
+    for jname in bogie_names:
+        results[jname] = _write_joint_damping(stage, f"{joints_scope}/{jname}", bogie_damping)
+    return results
+
+
+def _write_joint_damping(stage: Any, joint_path: str, damping: float) -> bool:
+    """Write ``drive:angular:physics:damping`` on a single joint prim.
+
+    Mirrors the USD attribute path used by ``_apply_drive_api`` so PhysX
+    treats the suspension damping channel identically to the wheel /
+    steering damping channels.  Returns False if the joint prim is
+    missing.
+    """
+    prim = stage.GetPrimAtPath(joint_path)
+    if not prim.IsValid():
+        return False
+
+    from pxr import Sdf, UsdPhysics  # noqa: WPS433  (deferred)
+
+    if not prim.HasAPI(UsdPhysics.DriveAPI, "angular"):
+        UsdPhysics.DriveAPI.Apply(prim, "angular")
+    prim.CreateAttribute("drive:angular:physics:damping", Sdf.ValueTypeNames.Float).Set(
+        float(damping)
+    )
+    return True
+
+
 def find_rigid_body_path(stage: Any, chassis_path: str) -> str:
     """Return the path of the first RigidBodyAPI child of the chassis.
 
@@ -254,6 +506,55 @@ def spawn_rover(
     )
 
     rigid_body_path = find_rigid_body_path(stage, chassis_path)
+
+    # --- Day 2 Task B (2026-04-26): M2020 ballpark physics overrides ----
+    # ``chassis:`` / ``wheels:`` / ``suspension:`` blocks pin mass,
+    # inertia, friction so PhysX never sees the URDF auto-computed
+    # placeholders.  Each block is optional — a rover YAML that omits a
+    # block keeps the legacy behaviour (URDF-derived mass + the single
+    # ``control.suspension_damping`` channel).  See
+    # ``configs/robots/rover_m2020.yaml`` for value rationale.
+    #
+    # Day 3 Reviewer 2 fix-up (H2, 2026-04-25): wrap each block with
+    # ``model_validate`` so YAML typos / negative masses / unknown keys
+    # fail at spawn with ``ValidationError`` instead of ``KeyError`` deep
+    # in apply_*_physics.  Same shape after dump — no behaviour change
+    # for valid YAML.  Closes the schema-bypass anti-pattern flagged in
+    # ``~/MarsLab/tmp/day2_code_review.md`` H2.
+    from marslab.config.schema.robot import (  # noqa: PLC0415
+        ChassisConfig,
+        SuspensionConfig,
+        WheelsConfig,
+    )
+
+    chassis_cfg = rover_cfg.get("chassis")
+    if isinstance(chassis_cfg, dict):
+        validated_chassis = ChassisConfig.model_validate(chassis_cfg).model_dump()
+        if not apply_chassis_physics(stage, rigid_body_path, validated_chassis):
+            print(
+                "[marslab.robots.rover] WARNING: chassis prim missing at "
+                f"{rigid_body_path}; chassis mass/inertia override skipped.",
+                file=sys.stderr,
+            )
+
+    wheels_cfg = rover_cfg.get("wheels")
+    if isinstance(wheels_cfg, dict):
+        validated_wheels = WheelsConfig.model_validate(wheels_cfg).model_dump()
+        # Default wheel link list = the six ``*_DRIVE`` links from the
+        # M2020 URDF.  Pulled from ``control.drive_joint_names`` so a
+        # custom rover variant only has to declare its joint names once.
+        wheel_link_names = list(
+            validated_wheels.get("link_names")
+            or rover_cfg.get("control", {}).get("drive_joint_names", [])
+        )
+        if wheel_link_names:
+            apply_wheel_physics(stage, chassis_path, wheel_link_names, validated_wheels)
+
+    suspension_cfg = rover_cfg.get("suspension")
+    if isinstance(suspension_cfg, dict):
+        validated_suspension = SuspensionConfig.model_validate(suspension_cfg).model_dump()
+        apply_suspension_damping_split(stage, chassis_path, validated_suspension)
+
     return SpawnedRover(
         prim_path=prim_path,
         chassis_path=chassis_path,

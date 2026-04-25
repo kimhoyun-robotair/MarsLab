@@ -139,7 +139,13 @@ class TestSeedDeterminism:
         assert len(out) == 2
 
     def test_publish_static_sensor_tfs_uses_broadcaster(self, fake_ros2_tf_modules: None) -> None:
-        """``publish_static_sensor_tfs`` sends every transform exactly once."""
+        """``publish_static_sensor_tfs`` sends every transform exactly once.
+
+        Day 5 (2026-04-25): when ``camera_link`` is in the sensor list,
+        a ``camera_link → camera_optical_frame`` transform is appended
+        automatically (REP-105 optical convention for RViz / image
+        pipeline).  So 2 sensors with camera_link → 3 broadcast msgs.
+        """
         from marslab.ros2_bridge.tf_broadcaster import publish_static_sensor_tfs
 
         node = MagicMock()
@@ -148,5 +154,88 @@ class TestSeedDeterminism:
             ("lidar_link", [0.0, 0.0, 0.8]),
         ]
         broadcaster = publish_static_sensor_tfs(node, sensors)
-        # Our fake stores the sent msgs so len reflects the broadcast call.
-        assert len(broadcaster.sent) == 2
+        # 2 sensor frames + 1 camera_optical_frame = 3 transforms.
+        assert len(broadcaster.sent) == 3
+        child_frames = [m.child_frame_id for m in broadcaster.sent]
+        assert "camera_link" in child_frames
+        assert "lidar_link" in child_frames
+        assert "camera_optical_frame" in child_frames
+
+    def test_publish_static_sensor_tfs_skips_optical_frame_without_camera(
+        self, fake_ros2_tf_modules: None
+    ) -> None:
+        """No ``camera_link`` in sensors → no optical-frame transform.
+
+        Cave / canyon scenarios that strip the camera should not
+        broadcast a stub optical frame.
+        """
+        from marslab.ros2_bridge.tf_broadcaster import publish_static_sensor_tfs
+
+        node = MagicMock()
+        sensors = [("lidar_link", [0.0, 0.0, 0.8])]
+        broadcaster = publish_static_sensor_tfs(node, sensors)
+        assert len(broadcaster.sent) == 1
+        assert broadcaster.sent[0].child_frame_id == "lidar_link"
+
+
+class TestCameraOpticalFrameTransform:
+    """Day 5 (2026-04-25): camera_link → camera_optical_frame static TF.
+
+    REP-105 standard: camera_link is REP-103 body convention
+    (X forward, Y left, Z up); camera_optical_frame is optical
+    (Z forward, X right, Y down).  RPY = (-π/2, 0, -π/2) →
+    quaternion (x, y, z, w) = (-0.5, 0.5, -0.5, 0.5).
+    """
+
+    def test_default_frame_names(self, fake_ros2_tf_modules: None) -> None:
+        from marslab.ros2_bridge.tf_broadcaster import (
+            build_camera_optical_frame_transform,
+        )
+
+        msg = build_camera_optical_frame_transform()
+        assert msg.header.frame_id == "camera_link"
+        assert msg.child_frame_id == "camera_optical_frame"
+
+    def test_custom_frame_names(self, fake_ros2_tf_modules: None) -> None:
+        from marslab.ros2_bridge.tf_broadcaster import (
+            build_camera_optical_frame_transform,
+        )
+
+        msg = build_camera_optical_frame_transform("front_cam_link", "front_cam_optical")
+        assert msg.header.frame_id == "front_cam_link"
+        assert msg.child_frame_id == "front_cam_optical"
+
+    def test_translation_is_identity(self, fake_ros2_tf_modules: None) -> None:
+        from marslab.ros2_bridge.tf_broadcaster import (
+            build_camera_optical_frame_transform,
+        )
+
+        msg = build_camera_optical_frame_transform()
+        assert msg.transform.translation.x == 0.0
+        assert msg.transform.translation.y == 0.0
+        assert msg.transform.translation.z == 0.0
+
+    def test_rotation_is_optical_quaternion(self, fake_ros2_tf_modules: None) -> None:
+        """Quaternion matches ``tf_transformations.quaternion_from_euler(-π/2, 0, -π/2)``."""
+        from marslab.ros2_bridge.tf_broadcaster import (
+            build_camera_optical_frame_transform,
+        )
+
+        msg = build_camera_optical_frame_transform()
+        assert msg.transform.rotation.x == -0.5
+        assert msg.transform.rotation.y == 0.5
+        assert msg.transform.rotation.z == -0.5
+        assert msg.transform.rotation.w == 0.5
+
+    def test_quaternion_is_unit_magnitude(self, fake_ros2_tf_modules: None) -> None:
+        """Sanity: |q| == 1 for a valid rotation quaternion."""
+        import math
+
+        from marslab.ros2_bridge.tf_broadcaster import (
+            build_camera_optical_frame_transform,
+        )
+
+        msg = build_camera_optical_frame_transform()
+        q = msg.transform.rotation
+        magnitude = math.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w)
+        assert math.isclose(magnitude, 1.0, abs_tol=1e-9)

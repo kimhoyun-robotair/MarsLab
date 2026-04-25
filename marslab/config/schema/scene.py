@@ -25,6 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover - type-checker only
 
 __all__ = [
     "SceneConfig",
+    "StructureAssetConfig",
     "StructureConfigSchema",
 ]
 
@@ -156,6 +157,106 @@ class StructureConfigSchema(BaseModel):
         )
 
 
+class StructureAssetConfig(BaseModel):
+    """User-provided ``.obj`` / ``.stl`` mesh for drop-in scene dressing.
+
+    This is the v1.0 sprint Day-2 "structure_assets:" block (Task H):
+    every scenario can drop a third-party mesh into the world via YAML
+    without going through the offline USD conversion that
+    :class:`StructureConfigSchema` requires.  The runtime loader reads
+    the mesh with ``trimesh`` (offline-safe, P3) and converts to USD on
+    the fly via ``omni.kit.asset_converter`` -- the canonical Isaac Sim
+    extension for OBJ/STL/FBX → USD conversion (kit-105+, see
+    ``docs.omniverse.nvidia.com/extensions/latest/ext_asset-converter.html``).
+
+    Differences vs :class:`StructureConfigSchema`:
+
+    * ``path`` accepts ``.obj`` / ``.stl`` (not USD).  Authoritative
+      list of supported extensions lives in
+      :data:`marslab.scene.structure_loader.STRUCTURE_ASSET_EXTENSIONS`.
+    * ``scale`` is a single float (uniform), not a 3-tuple -- artists
+      drop a mesh, position it, scale it; per-axis scale would invite
+      the kind of mistakes that break collision normals.
+    * No ``static`` / ``collision`` toggles for now; v1.0 sprint scope
+      is "drop in geometry", physics tagging stays on the existing USD
+      pipeline.
+    * ``name`` is optional; the loader auto-derives a USD-safe name
+      from the file stem when absent.
+
+    Attributes:
+        path: Path to the source mesh file.  Resolved relative to repo
+            root or absolute.
+        position: World-frame translation ``[x, y, z]`` in metres.
+        rotation_rpy_deg: ZYX intrinsic ``[roll, pitch, yaw]`` in degrees.
+            Defaults to identity.
+        scale: Uniform scale factor.  Defaults to 1.0.  Negative values
+            are allowed but are user-error in 99% of cases.
+        name: Optional USD child name.  ``None`` triggers
+            ``stem`` of ``path`` with non-USD characters replaced
+            (handled by the loader).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Path to the source ``.obj`` or ``.stl`` mesh.  Absolute or "
+            "relative to the repo root."
+        ),
+    )
+    position: list[float] = Field(
+        ...,
+        min_length=3,
+        max_length=3,
+        description="World-frame translation [x, y, z] in metres.",
+    )
+    rotation_rpy_deg: list[float] = Field(
+        default=[0.0, 0.0, 0.0],
+        min_length=3,
+        max_length=3,
+        description="ZYX intrinsic [roll, pitch, yaw] in degrees.",
+    )
+    scale: float = Field(
+        default=1.0,
+        description="Uniform scale factor applied after orient.",
+    )
+    name: str | None = Field(
+        default=None,
+        description=(
+            "Optional USD child name.  When None the loader derives one "
+            "from the file stem (sanitised to [A-Za-z_][A-Za-z0-9_]*)."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _validate_extension_and_name(self) -> "StructureAssetConfig":
+        """Reject unsupported extensions + invalid USD names early.
+
+        Mirrors :class:`StructureConfigSchema`'s name guard so the YAML
+        diagnoses the typo at config-load time rather than after Isaac
+        Sim spins up.
+        """
+        lowered = self.path.lower()
+        if not (lowered.endswith(".obj") or lowered.endswith(".stl")):
+            raise ValueError(f"structure_assets path must end in .obj or .stl, got {self.path!r}")
+        if self.name is not None:
+            if any(c.isspace() for c in self.name):
+                raise ValueError(
+                    f"structure_assets name must not contain whitespace, got {self.name!r}"
+                )
+            if "/" in self.name or "\\" in self.name:
+                raise ValueError(
+                    f"structure_assets name must not contain path separators, " f"got {self.name!r}"
+                )
+            if self.name and self.name[0].isdigit():
+                raise ValueError(
+                    f"structure_assets name must not start with a digit, got {self.name!r}"
+                )
+        return self
+
+
 class SceneConfig(BaseModel):
     """Scene-level config: static structures dressed on top of terrain.
 
@@ -163,6 +264,10 @@ class SceneConfig(BaseModel):
         structures: Ordered list of :class:`StructureConfigSchema`
             declarations.  Order is preserved end-to-end so log output
             and prim creation sequence stay stable.
+        structure_assets: Ordered list of :class:`StructureAssetConfig`
+            drop-in OBJ/STL meshes.  Sprint Day-2 (Task H) addition;
+            converts at runtime via ``omni.kit.asset_converter``.
+            Empty list = no drop-ins (default for every scenario).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -173,5 +278,13 @@ class SceneConfig(BaseModel):
             "Static USD structures (lander, backshell, habitat, solar "
             "arrays, ...) to attach after terrain + rover spawn.  Empty "
             "list is the default and adds no structures."
+        ),
+    )
+    structure_assets: list[StructureAssetConfig] = Field(
+        default_factory=list,
+        description=(
+            "Drop-in OBJ/STL meshes converted to USD at runtime.  Use "
+            "this block for user-provided art (rocks, props, tools) "
+            "that has not been pre-baked into a USD asset."
         ),
     )

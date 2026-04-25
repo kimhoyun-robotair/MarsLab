@@ -58,6 +58,54 @@ def build_static_sensor_transforms(
     return out
 
 
+def build_camera_optical_frame_transform(
+    camera_frame_id: str = "camera_link",
+    optical_frame_id: str = "camera_optical_frame",
+) -> Any:
+    """Return ``TransformStamped`` from ``camera_link`` to optical frame.
+
+    Day 5 fix-up (2026-04-25): RGB / Depth images and PointCloud2 from
+    Isaac Sim's ``ROS2CameraHelper`` come out in the **optical frame
+    convention** (Z forward, X right, Y down — REP-105) but our static
+    TF previously labelled the camera prim with the ``camera_link``
+    REP-103 convention (X forward, Y left, Z up).  Result: RViz showed
+    the point cloud rotated 90° because the frame label didn't match
+    the data layout.
+
+    This helper publishes the canonical ROS rotation that maps
+    ``camera_link`` → ``camera_optical_frame``.  Image / depth /
+    pointcloud frame_ids should reference ``camera_optical_frame`` so
+    downstream consumers (RViz, ``image_pipeline``,
+    ``depth_image_proc``) interpret the data correctly.
+
+    Rotation: RPY = (-π/2, 0, -π/2) (intrinsic ZYX), matching
+    ``tf_transformations.quaternion_from_euler(-1.5708, 0, -1.5708)``
+    = (x, y, z, w) = (-0.5, 0.5, -0.5, 0.5).
+
+    Args:
+        camera_frame_id: Parent frame name (the REP-103 mount frame).
+            Defaults to ``"camera_link"``.
+        optical_frame_id: Child frame name.  Defaults to
+            ``"camera_optical_frame"``.
+
+    Returns:
+        A populated ``geometry_msgs/TransformStamped``.
+    """
+    from geometry_msgs.msg import TransformStamped
+
+    msg = TransformStamped()
+    msg.header.frame_id = camera_frame_id
+    msg.child_frame_id = optical_frame_id
+    msg.transform.translation.x = 0.0
+    msg.transform.translation.y = 0.0
+    msg.transform.translation.z = 0.0
+    msg.transform.rotation.x = -0.5
+    msg.transform.rotation.y = 0.5
+    msg.transform.rotation.z = -0.5
+    msg.transform.rotation.w = 0.5
+    return msg
+
+
 def publish_static_sensor_tfs(
     node: Any,
     sensor_frames: Iterable[SensorFrameSpec],
@@ -98,5 +146,12 @@ def publish_static_sensor_tfs(
     else:
         broadcaster = StaticTransformBroadcaster(node)
     msgs = build_static_sensor_transforms(sensor_frames, parent_frame_id)
+    # Day 5 (2026-04-25): publish camera_optical_frame as a child of
+    # camera_link so RViz / image_pipeline / depth_image_proc consume
+    # PointCloud2 in the optical convention they expect.  Driven by
+    # the actual broadcast list (msgs) so this works whether the
+    # caller passed a list, a generator, or any other Iterable.
+    if any(m.child_frame_id == "camera_link" for m in msgs):
+        msgs.append(build_camera_optical_frame_transform("camera_link", "camera_optical_frame"))
     broadcaster.sendTransform(msgs)
     return broadcaster
