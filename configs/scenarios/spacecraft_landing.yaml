@@ -110,4 +110,4 @@ rover:
     mode: "xy_with_terrain_z"
     xy: [10.0, 0.0]
     z_offset: 0.5
-    orientation_rpy: [0.0, 0.0, 3.14159]
+    orientation_rpy: [3.14159, 0.0, 3.14159]

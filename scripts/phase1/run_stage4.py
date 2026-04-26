@@ -46,6 +46,7 @@ if REPO_ROOT not in sys.path:
 # ``terrain.seed == mars_env.seed + 1`` internally.
 from marslab.config.loader import propagate_seeds_in_dict  # noqa: E402, F401
 from marslab.config.scenario_loader import load_scenario_config, resolve_spawn_pose  # noqa: E402
+from marslab.math.quaternion import rpy_to_quat  # noqa: E402
 from marslab.robots.drive_api_setup import configure_drives, reinforce_pd_gains  # noqa: E402
 from marslab.robots.rover import resolve_joint_indices, spawn_rover  # noqa: E402
 from marslab.robots.rover_control import ackermann_command  # noqa: E402
@@ -107,6 +108,16 @@ def main() -> int:
 
     # Spawn pose comes from the DEM/metadata bundled on the boot result.
     spawn_xyz = resolve_spawn_pose(rover_cfg, boot.elevation, boot.metadata, boot.resolution)
+    # Resolve the spawn orientation here so it can be reused for both the
+    # USD root Xform (via ``spawn_rover``→``apply_spawn_pose``) and the
+    # PhysX articulation root pose pin (Fix 7, 2026-04-28).  Single
+    # source of truth: ``rover.spawn.orientation_rpy`` (with Stage-1
+    # fallback ``rover.spawn_orientation_rpy``).
+    _spawn_block = rover_cfg.get("spawn", {}) if isinstance(rover_cfg, dict) else {}
+    spawn_rpy_for_articulation = tuple(
+        _spawn_block.get("orientation_rpy")
+        or rover_cfg.get("spawn_orientation_rpy", [0.0, 0.0, 0.0])
+    )
     usd_rel = rover_cfg["usd_path"]
     usd_abs = (
         usd_rel if os.path.isabs(usd_rel) else os.path.abspath(os.path.join(REPO_ROOT, usd_rel))
@@ -233,6 +244,29 @@ def main() -> int:
     articulation = Articulation(prim_paths_expr=prim_path)
     world.reset()
     articulation.initialize()
+
+    # 2026-04-28 (Fix 2 + Fix 7): pin the PhysX articulation root world
+    # pose to ``(spawn_xyz, spawn_rpy)``.  Without the explicit pose
+    # set, the free articulation (``fix_base=False``) starts at the
+    # USD-native pose of ``/World/Rover/Body_Chassis/Body_Chassis``
+    # (identity at world origin), even though ``apply_spawn_pose`` set
+    # ``/World/Rover`` to ``spawn_xyz`` -- PhysX ignores the parent
+    # Xform translate for the articulation root.  Without the
+    # ``spawn_rpy``-derived quaternion, identity would conflict with
+    # the X-roll spawn that compensates for the NASA JPL m2020 URDF
+    # link convention (Fix 7, see ``rover_m2020.yaml`` history).  Using
+    # the YAML ``spawn_rpy`` here makes ``rover_m2020.yaml`` the single
+    # source of truth for both the USD ``/World/Rover`` orientation
+    # (via ``apply_spawn_pose``) and the PhysX root pose (here).
+    _qw, _qx, _qy, _qz = rpy_to_quat(
+        float(spawn_rpy_for_articulation[0]),
+        float(spawn_rpy_for_articulation[1]),
+        float(spawn_rpy_for_articulation[2]),
+    )
+    articulation.set_world_poses(
+        positions=np.asarray([spawn_xyz], dtype=np.float32),
+        orientations=np.asarray([[_qw, _qx, _qy, _qz]], dtype=np.float32),
+    )
 
     dof_names = list(articulation.dof_names)
     drive_indices = resolve_joint_indices(dof_names, list(control_cfg["drive_joint_names"]))

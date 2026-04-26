@@ -42,4 +42,4 @@ rover:
     mode: "dem_relative"
     xy: [-60.0, -60.0]
     z_offset: 0.7
-    orientation_rpy: [0.0, 0.0, 0.785398]  # 45° yaw toward crater centre
+    orientation_rpy: [3.14159, 0.0, 0.785398]  # 45° yaw toward crater centre

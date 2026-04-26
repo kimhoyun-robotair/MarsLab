@@ -42,4 +42,4 @@ rover:
     mode: "dem_relative"
     xy: [0.0, 150.0]
     z_offset: 0.6
-    orientation_rpy: [0.0, 0.0, -1.570796]
+    orientation_rpy: [3.14159, 0.0, -1.570796]

@@ -137,7 +137,7 @@ rover:
     mode: "dem_center"             # ← 자주 바꾸는 곳: dem_center | dem_relative | absolute
     xy: [0.0, 0.0]
     z_offset: 0.5
-    orientation_rpy: [0.0, 0.0, 0.0]
+    orientation_rpy: [3.14159, 0.0, 0.0]
   chassis:
     mass: 1025.0
     inertia_xx: 1036.1

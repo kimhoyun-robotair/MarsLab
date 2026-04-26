@@ -191,16 +191,33 @@ def main() -> int:
             kit.close()
             return 2
 
-        # NASA JPL m2020 URDF is rviz-only: <collision>=0, mass=0 on all
-        # 115 links, 83 fixed joints for Frame_* markers. The three flags
-        # merge_fixed_joints / collision_from_visuals / density absorb all
-        # three defects at convert time without touching the upstream URDF.
+        # NASA JPL m2020 URDF is rviz-only by default: <collision>=0,
+        # mass=0 on all 115 links, 83 fixed joints for Frame_* markers.
+        # The flags below absorb those defects at convert time:
+        #
+        # * merge_fixed_joints=True collapses Frame_* fixed-joint
+        #   markers, leaving 33 articulation rigid bodies.
+        # * collision_from_visuals=True synthesises collision shapes
+        #   from visual meshes (URDF has no <collision> blocks).
+        # * import_inertia_tensor=True (2026-04-28 fix): consume the
+        #   URDF <inertial> mass + diagonal inertia.  ``scripts/
+        #   fix_urdf_inertia.py`` populates the URDF with a
+        #   bbox/density-derived 1025 kg distribution before this
+        #   converter runs, so PhysX gets valid mass on every Body_*.
+        #   The previous False setting + ``density=500.0`` did NOT
+        #   convert density to mass on the imported USD prims (a
+        #   USD inspection on 2026-04-28 confirmed ``physics:mass=0``
+        #   on every articulation rigid body), which destabilised the
+        #   PhysX articulation -- the rover collapsed at spawn.
+        # * density=500.0 is preserved as a fallback for the rare
+        #   Frame_* link that ends up surviving merge_fixed_joints
+        #   without an explicit <inertial>.
         import_config.merge_fixed_joints = True
         import_config.collision_from_visuals = True
         import_config.density = 500.0
         import_config.convex_decomp = False
         import_config.replace_cylinders_with_capsules = True
-        import_config.import_inertia_tensor = False
+        import_config.import_inertia_tensor = True
         import_config.fix_base = False
         import_config.self_collision = False
         import_config.create_physics_scene = False

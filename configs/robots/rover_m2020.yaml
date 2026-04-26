@@ -31,18 +31,28 @@ prim_path: "/World/Rover"
 # Stage-1 spawn pose is a fallback only; Stage-3 scenarios override
 # via the ``spawn:`` block below.
 #
-# 2026-04-28: spawn_orientation_rpy was previously ``[3.14159, 0, 0]``
-# (180° X-roll) with a comment claiming "the glTF Y-up -> USD Z-up
-# conversion".  That comment was inaccurate -- ``convert_urdf_to_usd.py``
-# uses the Isaac Sim URDF importer with no axis override, which
-# already emits Z-up USD natively.  The X-roll was masking an unknown
-# upstream symptom while corrupting the body frame: the rover
-# articulation root then carried a ``base_link`` ``isaac:nameOverride``
-# in a Z-down orientation, and ``tf_broadcaster.py`` had to insert a
-# (now-removed) Y/Z flip to compensate.  Removing the X-roll restores
-# REP-103 alignment for both ``/tf_raw`` and ``/tf_static``.
+# History:
+#   2026-04-28 (오전, Issue B):  ``[3.14159, 0, 0]`` -> ``[0, 0, 0]``.
+#       Hypothesis: the X-roll was a workaround for a downstream Y/Z
+#       sign flip; remove both, sensors broadcast identity.
+#   2026-04-28 (오후, Fix 7):    ``[0, 0, 0]`` -> ``[3.14159, 0, 0]``.
+#       Empirical evidence (``ros2 run tf2_ros tf2_echo odom base_link``
+#       output captured in ``tmp3.txt``) showed RPY=[-179.488°, -6.568°,
+#       11.009°] AFTER the Issue-B Z-up fix -- i.e. ``base_link`` frame
+#       was X-rolled despite the USD chassis prim being identity.  The
+#       NASA JPL m2020 URDF authors link frames in a non-standard
+#       convention (link +Z appears as world -Z after a flat
+#       ``URDFParseAndImportFile`` import).  The 180° X-roll spawn is
+#       therefore the correct compensation: it brings the published TF
+#       chain into REP-103 alignment.  Sensor YAML ``local_translation``
+#       Z signs are restored to negative (pre-Issue-B).  The
+#       ``tf_broadcaster.py`` Y/Z flip is **not** restored -- the X-roll
+#       at the spawn root applies once across the whole chain, so a
+#       second flip in the broadcaster would double-correct (the
+#       ΔZ = 2|z_yaml| symptom diagnosed by the 2026-04-28 오전 Reviewer
+#       2 audit).
 spawn_position: [0.0, 0.0, 0.0]
-spawn_orientation_rpy: [0.0, 0.0, 0.0]
+spawn_orientation_rpy: [3.14159, 0.0, 0.0]
 
 # Default Stage-3 spawn spec.  Scenarios override mode / xy / z_offset
 # to land the rover at a scenario-appropriate starting point.
@@ -50,7 +60,7 @@ spawn:
   mode: "dem_center"
   xy: [0.0, 0.0]
   z_offset: 0.5
-  orientation_rpy: [0.0, 0.0, 0.0]
+  orientation_rpy: [3.14159, 0.0, 0.0]
 
 # Chassis mass-bias compensation (see phase1.yaml comments).
 com_offset: [0.2, 0.0, 0.0]
@@ -155,20 +165,18 @@ ros2:
     queue_size: 10
 
 sensors:
-  # 2026-04-28 (B1 fix): Y/Z translation signs flipped relative to the
-  # pre-2026-04-28 values.  The previous values were authored under the
-  # ``spawn_orientation_rpy = [π, 0, 0]`` (180° X-roll) regime, where
-  # ``+Y_body = -Y_world`` and ``+Z_body = -Z_world``.  With the X-roll
-  # spawn removed, ``base_link`` now coincides with REP-103 (X forward,
-  # Y left, Z up), so a sensor mounted 2.1 m above chassis is at
-  # ``z = +2.1`` (was -2.1).  The ``local_orientation_rpy_deg`` is
-  # left at ``[180, 0, 0]`` for the camera because the Isaac Sim
-  # Camera prim's internal optical-axis convention may still need
-  # the X-flip; user verifies via image orientation in RViz on first
-  # post-fix run and we revisit if upside-down.
+  # Sensor frames are authored in the X-rolled body frame matched by
+  # ``spawn_orientation_rpy = [3.14159, 0, 0]`` above (Fix 7,
+  # 2026-04-28 오후).  In that frame ``+Z_body = -Z_world`` so a sensor
+  # 2.1 m above the chassis is at ``z = -2.1`` (NOT +2.1).  See the
+  # spawn block comment block for the empirical TF evidence
+  # (``tmp3.txt``: odom → base_link RPY=[-179.5°, -6.6°, 11°]).
+  # ``tf_broadcaster.py`` broadcasts these YAML values identity; the
+  # X-roll on the spawn parent provides the single canonical frame
+  # rotation.
   camera:
     parent_link: "Body_Chassis"
-    local_translation: [0.3, 0.0, 2.1]
+    local_translation: [0.3, 0.0, -2.1]
     local_orientation_rpy_deg: [180.0, 0.0, 0.0]
     resolution: [640, 480]
     focal_length: 24.0
@@ -183,7 +191,7 @@ sensors:
   # 10 Hz rotation, 0.5–100 m range.
   lidar_3d:
     parent_link: "Body_Chassis"
-    local_translation: [0.3, 0.0, 0.5]
+    local_translation: [0.3, 0.0, -0.5]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     range_min: 0.5
     range_max: 100.0
@@ -206,7 +214,7 @@ sensors:
   # elevation, 360° horizontal, 0.25° step, 30 Hz rotation).
   lidar_2d:
     parent_link: "Body_Chassis"
-    local_translation: [0.3, 0.0, 0.25]
+    local_translation: [0.3, 0.0, -0.25]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     range_min: 0.5
     range_max: 50.0

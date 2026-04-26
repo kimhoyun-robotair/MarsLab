@@ -42,7 +42,7 @@ rover:
     mode: "dem_center"
     xy: [0.0, 0.0]
     z_offset: 0.5
-    orientation_rpy: [0.0, 0.0, 0.0]
+    orientation_rpy: [3.14159, 0.0, 0.0]
 
 # Sprint Day-2 Task H (2026-04-26): single drop-in OBJ smoke. Demonstrates
 # the ``structure_assets:`` block end-to-end against the procedurally
