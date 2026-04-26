@@ -10,7 +10,7 @@ respect to rclpy).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from marslab.ros2_bridge.odometry_publisher import OdometryPublisherContext
 
@@ -28,6 +28,13 @@ class BridgeContext:
         odom_ctx: :class:`OdometryPublisherContext` bundle.
         twist_state: Mutable dict written by the cmd_vel callback and
             read by the rover controller each tick.
+        robot_description_ctx: Optional ``RobotDescriptionContext`` from
+            :func:`marslab.ros2_bridge.robot_description_publisher.publish_robot_description`.
+            Held here so the ``TRANSIENT_LOCAL`` latched publisher is not
+            garbage-collected when ``init_rclpy_side`` returns. ``None``
+            when ``ros2.publish_robot_description=false`` or the URDF
+            path is missing (RC-3 of v1.0 release-blocker fixes,
+            2026-04-26).
     """
 
     node: Any
@@ -35,6 +42,7 @@ class BridgeContext:
     static_tf_broadcaster: Any
     odom_ctx: OdometryPublisherContext
     twist_state: Dict[str, float]
+    robot_description_ctx: Optional[Any] = None
 
 
 __all__ = ["BridgeContext"]

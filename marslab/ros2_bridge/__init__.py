@@ -28,6 +28,11 @@ from marslab.ros2_bridge.odometry_publisher import (
     publish_odometry,
 )
 from marslab.ros2_bridge.rclpy_integration import init_rclpy_side
+from marslab.ros2_bridge.robot_description_publisher import (
+    RobotDescriptionContext,
+    publish_robot_description,
+    rewrite_mesh_paths_to_file_uri,
+)
 from marslab.ros2_bridge.sensor_graph import (
     GRAPH_PATH,
     SensorGraphHandle,
@@ -42,6 +47,7 @@ __all__ = [
     "BridgeContext",
     "GRAPH_PATH",
     "OdometryPublisherContext",
+    "RobotDescriptionContext",
     "SensorGraphHandle",
     "build_sensor_graph",
     "build_static_sensor_transforms",
@@ -49,5 +55,7 @@ __all__ = [
     "create_odometry_publisher",
     "init_rclpy_side",
     "publish_odometry",
+    "publish_robot_description",
     "publish_static_sensor_tfs",
+    "rewrite_mesh_paths_to_file_uri",
 ]

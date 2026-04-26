@@ -19,8 +19,14 @@ class TestRpyToQuat:
         assert y == pytest.approx(0.0, abs=1e-6)
         assert z == pytest.approx(np.sin(np.pi / 4), abs=1e-6)
 
-    def test_roll_pi_matches_phase1_spawn(self) -> None:
-        """180° X-roll used in the Stage 1 / Stage 3 spawn."""
+    def test_roll_pi_quaternion(self) -> None:
+        """``rpy_to_quat(π, 0, 0)`` -> X-roll quaternion ``±(0, 1, 0, 0)``.
+
+        2026-04-28: the Stage-3 spawn no longer applies the 180° X-roll
+        (see configs/robots/rover_m2020.yaml:31-44 and the LOG entry
+        for that date), but the math is still load-bearing for any
+        scenario that legitimately needs an X-rolled spawn.
+        """
         w, x, y, z = rpy_to_quat(np.pi, 0.0, 0.0)
         # ±(0, 1, 0, 0) both acceptable in double-cover; check magnitudes.
         assert abs(w) == pytest.approx(0.0, abs=1e-6)

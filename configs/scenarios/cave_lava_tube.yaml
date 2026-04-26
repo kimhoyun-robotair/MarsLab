@@ -72,7 +72,7 @@ rover:
     mode: "absolute"
     xy: [181.2, 190.5]
     z: 0.5
-    orientation_rpy: [3.14159, 0.0, 0.785398]  # face +X+Y along tube axis (45° bearing)
+    orientation_rpy: [0.0, 0.0, 0.785398]  # face +X+Y along tube axis (45° bearing)
   sensors:
     # Increase depth clip range so RGB camera captures distant tube wall.
     camera:

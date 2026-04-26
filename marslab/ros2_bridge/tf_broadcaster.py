@@ -1,20 +1,29 @@
 """Static TF publisher for sensor frames.
 
-The Isaac-Sim OmniGraph ``ROS2PublishRawTransformTree`` node publishes
+The Isaac-Sim OmniGraph ``ROS2PublishTransformTree`` node publishes
 only the articulation joint chain — sensor prims (camera, LiDAR, IMU)
 are created by MarsLab in Isaac Sim after URDF import, so their frames
-never appear on ``/tf``.  slam_toolbox / Nav2 need these frames.  This
-module publishes a one-shot ``/tf_static`` batch covering every sensor
-declared in the rover YAML.
+never appear on ``/tf_raw``.  slam_toolbox / Nav2 need these frames.
+This module publishes a one-shot ``/tf_static`` batch covering every
+sensor declared in the rover YAML.
 
-Body-frame convention note
---------------------------
+Body-frame convention
+---------------------
 
-The M2020 USD is imported with a 180° X-roll so the chassis "up" maps
-to world ``+Z``.  The YAML ``local_translation`` is authored in the
-post-roll body frame where ``+Y_body = -Y_world`` and ``+Z_body = -Z_world``.
-We therefore flip Y and Z when broadcasting the transform so the
-broadcast matches the Isaac Sim pose of each sensor prim.
+YAML ``local_translation`` is authored in the rover ``base_link``
+local frame, which after the 2026-04-28 spawn fix coincides with the
+canonical REP-103 body frame (``+X`` forward, ``+Y`` left, ``+Z`` up).
+The Isaac Sim sensor prim is spawned as a child of ``base_link`` with
+the same translation, and the OmniGraph TF publisher emits ``base_link``
+in identity orientation.  This module therefore broadcasts each
+sensor's translation **as-is** -- no axis flip, no compensating
+rotation.
+
+(2026-04-28 hardening: the previous version of this file flipped Y
+and Z to "compensate for the 180° X-roll spawn", which doubled the
+error in RViz coordinates -- see the LOG entry for that date and the
+agent diagnostic at ``ΔZ = 2 × |z_yaml|``.  The X-roll spawn was
+removed simultaneously and this flip was simplified to identity.)
 """
 
 from __future__ import annotations
@@ -46,10 +55,12 @@ def build_static_sensor_transforms(
         msg = TransformStamped()
         msg.header.frame_id = parent_frame_id
         msg.child_frame_id = child_frame
+        # base_link is REP-103 aligned (no spawn-time X-roll, since
+        # 2026-04-28).  YAML ``local_translation`` is therefore the
+        # raw base_link-relative offset and broadcasts identity.
         msg.transform.translation.x = float(local_t[0])
-        # 180° X-roll: body Y/Z axes flip relative to world.
-        msg.transform.translation.y = -float(local_t[1])
-        msg.transform.translation.z = -float(local_t[2])
+        msg.transform.translation.y = float(local_t[1])
+        msg.transform.translation.z = float(local_t[2])
         msg.transform.rotation.w = 1.0
         msg.transform.rotation.x = 0.0
         msg.transform.rotation.y = 0.0

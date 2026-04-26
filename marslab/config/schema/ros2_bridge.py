@@ -229,6 +229,39 @@ class Ros2BridgeConfig(BaseModel):
             "wanted.  Added on Day 2 of the MarsLab v1.0 sprint (2026-04-25)."
         ),
     )
+    publish_robot_description: bool = Field(
+        default=True,
+        description=(
+            "When ``True`` the Stage-3 bridge publishes the rover URDF on "
+            "``/<ns>/robot_description`` with TRANSIENT_LOCAL + RELIABLE + "
+            "KEEP_LAST(1) so a late-joining RViz subscriber latches it.  "
+            "Default ``True`` matches the canonical ROS workflow; flip to "
+            "``False`` for headless data-gen scenarios that do not need RViz "
+            "RobotModel display.  Added 2026-04-26 as RC-3 of the v1.0 "
+            "release-blocker fixes."
+        ),
+    )
+    publish_odom_tf: bool = Field(
+        default=False,
+        description=(
+            "When ``False`` (default, post-S3) the rclpy-side odometry "
+            "publisher does NOT broadcast ``odom -> base_link`` on ``/tf``.  "
+            "The OG ``ROS2PublishTransformTree`` becomes the sole TF "
+            "authority for the kinematic chain (``/tf_raw``); an external "
+            "``ros2 run topic_tools relay /tf_raw /tf`` merges the chain "
+            "into the canonical ``/tf`` topic.  Set ``True`` to restore "
+            "the pre-S3 dual-publisher behaviour for debugging or smoke "
+            "tests that do not run the relay.  Memory: "
+            "``feedback_no_tf_consolidation`` -- never run both ``True`` "
+            "and the relay simultaneously, that yields two parents for "
+            "``base_link``.  Added 2026-04-27 as the v1.0 S3 release-blocker "
+            "fix.  NOTE: ``run_stage4.py`` currently passes the raw YAML "
+            "dict ``rover.ros2`` straight to ``init_rclpy_side`` without a "
+            "Pydantic round-trip, so this field is documentation + future-"
+            "validation rather than a runtime gate.  The runtime default is "
+            "enforced by ``rclpy_integration.py``'s ``.get(..., False)``."
+        ),
+    )
     cmd_vel_qos: QoSProfileConfig = Field(
         default_factory=_cmd_vel_qos_default,
         description=(

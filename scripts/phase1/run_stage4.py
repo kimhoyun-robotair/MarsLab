@@ -51,13 +51,12 @@ from marslab.robots.rover import resolve_joint_indices, spawn_rover  # noqa: E40
 from marslab.robots.rover_control import ackermann_command  # noqa: E402
 from marslab.ros2_bridge.rclpy_integration import init_rclpy_side  # noqa: E402
 from marslab.ros2_bridge.sensor_graph import build_sensor_graph  # noqa: E402
+from marslab.ros2_bridge.tf_nameoverrides import DEFAULT_ODOM_ANCHOR_PATH  # noqa: E402
 from marslab.runtime.main_loop import (  # noqa: E402
     AtmosphereLoopState,
     ControlState,
     LoopContext,
-    OdomPublishState,
     build_atmosphere_loop_state,
-    quat_inverse,
     run_main_loop,
 )
 from marslab.runtime.precheck import (  # noqa: E402
@@ -125,9 +124,7 @@ def main() -> int:
     simulation_app = boot_simulation_app(headless=bool(args.headless))
 
     # Isaac Sim / ROS2 imports must come AFTER SimulationApp() resolves.
-    from geometry_msgs.msg import TransformStamped  # noqa: E402
     from isaacsim.core.prims import Articulation  # noqa: E402
-    from nav_msgs.msg import Odometry  # noqa: E402
 
     from marslab.environment.diffuse_fraction import compute_diffuse_fraction  # noqa: E402
     from marslab.environment.light_intensity import compute_direct_intensity  # noqa: E402
@@ -202,6 +199,26 @@ def main() -> int:
         camera_resolution=tuple(camera_cfg["resolution"]),
         lidar_3d_prim_path=handles.lidar_3d_prim_path,
         imu_prim_path=handles.imu_prim_path,
+        # F3 follow-up (2026-04-26): pass the prim that actually carries
+        # ``PhysxArticulationRootAPI``.  USD inspection shows the import
+        # produces a nested layout:
+        #   /World/Rover                    (Xform spawn container)
+        #     /Body_Chassis                 (Xform-only container)
+        #       /Body_Chassis  <-- [ART_ROOT, RIGID] -- this prim
+        #       /Body_RockerLeft, /Body_WheelLeftFront, ...  (siblings)
+        # The first two ``world->Rover`` / ``world->Body_Chassis`` runs
+        # confirmed the upper levels are not articulation roots.  The
+        # canonical sample at ``test_pose_tree.py:103`` showed a single
+        # articulation-root path expands to the full link tree, so we
+        # point at the deepest path.  ``rover.py:502`` also targets this
+        # exact prim for ``apply_mass_properties`` (CoM + damping), which
+        # cross-validates that this is where PhysX recognises the
+        # articulation.
+        articulation_root_prim_path=f"{chassis_path}/Body_Chassis",
+        # S3 fix (2026-04-27): the anchor prim is created by
+        # ``spawn_rover`` via ``create_odom_anchor`` at this exact path.
+        # Both call sites import the same constant so they cannot drift.
+        parent_anchor_prim_path=DEFAULT_ODOM_ANCHOR_PATH,
         lidar_2d_prim_path=handles.lidar_2d_prim_path,
     )
 
@@ -287,12 +304,19 @@ def main() -> int:
         ]
         if lidar_2d_cfg is not None:
             sensor_frames.append(("scan_frame", lidar_2d_cfg["local_translation"]))
+        urdf_rel = rover_cfg.get("urdf_source_path")
+        urdf_abs = (
+            urdf_rel
+            if urdf_rel is None or os.path.isabs(urdf_rel)
+            else os.path.abspath(os.path.join(REPO_ROOT, urdf_rel))
+        )
         bridge = init_rclpy_side(
             ros2_cfg=ros2_cfg,
             sensor_frames=sensor_frames,
             init_pos_world=odom_init_pos,
             init_quat_world=odom_init_quat,
             node_name="stage3_runtime",
+            urdf_path=urdf_abs,
         )
         twist_state = bridge.twist_state
 
@@ -301,16 +325,6 @@ def main() -> int:
         current_drive_targets=np.zeros(len(drive_indices), dtype=np.float32),
         current_steer_targets=np.zeros(len(steer_indices), dtype=np.float32),
         latest_twist=twist_state,
-    )
-    odom_state = OdomPublishState(
-        node=bridge.node if bridge is not None else None,
-        odom_pub=bridge.odom_ctx.publisher if bridge is not None else None,
-        odom_tf_broadcaster=bridge.odom_ctx.tf_broadcaster if bridge is not None else None,
-        odom_init_pos=odom_init_pos,
-        odom_init_quat=odom_init_quat,
-        odom_init_quat_inv=quat_inverse(odom_init_quat),
-        transform_stamped_cls=TransformStamped,
-        odometry_cls=Odometry,
     )
 
     def _spin_once() -> None:
@@ -342,7 +356,7 @@ def main() -> int:
         steer_ramp_rate=float(control_cfg.get("steer_ramp_rate", 2.0)),
         control=control_state,
         atmosphere=atmosphere_loop_state,
-        odom=odom_state,
+        odom_ctx=(bridge.odom_ctx if bridge is not None else None),
         render_config=render_config,
         ackermann_fn=ackermann_command,
         spin_once=_spin_once,

@@ -352,10 +352,18 @@ class TestExtrinsicNoHiddenTransform:
         """RPY -> quat -> RPY round-trips to within 1e-6 deg.
 
         Confirms the spawner formula
-        (``marslab/sensors/sensor_spawner.py:127-148``) does not lose
-        precision on the camera's 180° X-roll, which is the load-bearing
-        Y-up -> Z-up correction.  A drift here would imply the runtime
-        camera frame is silently rotated relative to YAML.
+        (``marslab/sensors/sensor_spawner.py``) does not lose precision
+        on the camera's 180° X-rotation that maps Isaac Sim Camera
+        prim's optical axis convention onto the body frame.  A drift
+        here would imply the runtime camera frame is silently rotated
+        relative to YAML.
+
+        2026-04-28: comment used to claim the X-roll was the
+        ``Y-up -> Z-up correction``; that was inaccurate (the rover
+        is no longer X-rolled at spawn -- see configs/robots/
+        rover_m2020.yaml LOG entry).  The 180° roll on the **camera
+        prim** is unrelated and is required for Isaac Sim's optical
+        axis convention.
         """
         cfg = _load_rover_yaml()
         rpy_yaml = cfg["sensors"]["camera"]["local_orientation_rpy_deg"]

@@ -507,6 +507,23 @@ def spawn_rover(
 
     rigid_body_path = find_rigid_body_path(stage, chassis_path)
 
+    # --- S3 release-blocker fix (2026-04-27): REP-105 frame names -------
+    # Pin the rover articulation root to ``base_link`` and create a
+    # stationary ``odom`` anchor prim at the rover's spawn pose.  The
+    # non-Raw ``ROS2PublishTransformTree`` reads ``isaac:nameOverride``
+    # on every ``compute()`` tick (OGN ``Has State? = False``) so the
+    # published chain reads ``odom -> base_link -> {wheels, sensors}``
+    # instead of ``world -> Body_Chassis -> ...``.  Citation:
+    # ``test_pose_tree.py:154-156, :215-229``.
+    from marslab.ros2_bridge.tf_nameoverrides import (  # noqa: PLC0415
+        DEFAULT_ODOM_ANCHOR_PATH,
+        apply_nameoverride,
+        create_odom_anchor,
+    )
+
+    apply_nameoverride(stage, rigid_body_path, "base_link")
+    create_odom_anchor(stage, DEFAULT_ODOM_ANCHOR_PATH, spawn_xyz, frame_name="odom")
+
     # --- Day 2 Task B (2026-04-26): M2020 ballpark physics overrides ----
     # ``chassis:`` / ``wheels:`` / ``suspension:`` blocks pin mass,
     # inertia, friction so PhysX never sees the URDF auto-computed

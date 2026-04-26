@@ -124,3 +124,53 @@ class FakeStaticTransformBroadcaster:
             self.sent.extend(msgs)
         else:
             self.sent.append(msgs)
+
+
+# ---------------------------------------------------------------------------
+# Fake ``usdrt`` for offline OmniGraph builder tests (F3 fix, 2026-04-26).
+#
+# ``marslab.ros2_bridge.sensor_graph_builder._build_set_values`` lazily
+# imports ``usdrt`` to wrap the articulation root path (canonical
+# pattern at ``isaacsim/.../tests/test_pose_tree.py:77-84``). ``usdrt``
+# ships with Isaac Sim, not the system Python — without this fixture
+# every offline test that exercises ``_build_set_values`` would fail
+# with ``ModuleNotFoundError``. Installed session-wide so tests do not
+# need to opt in individually.
+# ---------------------------------------------------------------------------
+
+
+class _FakeUsdrtSdfPath:
+    """Wrapper recording the original USD path string for assertion."""
+
+    def __init__(self, raw: str) -> None:
+        self._raw = str(raw)
+
+    def __repr__(self) -> str:  # pragma: no cover - cosmetic
+        return f"FakeUsdrtSdfPath({self._raw!r})"
+
+    def __str__(self) -> str:
+        return self._raw
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, _FakeUsdrtSdfPath):
+            return self._raw == other._raw
+        return self._raw == other
+
+    def __hash__(self) -> int:
+        return hash(self._raw)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _install_fake_usdrt() -> None:
+    """Register a stub ``usdrt`` module so offline tests can import it."""
+    import sys
+    import types
+
+    if "usdrt" in sys.modules:
+        return
+    fake_usdrt = types.ModuleType("usdrt")
+    fake_sdf = types.ModuleType("usdrt.Sdf")
+    fake_sdf.Path = _FakeUsdrtSdfPath  # type: ignore[attr-defined]
+    fake_usdrt.Sdf = fake_sdf  # type: ignore[attr-defined]
+    sys.modules["usdrt"] = fake_usdrt
+    sys.modules["usdrt.Sdf"] = fake_sdf

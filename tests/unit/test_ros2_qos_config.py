@@ -226,6 +226,8 @@ class TestOmniGraphSetValuesIncludeQoS:
             camera_prim_path="/World/Rover/camera",
             camera_resolution=(640, 480),
             lidar_3d_prim_path="/World/Rover/lidar3d",
+            articulation_root_prim_path="/World/Rover",
+            parent_anchor_prim_path="/World/odom_anchor",
             **kwargs,
         )
         return dict(sets)
@@ -279,6 +281,8 @@ class TestOmniGraphSetValuesIncludeQoS:
                 camera_prim_path="/World/Rover/camera",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/World/Rover/lidar3d",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
                 lidar_2d_prim_path="/World/Rover/lidar2d",
             )
         )

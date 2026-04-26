@@ -1,4 +1,9 @@
-"""Unit tests for marslab.ros2_bridge.tf_broadcaster (R8-5). Y/Z flip + quat normalization."""
+"""Unit tests for marslab.ros2_bridge.tf_broadcaster.
+
+2026-04-28: removed the Y/Z flip assertions that pinned the (now
+removed) 180° X-roll spawn workaround.  Translations are now
+broadcast identity-mapped from YAML ``local_translation``.
+"""
 
 from __future__ import annotations
 
@@ -89,16 +94,22 @@ class TestQuatNormalization:
         norm_sq = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z
         assert norm_sq == pytest.approx(1.0, abs=1e-12)
 
-    def test_body_frame_y_z_flipped_per_180deg_roll_convention(
-        self, fake_ros2_tf_modules: None
-    ) -> None:
-        """YAML author sits in post-roll body frame; broadcaster flips Y/Z."""
+    def test_translation_is_broadcast_identity(self, fake_ros2_tf_modules: None) -> None:
+        """YAML local_translation is in the REP-103 base_link frame.
+
+        2026-04-28 (B1 fix): the rover is no longer spawned with a
+        180° X-roll, so ``base_link`` axes coincide with the URDF /
+        REP-103 convention and ``local_translation`` does not need
+        to be flipped on broadcast.  The previous version of this
+        test asserted ``y = -2.0, z = -3.0`` (circular validator
+        against the buggy flip).
+        """
         from marslab.ros2_bridge.tf_broadcaster import build_static_sensor_transforms
 
         (msg,) = build_static_sensor_transforms([("camera_link", [0.5, 2.0, 3.0])])
         assert msg.transform.translation.x == pytest.approx(0.5)
-        assert msg.transform.translation.y == pytest.approx(-2.0)
-        assert msg.transform.translation.z == pytest.approx(-3.0)
+        assert msg.transform.translation.y == pytest.approx(2.0)
+        assert msg.transform.translation.z == pytest.approx(3.0)
 
 
 class TestSeedDeterminism:

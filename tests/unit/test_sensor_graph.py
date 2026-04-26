@@ -60,6 +60,8 @@ class TestRgbDepthImuBranches:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
             )
         )
         assert sv["CamRGB.inputs:topicName"] == "/rover/rgb/image_raw"
@@ -74,6 +76,8 @@ class TestRgbDepthImuBranches:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
             )
         )
         assert sv["CamDepth.inputs:topicName"] == "/rover/depth/image_raw"
@@ -88,6 +92,8 @@ class TestRgbDepthImuBranches:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
             )
         )
         assert sv["PubIMU.inputs:topicName"] == "/rover/imu"
@@ -102,6 +108,8 @@ class TestRgbDepthImuBranches:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
             )
         )
         assert sv["Lidar3DHelper.inputs:topicName"] == "/rover/lidar/points"
@@ -124,6 +132,8 @@ class TestRgbDepthImuBranches:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
             )
         )
         assert sv["PubTF.inputs:topicName"] == "/tf_raw"
@@ -155,6 +165,8 @@ class TestSeedDeterminism:
             camera_prim_path="/W/Cam",
             camera_resolution=(640, 480),
             lidar_3d_prim_path="/W/Lidar",
+            articulation_root_prim_path="/World/Rover",
+            parent_anchor_prim_path="/World/odom_anchor",
         )
         b = _build_set_values(
             ns="rover",
@@ -163,6 +175,8 @@ class TestSeedDeterminism:
             camera_prim_path="/W/Cam",
             camera_resolution=(640, 480),
             lidar_3d_prim_path="/W/Lidar",
+            articulation_root_prim_path="/World/Rover",
+            parent_anchor_prim_path="/World/odom_anchor",
         )
         assert a == b
 
@@ -176,6 +190,8 @@ class TestSeedDeterminism:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640.7, 480.3),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
             )
         )
         assert sv["RPCamera.inputs:width"] == 640

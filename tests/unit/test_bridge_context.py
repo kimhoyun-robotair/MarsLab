@@ -21,6 +21,7 @@ class TestBridgeContextDataclass:
             "static_tf_broadcaster",
             "odom_ctx",
             "twist_state",
+            "robot_description_ctx",
         ]
 
     def test_constructible_with_placeholder_values(self) -> None:

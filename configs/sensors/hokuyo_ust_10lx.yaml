@@ -20,8 +20,12 @@
 # bundled emitter angular range. v1.5 follow-up: emitterStates generation
 # (see ``~/MarsLab/tmp/task_H1_finding.md``).
 
+# 2026-04-28: Z sign flipped from -0.25 to +0.25 to match REP-103
+# after the spawn-time X-roll was removed (see
+# ``configs/robots/rover_m2020.yaml`` ``spawn_orientation_rpy``).
+# Pre-fix world position preserved.
 parent_link: "Body_Chassis"
-local_translation: [0.3, 0.0, -0.25]
+local_translation: [0.3, 0.0, 0.25]
 local_orientation_rpy_deg: [0.0, 0.0, 0.0]
 
 # Runtime-overridable (will reach Isaac Sim via generated JSON).

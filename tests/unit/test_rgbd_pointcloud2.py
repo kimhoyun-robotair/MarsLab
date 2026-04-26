@@ -118,6 +118,8 @@ class TestBuildSetValuesPointCloud2:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
             )
         )
         assert "CamPCL.inputs:type" not in sv
@@ -132,6 +134,8 @@ class TestBuildSetValuesPointCloud2:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
                 include_pointcloud2=True,
             )
         )
@@ -146,6 +150,8 @@ class TestBuildSetValuesPointCloud2:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
                 include_pointcloud2=True,
             )
         )
@@ -169,6 +175,8 @@ class TestBuildSetValuesPointCloud2:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
                 include_pointcloud2=True,
             )
         )
@@ -187,6 +195,8 @@ class TestBuildSetValuesPointCloud2:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
                 sensor_qos_preset="SensorData",
                 include_pointcloud2=True,
             )
@@ -209,6 +219,8 @@ class TestBuildSetValuesPointCloud2:
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/Lidar",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
                 include_pointcloud2=True,
             )
         )
@@ -315,6 +327,8 @@ class TestBuildSensorGraphCallableInvocation:
             camera_resolution=(640, 480),
             lidar_3d_prim_path="/World/Lidar3D",
             imu_prim_path="/World/IMU",
+            articulation_root_prim_path="/World/Rover",
+            parent_anchor_prim_path="/World/odom_anchor",
         )
         assert mock_og.edit.call_count == 1
 
@@ -334,6 +348,8 @@ class TestBuildSensorGraphCallableInvocation:
             camera_resolution=(640, 480),
             lidar_3d_prim_path="/World/Lidar3D",
             imu_prim_path="/World/IMU",
+            articulation_root_prim_path="/World/Rover",
+            parent_anchor_prim_path="/World/odom_anchor",
         )
         # Controller.edit(setup_dict, mutations_dict) -- second positional arg.
         _, mutations = mock_og.edit.call_args.args
@@ -368,6 +384,8 @@ class TestBuildSensorGraphCallableInvocation:
             camera_resolution=(640, 480),
             lidar_3d_prim_path="/World/Lidar3D",
             imu_prim_path="/World/IMU",
+            articulation_root_prim_path="/World/Rover",
+            parent_anchor_prim_path="/World/odom_anchor",
         )
         _, mutations = mock_og.edit.call_args.args
         node_names = [n for n, _ in mutations["CREATE_NODES"]]
@@ -395,6 +413,8 @@ class TestBuildSensorGraphCallableInvocation:
             camera_resolution=(640, 480),
             lidar_3d_prim_path="/World/Lidar3D",
             imu_prim_path="/World/IMU",
+            articulation_root_prim_path="/World/Rover",
+            parent_anchor_prim_path="/World/odom_anchor",
         )
         _, mutations = mock_og.edit.call_args.args
         node_names = [n for n, _ in mutations["CREATE_NODES"]]
@@ -417,6 +437,8 @@ class TestBuildSensorGraphCallableInvocation:
             camera_resolution=(640, 480),
             lidar_3d_prim_path="/World/Lidar3D",
             imu_prim_path="/World/IMU",
+            articulation_root_prim_path="/World/Rover",
+            parent_anchor_prim_path="/World/odom_anchor",
         )
         _, mutations = mock_og.edit.call_args.args
         node_names = [n for n, _ in mutations["CREATE_NODES"]]

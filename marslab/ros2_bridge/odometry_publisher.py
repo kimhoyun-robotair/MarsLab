@@ -41,15 +41,23 @@ class OdometryPublisherContext:
     The odom frame is anchored at the rover's initial world pose, so
     the initial position / orientation travel alongside the publisher
     instead of being recomputed every tick.
+
+    ``tf_broadcaster`` may be ``None`` after S3 (2026-04-27) when the
+    caller opts out of rclpy-side TF publishing -- the OG
+    ``ROS2PublishTransformTree`` becomes the sole TF authority for
+    ``odom -> base_link``.  ``publish_tf`` records the choice so
+    :func:`publish_odometry` does not need to inspect the broadcaster
+    handle to decide whether to skip ``sendTransform``.
     """
 
     publisher: Any
-    tf_broadcaster: Any
+    tf_broadcaster: Optional[Any]
     node: Any
     init_pos_world: np.ndarray
     init_quat_world: np.ndarray
     frame_id: str = "odom"
     child_frame_id: str = "base_link"
+    publish_tf: bool = True
 
 
 def create_odometry_publisher(
@@ -63,8 +71,9 @@ def create_odometry_publisher(
     *,
     odom_qos: Optional[Any] = None,
     tf_qos: Optional[Any] = None,
+    publish_tf: bool = True,
 ) -> OdometryPublisherContext:
-    """Create the odometry publisher + TF broadcaster bundle.
+    """Create the odometry publisher + (optional) TF broadcaster bundle.
 
     Args:
         node: ``rclpy`` node.
@@ -83,34 +92,49 @@ def create_odometry_publisher(
             publisher is created with the integer ``queue_size``
             overload (rclpy default profile).  Reviewer 2 #04 (2026-04-24).
         tf_qos: Optional ``rclpy.qos.QoSProfile`` forwarded to the
-            ``tf2_ros.TransformBroadcaster``.  ``TransformBroadcaster``
-            takes a ``qos`` keyword argument in tf2_ros >= 0.25.  When
-            ``None`` the default ``/tf`` QoS (RELIABLE + KEEP_LAST 100)
-            is used.
+            ``tf2_ros.TransformBroadcaster``.  Ignored when
+            ``publish_tf=False``.
+        publish_tf: When ``True`` (default, backward compatible) the
+            function constructs a ``tf2_ros.TransformBroadcaster`` and
+            :func:`publish_odometry` broadcasts ``odom -> base_link``
+            on ``/tf``.  When ``False`` the broadcaster is **not**
+            constructed, ``ctx.tf_broadcaster`` stays ``None``, and
+            :func:`publish_odometry` skips ``sendTransform`` -- this is
+            the post-S3 mode where the OG
+            ``ROS2PublishTransformTree`` becomes the sole TF authority
+            for ``odom -> base_link`` (memory:
+            feedback_no_tf_consolidation).  ``tf2_ros`` is imported
+            lazily inside the ``True`` branch so a node without
+            ``tf2_ros`` on PYTHONPATH still works in the ``False`` mode.
 
     Returns:
         :class:`OdometryPublisherContext` to be reused by
         :func:`publish_odometry` on every sim step.
     """
     from nav_msgs.msg import Odometry
-    from tf2_ros import TransformBroadcaster
 
     if odom_qos is not None:
         publisher = node.create_publisher(Odometry, topic, odom_qos)
     else:
         publisher = node.create_publisher(Odometry, topic, queue_size)
 
-    if tf_qos is not None:
-        # TransformBroadcaster added the ``qos`` keyword in
-        # tf2_ros >= 0.25 (ROS 2 Humble+).  Older installs fall back
-        # to the no-argument constructor via the TypeError branch so
-        # MarsLab still boots on a mismatched tf2_ros.
-        try:
-            tf_broadcaster = TransformBroadcaster(node, qos=tf_qos)
-        except TypeError:
+    tf_broadcaster: Optional[Any] = None
+    if publish_tf:
+        # Local import keeps callers that opt out (S3 default) on
+        # systems without tf2_ros installed working.
+        from tf2_ros import TransformBroadcaster
+
+        if tf_qos is not None:
+            # TransformBroadcaster added the ``qos`` keyword in
+            # tf2_ros >= 0.25 (ROS 2 Humble+).  Older installs fall back
+            # to the no-argument constructor via the TypeError branch so
+            # MarsLab still boots on a mismatched tf2_ros.
+            try:
+                tf_broadcaster = TransformBroadcaster(node, qos=tf_qos)
+            except TypeError:
+                tf_broadcaster = TransformBroadcaster(node)
+        else:
             tf_broadcaster = TransformBroadcaster(node)
-    else:
-        tf_broadcaster = TransformBroadcaster(node)
 
     return OdometryPublisherContext(
         publisher=publisher,
@@ -120,6 +144,7 @@ def create_odometry_publisher(
         init_quat_world=np.asarray(init_quat_world, dtype=np.float32).copy(),
         frame_id=frame_id,
         child_frame_id=child_frame_id,
+        publish_tf=publish_tf,
     )
 
 
@@ -156,13 +181,14 @@ def publish_odometry(
 
     now = ctx.node.get_clock().now().to_msg()
 
-    tf_msg = TransformStamped()
-    tf_msg.header.stamp = now
-    tf_msg.header.frame_id = ctx.frame_id
-    tf_msg.child_frame_id = ctx.child_frame_id
-    _set_xyz(tf_msg.transform.translation, delta_pos_odom)
-    _set_wxyz(tf_msg.transform.rotation, delta_quat_odom)
-    ctx.tf_broadcaster.sendTransform(tf_msg)
+    if ctx.publish_tf and ctx.tf_broadcaster is not None:
+        tf_msg = TransformStamped()
+        tf_msg.header.stamp = now
+        tf_msg.header.frame_id = ctx.frame_id
+        tf_msg.child_frame_id = ctx.child_frame_id
+        _set_xyz(tf_msg.transform.translation, delta_pos_odom)
+        _set_wxyz(tf_msg.transform.rotation, delta_quat_odom)
+        ctx.tf_broadcaster.sendTransform(tf_msg)
 
     odom = Odometry()
     odom.header.stamp = now

@@ -63,6 +63,8 @@ def build_sensor_graph(
     camera_resolution: Tuple[int, int],
     lidar_3d_prim_path: str,
     imu_prim_path: str,
+    articulation_root_prim_path: str,
+    parent_anchor_prim_path: str,
     lidar_2d_prim_path: Optional[str] = None,
 ) -> SensorGraphHandle:
     """Build the Stage-3 ROS2 OmniGraph.
@@ -79,6 +81,18 @@ def build_sensor_graph(
         camera_resolution: ``(width, height)`` tuple.
         lidar_3d_prim_path: USD path of the 3-D RTX LiDAR prim.
         imu_prim_path: USD path of the IMU prim.
+        articulation_root_prim_path: USD path of the rover articulation
+            root prim (typically ``spawned.prim_path`` returned by
+            :func:`marslab.robots.rover.spawn_rover`).  Forwarded to
+            ``PubTF.inputs:targetPrims`` so the non-Raw
+            ``ROS2PublishTransformTree`` auto-walks the articulation
+            chain.  See ``OgnROS2PublishTransformTree.rst:45``.
+        parent_anchor_prim_path: USD path of the stationary ``odom``
+            anchor prim (typically
+            :data:`marslab.ros2_bridge.tf_nameoverrides.DEFAULT_ODOM_ANCHOR_PATH`).
+            Forwarded to ``PubTF.inputs:parentPrim`` so the published
+            chain reads ``odom -> base_link -> ...`` (REP-105) instead
+            of ``world -> base_link -> ...``.  S3 fix (2026-04-27).
         lidar_2d_prim_path: Optional USD path of the 2-D RTX LiDAR prim.
             When provided and ``topics["scan"]`` is set in ``ros2_cfg``,
             a ``RPLidar2D``/``Lidar2DHelper`` pair is added with
@@ -115,6 +129,8 @@ def build_sensor_graph(
                 camera_prim_path=camera_prim_path,
                 camera_resolution=camera_resolution,
                 lidar_3d_prim_path=lidar_3d_prim_path,
+                articulation_root_prim_path=articulation_root_prim_path,
+                parent_anchor_prim_path=parent_anchor_prim_path,
                 lidar_2d_prim_path=lidar_2d_prim_path if include_2d else None,
                 sensor_qos_preset=sensor_preset,
                 tf_qos_preset=tf_preset,

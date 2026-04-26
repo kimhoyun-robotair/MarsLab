@@ -16,9 +16,9 @@ sensor frames on ``/tf_static``, then asserts:
    ``base_link -> imu_link``.  The parent frame is always ``base_link``
    per ``marslab/ros2_bridge/tf_broadcaster.py:30``.
 3. **Each sensor's static TF translation matches the YAML
-   ``local_translation`` to within 1 cm**, with the documented Y/Z
-   sign flip from the 180° X-roll body convention applied (see
-   ``marslab/ros2_bridge/tf_broadcaster.py:50-52``).
+   ``local_translation`` to within 1 cm**, broadcast identity
+   (REP-103 base_link, no flip) since the 2026-04-28 B1 fix
+   removed the spawn-time X-roll.
 4. **Each sensor's static TF rotation is identity** — the static
    broadcaster currently emits identity for orientation
    (``tf_broadcaster.py:53-56``); when that changes, this test will

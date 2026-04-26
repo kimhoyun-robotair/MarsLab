@@ -12,7 +12,10 @@ class TestBuildCreateNodes:
         nodes = dict(_build_create_nodes())
         assert nodes["OnTick"] == "omni.graph.action.OnPlaybackTick"
         assert nodes["ReadSimTime"] == "isaacsim.core.nodes.IsaacReadSimulationTime"
-        assert nodes["PubTF"] == "isaacsim.ros2.bridge.ROS2PublishRawTransformTree"
+        # F3 fix (2026-04-26): switched to the non-Raw publisher so the
+        # node auto-walks the rover articulation chain. See
+        # ``OgnROS2PublishTransformTree.rst:21,45``.
+        assert nodes["PubTF"] == "isaacsim.ros2.bridge.ROS2PublishTransformTree"
         assert nodes["Lidar3DHelper"] == "isaacsim.ros2.bridge.ROS2RtxLidarHelper"
 
     def test_node_list_has_no_duplicates(self) -> None:
@@ -64,6 +67,8 @@ class TestBuildSetValues:
                 camera_prim_path="/W/cam",
                 camera_resolution=(640.0, 480.0),  # float in, int out
                 lidar_3d_prim_path="/W/lidar3d",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
             )
         )
         assert sets["RPCamera.inputs:width"] == 640
@@ -90,6 +95,8 @@ class TestBuildSetValues:
                 camera_prim_path="/W/cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/lidar3d",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
             )
         )
         assert sets["PubTF.inputs:topicName"] == "/tf_raw"
@@ -105,6 +112,8 @@ class TestBuildSetValues:
                 camera_prim_path="/W/cam",
                 camera_resolution=(640, 480),
                 lidar_3d_prim_path="/W/lidar3d",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
             )
         )
         assert sets["PubIMU.inputs:topicName"] == "/rover0/imu"

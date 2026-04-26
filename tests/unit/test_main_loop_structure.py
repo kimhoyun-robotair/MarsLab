@@ -7,15 +7,12 @@ from dataclasses import fields
 
 import numpy as np
 
+from marslab.math.quaternion import quat_inverse, quat_multiply, quat_rotate_vec
 from marslab.runtime import main_loop as ml
 from marslab.runtime.main_loop import (
     AtmosphereLoopState,
     ControlState,
     LoopContext,
-    OdomPublishState,
-    quat_inverse,
-    quat_multiply,
-    quat_rotate_vec,
     run_main_loop,
 )
 
@@ -50,7 +47,7 @@ def test_loop_context_required_fields_present() -> None:
         "steer_ramp_rate",
         "control",
         "atmosphere",
-        "odom",
+        "odom_ctx",
         "render_config",
         "ackermann_fn",
         "spin_once",
@@ -133,24 +130,6 @@ def test_atmosphere_state_defaults() -> None:
     assert a.solar_constant == float(mars_env.solar_constant_mean)
     assert a.hdri_dir == ""
     assert a.atmosphere_dict["tau"] == 0.3
-
-
-# ---------------------------------------------------------------------------
-# OdomPublishState defaults
-# ---------------------------------------------------------------------------
-
-
-def test_odom_state_defaults_all_none() -> None:
-    """No-ROS2 path must yield an all-``None`` OdomPublishState."""
-    o = OdomPublishState()
-    assert o.node is None
-    assert o.odom_pub is None
-    assert o.odom_tf_broadcaster is None
-    assert o.odom_init_pos is None
-    assert o.odom_init_quat is None
-    assert o.odom_init_quat_inv is None
-    assert o.transform_stamped_cls is None
-    assert o.odometry_cls is None
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +232,7 @@ def _make_minimal_ctx() -> LoopContext:
             sol_duration=88642.0,
             solar_constant=589.0,
         ),
-        odom=OdomPublishState(),
+        odom_ctx=None,
         render_config=object(),
         ackermann_fn=_ackermann,
     )

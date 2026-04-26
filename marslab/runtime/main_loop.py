@@ -1,23 +1,43 @@
 """Main-loop extraction for the monolithic Stage 3 runtime (R6-1).
 
 Public entry point :func:`run_main_loop` consumes a :class:`LoopContext`
-bundling every object and scalar the legacy inline loop closed over. Mutable
-ramp / atmosphere state is carried in :class:`ControlState` /
-:class:`AtmosphereLoopState` / :class:`OdomPublishState` (mutated in place for
-Oracle byte-exact parity). Isaac Sim / ``rclpy`` symbols enter via the
-context only — the module itself is offline-importable (P3). Normal exit or
-``KeyboardInterrupt`` returns ``0``; the caller owns ``simulation_app.close()``.
+bundling every object and scalar the legacy inline loop closed over.
+Mutable ramp / atmosphere state is carried in :class:`ControlState` /
+:class:`AtmosphereLoopState` (mutated in place for Oracle byte-exact
+parity).  Odometry publishing is delegated to
+:func:`marslab.ros2_bridge.odometry_publisher.publish_odometry` via the
+:class:`~marslab.ros2_bridge.odometry_publisher.OdometryPublisherContext`
+carried on :attr:`LoopContext.odom_ctx` -- a single source of truth that
+honours the S3 ``publish_tf`` gate (memory:
+feedback_no_tf_consolidation).  Isaac Sim / ``rclpy`` symbols enter via
+the context only -- the module itself is offline-importable (P3).
+Normal exit or ``KeyboardInterrupt`` returns ``0``; the caller owns
+``simulation_app.close()``.
+
+2026-04-28 (Reviewer 2 B-2 refactor): :class:`OdomPublishState` was
+deleted and the inline ``sendTransform`` block in :func:`_publish_odometry`
+was replaced with a call to
+:func:`marslab.ros2_bridge.odometry_publisher.publish_odometry`.  The
+prior dual implementation hid an S3 follow-up bug where the ``main_loop``
+copy did not gate ``sendTransform`` on the new ``tf_broadcaster is None``
+condition (post-S3 rclpy odom TF is OFF by default), surfacing as
+``AttributeError("'NoneType' object has no attribute 'sendTransform'")``
+every step at runtime.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import numpy as np
 
-from marslab.math.quaternion import quat_inverse, quat_multiply, quat_rotate_vec
+if TYPE_CHECKING:
+    # Type-only import: keeps the runtime offline-importable (P3)
+    # because the publisher module's ``rclpy`` / ``tf2_ros`` /
+    # ``nav_msgs`` imports are themselves function-local.
+    from marslab.ros2_bridge.odometry_publisher import OdometryPublisherContext
 
 logger = logging.getLogger(__name__)
 
@@ -137,35 +157,6 @@ class AtmosphereLoopState:
 
 
 @dataclass
-class OdomPublishState:
-    """``rclpy`` publisher + TF broadcaster handles for manual odometry.
-
-    All fields are ``Optional`` so the loop can short-circuit cleanly when
-    ``--no-ros2`` was supplied.
-
-    Attributes:
-        node: ``rclpy.node.Node`` instance (or ``None``).
-        odom_pub: ``nav_msgs/Odometry`` publisher.
-        odom_tf_broadcaster: ``tf2_ros.TransformBroadcaster`` for
-            ``odom → base_link``.
-        odom_init_pos: Rover position at ``world.reset()`` — the odom origin.
-        odom_init_quat: Rover orientation at ``world.reset()``.
-        odom_init_quat_inv: Pre-computed inverse of the init quaternion.
-        transform_stamped_cls: ``geometry_msgs/TransformStamped`` class.
-        odometry_cls: ``nav_msgs/Odometry`` class.
-    """
-
-    node: Optional[Any] = None
-    odom_pub: Optional[Any] = None
-    odom_tf_broadcaster: Optional[Any] = None
-    odom_init_pos: Optional[np.ndarray] = None
-    odom_init_quat: Optional[np.ndarray] = None
-    odom_init_quat_inv: Optional[np.ndarray] = None
-    transform_stamped_cls: Optional[Any] = None
-    odometry_cls: Optional[Any] = None
-
-
-@dataclass
 class VehicleGeometry:
     """Static rover kinematics consumed by the Ackermann controller.
 
@@ -263,7 +254,7 @@ class LoopContext:
     *   Vehicle geometry & control limits: ``wheelbase``, ``track_steer``,
         ``track_middle``, ``wheel_radius``, ``v_max``, ``w_max``, ramp rates.
     *   Physics tick: ``physics_dt``.
-    *   Mutable state: ``control``, ``atmosphere``, ``odom``.
+    *   Mutable state: ``control``, ``atmosphere``, ``odom_ctx``.
     *   Callables: ``ackermann_fn``, ``spin_once``, ``update_sun_fn``,
         ``update_sky_fn``, ``configure_fog_fn``, ``compute_sun_fn``,
         ``compute_sol_sun_fn``, ``compute_direct_intensity_fn``,
@@ -309,7 +300,7 @@ class LoopContext:
     steer_ramp_rate: float
     control: ControlState
     atmosphere: AtmosphereLoopState
-    odom: OdomPublishState
+    odom_ctx: Optional["OdometryPublisherContext"]
     render_config: Any
     ackermann_fn: Callable[..., Any]
     spin_once: Optional[Callable[..., None]] = None
@@ -472,7 +463,7 @@ def run_main_loop(ctx: LoopContext) -> int:
     """
     ctl = ctx.control
     atmo = ctx.atmosphere
-    odom = ctx.odom
+    odom_ctx = ctx.odom_ctx
 
     drive_idx_arr = np.asarray(ctx.drive_indices, dtype=np.int32)
     steer_idx_arr = np.asarray(ctx.steer_indices, dtype=np.int32)
@@ -534,7 +525,7 @@ def run_main_loop(ctx: LoopContext) -> int:
             if ctx.debug_logging and ctl.step_count % 60 == 0:
                 _debug_log_step(ctx, steer_idx_arr, drive_idx_arr, v, w, steer_angles, ramped_vels)
 
-            if odom.node is not None and odom.odom_pub is not None:
+            if odom_ctx is not None and odom_ctx.publisher is not None:
                 _publish_odometry(ctx, ctl.step_count)
 
             if ctl.step_count % atmo.update_interval == 0 and ctl.step_count > 0:
@@ -590,8 +581,33 @@ def _debug_log_step(
 
 
 def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
-    """Publish ``odom → base_link`` TF and an ``Odometry`` message."""
-    odom = ctx.odom
+    """Delegate odometry publish to the canonical ``publish_odometry``.
+
+    2026-04-28 (Reviewer 2 B-2 refactor): the prior inline implementation
+    duplicated :func:`marslab.ros2_bridge.odometry_publisher.publish_odometry`
+    and silently bypassed the S3 ``tf_broadcaster is None`` gate, raising
+    ``AttributeError("'NoneType' object has no attribute 'sendTransform'")``
+    on every step after S3 turned the rclpy odom TF off by default.
+    Routing through the publisher makes that gate the single source of
+    truth and keeps the math (``compute_odom_delta`` /
+    ``world_twist_to_body``) in one place.
+
+    Velocity-fetch failure is preserved as the ``velocity_query_failed``
+    grace-window log; the outer ``odom_publish_failed`` category covers
+    any unexpected exception so the runtime log line spelling stays
+    bit-equal with prior runs.
+    """
+    odom_ctx = ctx.odom_ctx
+    if odom_ctx is None:
+        return
+
+    # Function-local import keeps the offline-importable property of
+    # ``main_loop`` (P3): ``odometry_publisher`` itself defers
+    # ``rclpy``/``tf2_ros``/``nav_msgs`` to its own function bodies, but
+    # importing it at module scope would still drag in the typing-only
+    # references at unit-test time on a host without ROS 2.
+    from marslab.ros2_bridge.odometry_publisher import publish_odometry
+
     try:
         rover_poses_odom = ctx.articulation.get_world_poses()
         if rover_poses_odom is None:
@@ -600,56 +616,32 @@ def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
         cur_pos = _rp[0] if _rp.ndim == 2 else _rp
         cur_quat = _rq[0] if _rq.ndim == 2 else _rq
 
-        delta_pos_world = cur_pos - odom.odom_init_pos
-        delta_pos_odom = quat_rotate_vec(odom.odom_init_quat_inv, delta_pos_world)
-        delta_quat = quat_multiply(odom.odom_init_quat_inv, cur_quat)
-
-        now = odom.node.get_clock().now().to_msg()
-
-        odom_tf = odom.transform_stamped_cls()
-        odom_tf.header.stamp = now
-        odom_tf.header.frame_id = "odom"
-        odom_tf.child_frame_id = "base_link"
-        odom_tf.transform.translation.x = float(delta_pos_odom[0])
-        odom_tf.transform.translation.y = float(delta_pos_odom[1])
-        odom_tf.transform.translation.z = float(delta_pos_odom[2])
-        odom_tf.transform.rotation.w = float(delta_quat[0])
-        odom_tf.transform.rotation.x = float(delta_quat[1])
-        odom_tf.transform.rotation.y = float(delta_quat[2])
-        odom_tf.transform.rotation.z = float(delta_quat[3])
-        odom.odom_tf_broadcaster.sendTransform(odom_tf)
-
-        odom_msg = odom.odometry_cls()
-        odom_msg.header.stamp = now
-        odom_msg.header.frame_id = "odom"
-        odom_msg.child_frame_id = "base_link"
-        odom_msg.pose.pose.position.x = float(delta_pos_odom[0])
-        odom_msg.pose.pose.position.y = float(delta_pos_odom[1])
-        odom_msg.pose.pose.position.z = float(delta_pos_odom[2])
-        odom_msg.pose.pose.orientation.w = float(delta_quat[0])
-        odom_msg.pose.pose.orientation.x = float(delta_quat[1])
-        odom_msg.pose.pose.orientation.y = float(delta_quat[2])
-        odom_msg.pose.pose.orientation.z = float(delta_quat[3])
-
+        # Velocity query is best-effort.  When it fails the publisher
+        # still emits a well-formed Odometry with zero twist instead of
+        # skipping the message altogether (same external contract as the
+        # prior inline path -- which also defaulted twist fields to 0.0
+        # via the ROS message constructor when the inner try raised).
         try:
             lin_vel = ctx.articulation.get_linear_velocities()
             ang_vel = ctx.articulation.get_angular_velocities()
-            if lin_vel is not None and ang_vel is not None:
-                lv = lin_vel[0] if lin_vel.ndim == 2 else lin_vel
-                av = ang_vel[0] if ang_vel.ndim == 2 else ang_vel
-                cur_quat_inv = quat_inverse(cur_quat)
-                body_lv = quat_rotate_vec(cur_quat_inv, lv)
-                body_av = quat_rotate_vec(cur_quat_inv, av)
-                odom_msg.twist.twist.linear.x = float(body_lv[0])
-                odom_msg.twist.twist.linear.y = float(body_lv[1])
-                odom_msg.twist.twist.linear.z = float(body_lv[2])
-                odom_msg.twist.twist.angular.x = float(body_av[0])
-                odom_msg.twist.twist.angular.y = float(body_av[1])
-                odom_msg.twist.twist.angular.z = float(body_av[2])
-        except Exception as exc:  # noqa: BLE001
-            _log_once(logger, exc, "velocity_query_failed", step_count)
+        except Exception as vel_exc:  # noqa: BLE001
+            _log_once(logger, vel_exc, "velocity_query_failed", step_count)
+            lin_vel = None
+            ang_vel = None
+        if lin_vel is not None and ang_vel is not None:
+            lv = lin_vel[0] if lin_vel.ndim == 2 else lin_vel
+            av = ang_vel[0] if ang_vel.ndim == 2 else ang_vel
+        else:
+            lv = np.zeros(3, dtype=np.float32)
+            av = np.zeros(3, dtype=np.float32)
 
-        odom.odom_pub.publish(odom_msg)
+        publish_odometry(
+            odom_ctx,
+            cur_pos_world=cur_pos,
+            cur_quat_world=cur_quat,
+            linear_vel_world=lv,
+            angular_vel_world=av,
+        )
     except Exception as odom_exc:  # noqa: BLE001
         _log_once(logger, odom_exc, "odom_publish_failed", step_count)
 

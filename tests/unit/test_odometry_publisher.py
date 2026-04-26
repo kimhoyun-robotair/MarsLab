@@ -217,3 +217,61 @@ class TestHeaderStampMonotonic:
             ctx.publisher.publish.call_args_list[1].args[0].header.stamp,
         )
         assert (b.sec, b.nanosec) >= (a.sec, a.nanosec)
+
+
+class TestPublishTfFlag:
+    """``publish_tf=False`` (S3 default) skips TF broadcast but keeps Odometry."""
+
+    def test_publish_tf_false_creates_no_broadcaster(self, fake_ros2_modules: None) -> None:
+        from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
+
+        node = _make_node([FakeStamp(1, 0)])
+        ctx = create_odometry_publisher(
+            node=node,
+            topic="/rover/odom",
+            init_pos_world=np.zeros(3),
+            init_quat_world=np.array([1.0, 0.0, 0.0, 0.0]),
+            publish_tf=False,
+        )
+        assert ctx.tf_broadcaster is None
+        assert ctx.publish_tf is False
+
+    def test_publish_tf_false_skips_send_transform(self, fake_ros2_modules: None) -> None:
+        from marslab.ros2_bridge.odometry_publisher import (
+            create_odometry_publisher,
+            publish_odometry,
+        )
+
+        node = _make_node([FakeStamp(1, 0)])
+        ctx = create_odometry_publisher(
+            node=node,
+            topic="/rover/odom",
+            init_pos_world=np.zeros(3),
+            init_quat_world=np.array([1.0, 0.0, 0.0, 0.0]),
+            publish_tf=False,
+        )
+        publish_odometry(
+            ctx=ctx,
+            cur_pos_world=np.array([1.0, 0.0, 0.0]),
+            cur_quat_world=np.array([1.0, 0.0, 0.0, 0.0]),
+            linear_vel_world=np.zeros(3),
+            angular_vel_world=np.zeros(3),
+        )
+        # Odometry message still published unconditionally so SLAM /
+        # Nav2 consumers see motion estimates.
+        assert ctx.publisher.publish.call_count == 1
+        # ``tf_broadcaster`` is None so there is nothing to send to.
+
+    def test_publish_tf_default_is_true_for_back_compat(self, fake_ros2_modules: None) -> None:
+        """Pre-S3 callers (no kwarg) get the legacy dual-publisher behaviour."""
+        from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
+
+        node = _make_node([FakeStamp(1, 0)])
+        ctx = create_odometry_publisher(
+            node=node,
+            topic="/rover/odom",
+            init_pos_world=np.zeros(3),
+            init_quat_world=np.array([1.0, 0.0, 0.0, 0.0]),
+        )
+        assert ctx.publish_tf is True
+        assert ctx.tf_broadcaster is not None

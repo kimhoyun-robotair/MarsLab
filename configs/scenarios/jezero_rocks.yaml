@@ -43,4 +43,4 @@ rover:
     mode: "dem_center"
     xy: [0.0, 0.0]
     z_offset: 0.6
-    orientation_rpy: [3.14159, 0.0, 0.0]
+    orientation_rpy: [0.0, 0.0, 0.0]

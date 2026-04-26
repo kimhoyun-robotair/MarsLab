@@ -24,6 +24,7 @@ from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
 from marslab.ros2_bridge.cmd_vel_subscriber import create_cmd_vel_subscriber
 from marslab.ros2_bridge.context import BridgeContext
 from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
+from marslab.ros2_bridge.robot_description_publisher import publish_robot_description
 from marslab.ros2_bridge.sensor_graph_builder import _ns_topic
 from marslab.ros2_bridge.tf_broadcaster import publish_static_sensor_tfs
 
@@ -34,6 +35,8 @@ def init_rclpy_side(
     init_pos_world: np.ndarray,
     init_quat_world: np.ndarray,
     node_name: str = "marslab_stage3_runtime",
+    *,
+    urdf_path: Optional[str] = None,
 ) -> BridgeContext:
     """Boot rclpy and wire cmd_vel / static TF / odom publishers.
 
@@ -44,6 +47,13 @@ def init_rclpy_side(
         init_pos_world: Rover initial world position, shape ``(3,)``.
         init_quat_world: Rover initial world orientation (scalar-first).
         node_name: rclpy node name; namespaced by ``ros2_cfg["namespace"]``.
+        urdf_path: Absolute filesystem path to the rover URDF, used by
+            :func:`publish_robot_description` to populate
+            ``/<ns>/robot_description``. Lives on the rover top-level
+            (``rover.urdf_source_path``) — pass it explicitly so the
+            ``ros2:`` schema does not have to mirror it. ``None``
+            disables the publisher (along with
+            ``ros2.publish_robot_description=false``).
 
     Returns:
         :class:`BridgeContext` holding every handle the main loop
@@ -95,6 +105,14 @@ def init_rclpy_side(
         qos=qos_bundle["tf"],
     )
 
+    # RC-3 (2026-04-26): publish URDF on /robot_description for RViz.
+    # ``urdf_path`` is sourced from ``rover.urdf_source_path`` (top-level,
+    # not the ros2 block) and threaded through as a kwarg by run_stage4.py.
+    robot_description_ctx = None
+    if ros2_cfg.get("publish_robot_description", True) and urdf_path:
+        rd_topic = _ns_topic(ns, topics.get("robot_description", "robot_description"))
+        robot_description_ctx = publish_robot_description(node, urdf_path, topic=rd_topic)
+
     odom_topic = _ns_topic(ns, topics["odom"])
     # R3 (2026-04-22) G5: pull frame_id / child_frame_id / queue_size from
     # YAML when the rover block declares an ``odom_publisher`` sub-map. The
@@ -103,6 +121,24 @@ def init_rclpy_side(
     # source. Falls back to the historical function defaults when the key
     # is absent so existing scenario YAMLs keep loading unchanged.
     odom_pub_cfg = ros2_cfg.get("odom_publisher", {}) if isinstance(ros2_cfg, dict) else {}
+    # S3 fix (2026-04-27): default OFF so the OG
+    # ``ROS2PublishTransformTree`` is the sole TF authority for
+    # ``odom -> base_link``.  An external
+    # ``ros2 run topic_tools relay /tf_raw /tf`` then merges the OG
+    # chain into the canonical ``/tf`` topic for RViz / Nav2.  Setting
+    # this ``True`` while the relay runs would give tf2 two parents
+    # for ``base_link`` (memory: feedback_no_tf_consolidation).
+    #
+    # NOTE: ``run_stage4.py:102`` passes the raw YAML dict
+    # ``rover_cfg["ros2"]`` directly without round-tripping through
+    # :class:`Ros2BridgeConfig`.  The ``.get(..., False)`` fallback is
+    # therefore the load-bearing default; the schema field
+    # ``Ros2BridgeConfig.publish_odom_tf`` is for documentation +
+    # future validation when the runtime promotes the dict to a
+    # validated model.
+    publish_odom_tf = (
+        bool(ros2_cfg.get("publish_odom_tf", False)) if isinstance(ros2_cfg, dict) else False
+    )
     odom_ctx = create_odometry_publisher(
         node=node,
         topic=odom_topic,
@@ -113,6 +149,7 @@ def init_rclpy_side(
         child_frame_id=str(odom_pub_cfg.get("child_frame_id", "base_link")),
         odom_qos=qos_bundle["odom"],
         tf_qos=qos_bundle["tf"],
+        publish_tf=publish_odom_tf,
     )
 
     return BridgeContext(
@@ -121,6 +158,7 @@ def init_rclpy_side(
         static_tf_broadcaster=static_broadcaster,
         odom_ctx=odom_ctx,
         twist_state=twist_state,
+        robot_description_ctx=robot_description_ctx,
     )
 
 

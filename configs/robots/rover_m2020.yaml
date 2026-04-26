@@ -29,10 +29,20 @@ urdf_source_path: "assets/m2020-urdf-models/rover/m2020.urdf"
 prim_path: "/World/Rover"
 
 # Stage-1 spawn pose is a fallback only; Stage-3 scenarios override
-# via the ``spawn:`` block below.  The 180° X-roll keeps the USD
-# upright after the glTF Y-up -> USD Z-up conversion.
+# via the ``spawn:`` block below.
+#
+# 2026-04-28: spawn_orientation_rpy was previously ``[3.14159, 0, 0]``
+# (180° X-roll) with a comment claiming "the glTF Y-up -> USD Z-up
+# conversion".  That comment was inaccurate -- ``convert_urdf_to_usd.py``
+# uses the Isaac Sim URDF importer with no axis override, which
+# already emits Z-up USD natively.  The X-roll was masking an unknown
+# upstream symptom while corrupting the body frame: the rover
+# articulation root then carried a ``base_link`` ``isaac:nameOverride``
+# in a Z-down orientation, and ``tf_broadcaster.py`` had to insert a
+# (now-removed) Y/Z flip to compensate.  Removing the X-roll restores
+# REP-103 alignment for both ``/tf_raw`` and ``/tf_static``.
 spawn_position: [0.0, 0.0, 0.0]
-spawn_orientation_rpy: [3.14159, 0.0, 0.0]
+spawn_orientation_rpy: [0.0, 0.0, 0.0]
 
 # Default Stage-3 spawn spec.  Scenarios override mode / xy / z_offset
 # to land the rover at a scenario-appropriate starting point.
@@ -40,7 +50,7 @@ spawn:
   mode: "dem_center"
   xy: [0.0, 0.0]
   z_offset: 0.5
-  orientation_rpy: [3.14159, 0.0, 0.0]
+  orientation_rpy: [0.0, 0.0, 0.0]
 
 # Chassis mass-bias compensation (see phase1.yaml comments).
 com_offset: [0.2, 0.0, 0.0]
@@ -145,9 +155,20 @@ ros2:
     queue_size: 10
 
 sensors:
+  # 2026-04-28 (B1 fix): Y/Z translation signs flipped relative to the
+  # pre-2026-04-28 values.  The previous values were authored under the
+  # ``spawn_orientation_rpy = [π, 0, 0]`` (180° X-roll) regime, where
+  # ``+Y_body = -Y_world`` and ``+Z_body = -Z_world``.  With the X-roll
+  # spawn removed, ``base_link`` now coincides with REP-103 (X forward,
+  # Y left, Z up), so a sensor mounted 2.1 m above chassis is at
+  # ``z = +2.1`` (was -2.1).  The ``local_orientation_rpy_deg`` is
+  # left at ``[180, 0, 0]`` for the camera because the Isaac Sim
+  # Camera prim's internal optical-axis convention may still need
+  # the X-flip; user verifies via image orientation in RViz on first
+  # post-fix run and we revisit if upside-down.
   camera:
     parent_link: "Body_Chassis"
-    local_translation: [0.3, 0.0, -2.1]
+    local_translation: [0.3, 0.0, 2.1]
     local_orientation_rpy_deg: [180.0, 0.0, 0.0]
     resolution: [640, 480]
     focal_length: 24.0
@@ -162,7 +183,7 @@ sensors:
   # 10 Hz rotation, 0.5–100 m range.
   lidar_3d:
     parent_link: "Body_Chassis"
-    local_translation: [0.3, 0.0, -0.5]
+    local_translation: [0.3, 0.0, 0.5]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     range_min: 0.5
     range_max: 100.0
@@ -185,7 +206,7 @@ sensors:
   # elevation, 360° horizontal, 0.25° step, 30 Hz rotation).
   lidar_2d:
     parent_link: "Body_Chassis"
-    local_translation: [0.3, 0.0, -0.25]
+    local_translation: [0.3, 0.0, 0.25]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     range_min: 0.5
     range_max: 50.0

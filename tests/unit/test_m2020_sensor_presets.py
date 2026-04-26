@@ -103,12 +103,14 @@ class TestNavcamPreset:
     def test_mount_orientation_is_camera_forward(self) -> None:
         """Navcam should look forward in the body frame.
 
-        Isaac Sim's Camera +Z axis is the optical axis pointing into the
-        scene; the parent ``Body_Chassis`` frame has +X forward, +Z up.
-        Without the 180-deg roll the camera's image-plane Y axis would
-        be inverted relative to the rover's up direction.  This test
-        verifies the YAML carries the 180-deg X flip (any downstream
-        change must update the test deliberately).
+        Isaac Sim's Camera +Z axis is the optical axis pointing into
+        the scene; the parent ``Body_Chassis`` frame has +X forward,
+        +Z up (REP-103, since the 2026-04-28 B1 fix removed the
+        spawn-time 180° X-roll).  The 180° X-rotation on the camera
+        *prim* is therefore an Isaac-Sim-convention requirement
+        (image-plane Y axis alignment) -- not a compensation for the
+        spawn pose.  Pin the YAML carries that 180-deg X flip; any
+        downstream change must update this test deliberately.
         """
         cfg = CameraConfig(**_load_yaml(NAVCAM_YAML))
         roll = cfg.local_orientation_rpy_deg[0]
