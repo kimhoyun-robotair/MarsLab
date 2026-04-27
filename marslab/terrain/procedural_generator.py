@@ -1,12 +1,46 @@
 """Procedural Mars terrain generation.
 
-Generates synthetic elevation maps for three terrain presets (flat, crater,
-hills) without requiring real HiRISE DEM data. Output format matches
-dem_loader.py for seamless integration with the rest of the pipeline.
+Generates synthetic elevation maps for five terrain presets (flat,
+crater, hills, rocky_plain, canyon) without requiring real HiRISE DEM
+data. Output format matches dem_loader.py for seamless integration with
+the rest of the pipeline.
 """
 
 import numpy as np
 from scipy.ndimage import gaussian_filter
+
+# Procedural-preset tuning constants
+# ----------------------------------
+# ``MARS_DATUM_BASE_Z`` is the offset applied to every preset's base
+# plane so the generated elevation array sits near the Mars datum
+# (-2500 m). Mesh building re-normalises to z_min=0 for physics, but
+# preserving the absolute datum lets the metadata round-trip with
+# real HiRISE DEMs whose elevations are reported relative to the same
+# Mars equipotential surface.
+MARS_DATUM_BASE_Z: float = -2500.0
+
+# Crater preset -- impact-basin tuning. Radius is a fraction of the
+# shortest grid side so the bowl always fits in the domain. Depth and
+# rim height are picked to give a clearly traversable rim without
+# clipping the floor against ``MARS_DATUM_BASE_Z``.
+CRATER_RADIUS_FRACTION: float = 0.3
+CRATER_DEPTH_M: float = 20.0
+CRATER_RIM_HEIGHT_M: float = 5.0
+CRATER_RIM_OUTER_FACTOR: float = 1.3
+
+# Hills preset -- rolling-terrain bumps superimposed on a smooth
+# noise field. Five gaussian bumps are enough to break visual
+# repetition while staying cheap to compute.
+HILLS_BUMP_COUNT: int = 5
+HILLS_BUMP_AMP_RANGE_M: tuple[float, float] = (10.0, 25.0)
+HILLS_BUMP_SIGMA_RANGE: tuple[float, float] = (20.0, 50.0)
+
+# Rocky-plain preset -- exposed-bedrock mounds. Fifteen mounds give
+# ~one-mound-per-300 m^2 on a typical 256x256x1m grid, matching the
+# coarse boulder spacing of the InSight landing site.
+ROCKY_PLAIN_MOUND_COUNT: int = 15
+ROCKY_PLAIN_MOUND_AMP_RANGE_M: tuple[float, float] = (0.3, 1.5)
+ROCKY_PLAIN_MOUND_SIGMA_RANGE: tuple[float, float] = (3.0, 8.0)
 
 
 def generate_terrain(
@@ -55,8 +89,10 @@ def generate_terrain(
         elevation = _generate_hills(rng, rows, cols)
     elif preset == "canyon":
         elevation = _generate_canyon(rng, rows, cols, resolution, kwargs)
-    else:
+    elif preset == "rocky_plain":
         elevation = _generate_rocky_plain(rng, rows, cols)
+    else:
+        raise ValueError(f"Unknown preset: {preset}")
 
     elevation = elevation.astype(np.float32)
 
@@ -87,9 +123,14 @@ def _normalize_noise(
 
     Internally: ``rng.standard_normal((rows, cols))`` ->
     ``gaussian_filter(..., sigma)`` -> divide by std (``+1e-8`` guard) ->
-    multiply by ``amplitude``. Extracted so the six call sites across
-    ``_generate_flat`` / ``_generate_hills`` / ``_generate_canyon`` /
-    ``_generate_rocky_plain`` share a single numerically stable path.
+    multiply by ``amplitude``. The seven call sites that share this
+    numerically stable path are:
+
+        1. ``_generate_flat``  -- one call (smooth_noise).
+        2. ``_generate_hills`` -- one call (smooth_noise).
+        3. ``_generate_canyon`` -- two calls (base_noise, wall_noise).
+        4. ``_generate_rocky_plain`` -- three calls (low_freq,
+           mid_freq, high_freq).
 
     Args:
         rng: Numpy random generator (consumes one draw).
@@ -119,7 +160,7 @@ def _add_micro_detail(
 
 def _generate_flat(rng: np.random.Generator, rows: int, cols: int) -> np.ndarray:
     """Flat desert with low-amplitude noise (~2m variation) + micro detail."""
-    base = -2500.0
+    base = MARS_DATUM_BASE_Z
     smooth_noise = _normalize_noise(rng, rows, cols, sigma=10.0, amplitude=2.0)
     return _add_micro_detail(rng, base + smooth_noise)
 
@@ -129,9 +170,9 @@ def _generate_crater(rng: np.random.Generator, rows: int, cols: int) -> np.ndarr
     base = _generate_flat(rng, rows, cols)
 
     cy, cx = rows / 2.0, cols / 2.0
-    radius = min(rows, cols) * 0.3
-    depth = 20.0
-    rim_height = 5.0
+    radius = min(rows, cols) * CRATER_RADIUS_FRACTION
+    depth = CRATER_DEPTH_M
+    rim_height = CRATER_RIM_HEIGHT_M
 
     y_grid, x_grid = np.mgrid[0:rows, 0:cols]
     dist = np.sqrt((x_grid - cx) ** 2 + (y_grid - cy) ** 2)
@@ -143,7 +184,7 @@ def _generate_crater(rng: np.random.Generator, rows: int, cols: int) -> np.ndarr
 
     # Rim (annular bump)
     rim_inner = radius
-    rim_outer = radius * 1.3
+    rim_outer = radius * CRATER_RIM_OUTER_FACTOR
     rim_mask = (dist >= rim_inner) & (dist < rim_outer)
     rim_frac = (dist[rim_mask] - rim_inner) / (rim_outer - rim_inner)
     crater[rim_mask] = rim_height * np.sin(np.pi * rim_frac)
@@ -153,17 +194,19 @@ def _generate_crater(rng: np.random.Generator, rows: int, cols: int) -> np.ndarr
 
 def _generate_hills(rng: np.random.Generator, rows: int, cols: int) -> np.ndarray:
     """Gently rolling hills with large-scale variation (~30m amplitude)."""
-    base = -2500.0
+    base = MARS_DATUM_BASE_Z
     smooth_noise = _normalize_noise(rng, rows, cols, sigma=30.0, amplitude=30.0)
 
     # Add a few gaussian bumps for distinct hills
     y_grid, x_grid = np.mgrid[0:rows, 0:cols]
     bumps = np.zeros((rows, cols))
-    for _ in range(5):
+    amp_lo, amp_hi = HILLS_BUMP_AMP_RANGE_M
+    sig_lo, sig_hi = HILLS_BUMP_SIGMA_RANGE
+    for _ in range(HILLS_BUMP_COUNT):
         cx = rng.uniform(0, cols)
         cy = rng.uniform(0, rows)
-        amp = rng.uniform(10.0, 25.0)
-        sigma = rng.uniform(20.0, 50.0)
+        amp = rng.uniform(amp_lo, amp_hi)
+        sigma = rng.uniform(sig_lo, sig_hi)
         bumps += amp * np.exp(-((x_grid - cx) ** 2 + (y_grid - cy) ** 2) / (2 * sigma**2))
 
     return _add_micro_detail(rng, base + smooth_noise + bumps)
@@ -200,7 +243,7 @@ def _generate_canyon(
     crater_r_range = params.get("canyon_crater_radius_range", [5.0, 15.0])
     crater_d_range = params.get("canyon_crater_depth_range", [2.0, 6.0])
 
-    base = -2500.0
+    base = MARS_DATUM_BASE_Z
 
     # Low-frequency base terrain noise (subtle, ~1m)
     base_noise = _normalize_noise(rng, rows, cols, sigma=15.0, amplitude=1.0)
@@ -215,14 +258,14 @@ def _generate_canyon(
     # Generate smooth curvature using low-frequency sinusoids
     freq1 = 2.0 * np.pi / (rows * resolution)
     freq2 = 2.0 * np.pi / (rows * resolution) * 2.3
-    phase1 = rng.uniform(0, 2 * np.pi)
-    phase2 = rng.uniform(0, 2 * np.pi)
+    phase_primary = rng.uniform(0, 2 * np.pi)
+    phase_secondary = rng.uniform(0, 2 * np.pi)
     amplitude = curvature * (cols * resolution) * 0.15
 
     centerline_m = (
         center_col_m
-        + amplitude * np.sin(freq1 * row_coords + phase1)
-        + amplitude * 0.3 * np.sin(freq2 * row_coords + phase2)
+        + amplitude * np.sin(freq1 * row_coords + phase_primary)
+        + amplitude * 0.3 * np.sin(freq2 * row_coords + phase_secondary)
     )
 
     # Build distance-to-centerline map
@@ -287,7 +330,7 @@ def _generate_canyon(
 
 def _generate_rocky_plain(rng: np.random.Generator, rows: int, cols: int) -> np.ndarray:
     """Rocky plain with medium-scale undulations (0.3-2m) for close-up realism."""
-    base = -2500.0
+    base = MARS_DATUM_BASE_Z
 
     # Low-frequency base terrain (~5m variation)
     low_freq = _normalize_noise(rng, rows, cols, sigma=15.0, amplitude=5.0)
@@ -301,11 +344,13 @@ def _generate_rocky_plain(rng: np.random.Generator, rows: int, cols: int) -> np.
     # Scattered small mounds (like exposed bedrock)
     y_grid, x_grid = np.mgrid[0:rows, 0:cols]
     mounds = np.zeros((rows, cols))
-    for _ in range(15):
+    amp_lo, amp_hi = ROCKY_PLAIN_MOUND_AMP_RANGE_M
+    sig_lo, sig_hi = ROCKY_PLAIN_MOUND_SIGMA_RANGE
+    for _ in range(ROCKY_PLAIN_MOUND_COUNT):
         cx = rng.uniform(0, cols)
         cy = rng.uniform(0, rows)
-        amp = rng.uniform(0.3, 1.5)
-        sigma = rng.uniform(3.0, 8.0)
+        amp = rng.uniform(amp_lo, amp_hi)
+        sigma = rng.uniform(sig_lo, sig_hi)
         mounds += amp * np.exp(-((x_grid - cx) ** 2 + (y_grid - cy) ** 2) / (2 * sigma**2))
 
-    return base + low_freq + mid_freq + high_freq + mounds
+    return _add_micro_detail(rng, base + low_freq + mid_freq + high_freq + mounds)

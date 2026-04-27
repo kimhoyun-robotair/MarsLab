@@ -1,27 +1,27 @@
-"""Self-contained scenario template validation (Items 1+2, 2026-04-25).
+"""Self-contained scenario template validation.
 
 The ship-with scenarios in ``configs/scenarios/*.yaml`` use a 3-file
-chain (scenario YAML + ``_base.yaml`` + ``configs/robots/rover_m2020.yaml``)
-that is correct for production but cognitively heavy for a 3rd party who
-just wants to read one file end-to-end.
+chain (scenario YAML + ``_base.yaml`` +
+``configs/robots/rover_m2020.yaml``) that is correct for production
+but cognitively heavy for a 3rd party who just wants to read one file
+end-to-end.
 
-Items 1 and 2 add two self-contained templates and a DEM conversion
-config. These tests lock in the contract that:
+The two self-contained templates and a DEM conversion config lock in
+the following contract:
 
 1. Both templates round-trip through ``load_and_validate`` without
    raising.
-2. The procedural template uses ``rocky_plain`` (the SLAM/Nav benchmark
-   default) — if a future patch silently swaps the preset, this test
-   flags it.
+2. The procedural template uses ``rocky_plain`` (the SLAM/Nav
+   benchmark default) -- if a future patch silently swaps the preset,
+   this test flags it.
 3. The HiRISE template references a converted DEM dir even though the
    directory itself may be empty at config-load time (the loader does
    not read DEM content during validation).
-4. Neither template carries a ``base_config`` include (that is the whole
-   point of "self-contained").
-5. The DEM conversion config exposes the keys ``scripts/convert_dem.py``
-   actually reads (``terrain.source``, ``terrain.dem_path``,
-   ``terrain.converted_dem_dir``) — see ``scripts/convert_dem.py:39, 46,
-   51-58`` for the consumer.
+4. Neither template carries a ``base_config`` include (that is the
+   whole point of "self-contained").
+5. The DEM conversion config exposes the keys
+   ``scripts/convert_dem.py`` actually reads (``terrain.source``,
+   ``terrain.dem_path``, ``terrain.converted_dem_dir``).
 """
 
 from __future__ import annotations
@@ -46,8 +46,8 @@ DEM_CONVERSION_SAMPLE = DEM_CONVERSION_DIR / "sample_jezero.yaml"
 def test_template_single_file_validates() -> None:
     """The procedural self-contained template loads through pydantic.
 
-    Reviewer 2 mode: assert returned type, plus a handful of leaf
-    values we explicitly authored, so a regression where pydantic
+    Assert returned type, plus a handful of leaf values we explicitly
+    authored, so a regression where pydantic
     silently fell back to a default would still trip this test.
     """
     cfg = load_and_validate(str(TEMPLATE_PROCEDURAL))

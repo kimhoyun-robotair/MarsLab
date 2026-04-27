@@ -1,12 +1,13 @@
-"""Top-level terrain loader facade for MarsLab scenarios (R3-A3).
+"""Top-level terrain loader facade for MarsLab scenarios.
 
-Thin Option-B facade over :mod:`marslab.terrain.elevation_loader` plus a
-scenario-wide DEM-path resolver. The goal is to let Stage 2/3 runtime
-scripts and scenario tooling pull a single pair of helpers instead of
-each duplicating ~80 LOC of elevation loading and DEM path assembly.
+Thin facade over :mod:`marslab.terrain.elevation_loader` plus a
+scenario-wide DEM-path resolver. The goal is to let Stage 2 / Stage 3
+runtime scripts and scenario tooling pull a single pair of helpers
+instead of each duplicating ~80 LOC of elevation loading and DEM path
+assembly.
 
-Offline-first (P3): no Isaac Sim imports. Pure ``pathlib`` + ``numpy``
-only (numpy is inherited through the underlying loader's type hints).
+Offline-first: no Isaac Sim imports. Pure ``pathlib`` + ``numpy`` only
+(numpy is inherited through the underlying loader's type hints).
 """
 
 from __future__ import annotations
@@ -64,7 +65,7 @@ def resolve_dem_paths(
     """Return canonical DEM-related asset paths for a scenario.
 
     Absorbs the ``os.path.join(REPO_ROOT, ...)`` assembly so every
-    Stage 2 / Stage 3 caller resolves the same set of paths the same way.
+    runtime caller resolves the same set of paths the same way.
 
     Keys returned:
         * ``converted_dir`` — absolute path of ``terrain.converted_dem_dir``

@@ -1,18 +1,20 @@
-"""Sprint Day 2 Task D + E (2026-04-25): sensor YAML externalization.
+"""Sensor YAML externalization tests.
 
-These tests cover the new ``CameraConfig`` / ``Lidar3DConfig`` /
-``Lidar2DConfig`` / ``IMUConfig`` / ``SensorsConfig`` schemas declared in
-:mod:`marslab.config.schema.robot`.
+These tests cover the ``CameraConfig`` / ``Lidar3DConfig`` /
+``Lidar2DConfig`` / ``IMUConfig`` / ``SensorsConfig`` schemas declared
+in :mod:`marslab.config.schema.robot`.
 
 Acceptance criteria covered here:
 
 1. Every sensor parameter (range_min, range_max, horizontal_fov_deg,
-   vertical_fov_deg, horizontal_resolution_deg, vertical_resolution_deg,
-   rotation_rate_hz, profile_name, profile_json_path, usd_profile) round-
-   trips through pydantic without being silently dropped (``extra='forbid'``).
-2. Backward compat: a YAML using the legacy ``profile`` key (pre-Task-D)
-   still loads via the ``mode='before'`` migration validator.
-3. ``configs/robots/rover_m2020.yaml`` validates against ``SensorsConfig``.
+   vertical_fov_deg, horizontal_resolution_deg,
+   vertical_resolution_deg, rotation_rate_hz, profile_name,
+   profile_json_path, usd_profile) round-trips through pydantic
+   without being silently dropped (``extra='forbid'``).
+2. Backward compat: a YAML using the legacy ``profile`` key still
+   loads via the ``mode='before'`` migration validator.
+3. ``configs/robots/rover_m2020.yaml`` validates against
+   ``SensorsConfig``.
 4. Both presets in ``configs/sensors/`` validate against the matching
    per-sensor pydantic model.
 5. ``profile_name`` and ``profile_json_path`` are mutually exclusive.
@@ -325,14 +327,13 @@ class TestRoverYamlValidates:
 
 
 class TestPresetsValidate:
-    """Acceptance #6: every YAML in ``configs/sensors/`` validates."""
+    """Acceptance 6: every YAML in ``configs/sensors/`` validates."""
 
     def test_velodyne_vlp16_preset_loads_as_lidar_3d(self) -> None:
-        # Day 3 H1 fix-up (2026-04-25, post-integration smoke): Isaac Sim
-        # 5.1 does NOT register Velodyne_VLP16 OR Velodyne_VLS128 in
-        # SUPPORTED_LIDAR_CONFIGS — only Ouster_VLS_128 is the closest
-        # VLS-class scanner that ships, so the preset falls back to that.
-        # See ``~/MarsLab/tmp/task_H1_finding.md``.
+        # Isaac Sim 5.1 does NOT register Velodyne_VLP16 OR
+        # Velodyne_VLS128 in SUPPORTED_LIDAR_CONFIGS -- only
+        # Ouster_VLS_128 is the closest VLS-class scanner that ships,
+        # so the preset falls back to that.
         path = SENSORS_DIR / "velodyne_vlp16.yaml"
         with path.open() as f:
             data = yaml.safe_load(f)
@@ -342,9 +343,8 @@ class TestPresetsValidate:
         assert cfg.range_max == 100.0
 
     def test_hokuyo_ust_10lx_preset_loads_as_lidar_2d(self) -> None:
-        # Day 3 H1 fix-up (2026-04-25): Isaac Sim 5.1 does NOT bundle
-        # Hokuyo_UST_10LX.json; the preset uses Example_Rotary_2D as the
-        # base profile.  See ``~/MarsLab/tmp/task_H1_finding.md``.
+        # Isaac Sim 5.1 does NOT bundle Hokuyo_UST_10LX.json; the
+        # preset uses Example_Rotary_2D as the base profile.
         path = SENSORS_DIR / "hokuyo_ust_10lx.yaml"
         with path.open() as f:
             data = yaml.safe_load(f)
@@ -398,13 +398,12 @@ class TestResolveLidarProfile:
 
 
 # ---------------------------------------------------------------------------
-# Day 7 Reviewer 2 cleanup (2026-04-25): the H1 runtime JSON override
-# helpers were hard-deleted after the Day 5 integration smoke proved that
-# Isaac Sim's ``LidarRtx.config_file_name`` only accepts bundled profile
-# *names* (matched against ``SUPPORTED_LIDAR_CONFIGS``), not absolute file
-# paths.  The seven YAML numerics on ``_LidarBaseConfig`` are descriptive
-# only in v1.0; the runtime forwards ``profile_name`` / ``profile_json_path``
-# unchanged.  See ``~/MarsLab/tmp/task_H1_finding.md`` (rollback section)
-# for the v1.5 plan (USD asset injection + SUPPORTED_LIDAR_CONFIGS
-# monkey-patch + ``profileBaseFolder`` carb setting extension).
+# The runtime JSON override helpers were hard-deleted after integration
+# smoke proved that Isaac Sim's ``LidarRtx.config_file_name`` only accepts
+# bundled profile *names* (matched against ``SUPPORTED_LIDAR_CONFIGS``),
+# not absolute file paths. The seven YAML numerics on ``_LidarBaseConfig``
+# are descriptive only in v1.0; the runtime forwards ``profile_name`` /
+# ``profile_json_path`` unchanged. A future revision may add USD asset
+# injection + SUPPORTED_LIDAR_CONFIGS monkey-patch + ``profileBaseFolder``
+# carb setting extension to honour user-authored profile JSONs.
 # ---------------------------------------------------------------------------

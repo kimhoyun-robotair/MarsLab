@@ -1,11 +1,7 @@
 """Publish the M2020 URDF on ``/robot_description`` for RViz RobotModel display.
 
-RC-3 of the v1.0 release-blocker sandbox plan
-(``tmp/v1_release_blocker_fixes/PLAN.md``).  The original
-``robot_description`` publisher was hard-deleted during a refactor, which
-left RViz showing only the wireframe TF tree (no rover mesh).  This
-module is the NEW-FILE candidate that the integration step will copy into
-``marslab/ros2_bridge/`` after user verification.
+Without this publisher RViz shows only the wireframe TF tree and no
+rover mesh.
 
 Design constraints adopted from
 ``marslab/ros2_bridge/odometry_publisher.py``:
@@ -60,8 +56,8 @@ __all__ = [
 _MESH_PATH_RE = re.compile(r'<mesh\s+filename="(?!file://|http://|package://)\.?/?meshes/([^"]+)"')
 
 
-# S3 root-rename regexes (2026-04-27, hardened 2026-04-28).  See
-# :func:`rewrite_urdf_root_to_base_link` for the full rationale.
+# Root-rename regexes.  See :func:`rewrite_urdf_root_to_base_link` for
+# the full rationale.
 
 # Match the entire ``<joint name="JointRoot" type="floating">...</joint>``
 # block.  The block is anchored on BOTH ``name="JointRoot"`` and
@@ -75,8 +71,7 @@ _MESH_PATH_RE = re.compile(r'<mesh\s+filename="(?!file://|http://|package://)\.?
 # The trailing ``\s*`` consumes the newline + tab between the deleted
 # block and the next sibling so cleanup is whitespace-clean.
 #
-# 2026-04-28 hardening (Reviewer 2 cross-validation): the previous
-# ``_JOINT_ROOT_RE`` (which only flipped ``floating`` -> ``fixed``) left
+# An earlier approach only flipped ``floating`` -> ``fixed`` and left
 # the joint's ``<parent link="ground"/>`` reference dangling, which
 # urdf_parser/src/model.cpp:253 rejects with
 # "parent link [ground] of joint [JointRoot] not found".  Removing the
@@ -207,12 +202,8 @@ def rewrite_urdf_root_to_base_link(urdf_text: str) -> str:
         Without this rewrite, RViz reports
         "RobotModel: No transform from [Body_Chassis] to [odom]" and
         renders nothing because the URDF root link name disagrees with
-        the OG-published frame_id.  Added 2026-04-27 as the v1.0 S3
-        release-blocker fix; hardened 2026-04-28 to delete JointRoot
-        wholesale after the original "switch to fixed" approach left
-        the dangling ``parent="ground"`` reference and broke
-        urdf_parser.  Citation: JPL URDF root layout at
-        ``assets/m2020-urdf-models/rover/m2020.urdf:6,1029-1033``.
+        the OmniGraph-published frame_id.  Citation: JPL URDF root
+        layout at ``assets/m2020-urdf-models/rover/m2020.urdf:6,1029-1033``.
     """
     out = _JOINT_ROOT_BLOCK_RE.sub("", urdf_text)
     out = _GROUND_LINK_RE.sub("", out)
@@ -228,7 +219,7 @@ def _build_default_qos() -> Any:
     profile is the canonical RViz ``RobotModel`` subscriber profile so a
     late-joining RViz still latches the URDF.
     """
-    from rclpy.qos import (
+    from rclpy.qos import (  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
         DurabilityPolicy,
         HistoryPolicy,
         QoSProfile,
@@ -275,7 +266,9 @@ def publish_robot_description(
             absolute path is included in the message so a typo in
             ``configs/robots/rover_m2020.yaml`` surfaces immediately.
     """
-    from std_msgs.msg import String
+    from std_msgs.msg import (
+        String,
+    )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
     abs_urdf_path = os.path.abspath(urdf_path)
     if not os.path.isfile(abs_urdf_path):
@@ -288,13 +281,13 @@ def publish_robot_description(
         raw_urdf = fh.read()
 
     urdf_dir = os.path.dirname(abs_urdf_path)
-    # S3 fix (2026-04-27): rename the URDF root link to ``base_link``
-    # FIRST so the URDF matches the OG-published frame_id (the rover
-    # articulation root carries ``isaac:nameOverride="base_link"``).
-    # Without this, RViz ``RobotModel`` reports "no transform from
-    # [Body_Chassis] to [odom]" and renders nothing.  The two passes
-    # are commutative on the m2020 URDF (mesh filenames never contain
-    # ``Body_Chassis``); ordering chosen for debuggability.
+    # Rename the URDF root link to ``base_link`` FIRST so the URDF
+    # matches the OmniGraph-published frame_id (the rover articulation
+    # root carries ``isaac:nameOverride="base_link"``).  Without this,
+    # RViz ``RobotModel`` reports "no transform from [Body_Chassis] to
+    # [odom]" and renders nothing.  The two passes are commutative on
+    # the m2020 URDF (mesh filenames never contain ``Body_Chassis``);
+    # ordering chosen for debuggability.
     urdf_text = rewrite_urdf_root_to_base_link(raw_urdf)
     urdf_text = rewrite_mesh_paths_to_file_uri(urdf_text, urdf_dir)
 

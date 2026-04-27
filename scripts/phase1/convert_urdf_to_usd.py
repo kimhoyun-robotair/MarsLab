@@ -154,6 +154,18 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Convert the sanitized m2020 URDF into a USD asset.
+
+    Temp-file lifecycle invariant:
+        The temp URDF written by ``sanitize_urdf`` is removed before
+        ``os._exit(0)`` (see line 261-263 in the success branch).  The
+        ``finally`` block is a fallback only -- it is reachable only
+        when an exception escapes after sanitize but before
+        ``URDFParseAndImportFile`` returns.  ``os._exit`` is used in
+        the success and failure branches because Isaac Sim 5.x's Kit
+        shutdown path heap-corrupts after URDF import, which would
+        prevent normal Python finalizers from running.
+    """
     args = parse_args()
 
     urdf_path = os.path.abspath(args.urdf)
@@ -199,16 +211,16 @@ def main() -> int:
         #   markers, leaving 33 articulation rigid bodies.
         # * collision_from_visuals=True synthesises collision shapes
         #   from visual meshes (URDF has no <collision> blocks).
-        # * import_inertia_tensor=True (2026-04-28 fix): consume the
-        #   URDF <inertial> mass + diagonal inertia.  ``scripts/
-        #   fix_urdf_inertia.py`` populates the URDF with a
-        #   bbox/density-derived 1025 kg distribution before this
-        #   converter runs, so PhysX gets valid mass on every Body_*.
-        #   The previous False setting + ``density=500.0`` did NOT
-        #   convert density to mass on the imported USD prims (a
-        #   USD inspection on 2026-04-28 confirmed ``physics:mass=0``
-        #   on every articulation rigid body), which destabilised the
-        #   PhysX articulation -- the rover collapsed at spawn.
+        # * import_inertia_tensor=True: consume the URDF <inertial>
+        #   mass + diagonal inertia.  ``scripts/fix_urdf_inertia.py``
+        #   populates the URDF with a bbox/density-derived 1025 kg
+        #   distribution before this converter runs, so PhysX gets
+        #   valid mass on every Body_*.  The previous False setting
+        #   + ``density=500.0`` did NOT convert density to mass on
+        #   the imported USD prims (USD inspection confirmed
+        #   ``physics:mass=0`` on every articulation rigid body),
+        #   which destabilised the PhysX articulation -- the rover
+        #   collapsed at spawn.
         # * density=500.0 is preserved as a fallback for the rare
         #   Frame_* link that ends up surviving merge_fixed_joints
         #   without an explicit <inertial>.

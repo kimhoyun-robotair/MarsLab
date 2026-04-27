@@ -113,8 +113,8 @@ def build_cave_scene(
             ``cave_data["metadata"]["seed"]`` (populated by
             :func:`marslab.terrain.cave.orchestrator.generate_cave_mesh`)
             so the USD builder stays deterministic with the upstream
-            mesh generator.  A hardcoded ``42`` fallback would silently
-            break user-supplied seeds (Reviewer 2 H-16, 2026-04-24).
+            mesh generator.  A hardcoded fallback would silently
+            override user-supplied seeds.
 
     Returns:
         surface_elevation: 2D float32 array for spawn z calculations.
@@ -209,9 +209,8 @@ def _build_breakdown_instancer(
         prim_base_path: Base prim path.
         seed: RNG seed for block orientation / scale draws. The caller
             (:func:`build_cave_scene`) is responsible for threading
-            the scenario seed through — see Reviewer 2 H-16. A local
-            hardcoded default would let user-supplied seeds drift
-            silently.
+            the scenario seed through. A local hardcoded default would
+            let user-supplied seeds drift silently.
     """
     from pxr import Gf, Sdf, UsdGeom, UsdPhysics, UsdShade
 
@@ -248,7 +247,8 @@ def _build_breakdown_instancer(
     prim = stage.GetPrimAtPath(proto_path)
     UsdShade.MaterialBindingAPI.Apply(prim).Bind(mtl)
 
-    # Set instance data -- RNG seeded from caller (H-16 fix).
+    # Set instance data -- RNG seeded from caller so each scenario seed
+    # produces deterministic block orientations / scales.
     rng = np.random.default_rng(seed)
     positions = []
     orientations = []

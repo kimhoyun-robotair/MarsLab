@@ -1,4 +1,4 @@
-"""Offline-first unit tests for marslab.runtime.main_loop facade (R6-1)."""
+"""Offline-first unit tests for the marslab.runtime.main_loop facade."""
 
 from __future__ import annotations
 
@@ -104,12 +104,11 @@ def test_control_state_latest_twist_is_per_instance() -> None:
 def test_atmosphere_state_defaults() -> None:
     """Match documented attribute defaults.
 
-    P6 G5 (2026-04-23): ``sol_duration`` and ``solar_constant`` are now
-    required — Mars physics defaults were removed from the dataclass to
-    stop duplicating ``MarsEnvConfig``. This test sources the values from
-    the pydantic schema defaults so the assertions still lock the
-    canonical numbers (88642.0 s, 589.0 W/m^2) but via the single source
-    of truth.
+    ``sol_duration`` and ``solar_constant`` are required: Mars physics
+    defaults were removed from the dataclass to stop duplicating
+    ``MarsEnvConfig``. This test sources the values from the pydantic
+    schema defaults so the assertions still lock the canonical numbers
+    (88642.0 s, 589.0 W/m^2) but via the single source of truth.
     """
     from marslab.config.schema import MarsEnvConfig
 
@@ -117,7 +116,7 @@ def test_atmosphere_state_defaults() -> None:
     a = AtmosphereLoopState(
         atmosphere_dict={"tau": 0.3},
         sol_duration=float(mars_env.sol_duration_seconds),
-        solar_constant=float(mars_env.solar_constant_mean),
+        solar_constant=float(mars_env.solar_constant),
     )
     assert a.elapsed == 0.0
     assert a.dynamic_enabled is False
@@ -127,7 +126,7 @@ def test_atmosphere_state_defaults() -> None:
     assert a.sweep_max_el == 60.0
     assert a.sol_duration == float(mars_env.sol_duration_seconds)
     assert a.update_interval == 60
-    assert a.solar_constant == float(mars_env.solar_constant_mean)
+    assert a.solar_constant == float(mars_env.solar_constant)
     assert a.hdri_dir == ""
     assert a.atmosphere_dict["tau"] == 0.3
 
@@ -192,7 +191,7 @@ def test_module_has_no_isaac_sim_imports() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Reviewer 2 #19 / H-1 regression — LoopContext god-object decomposition
+# LoopContext god-object decomposition regression
 # ---------------------------------------------------------------------------
 
 
@@ -239,7 +238,7 @@ def _make_minimal_ctx() -> LoopContext:
 
 
 def test_loop_context_geometry_view() -> None:
-    """H-1: ``ctx.geometry`` is a :class:`VehicleGeometry` re-export.
+    """``ctx.geometry`` is a :class:`VehicleGeometry` re-export.
 
     Values must round-trip from the flat fields so legacy callers
     (``ctx.wheelbase``) stay bit-equal to the decomposed view
@@ -257,7 +256,7 @@ def test_loop_context_geometry_view() -> None:
 
 
 def test_loop_context_control_limits_view() -> None:
-    """H-1: ``ctx.control_limits`` is a :class:`ControlLimits` re-export."""
+    """``ctx.control_limits`` is a :class:`ControlLimits` re-export."""
     from marslab.runtime.main_loop import ControlLimits
 
     ctx = _make_minimal_ctx()
@@ -273,7 +272,7 @@ def test_loop_context_control_limits_view() -> None:
 
 
 def test_loop_context_atmosphere_callables_view() -> None:
-    """H-1: ``ctx.atmosphere_callables`` collects the 9 optional hooks."""
+    """``ctx.atmosphere_callables`` collects the 9 optional hooks."""
     from marslab.runtime.main_loop import AtmosphereCallables
 
     ctx = _make_minimal_ctx()
@@ -295,12 +294,12 @@ def test_loop_context_atmosphere_callables_view() -> None:
 
 
 def test_loop_context_legacy_flat_access_still_works() -> None:
-    """H-1 back-compat: flat attributes remain accessible on LoopContext.
+    """Back-compat: flat attributes remain accessible on LoopContext.
 
-    The R7 decomposition must not break existing callers that read
+    The decomposition must not break existing callers that read
     ``ctx.wheel_radius`` / ``ctx.wheelbase`` / ``ctx.v_max`` directly
-    (notably ``scripts/phase1/run_stage4.py`` and every byte-identity
-    md5 pin in the test suite).
+    (notably ``scripts/phase1/main.py`` and every byte-identity md5
+    pin in the test suite).
     """
     ctx = _make_minimal_ctx()
     # Spot-check representative fields from each logical cluster.

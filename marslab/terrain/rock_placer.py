@@ -15,9 +15,15 @@ from dataclasses import dataclass
 import numpy as np
 
 
-@dataclass
+@dataclass(frozen=True)
 class RockPlacement:
     """A single rock placed on the terrain surface.
+
+    Frozen so that downstream collections (PointInstancer batches,
+    sorted lists in :func:`sample_rocks_golombek`) cannot mutate the
+    sampled values after generation. Height ratio 0.5 derives from
+    Golombek et al. (2012, JGR Planets, 117(E11)) -- height ~ 0.5 *
+    diameter for typical Mars surface boulders.
 
     Attributes:
         x: X position in meters within the placement area.
@@ -40,6 +46,15 @@ def compute_q(k: float) -> float:
 
     This is a general mathematical function. For Mars applications,
     practical k values range from 0.001 to 0.15.
+
+    Note:
+        The bound here (``k <= 1``) is intentionally looser than
+        :func:`sample_rocks_golombek` (``k <= 0.15``). Sampling clamps
+        to the Mars-validated range so populations stay realistic, but
+        the underlying CFA function is mathematically defined for any
+        ``k in (0, 1]`` and is exposed unrestricted for callers that
+        evaluate the SFD curve outside the Mars sampling regime
+        (e.g. terrestrial analogues, sensitivity studies).
 
     Args:
         k: Total cumulative fractional area (must be in (0, 1]).

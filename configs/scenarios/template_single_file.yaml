@@ -2,53 +2,55 @@
 # Self-contained scenario template (procedural terrain, no external DEM).
 # =============================================================================
 #
-# 3rd party가 가장 자주 묻는 질문: "scenario 하나를 이해하려면 몇 개 파일을
-# 읽어야 하지?"  답: 이 파일 하나면 충분합니다.
+# Most-asked third-party question: "How many files do I need to read to
+# understand a single scenario?" Answer: just this one file.
 #
-# 이 템플릿은 ``configs/scenarios/_base.yaml`` (공유 mars_env / rendering
-# 기본값) 과 ``configs/robots/rover_m2020.yaml`` (rover 베이스) 을 모두
-# 인라인으로 가지고 있어 다른 파일을 참조하지 않습니다. 즉:
+# This template inlines both ``configs/scenarios/_base.yaml`` (shared
+# mars_env / rendering defaults) and ``configs/robots/rover_m2020.yaml``
+# (rover base) so it does not reference any other file:
 #
-#   * ``base_config:`` 키 없음 (root-level include 제거)
-#   * ``rover.base_config:`` 키 없음 (robot include 제거)
+#   * No ``base_config:`` key (root-level include removed).
+#   * No ``rover.base_config:`` key (robot include removed).
 #
-# 9개 ship-with scenario 와 비교:
-#   * jezero_flat.yaml: 59 lines  + _base.yaml 73 lines + rover_m2020.yaml 232 lines
+# Compared to the ship-with scenarios:
+#   * jezero_flat.yaml: 59 lines + _base.yaml 73 lines + rover_m2020.yaml 232 lines
 #     = 364 lines across 3 files
-#   * 이 템플릿: 단일 파일 ~150 lines
+#   * This template: single file, ~200 lines
 #
-# 단점: 공유 기본값이 변해도 자동 반영되지 않음. 안정성 ↑, 유지비 ↑.
-# 사용 권장: 외부 발표용 데모, 빠른 실험, 학술 reproducibility.
-# 운영 환경에서는 base_config 패턴 (jezero_flat.yaml) 을 사용하세요.
+# Trade-off: shared defaults will not auto-propagate when they change.
+# Stability up, maintenance up.
+# Recommended for: external demos, quick experiments, academic
+# reproducibility. For production use, prefer the base_config pattern in
+# jezero_flat.yaml.
 #
-# 검증 방법:
+# How to validate:
 #   from marslab.config.loader import load_and_validate
 #   cfg = load_and_validate("configs/scenarios/template_single_file.yaml")
 # =============================================================================
 
 
 # ============================================================================
-# mars_env: 화성 환경 상수
+# mars_env: Mars environment constants
 # ----------------------------------------------------------------------------
-# ← 거의 안 바꾸는 곳: gravity, atmo_pressure, atmo_density, sol_duration_seconds
-# ← 자주 바꾸는 곳:    sun_azimuth_deg, sun_elevation_deg, dust_optical_depth,
-#                      dynamic_atmosphere.enabled
+# Rarely changed: gravity, atmo_pressure, atmo_density, sol_duration_seconds.
+# Frequently tuned:  sun_azimuth_deg, sun_elevation_deg, dust_optical_depth,
+#                    dynamic_atmosphere.enabled.
 # ============================================================================
 mars_env:
-  gravity: 3.72                    # m/s^2 (IAU standard, 거의 안 바꿈)
-  atmo_pressure: 610               # Pa (Viking/MSL mean, 거의 안 바꿈)
-  atmo_density: 0.020              # kg/m^3 (거의 안 바꿈)
-  dust_optical_depth: 0.3          # tau (← 자주 바꾸는 곳: 0.3=clear, 4.0=storm)
-  solar_constant_mean: 589         # W/m^2 at 1.52 AU (거의 안 바꿈)
+  gravity: 3.72                    # m/s^2 (IAU standard, rarely changed)
+  atmo_pressure: 610               # Pa (Viking/MSL mean, rarely changed)
+  atmo_density: 0.020              # kg/m^3 (rarely changed)
+  dust_optical_depth: 0.3          # tau (frequently tuned: 0.3=clear, 4.0=storm)
+  solar_constant: 589              # W/m^2 at 1.52 AU (rarely changed)
   surface_albedo_range: [0.10, 0.40]
   surface_temp_mean: -60
   sol_duration_seconds: 88642
   dust_opacity_range: [0.5, 2.0]
-  sun_azimuth_deg: 180             # ← 자주 바꾸는 곳: 0=N, 90=E, 180=S, 270=W
-  sun_elevation_deg: 45            # ← 자주 바꾸는 곳: 0=horizon, 90=zenith
-  seed: 42                         # ← 재현성 실험 시 변경
+  sun_azimuth_deg: 180             # frequently tuned: 0=N, 90=E, 180=S, 270=W
+  sun_elevation_deg: 45            # frequently tuned: 0=horizon, 90=zenith
+  seed: 42                         # change for reproducibility experiments
   dynamic_atmosphere:
-    enabled: true                  # ← 자주 바꾸는 곳: false=static sun, true=sweep
+    enabled: true                  # frequently tuned: false=static sun, true=sweep
     time_scale: 200.0
     sun_sweep:
       start_azimuth_deg: 90
@@ -60,25 +62,25 @@ mars_env:
     update_interval_frames: 10
 
 # ============================================================================
-# terrain: 지형 (절차적 생성, 외부 DEM 없음)
+# terrain: procedural elevation, no external DEM
 # ----------------------------------------------------------------------------
-# ← 가장 자주 바꾸는 곳: procedural_preset, terrain_size, rock_sfd_k
-# 사용 가능한 procedural_preset:
-#   - "flat":         완전 평면 (rover 디버깅용)
-#   - "crater":       크레이터 한 개
-#   - "hills":        부드러운 언덕
-#   - "rocky_plain":  낮은 노이즈 + 분산 암석 (← SLAM/Nav 벤치마크 권장)
-#   - "canyon":       협곡 (terrain.canyon 블록 추가 필요)
-#   - "cave":         용암 동굴 (terrain.cave 블록 추가 필요)
+# Most frequently tuned: procedural_preset, terrain_size, rock_sfd_k.
+# Available procedural_preset values:
+#   - "flat":         fully flat (rover debugging)
+#   - "crater":       single crater
+#   - "hills":        gentle rolling hills
+#   - "rocky_plain":  low noise + scattered rocks (recommended for SLAM/Nav benchmarks)
+#   - "canyon":       canyon corridor (requires the terrain.canyon block)
+#   - "cave":         lava tube (requires the terrain.cave block)
 # ============================================================================
 terrain:
-  source: "procedural"             # ← 절대 안 바꿈: 외부 DEM 안 쓰면 procedural
+  source: "procedural"             # never changed: stay procedural without an external DEM
   scenario_name: "template_single_file"
-  procedural_preset: "rocky_plain" # ← 자주 바꾸는 곳: 위 6개 preset 중 선택
-  terrain_size: [256, 256]         # ← 자주 바꾸는 곳: (rows, cols) px
-  terrain_resolution: 1.0          # ← 자주 바꾸는 곳: m/px (1.0=256m x 256m)
-  rock_sfd_k: 0.05                 # ← 자주 바꾸는 곳: Golombek CFA 0.0~0.15
-  rock_diameter_range: [0.20, 3.0] # m (0.20m 미만은 텍스처로 처리)
+  procedural_preset: "rocky_plain" # frequently tuned: pick from the six presets above
+  terrain_size: [256, 256]         # frequently tuned: (rows, cols) px
+  terrain_resolution: 1.0          # frequently tuned: m/px (1.0 -> 256 m x 256 m)
+  rock_sfd_k: 0.05                 # frequently tuned: Golombek CFA 0.0~0.15
+  rock_diameter_range: [0.20, 3.0] # m (anything < 0.20 m is treated as texture)
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
   texture_dir: "assets/materials/mars_hirise"
   rock_color: [0.42, 0.28, 0.20]
@@ -86,46 +88,46 @@ terrain:
   rock_mesh_dir: "assets/rocks"
   rock_texture_dir: "assets/materials/mars_rock"
   uv_scale: 1.0
-  seed: 42                         # ← 재현성 실험 시 변경 (mars_env.seed 와 별개)
+  seed: 42                         # reproducibility seed (independent of mars_env.seed)
 
 # ============================================================================
-# rendering: RTX 렌더링 설정
+# rendering: RTX render settings
 # ----------------------------------------------------------------------------
-# ← 자주 바꾸는 곳: mode (ray_tracing vs path_tracing), resolution
-# ← 거의 안 바꾸는 곳: sun_color, fog_color (Mars 색감은 calibrated 값)
+# Frequently tuned: mode (ray_tracing vs path_tracing), resolution.
+# Rarely changed: sun_color, fog_color (Mars colours are calibrated).
 # ============================================================================
 rendering:
-  mode: "ray_tracing"              # ← 자주 바꾸는 곳: 데이터 생성은 path_tracing 권장
+  mode: "ray_tracing"              # frequently tuned: prefer path_tracing for dataset generation
   sky_dome_hdri_dir: "assets/sky/hdri/"
-  resolution: [1920, 1080]         # ← 자주 바꾸는 곳: [width, height]
+  resolution: [1920, 1080]         # frequently tuned: [width, height]
   sun_intensity_scale: 30.0
   sun_color: [1.0, 0.95, 0.85]
   sun_angular_diameter_deg: 0.35
   dome_brightness_scale: 5000.0
   fog_density_scale: 0.002
   fog_color: [0.78, 0.62, 0.42]
-  spp: 32                          # path-tracing 한 프레임당 샘플 수
+  spp: 32                          # path-tracing samples per frame
   total_spp: 256
   max_bounces: 6
 
 # ============================================================================
-# scene: 정적 구조물 (스폰 후 추가 배치되는 OBJ/STL/USD)
+# scene: static structures (drop-in OBJ/STL/USD spawned alongside terrain)
 # ----------------------------------------------------------------------------
-# ← 자주 바꾸는 곳: structure_assets 리스트 (드롭인 메시).
-# 비워두면 추가 구조물 없이 terrain + rover 만 로드됩니다.
+# Frequently tuned: structure_assets list (drop-in meshes).
+# Leave empty to load just the terrain + rover with no extra structures.
 # ============================================================================
 scene:
   structure_assets: []
 
 # ============================================================================
-# rover: M2020 Perseverance (모든 물리/센서/제어/ROS2 인라인)
+# rover: M2020 Perseverance (all physics/sensors/control/ROS2 inlined)
 # ----------------------------------------------------------------------------
-# ← 자주 바꾸는 곳: spawn.xy (스폰 위치), spawn.z_offset
-# ← 거의 안 바꾸는 곳: chassis/wheels/suspension (M2020 ballpark physics)
+# Frequently tuned: spawn.xy (spawn position), spawn.z_offset.
+# Rarely changed: chassis/wheels/suspension (M2020 ballpark physics).
 # ----------------------------------------------------------------------------
-# 이 블록이 길어 보일 수 있지만, 운영 환경에서는 ``base_config`` 패턴으로
-# ``configs/robots/rover_m2020.yaml`` 을 참조해 짧게 쓰는 것이 권장됩니다.
-# 이 템플릿은 단일 파일 데모용이라 모든 필드를 인라인으로 가지고 있습니다.
+# This block is long, but in production we recommend the shorter
+# ``base_config`` pattern that points at ``configs/robots/rover_m2020.yaml``.
+# This template inlines every field for single-file demo use.
 # ============================================================================
 rover:
   enabled: true
@@ -135,9 +137,9 @@ rover:
   angular_damping: 12.0
   linear_damping: 0.5
   spawn:
-    mode: "dem_center"             # ← 자주 바꾸는 곳: dem_center | dem_relative | absolute
-    xy: [0.0, 0.0]                 # ← 자주 바꾸는 곳: 스폰 좌표 (m)
-    z_offset: 0.5                  # ← 자주 바꾸는 곳: 지면 위 클리어런스
+    mode: "dem_center"             # frequently tuned: dem_center | dem_relative | absolute
+    xy: [0.0, 0.0]                 # frequently tuned: spawn coordinates (m)
+    z_offset: 0.5                  # frequently tuned: clearance above terrain
     orientation_rpy: [3.14159, 0.0, 0.0]
   chassis:
     mass: 1025.0
@@ -197,8 +199,8 @@ rover:
     wheelbase: 2.26
     track_steer: 2.125
     track_middle: 2.369
-    max_linear_velocity: 0.5       # ← 자주 바꾸는 곳: 최대 선속도 (m/s)
-    max_angular_velocity: 0.5      # ← 자주 바꾸는 곳: 최대 각속도 (rad/s)
+    max_linear_velocity: 0.5       # frequently tuned: max linear velocity (m/s)
+    max_angular_velocity: 0.5      # frequently tuned: max angular velocity (rad/s)
     drive_joint_names: ["LF_DRIVE", "LM_DRIVE", "LR_DRIVE", "RF_DRIVE", "RM_DRIVE", "RR_DRIVE"]
     steer_joint_names: ["LF_STEER", "LR_STEER", "RF_STEER", "RR_STEER"]
     suspension_joint_names: ["CENTER_DIFFERENTIAL", "LEFT_DIFFERENTIAL", "RIGHT_DIFFERENTIAL", "LEFT_BOGIE", "RIGHT_BOGIE"]
@@ -219,11 +221,13 @@ rover:
     namespace: "rover"
     topics:
       cmd_vel: "cmd_vel"
+      robot_description: "robot_description"
       imu: "imu"
       odom: "odom"
       rgb: "rgb/image_raw"
       depth: "depth/image_raw"
       points: "depth/points"
+      camera_info: "rgb/camera_info"
       lidar: "lidar/points"
       scan: "scan"
     rates:
@@ -232,6 +236,7 @@ rover:
       rgb: 30
       depth: 30
       points: 30
+      camera_info: 30
       lidar: 10
       scan: 30
     odom_publisher:

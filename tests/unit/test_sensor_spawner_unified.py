@@ -1,13 +1,13 @@
 """Regression tests locking in the Path A -> Path B unification.
 
-Reviewer-2 Batch 5 item #16 (2026-04-24): these tests guarantee that the
-legacy Path A surface (``attach_camera`` / ``attach_imu`` / ``attach_lidar``
-/ ``load_and_attach_sensor``) is no longer exported from
-:mod:`marslab.sensors` and that no in-tree MarsLab module imports from
-the deprecated ``camera.py`` / ``imu.py`` / ``lidar.py`` files.  They also
-smoke-test the read-side helpers that moved onto
-:class:`marslab.sensors.sensor_spawner.SensorHandles` so a future refactor
-cannot silently drop them.
+These tests guarantee that the legacy Path A surface
+(``attach_camera`` / ``attach_imu`` / ``attach_lidar`` /
+``load_and_attach_sensor``) is no longer exported from
+:mod:`marslab.sensors` and that no in-tree MarsLab module imports
+from the deprecated ``camera.py`` / ``imu.py`` / ``lidar.py`` files.
+They also smoke-test the read-side helpers that moved onto
+:class:`marslab.sensors.sensor_spawner.SensorHandles` so a future
+refactor cannot silently drop them.
 """
 
 from __future__ import annotations
@@ -41,7 +41,8 @@ _PATH_A_NAMES = {
 def test_sensor_handles_has_read_imu() -> None:
     """``SensorHandles.read_imu`` must exist as an instance method.
 
-    Ported from Path A's free ``read_imu`` function in Batch 5 item #16.
+    Ported from Path A's free ``read_imu`` function during the
+    Path A -> Path B unification.
     """
     from marslab.sensors.sensor_spawner import SensorHandles
 
@@ -61,12 +62,13 @@ def test_sensor_handles_has_read_imu() -> None:
 def test_sensor_handles_read_imu_asserts_mars_gravity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Batch 1 item #6 invariant is preserved on Path B.
+    """Mars-gravity invariant is preserved on Path B.
 
-    Calls ``SensorHandles.read_imu`` with a stubbed IMU interface that
-    returns Earth gravity (9.81 m/s^2).  The soft warning referencing
-    Mars gravity (3.72 m/s^2) must still fire — this is the runtime-side
-    guard that complements the attach-time hard assertion.
+    Calls ``SensorHandles.read_imu`` with a stubbed IMU interface
+    that returns Earth gravity (9.81 m/s^2). The soft warning
+    referencing Mars gravity (3.72 m/s^2) must still fire -- this is
+    the runtime-side guard that complements the attach-time hard
+    assertion.
     """
     import logging
     import types
@@ -111,10 +113,10 @@ def test_sensor_handles_read_imu_asserts_mars_gravity(
         lidar_3d=None,
         lidar_2d=None,
         imu=object(),
-        camera_prim_path="/World/Rover/stage1_camera",
-        lidar_3d_prim_path="/World/Rover/stage1_lidar",
+        camera_prim_path="/World/Rover/camera",
+        lidar_3d_prim_path="/World/Rover/lidar_3d",
         lidar_2d_prim_path=None,
-        imu_prim_path="/World/Rover/stage1_imu",
+        imu_prim_path="/World/Rover/imu",
     )
 
     caplog_logger = logging.getLogger("marslab.sensors.sensor_spawner")
@@ -156,10 +158,9 @@ def test_path_a_not_exported_from_init() -> None:
     marslab_sensors = importlib.import_module("marslab.sensors")
 
     for name in _PATH_A_NAMES:
-        assert not hasattr(marslab_sensors, name), (
-            f"marslab.sensors must not export deprecated Path A name {name!r}; "
-            "see Reviewer 2 item #16."
-        )
+        assert not hasattr(
+            marslab_sensors, name
+        ), f"marslab.sensors must not export deprecated Path A name {name!r}."
 
     # The canonical Path B surface must still be present.
     assert hasattr(marslab_sensors, "SensorHandles")

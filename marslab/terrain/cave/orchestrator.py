@@ -5,14 +5,15 @@ surface cap) for Isaac Sim rendering and PhysX collision. Caves cannot
 be represented as 2D heightmaps because the ceiling introduces a
 second z-value at each (x, y) position.
 
-Science basis: Sauro et al. 2020, Cushing 2007/2012, Theinat 2020,
-Blair 2017, Blank 2024 (BRAILLE). Full references in
-``work_log/scene_generation/mars_cave.md``.
+Science basis: Sauro et al. (2020, Earth-Science Reviews 209, 103288),
+Cushing et al. (2007, GRL 34, L17201; 2012, JGR Planets 117, E03007),
+Theinat et al. (2020, Acta Astronautica 170, 480-491),
+Blair et al. (2017, Icarus 282, 300-317),
+Blank et al. (2024, BRAILLE program reports).
 
-Design follows P3 (Offline-First Testing):
-
-    Layer 1 (this module): pure numpy + trimesh, no Isaac Sim.
-    Layer 2 (``marslab.terrain.cave.usd_builder``): USD prim creation, separate file.
+Design is offline-first: pure numpy + trimesh in this layer, no Isaac
+Sim. USD prim creation lives in
+:mod:`marslab.terrain.cave.usd_builder`.
 
 Architecture -- cross-section sweep (ring stacking):
 
@@ -29,17 +30,13 @@ Architecture -- cross-section sweep (ring stacking):
        (:mod:`marslab.terrain.cave.mesh`).
     6. Generate breakdown block positions for the PointInstancer
        (:mod:`marslab.terrain.cave.breakdown`).
-
-R5 (2026-04-23) split the original 884-LOC module into four
-submodules plus this orchestrator; the public API -- the single
-:func:`generate_cave_mesh` entry point -- is byte-identical to the
-pre-split version and the shared RNG is consumed in the same order.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
+from marslab.config.schema.terrain import CaveConfig
 from marslab.terrain.cave._constants import (
     DEBRIS_CONE_DIAMETER_RATIO,
     DEBRIS_CONE_EXCLUSION_RATIO,
@@ -63,61 +60,19 @@ from marslab.terrain.cave.mesh import (
 )
 
 
-def generate_cave_mesh(
-    tube_width_m: float = 200.0,
-    tube_height_ratio: float = 0.5,
-    cross_section_noise: float = 0.20,
-    tube_direction_deg: float = 0.0,
-    tube_curvature: float = 0.15,
-    ceiling_thickness_m: float = 50.0,
-    skylight_count: int = 10,
-    skylight_diameter_m: float = 20.0,
-    skylight_depth_m: float = 90.0,
-    skylight_overhang_deg: float = 5.0,
-    debris_cone_present: bool = True,
-    debris_cone_count: int = 5,
-    debris_cone_angle_deg: float = 30.0,
-    breakdown_coverage_pct: float = 25.0,
-    breakdown_block_mean_m: float = 0.5,
-    breakdown_block_sigma: float = 0.3,
-    floor_flat_pct: float = 70.0,
-    ring_resolution: int = 40,
-    path_resolution: int = 100,
-    domain_size: tuple[int, int] = (400, 400),
-    resolution: float = 1.0,
-    seed: int = 42,
-) -> dict:
+def generate_cave_mesh(seed: int, cfg: CaveConfig) -> dict:
     """Generate a complete Mars lava tube cave mesh assembly.
 
     All geometry is generated offline (no Isaac Sim). Returns a dict
     of trimesh objects and metadata for subsequent USD conversion.
 
     Args:
-        tube_width_m: Lava tube width in meters.
-        tube_height_ratio: Height / width ratio (half-ellipse).
-        cross_section_noise: +/- fraction noise on cross-section radius.
-        tube_direction_deg: Tube axis direction (0 = Y, 90 = X).
-        tube_curvature: Sinusoidal curvature amplitude factor.
-        ceiling_thickness_m: Rock above tube crown.
-        skylight_count: Number of skylights (0-20).
-        skylight_diameter_m: Skylight opening diameter.
-        skylight_depth_m: Depth from surface to tube ceiling.
-        skylight_overhang_deg: Inward overhang of shaft walls.
-        debris_cone_present: Whether debris cones spawn inside the tube.
-        debris_cone_count: Number of debris cones.
-        debris_cone_angle_deg: Angle of repose for the debris cone.
-        breakdown_coverage_pct: Floor area covered by breakdown blocks.
-        breakdown_block_mean_m: Arithmetic mean block diameter in
-            meters (Blank 2024: 0.5 m). The underlying lognormal is
-            mean-corrected so ``E[diameter] == breakdown_block_mean_m``.
-        breakdown_block_sigma: Standard deviation of the underlying
-            normal distribution used by ``rng.lognormal``.
-        floor_flat_pct: Percentage of floor that is flat.
-        ring_resolution: Vertices per cross-section ring.
-        path_resolution: Number of cross-sections along the tube.
-        domain_size: ``(rows, cols)`` in pixels.
-        resolution: Meters per pixel.
         seed: Random seed for reproducibility.
+        cfg: Validated :class:`CaveConfig` carrying every cave geometry
+            parameter (tube geometry, skylight layout, debris/breakdown
+            statistics, domain size, and resolution). Construct via
+            :class:`CaveConfig` directly or load from YAML through
+            :class:`marslab.config.schema.TerrainConfig`.
 
     Returns:
         Dict with keys
@@ -132,16 +87,33 @@ def generate_cave_mesh(
             ``surface_elevation``: np.ndarray -- 2D heightmap for spawn z.
     """
     rng = np.random.default_rng(seed)
-    rows, cols = domain_size
+    rows, cols = cfg.domain_size
+    domain_size = (rows, cols)
+    resolution = cfg.resolution
     domain_m = (rows * resolution, cols * resolution)
 
+    tube_width_m = cfg.tube_width_m
+    tube_height_ratio = cfg.tube_height_ratio
     tube_height_m = tube_width_m * tube_height_ratio
-    surface_z = ceiling_thickness_m + tube_height_m
     floor_z = 0.0  # tube floor at z=0 (normalized)
+    skylight_depth_m = cfg.skylight_depth_m
+    skylight_diameter_m = cfg.skylight_diameter_m
+    # ``skylight_depth_m`` controls the actual shaft length: surface
+    # sits ``skylight_depth_m`` above the tube ceiling. ``ceiling_thickness_m``
+    # is retained in metadata for downstream tooling that asks for the
+    # rock thickness above the tube crown for areas without a skylight.
+    surface_z = floor_z + tube_height_m + skylight_depth_m
+
+    ring_resolution = cfg.ring_resolution
 
     # --- 1. Centerline ---
     centerline = build_centerline(
-        domain_m, tube_direction_deg, tube_curvature, path_resolution, floor_z, rng
+        domain_m,
+        cfg.tube_direction_deg,
+        cfg.tube_curvature,
+        cfg.path_resolution,
+        floor_z,
+        rng,
     )
 
     # --- 2. Cross-section profiles ---
@@ -149,7 +121,7 @@ def generate_cave_mesh(
         centerline,
         tube_width_m,
         tube_height_ratio,
-        cross_section_noise,
+        cfg.cross_section_noise,
         ring_resolution,
         rng,
     )
@@ -162,41 +134,45 @@ def generate_cave_mesh(
         centerline,
         cross_sections,
         ring_resolution,
-        floor_flat_pct,
+        cfg.floor_flat_pct,
         rng,
     )
 
     # --- 5. Skylight positions ---
     skylight_positions = compute_skylight_positions(
         centerline,
-        skylight_count,
+        cfg.skylight_count,
         skylight_diameter_m,
         domain_m,
         rng,
     )
 
     # --- 6. Skylight shafts ---
+    # Shaft spans from ``surface_z`` down to the tube ceiling. With
+    # ``surface_z = floor_z + tube_height_m + skylight_depth_m`` and
+    # ``floor_z = 0``, ``surface_z - skylight_depth_m`` reduces to
+    # ``tube_height_m`` -- the geometric tube ceiling level.
     skylight_meshes = []
     for sx, sy in skylight_positions:
         shaft = build_skylight_shaft(
             center_xy=(sx, sy),
             diameter=skylight_diameter_m,
             surface_z=surface_z,
-            ceiling_z=tube_height_m,
-            overhang_deg=skylight_overhang_deg,
+            ceiling_z=surface_z - skylight_depth_m,
+            overhang_deg=cfg.skylight_overhang_deg,
             n_segments=max(ring_resolution // 2, SKYLIGHT_SHAFT_SEG_MIN),
         )
         skylight_meshes.append(shaft)
 
     # --- 7. Debris cones (random positions along tube, avoiding centerline) ---
     debris_cones = []
-    if debris_cone_present and debris_cone_count > 0:
+    if cfg.debris_cone_present and cfg.debris_cone_count > 0:
         cone_diameter = tube_width_m * DEBRIS_CONE_DIAMETER_RATIO
         exclusion_half = tube_width_m * DEBRIS_CONE_EXCLUSION_RATIO
         n_stations = len(centerline)
         station_indices = rng.choice(
             range(2, n_stations - 2),
-            size=min(debris_cone_count, n_stations - 4),
+            size=min(cfg.debris_cone_count, n_stations - 4),
             replace=False,
         )
         for idx in sorted(station_indices):
@@ -218,7 +194,7 @@ def generate_cave_mesh(
                 center_xy=(cone_x, cone_y),
                 floor_z=floor_z,
                 skylight_diameter=cone_diameter,
-                angle_of_repose=debris_cone_angle_deg,
+                angle_of_repose=cfg.debris_cone_angle_deg,
                 rng=rng,
             )
             debris_cones.append(cone)
@@ -238,10 +214,9 @@ def generate_cave_mesh(
         centerline,
         cross_sections,
         floor_z,
-        ring_resolution,
-        breakdown_coverage_pct,
-        breakdown_block_mean_m,
-        breakdown_block_sigma,
+        cfg.breakdown_coverage_pct,
+        cfg.breakdown_block_mean_m,
+        cfg.breakdown_block_sigma,
         skylight_positions,
         skylight_diameter_m,
         rng,
@@ -250,7 +225,7 @@ def generate_cave_mesh(
     metadata = {
         "tube_width_m": tube_width_m,
         "tube_height_m": tube_height_m,
-        "ceiling_thickness_m": ceiling_thickness_m,
+        "ceiling_thickness_m": cfg.ceiling_thickness_m,
         "surface_z": surface_z,
         "floor_z": floor_z,
         "domain_m": domain_m,

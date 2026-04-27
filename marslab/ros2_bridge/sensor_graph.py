@@ -6,10 +6,10 @@ Composes a single action graph that drives:
 * Articulation joint TF on a dedicated ``/tf_raw`` topic, kept
   separate from the rclpy ``odom -> base_link`` broadcaster on ``/tf``
   in :mod:`marslab.ros2_bridge.odometry_publisher`.  Sharing one
-  ``/tf`` was tried (Apr-25 fix-up) and rolled back because the two
-  publishers produced duplicated / out-of-phase frames in RViz and
-  Nav2.  The split is enforced by user feedback (see memory
-  ``feedback_no_tf_consolidation``).
+  ``/tf`` was tried and rolled back because the two publishers
+  produced duplicated / out-of-phase frames in RViz and Nav2.  The
+  split is enforced by user policy: never merge OmniGraph PubTF and
+  rclpy TransformBroadcaster onto the same ``/tf`` topic.
 * IMU (``sensor_msgs/Imu``).
 * Camera RGB + Depth via independent render products.
 * 3-D LiDAR point cloud.
@@ -17,19 +17,19 @@ Composes a single action graph that drives:
 The graph path + node names mirror the legacy Stage-1 graph to keep
 the debugger / ros2 graph view familiar.
 
-R4-5 (2026-04-22): list-building helpers (``_build_create_nodes`` /
-``_build_connections`` / ``_build_set_values``) moved to
+The list-building helpers (``_build_create_nodes`` /
+``_build_connections`` / ``_build_set_values``) live in
 :mod:`marslab.ros2_bridge.sensor_graph_builder` so they can be unit
-tested without Isaac Sim.  Re-exported below for backward compatibility
-with existing tests and callers.
+tested without Isaac Sim.  They are re-exported below for backward
+compatibility with existing tests and callers.
 
-R4-5 extension (2026-04-23): ``GRAPH_PATH`` migrated from a module
-constant to ``Ros2BridgeConfig.graph_path`` (see
-:mod:`marslab.config.schema.ros2_bridge`).  The module constant is kept
-as the canonical default so legacy imports (``from marslab.ros2_bridge
-import GRAPH_PATH``) still resolve, but ``build_sensor_graph`` now
-reads ``ros2_cfg["graph_path"]`` first and only falls back when the
-YAML key is absent.
+``GRAPH_PATH`` is the canonical default for the action-graph prim
+path.  It is also the default for ``Ros2BridgeConfig.graph_path``
+(see :mod:`marslab.config.schema.ros2_bridge`).  The module constant
+is kept as the canonical default so legacy imports
+(``from marslab.ros2_bridge import GRAPH_PATH``) still resolve, but
+``build_sensor_graph`` reads ``ros2_cfg["graph_path"]`` first and
+only falls back when the YAML key is absent.
 """
 
 from __future__ import annotations
@@ -55,6 +55,39 @@ class SensorGraphHandle:
 
     graph_path: str
     graph: Any
+
+
+def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
+    """Validate the schema-known subset of ``ros2_cfg`` ONCE.
+
+    The raw ``rover.ros2`` YAML dict carries free-form keys that are
+    NOT declared on :class:`Ros2BridgeConfig` (``namespace``,
+    ``topics``, ``rates``, ``odom_publisher``, etc.).  Filtering to
+    schema fields before validation lets the orchestrator and every
+    legacy resolver wrapper pull defaults from a single validated
+    model without a ``model_validate`` per attribute.
+
+    Args:
+        ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
+            compatibility).
+
+    Returns:
+        A :class:`Ros2BridgeConfig` instance carrying the merged
+        view of schema-declared fields (YAML overrides + pydantic
+        defaults).
+    """
+    # Local import keeps the schema dependency optional for the rare
+    # caller that imports ``sensor_graph`` without the full ``marslab``
+    # config tree (e.g. a minimal integration test harness).
+    from marslab.config.schema.ros2_bridge import (
+        Ros2BridgeConfig,
+    )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
+
+    if not isinstance(ros2_cfg, dict):
+        return Ros2BridgeConfig()
+    schema_fields = set(Ros2BridgeConfig.model_fields.keys())
+    schema_subset = {k: v for k, v in ros2_cfg.items() if k in schema_fields}
+    return Ros2BridgeConfig.model_validate(schema_subset)
 
 
 def build_sensor_graph(
@@ -92,7 +125,7 @@ def build_sensor_graph(
             :data:`marslab.ros2_bridge.tf_nameoverrides.DEFAULT_ODOM_ANCHOR_PATH`).
             Forwarded to ``PubTF.inputs:parentPrim`` so the published
             chain reads ``odom -> base_link -> ...`` (REP-105) instead
-            of ``world -> base_link -> ...``.  S3 fix (2026-04-27).
+            of ``world -> base_link -> ...``.
         lidar_2d_prim_path: Optional USD path of the 2-D RTX LiDAR prim.
             When provided and ``topics["scan"]`` is set in ``ros2_cfg``,
             a ``RPLidar2D``/``Lidar2DHelper`` pair is added with
@@ -101,14 +134,16 @@ def build_sensor_graph(
     Returns:
         :class:`SensorGraphHandle`.
     """
-    import omni.graph.core as og
+    import omni.graph.core as og  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
     ns = str(ros2_cfg["namespace"])
     topics = dict(ros2_cfg["topics"])
-    graph_path = _resolve_graph_path(ros2_cfg)
-    sensor_preset, tf_preset = _resolve_qos_presets(ros2_cfg)
+    options = _resolve_ros2_bridge_options(ros2_cfg)
+    graph_path = options.graph_path
+    sensor_preset, tf_preset = _build_qos_presets(options)
     include_2d = lidar_2d_prim_path is not None and "scan" in topics
-    include_pcl = _resolve_publish_pointcloud2(ros2_cfg) and "points" in topics
+    include_pcl = options.publish_pointcloud2 and "points" in topics
+    include_caminfo = options.publish_camera_info and "camera_info" in topics
 
     keys = og.Controller.Keys
     graph_handle, _, _, _ = og.Controller.edit(
@@ -117,10 +152,12 @@ def build_sensor_graph(
             keys.CREATE_NODES: _build_create_nodes(
                 include_lidar_2d=include_2d,
                 include_pointcloud2=include_pcl,
+                include_camera_info=include_caminfo,
             ),
             keys.CONNECT: _build_connections(
                 include_lidar_2d=include_2d,
                 include_pointcloud2=include_pcl,
+                include_camera_info=include_caminfo,
             ),
             keys.SET_VALUES: _build_set_values(
                 ns=ns,
@@ -135,44 +172,58 @@ def build_sensor_graph(
                 sensor_qos_preset=sensor_preset,
                 tf_qos_preset=tf_preset,
                 include_pointcloud2=include_pcl,
+                include_camera_info=include_caminfo,
             ),
         },
     )
     return SensorGraphHandle(graph_path=graph_path, graph=graph_handle)
 
 
-def _resolve_qos_presets(ros2_cfg: Dict[str, Any]) -> Tuple[str, str]:
-    """Return ``(sensor_preset, tf_preset)`` Isaac-Sim preset strings.
+def _build_qos_presets(options: Any) -> Tuple[str, str]:
+    """Map a validated :class:`Ros2BridgeConfig` to OmniGraph QoS JSON strings.
 
     The OmniGraph helpers (``ROS2PublishImu``, ``ROS2CameraHelper``,
     ``ROS2RtxLidarHelper``, ``ROS2PublishRawTransformTree``) accept a
-    preset *name* on ``inputs:qosProfile`` rather than a structured
-    QoSProfile.  This helper reads the matching ``sensor_qos`` and
-    ``tf_qos`` YAML blocks (or the schema defaults) and maps each to
-    the closest bundled preset via
-    :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json`.
-
-    Reviewer 2 #04 (2026-04-24).  Kept separate from
-    :func:`_resolve_graph_path` so tests can exercise it without
-    also instantiating pydantic graph-path validation.
+    JSON-encoded QoS dict on ``inputs:qosProfile`` (see
+    :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json`).
     """
-    # Local imports mirror the pattern used by ``_resolve_graph_path``
-    # so this module stays importable without rclpy / pydantic schema
-    # on the path.
-    from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
-    from marslab.ros2_bridge.qos import to_omnigraph_qos_json
+    from marslab.ros2_bridge.qos import (
+        to_omnigraph_qos_json,
+    )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
-    defaults = Ros2BridgeConfig()
+    return to_omnigraph_qos_json(options.sensor_qos), to_omnigraph_qos_json(options.tf_qos)
 
-    def _pick(name: str, fallback: QoSProfileConfig) -> QoSProfileConfig:
-        raw = ros2_cfg.get(name) if isinstance(ros2_cfg, dict) else None
-        if raw is None:
-            return fallback
-        return QoSProfileConfig.model_validate(raw)
 
-    sensor_cfg = _pick("sensor_qos", defaults.sensor_qos)
-    tf_cfg = _pick("tf_qos", defaults.tf_qos)
-    return to_omnigraph_qos_json(sensor_cfg), to_omnigraph_qos_json(tf_cfg)
+def _resolve_qos_presets(ros2_cfg: Dict[str, Any]) -> Tuple[str, str]:
+    """Return ``(sensor_preset, tf_preset)`` Isaac-Sim JSON-encoded QoS strings.
+
+    Thin wrapper that delegates to :func:`_resolve_ros2_bridge_options`
+    so the validated schema is the single source of truth.  Preserved
+    so external test suites that import the helper by name keep
+    working.
+    """
+    options = _resolve_ros2_bridge_options(ros2_cfg)
+    return _build_qos_presets(options)
+
+
+def _resolve_publish_camera_info(ros2_cfg: Dict[str, Any]) -> bool:
+    """Return whether to wire the RGB-derived ``CamInfo`` helper.
+
+    Reads ``ros2_cfg["publish_camera_info"]`` when present (validated via
+    :class:`Ros2BridgeConfig`) and falls back to the schema default
+    (``True`` -- monocular ``CameraInfo`` publication ON) when absent.
+    Mirrors :func:`_resolve_publish_pointcloud2` so the orchestrator
+    reaches both knobs through a single validation source.
+
+    Args:
+        ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
+            compatibility).
+
+    Returns:
+        ``True`` to append the ``CamInfo`` node + edges + values, else
+        ``False`` to skip the CameraInfo publisher entirely.
+    """
+    return bool(_resolve_ros2_bridge_options(ros2_cfg).publish_camera_info)
 
 
 def _resolve_publish_pointcloud2(ros2_cfg: Dict[str, Any]) -> bool:
@@ -182,11 +233,6 @@ def _resolve_publish_pointcloud2(ros2_cfg: Dict[str, Any]) -> bool:
     :class:`Ros2BridgeConfig`) and falls back to the schema default
     (``True`` -- RealSense-style RGB-D PointCloud2 ON) when absent.
 
-    Day 2 sprint task F (2026-04-25): keeping the resolver parallel to
-    :func:`_resolve_graph_path` means the orchestrator never reads the
-    raw dict directly -- pydantic enforces the bool type for both ad-hoc
-    dict callers and YAML-loaded callers.
-
     Args:
         ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
             compatibility).
@@ -195,13 +241,7 @@ def _resolve_publish_pointcloud2(ros2_cfg: Dict[str, Any]) -> bool:
         ``True`` to append the ``CamPCL`` node + edges + values, else
         ``False`` to skip the PointCloud2 publisher entirely.
     """
-    from marslab.config.schema.ros2_bridge import Ros2BridgeConfig
-
-    raw = ros2_cfg.get("publish_pointcloud2") if isinstance(ros2_cfg, dict) else None
-    if raw is None:
-        return Ros2BridgeConfig().publish_pointcloud2
-    validated = Ros2BridgeConfig(publish_pointcloud2=bool(raw))
-    return validated.publish_pointcloud2
+    return bool(_resolve_ros2_bridge_options(ros2_cfg).publish_pointcloud2)
 
 
 def _resolve_graph_path(ros2_cfg: Dict[str, Any]) -> str:
@@ -221,16 +261,7 @@ def _resolve_graph_path(ros2_cfg: Dict[str, Any]) -> str:
     Returns:
         The validated prim path string.
     """
-    # Local import keeps the schema dependency optional for the rare
-    # caller that imports ``sensor_graph`` without the full ``marslab``
-    # config tree (e.g. a minimal integration test harness).
-    from marslab.config.schema.ros2_bridge import Ros2BridgeConfig
-
-    raw = ros2_cfg.get("graph_path") if isinstance(ros2_cfg, dict) else None
-    if raw is None:
-        return GRAPH_PATH
-    validated = Ros2BridgeConfig(graph_path=str(raw))
-    return validated.graph_path
+    return str(_resolve_ros2_bridge_options(ros2_cfg).graph_path)
 
 
 __all__ = [
@@ -243,4 +274,5 @@ __all__ = [
     "_ns_topic",
     "_resolve_graph_path",
     "_resolve_publish_pointcloud2",
+    "_resolve_publish_camera_info",
 ]

@@ -1,32 +1,28 @@
 """Lognormal rejection-sampled breakdown block placement.
 
-Extracted from the pre-R5 monolithic ``cave_generator.py`` in R5
-(2026-04-23); the orchestrator now lives at
-:mod:`marslab.terrain.cave.orchestrator`. Pure numpy. No Isaac Sim,
-no trimesh.
+Pure numpy. No Isaac Sim, no trimesh. The orchestrator entry point
+lives at :mod:`marslab.terrain.cave.orchestrator`.
 
-Size distribution follows Blank 2024 / BRAILLE: lognormal diameters
+Size distribution follows Blank (2024, BRAILLE): lognormal diameters
 with a hard cap at :data:`BREAKDOWN_DIAMETER_CAP_M`.
 
-RNG consumption order preserved from the pre-split module: inside the
-attempt loop, per iteration the draws are
+RNG consumption order is fixed: inside the attempt loop, per iteration
+the draws are
 
     1. ``rng.lognormal(mean=log(block_mean) - block_sigma**2/2,
        sigma=block_sigma)``  (mean-corrected so ``E[diameter] = block_mean``)
     2. ``rng.integers(0, n_stations)``
     3. ``rng.uniform(lo, hi)``
 
-which terminates either at ``target_area`` coverage or after
+The loop terminates either at ``target_area`` coverage or after
 :data:`BREAKDOWN_MAX_ATTEMPTS` iterations.
 
 For a lognormal ``X`` parameterised by the underlying normal's mean
 ``mu`` and std ``sigma``, ``E[X] = exp(mu + sigma**2 / 2)`` and
 ``median[X] = exp(mu)``.  Since :data:`block_mean` is a true arithmetic
-mean (Blank 2024 reports the mean block diameter), we set
-``mu = log(block_mean) - sigma**2/2`` so the draws' expected value equals
-the configured ``block_mean``.  The earlier ``mu = log(block_mean)`` form
-made ``block_mean`` the *median*, biasing the expected value upward by
-``exp(sigma**2/2)``.
+mean (Blank 2024 reports the mean block diameter), the underlying
+normal's ``mu`` is set to ``log(block_mean) - sigma**2/2`` so the
+draws' expected value equals the configured ``block_mean``.
 """
 
 from __future__ import annotations
@@ -48,7 +44,6 @@ def generate_breakdown_positions(
     centerline: np.ndarray,
     cross_sections: np.ndarray,
     floor_z: float,
-    ring_pts: int,  # noqa: ARG001 -- retained for back-compat signature
     coverage_pct: float,
     block_mean: float,
     block_sigma: float,
@@ -72,8 +67,6 @@ def generate_breakdown_positions(
         cross_sections: ``(n_stations, ring_pts, 2)`` local offsets.
         floor_z: Z coordinate of the floor. Used as ``z`` for every
             block.
-        ring_pts: Legacy argument retained so the public orchestrator
-            signature is identical. Currently unused.
         coverage_pct: Target floor area coverage in percent. ``<= 0``
             short-circuits to an empty list.
         block_mean: Arithmetic mean diameter (meters). The underlying

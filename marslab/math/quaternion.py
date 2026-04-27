@@ -9,8 +9,8 @@ convention, matching:
   :func:`rpy_to_quat` and :func:`quat_to_rpy`.
 
 Every function is deterministic, side-effect free, and NumPy-only so
-``tests/unit/`` can validate the module headlessly (see project
-principle P3: offline-first testing).
+``tests/unit/`` can validate the module headlessly (offline-first
+testing principle).
 
 This module is the single source of truth for quaternion helpers:
 
@@ -19,16 +19,16 @@ This module is the single source of truth for quaternion helpers:
 * ``marslab.robots.rover`` (rpy_to_quat) re-exports from here.
 * Stage 3 runtime scripts import ``rpy_to_quat`` from here directly.
 
-Dtype policy (Reviewer 2 item #19 / H-10, 2026-04-24)
-----------------------------------------------------
-The helpers no longer force-cast inputs to ``float32``. Isaac Sim's
-articulation APIs return ``float64`` arrays; the prior ``astype(float32)``
-on every call created one fresh allocation per quaternion operation
-(>=400 allocations/sec at 200 Hz on the Stage-3 main loop) *and*
-silently downgraded the runtime precision for odometry math. Inputs are
-now converted with ``np.asarray`` only (no copy when the dtype already
-matches) and the resulting dtype is inherited from the input — so
-``float64 in -> float64 out`` and ``float32 in -> float32 out``.
+Dtype policy
+------------
+The helpers do not force-cast inputs to ``float32``. Isaac Sim's
+articulation APIs return ``float64`` arrays; an ``astype(float32)``
+on every call would create one fresh allocation per quaternion
+operation (>=400 allocations/sec at 200 Hz on the main runtime loop)
+and would silently downgrade runtime precision for odometry math.
+Inputs are converted with ``np.asarray`` only (no copy when the dtype
+already matches) and the resulting dtype is inherited from the input —
+so ``float64 in -> float64 out`` and ``float32 in -> float32 out``.
 """
 
 from __future__ import annotations
@@ -54,10 +54,10 @@ def quat_inverse(q: np.ndarray) -> np.ndarray:
     vector part, keep the scalar. The caller is responsible for keeping
     ``q`` unit-norm; this function does **not** renormalise, but it does
     emit a ``WARNING`` via :mod:`logging` when ``|q|^2`` deviates from
-    ``1`` by more than :data:`_UNIT_QUAT_NORM_SQ_TOL` (Reviewer 2 H-11,
-    2026-04-24). The returned value is still the conjugate — callers
-    that observe the warning should renormalise their upstream state
-    rather than rely on this helper to paper over drift.
+    ``1`` by more than :data:`_UNIT_QUAT_NORM_SQ_TOL`. The returned
+    value is still the conjugate — callers that observe the warning
+    should renormalise their upstream state rather than rely on this
+    helper to paper over drift.
 
     Args:
         q: Shape ``(4,)`` quaternion with scalar-first ordering.
@@ -180,15 +180,15 @@ def quat_to_rpy(q: np.ndarray) -> Tuple[float, float, float]:
     absorbs the combined rotation — matching the convention used by
     ``tf_transformations.euler_from_quaternion(..., 'sxyz')``.
 
-    Gimbal-lock branch (Reviewer 2 H-9, 2026-04-24)
-    ----------------------------------------------
-    At ``|sin(pitch)| > 1 - 1e-6`` the ``arcsin`` is saturated, so we
-    explicitly set ``pitch = copysign(pi/2, sin_pitch)`` rather than
-    taking ``arcsin`` of a clamped value. This guarantees the reported
-    pitch has the correct sign even when float round-off pushes the
-    argument to exactly ±1. The yaw residual is derived from the
-    ``R[0, 1] / R[1, 1]`` entries of the rotation matrix so the
-    returned triple still reconstructs the correct quaternion via
+    Gimbal-lock branch
+    ------------------
+    At ``|sin(pitch)| > 1 - 1e-6`` the ``arcsin`` is saturated, so the
+    pitch is set explicitly to ``copysign(pi/2, sin_pitch)`` rather
+    than taking ``arcsin`` of a clamped value. This guarantees the
+    reported pitch has the correct sign even when float round-off
+    pushes the argument to exactly ±1. The yaw residual is derived
+    from the ``R[0, 1] / R[1, 1]`` entries of the rotation matrix so
+    the returned triple still reconstructs the correct quaternion via
     :func:`rpy_to_quat` (up to the roll/yaw degeneracy inherent to
     gimbal lock).
 
@@ -214,7 +214,7 @@ def quat_to_rpy(q: np.ndarray) -> Tuple[float, float, float]:
     if abs(sin_pitch_clipped) > 1.0 - 1e-6:
         # Explicit copysign — the arcsin output at ±1 is ±π/2 but using
         # copysign on the pre-clip value keeps the sign stable across
-        # float round-off (H-9 fix).
+        # float round-off.
         pitch = float(np.copysign(np.pi / 2.0, sin_pitch))
         roll = 0.0
         # Yaw absorbs the residual rotation. Use R[0, 1] / R[1, 1] entries:

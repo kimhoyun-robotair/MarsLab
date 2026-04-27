@@ -60,10 +60,26 @@ def load_hirise_dem(dem_path: str) -> tuple[np.ndarray, dict]:
         raise ValueError(f"No raster bands in file: {abs_path}")
 
     band = ds.GetRasterBand(1)
-    elevation = band.ReadAsArray().astype(np.float32)
+    raw = band.ReadAsArray()
+
+    # float32 has 24 bits of mantissa precision (max exact integer ~ 1.6e7).
+    # Common integer nodata sentinels (e.g. -32768 for int16) round-trip
+    # cleanly, but a sentinel beyond that range would alias another value
+    # after the cast and silently corrupt the heightmap.
+    nodata = band.GetNoDataValue()
+    if (
+        nodata is not None
+        and not np.issubdtype(raw.dtype, np.floating)
+        and abs(float(nodata)) > 16_777_216.0
+    ):
+        raise ValueError(
+            f"DEM has integer dtype {raw.dtype} with nodata sentinel "
+            f"{nodata!r}; sentinel exceeds float32 mantissa precision and "
+            f"would alias valid elevations after the cast"
+        )
+    elevation = raw.astype(np.float32)
 
     gt = ds.GetGeoTransform()
-    nodata = band.GetNoDataValue()
 
     if nodata is not None:
         elevation[elevation == np.float32(nodata)] = np.nan
@@ -158,13 +174,14 @@ def crop_dem(
 ) -> tuple[np.ndarray, dict]:
     """Crop a rectangular window from a loaded DEM.
 
-    Pure-numpy helper used by scenario YAMLs (Wk2 #1-#3, 2026-04-14) to
-    extract specific regions (Jezero plain, rim, delta) from the full
-    HiRISE DEM without reloading the source GeoTIFF. The returned
-    metadata preserves the original ``resolution_x/y`` and ``crs_wkt``
-    but updates ``width``, ``height``, ``origin_x/y`` (shifted by the
-    crop offset in CRS units), and recomputes ``elevation_min/max``
-    for the cropped region.
+    Pure-numpy helper used by scenario YAMLs to extract specific
+    regions (Jezero plain, rim, delta) from the full HiRISE DEM without
+    reloading the source GeoTIFF. The returned metadata preserves the
+    original ``resolution_x/y`` and ``crs_wkt`` but updates ``width``,
+    ``height``, ``origin_x/y`` (shifted by the crop offset in CRS
+    units), and recomputes ``elevation_min/max`` for the cropped
+    region. Each call appends a record to ``metadata["crop_history"]``
+    so chained crops do not silently overwrite earlier entries.
 
     Args:
         elevation: 2D float32 array from ``load_hirise_dem`` or
@@ -218,6 +235,13 @@ def crop_dem(
     cropped_meta["origin_y"] = origin_y - row * res_y
     cropped_meta["elevation_min"] = float(cropped.min())
     cropped_meta["elevation_max"] = float(cropped.max())
-    cropped_meta["crop_source_shape"] = [int(src_rows), int(src_cols)]
-    cropped_meta["crop_offset"] = [int(row), int(col)]
+    crop_history = list(cropped_meta.get("crop_history", []))
+    crop_history.append(
+        {
+            "source_shape": [int(src_rows), int(src_cols)],
+            "offset": [int(row), int(col)],
+            "size": [int(height), int(width)],
+        }
+    )
+    cropped_meta["crop_history"] = crop_history
     return cropped, cropped_meta

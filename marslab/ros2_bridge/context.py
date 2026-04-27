@@ -1,6 +1,6 @@
 """Shared handle dataclass for the Stage-3 ROS2 bridge.
 
-Separated from :mod:`marslab.ros2_bridge.__init__` during R4-6 so that
+Separated from :mod:`marslab.ros2_bridge.__init__` so that
 :mod:`marslab.ros2_bridge.rclpy_integration` and the sensor-graph
 builders can share a common value type without re-triggering the
 package top-level import (which keeps the public surface lazy with
@@ -33,8 +33,7 @@ class BridgeContext:
             Held here so the ``TRANSIENT_LOCAL`` latched publisher is not
             garbage-collected when ``init_rclpy_side`` returns. ``None``
             when ``ros2.publish_robot_description=false`` or the URDF
-            path is missing (RC-3 of v1.0 release-blocker fixes,
-            2026-04-26).
+            path is missing.
     """
 
     node: Any

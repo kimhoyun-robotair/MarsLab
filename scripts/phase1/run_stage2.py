@@ -1,17 +1,16 @@
-"""Phase 1 Stage 2 runtime: Mars terrain + atmosphere viewer (thin CLI).
+"""Stage 2 runtime: Mars terrain + atmosphere viewer (thin CLI).
 
 Renders a DEM-based (or procedural) terrain mesh with Mars PBR materials
 and atmosphere (sun, sky dome, fog). No rover, no ROS2, no rocks beyond
 the Golombek SFD scatter. The GUI runs indefinitely so the user can
 freely navigate the scene. Press Ctrl+C to exit.
 
-Data flow (P2 unidirectional):
+Data flow (unidirectional):
     Config YAML -> run_stage2_boot (offline) -> SimulationApp
     -> setup_stage2_scene (USD + atmosphere) -> run_stage2_loop.
 
-R7-2 (2026-04-23): the original 421-LOC script was split into three
-focused modules under ``marslab.runtime``. Rollback path is ``git log``
-before 2026-04-23.
+The original 421-LOC script was split into three focused modules under
+``marslab.runtime``.
 
 Usage:
     scripts/isaac_python.sh scripts/phase1/run_stage2.py \\
@@ -34,7 +33,7 @@ DEFAULT_CONFIG = os.path.join(REPO_ROOT, "configs", "mars_env.yaml")
 def main() -> int:
     """Entry point for the Stage 2 viewer."""
     parser = argparse.ArgumentParser(
-        description="Phase 1 Stage 2 runtime: Mars terrain + atmosphere viewer."
+        description="Stage 2 runtime: Mars terrain + atmosphere viewer."
     )
     parser.add_argument(
         "--config",

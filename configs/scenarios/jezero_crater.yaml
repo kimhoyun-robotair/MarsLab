@@ -1,10 +1,10 @@
 # Jezero Crater + Slopes Scenario
-# HiRISE DEM crop: northeast corner of Jezero crater, steepest region
-# dz=12.6m, mean_slope=5.08 deg, max_slope=29.9 deg
-# 44.8% of area > 5 deg, 6.6% > 10 deg — rover will feel the incline
+# HiRISE DEM crop: northeast corner of Jezero crater, steepest region.
+# dz=12.6m, mean_slope=5.08 deg, max_slope=29.9 deg.
+# 44.8% of area > 5 deg, 6.6% > 10 deg -- the rover will feel the incline.
 #
-# Reviewer 2 #17 (2026-04-24): mars_env + rendering defaults come from
-# ``_base.yaml`` via the root-level ``base_config`` include.
+# mars_env + rendering defaults come from ``_base.yaml`` via the root-level
+# ``base_config`` include.
 
 base_config: _base.yaml
 
@@ -36,10 +36,10 @@ rover:
   enabled: true
   base_config: "configs/robots/rover_m2020.yaml"
   # Crater rim scenario: spawn on the outer (north-east) edge of the
-  # 200×200 crop, orientation facing the crater centre so Stage 3
-  # smoke tests can drive the rover toward the rim descent.
+  # 200x200 crop, orientation facing the crater centre so smoke tests
+  # can drive the rover toward the rim descent.
   spawn:
     mode: "dem_relative"
     xy: [-60.0, -60.0]
     z_offset: 0.7
-    orientation_rpy: [3.14159, 0.0, 0.785398]  # 45° yaw toward crater centre
+    orientation_rpy: [3.14159, 0.0, 0.785398]  # 45 deg yaw toward crater centre

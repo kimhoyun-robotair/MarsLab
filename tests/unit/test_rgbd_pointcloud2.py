@@ -1,21 +1,21 @@
-"""Unit tests for the RGB-D depth → PointCloud2 OmniGraph wiring (Task F).
+"""Unit tests for the RGB-D depth -> PointCloud2 OmniGraph wiring.
 
-Day 2 of the MarsLab v1.0 sprint (2026-04-25) added a second
-``isaacsim.ros2.bridge.ROS2CameraHelper`` node fed off the existing
-depth render product with ``inputs:type='depth_pcl'`` so the RGB-D
-camera publishes a ``sensor_msgs/PointCloud2`` topic at the depth-camera
-rate (RealSense D435/D455-style).  Source citation:
+The wiring adds a second ``isaacsim.ros2.bridge.ROS2CameraHelper``
+node fed off the existing depth render product with
+``inputs:type='depth_pcl'`` so the RGB-D camera publishes a
+``sensor_msgs/PointCloud2`` topic at the depth-camera rate
+(RealSense D435/D455-style). Source citation:
 
 * ``isaacsim/exts/isaacsim.ros2.bridge/isaacsim/ros2/bridge/ogn/python/
-  nodes/OgnROS2CameraHelper.py:141-155`` — the ``depth_pcl`` token
-  routes through ``ROS2PublishPointCloud`` with
-  ``DistanceToImagePlane`` as the source render variable.
-* ``isaacsim/exts/isaacsim.ros2.bridge/ogn/docs/OgnROS2CameraHelper.rst:53``
-  — allowed-tokens list confirms ``depth_pcl`` is a valid value for
+  nodes/OgnROS2CameraHelper.py`` -- the ``depth_pcl`` token routes
+  through ``ROS2PublishPointCloud`` with ``DistanceToImagePlane`` as
+  the source render variable.
+* ``isaacsim/exts/isaacsim.ros2.bridge/ogn/docs/OgnROS2CameraHelper.rst``
+  -- allowed-tokens list confirms ``depth_pcl`` is a valid value for
   ``inputs:type``.
 
 These tests stay offline: the OmniGraph orchestrator is exercised via
-``unittest.mock`` so no Isaac Sim or GPU is required.  The pure
+``unittest.mock`` so no Isaac Sim or GPU is required. The pure
 list-builders (``_build_create_nodes`` / ``_build_connections`` /
 ``_build_set_values``) are import-clean Python.
 """
@@ -158,11 +158,11 @@ class TestBuildSetValuesPointCloud2:
         assert sv["CamPCL.inputs:topicName"] == "/rover/depth/points"
 
     def test_pointcloud2_frame_id_is_camera_optical_frame(self, topics: dict) -> None:
-        """Day 5 (2026-04-25): frame_id is the optical-convention child frame.
+        """frame_id is the optical-convention child frame.
 
         Isaac Sim's ROS2CameraHelper emits PointCloud2 in the optical
-        frame convention (Z forward, X right, Y down).  The static TF
-        ``camera_link → camera_optical_frame`` is published by
+        frame convention (Z forward, X right, Y down). The static TF
+        ``camera_link -> camera_optical_frame`` is published by
         ``tf_broadcaster.publish_static_sensor_tfs``; both depth and
         PointCloud2 reference the optical frame so RViz /
         image_pipeline / depth_image_proc see correct geometry.
@@ -365,7 +365,7 @@ class TestBuildSensorGraphCallableInvocation:
         ) in edges
         assert values["CamPCL.inputs:type"] == "depth_pcl"
         assert values["CamPCL.inputs:topicName"] == "/rover/depth/points"
-        # Day 5 (2026-04-25): optical-frame convention (REP-105).
+        # Optical-frame convention (REP-105).
         assert values["CamPCL.inputs:frameId"] == "camera_optical_frame"
 
     def test_build_sensor_graph_skips_campcl_when_flag_false(

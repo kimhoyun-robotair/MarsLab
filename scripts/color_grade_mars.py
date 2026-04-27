@@ -1,8 +1,8 @@
-"""Earth PBR texture → Mars color grading.
+"""Earth PBR texture -> Mars color grading.
 
 Transforms generic brown/earth ground textures into Mars regolith
 color palette: reddish-brown with reduced saturation and brightness.
-Parameters configurable for iterative tuning (G5).
+All parameters are CLI-configurable for iterative tuning.
 
 Usage:
     python3 scripts/color_grade_mars.py
@@ -53,7 +53,7 @@ def main() -> None:
     result = ImageEnhance.Color(result).enhance(args.saturation)
     result = ImageEnhance.Brightness(result).enhance(args.brightness)
     result.save(albedo_out)
-    print(f"  → {albedo_out}")
+    print(f"  -> {albedo_out}")
 
     # Copy normal and roughness unchanged (color-independent)
     for fname in ["normal.png", "roughness.png"]:

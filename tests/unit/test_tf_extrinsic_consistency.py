@@ -1,24 +1,24 @@
 """TF tree + sensor extrinsic consistency between YAML and USD (offline).
 
-This is a pure-Python unit test that verifies the rover sensor mounting
-contract declared in ``configs/robots/rover_m2020.yaml`` against the
-exported USD asset at ``assets/robots/rover/m2020.usd``.  It does not
-import Isaac Sim — only ``pxr.Usd`` (USD Python bindings, which are
-shipped standalone via the ``usd-core`` PyPI wheel and are part of
-the offline dev environment).
+This is a pure-Python unit test that verifies the rover sensor
+mounting contract declared in ``configs/robots/rover_m2020.yaml``
+against the exported USD asset at ``assets/robots/rover/m2020.usd``.
+It does not import Isaac Sim -- only ``pxr.Usd`` (USD Python
+bindings, which are shipped standalone via the ``usd-core`` PyPI
+wheel and are part of the offline dev environment).
 
-Three invariants are enforced (CLAUDE.md Testing Requirements,
-Reviewer 2 sprint task G):
+Three invariants are enforced:
 
 1. **Every sensor declares ``parent_link``** and the value is a real
-   articulation link in the USD (a prim with ``UsdPhysics.RigidBodyAPI``).
-   The four sensors are ``camera``, ``lidar_3d``, ``lidar_2d``, ``imu``.
-2. **Numeric extrinsic fields are well-shaped**: ``local_translation`` is
-   a 3-element finite vector, and ``local_orientation_rpy_deg`` (when
-   present) is a 3-element finite vector in degrees.
+   articulation link in the USD (a prim with
+   ``UsdPhysics.RigidBodyAPI``). The four sensors are ``camera``,
+   ``lidar_3d``, ``lidar_2d``, ``imu``.
+2. **Numeric extrinsic fields are well-shaped**: ``local_translation``
+   is a 3-element finite vector, and ``local_orientation_rpy_deg``
+   (when present) is a 3-element finite vector in degrees.
 3. **No hidden transformation is applied between the YAML values and
    the values that ``marslab.sensors.sensor_spawner.spawn_sensors``
-   would feed into Isaac Sim.**  Specifically: the local translation
+   would feed into Isaac Sim.** Specifically: the local translation
    that the spawner emits onto the parent Xform / sensor prim is the
    raw YAML float triple to within 1e-6 absolute tolerance, and the
    quaternion derived from the YAML RPY (via the same formula the
@@ -26,15 +26,12 @@ Reviewer 2 sprint task G):
    original YAML angles to within 1e-6 deg.
 
 Finding (documented as a soft assertion at the end of the file):
-``parent_link`` is currently a documentation-only field — no
-production code reads it (verified by ``grep -rn parent_link
-marslab/`` returning zero matches as of 2026-04-25).  The runtime
-hard-codes the chassis path via
-:func:`marslab.robots.rover.find_rigid_body_path`
-(``marslab/robots/rover.py:181-206``).  The test still asserts that the
-YAML ``parent_link`` strings match a real USD link so the contract
-stays honest if a future refactor wires ``parent_link`` through to the
-spawner.
+``parent_link`` is currently a documentation-only field -- no
+production code reads it. The runtime hard-codes the chassis path
+via :func:`marslab.robots.rover.find_rigid_body_path`. The test
+still asserts that the YAML ``parent_link`` strings match a real USD
+link so the contract stays honest if a future refactor wires
+``parent_link`` through to the spawner.
 """
 
 from __future__ import annotations
@@ -353,24 +350,25 @@ class TestExtrinsicNoHiddenTransform:
 
         Confirms the spawner formula
         (``marslab/sensors/sensor_spawner.py``) does not lose precision
-        on the camera's 180° X-rotation that maps Isaac Sim Camera
+        on the camera's 180-degree X-rotation that maps Isaac Sim Camera
         prim's optical axis convention onto the body frame.  A drift
         here would imply the runtime camera frame is silently rotated
         relative to YAML.
 
-        2026-04-28: comment used to claim the X-roll was the
+        Note: an earlier comment claimed the X-roll was the
         ``Y-up -> Z-up correction``; that was inaccurate (the rover
-        is no longer X-rolled at spawn -- see configs/robots/
-        rover_m2020.yaml LOG entry).  The 180° roll on the **camera
-        prim** is unrelated and is required for Isaac Sim's optical
-        axis convention.
+        is no longer X-rolled at spawn -- see
+        ``configs/robots/rover_m2020.yaml``). The 180-degree roll on
+        the **camera prim** is unrelated and is required for Isaac
+        Sim's optical axis convention.
         """
         cfg = _load_rover_yaml()
         rpy_yaml = cfg["sensors"]["camera"]["local_orientation_rpy_deg"]
         q = _rpy_deg_to_quat_wxyz(rpy_yaml)
         rpy_back = _quat_wxyz_to_rpy_deg(q)
-        # 180° pitch causes the standard ZYX gimbal-lock case; for the
-        # camera we instead have 180° roll (=pitch=yaw=0), which is
+        # 180-degree pitch causes the standard ZYX gimbal-lock case; for
+        # the camera we instead have 180-degree roll (=pitch=yaw=0),
+        # which is
         # safely outside gimbal lock and round-trips exactly.
         for i, (a, b) in enumerate(zip(rpy_yaml, rpy_back, strict=True)):
             # Modulo 360 because ZYX inverse can wrap +180 -> -180; we
@@ -427,7 +425,7 @@ class TestParentLinkIsCurrentlyDocumentationOnly:
     )
 
     def test_parent_link_is_not_consumed_by_runtime_code(self) -> None:
-        """``parent_link`` is YAML-only as of 2026-04-25 — see module docstring."""
+        """``parent_link`` is YAML-only -- see module docstring."""
         offenders: List[str] = []
         for rel_dir in self._RUNTIME_DIRS:
             abs_dir = os.path.join(REPO_ROOT, rel_dir)

@@ -14,7 +14,8 @@ matching Isaac Sim's articulation API and ROS2 ``geometry_msgs/Quaternion``
 field order.
 
 Every helper is deterministic, side-effect free, and built on NumPy
-only so that ``tests/unit/`` can validate it headlessly (P3).
+only so that ``tests/unit/`` can validate it headlessly (offline-first
+testing requirement).
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from typing import Tuple
 
 import numpy as np
 
-# R3-A1: quat_inverse / quat_multiply / quat_rotate_vec were relocated to
+# ``quat_inverse`` / ``quat_multiply`` / ``quat_rotate_vec`` live in
 # ``marslab.math.quaternion`` as the single source of truth.  The imports
 # below preserve backward compatibility for every existing call site
 # (``marslab.ros2_bridge.odometry_publisher``, ``tests/unit/test_odometry_math``)

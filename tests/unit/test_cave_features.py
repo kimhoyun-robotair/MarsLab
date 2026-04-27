@@ -1,4 +1,4 @@
-"""Unit tests for marslab.terrain.cave.features (R5)."""
+"""Unit tests for marslab.terrain.cave.features."""
 
 from __future__ import annotations
 
@@ -25,8 +25,9 @@ def test_skylight_zero_count_empty(centerline, rng):
 
 def test_skylight_no_overlap(centerline, rng):
     """Placed skylights honour the 1.5 * diameter separation rule."""
-    positions = compute_skylight_positions(centerline, 5, 20.0, (200.0, 200.0), rng)
+    positions = compute_skylight_positions(centerline, 2, 20.0, (200.0, 200.0), rng)
     min_dist = 20.0 * 1.5
+    assert len(positions) == 2
     for i in range(len(positions)):
         for j in range(i + 1, len(positions)):
             d = float(
@@ -38,19 +39,25 @@ def test_skylight_no_overlap(centerline, rng):
 def test_skylight_domain_margin(centerline, rng):
     """Skylight centers stay a half-diameter + 10 m inside the domain edge."""
     diameter = 20.0
-    positions = compute_skylight_positions(centerline, 5, diameter, (200.0, 200.0), rng)
+    positions = compute_skylight_positions(centerline, 2, diameter, (200.0, 200.0), rng)
     margin = diameter / 2.0 + 10.0
+    assert len(positions) == 2
     for x, y in positions:
         assert margin <= x <= 200.0 - margin
         assert margin <= y <= 200.0 - margin
 
 
-def test_skylight_count_capped_by_domain(rng):
-    """Tiny domain with an oversized skylight returns the fallback center."""
+def test_skylight_count_raises_when_domain_too_small(rng):
+    """Tiny domain with an oversized skylight fails fast.
+
+    The strict count contract means
+    :func:`compute_skylight_positions` raises ``ValueError`` rather
+    than silently returning a fallback or fewer positions; cave SLAM
+    benchmarks rely on the exact count being honoured.
+    """
     short = build_centerline((20.0, 20.0), 0.0, 0.0, 5, 0.0, rng)
-    positions = compute_skylight_positions(short, 3, 25.0, (20.0, 20.0), rng)
-    # Only fallback center is returned when no station is within the margin.
-    assert positions == [(10.0, 10.0)]
+    with pytest.raises(ValueError, match="no centerline station"):
+        compute_skylight_positions(short, 3, 25.0, (20.0, 20.0), rng)
 
 
 def test_debris_cone_apex_above_base(rng):

@@ -1,15 +1,18 @@
 """DEM elevation grid to 3D terrain mesh converter.
 
-Two layers per P3 (Offline-First Testing):
+Two layers (offline-first testing):
   Layer 1: ``compute_mesh_arrays()`` -- pure numpy, offline-testable.
   Layer 2: ``build_terrain_mesh()`` -- USD writer requiring Isaac Sim.
 
 Triangle winding is CCW from +Z so PhysX normals point upward:
   Triangle 1: [i00, i01, i10]   Triangle 2: [i01, i11, i10]
-See work_log Wk1 #40 for the root cause of the previous winding bug.
 """
 
 import numpy as np
+
+# Each quad in the elevation grid splits into two triangles, three
+# vertex indices each, so face index storage is 6 ints per quad.
+_VERTS_PER_QUAD = 6  # 2 tris * 3 verts
 
 
 def compute_mesh_arrays(
@@ -73,7 +76,7 @@ def compute_mesh_arrays(
 
     # --- Face indices (CCW winding for +Z normals; see module docstring) ---
     n_quads = (rows - 1) * (cols - 1)
-    face_indices = np.empty(n_quads * 6, dtype=np.int32)
+    face_indices = np.empty(n_quads * _VERTS_PER_QUAD, dtype=np.int32)
 
     r_idx = np.arange(rows - 1)
     c_idx = np.arange(cols - 1)
@@ -87,13 +90,13 @@ def compute_mesh_arrays(
     i11 = (rc + 1) * cols + (cc + 1)
 
     # Triangle 1: i00, i01, i10
-    face_indices[0::6] = i00
-    face_indices[1::6] = i01
-    face_indices[2::6] = i10
+    face_indices[0::_VERTS_PER_QUAD] = i00
+    face_indices[1::_VERTS_PER_QUAD] = i01
+    face_indices[2::_VERTS_PER_QUAD] = i10
     # Triangle 2: i01, i11, i10
-    face_indices[3::6] = i01
-    face_indices[4::6] = i11
-    face_indices[5::6] = i10
+    face_indices[3::_VERTS_PER_QUAD] = i01
+    face_indices[4::_VERTS_PER_QUAD] = i11
+    face_indices[5::_VERTS_PER_QUAD] = i10
 
     n_faces = n_quads * 2
     face_counts = [3] * n_faces
@@ -154,10 +157,11 @@ def terrain_z_at(
     resolution: float,
     x: float,
     y: float,
+    strict: bool = False,
 ) -> float:
     """Bilinear interpolation of terrain elevation at world (x, y).
 
-    Pure numpy — no Isaac Sim dependency. Used to compute rover spawn z
+    Pure numpy -- no Isaac Sim dependency. Used to compute rover spawn z
     and rock placement heights.
 
     Args:
@@ -165,11 +169,28 @@ def terrain_z_at(
         resolution: Meters per pixel.
         x: World x coordinate in meters.
         y: World y coordinate in meters.
+        strict: When ``True``, raise ``ValueError`` if ``(x, y)`` falls
+            outside the elevation grid bounds. When ``False`` (default),
+            the query is clamped to the nearest valid cell so callers
+            that sweep slightly outside the heightmap (rover BBox at
+            domain edges) still receive a finite value.
 
     Returns:
         Interpolated elevation in meters.
+
+    Raises:
+        ValueError: If ``strict=True`` and ``(x, y)`` is outside the
+            ``[0, (cols-1)*resolution] x [0, (rows-1)*resolution]`` box.
     """
     rows, cols = elevation.shape
+    if strict:
+        x_max = (cols - 1) * resolution
+        y_max = (rows - 1) * resolution
+        if x < 0.0 or x > x_max or y < 0.0 or y > y_max:
+            raise ValueError(
+                f"terrain_z_at({x}, {y}) is outside elevation bounds "
+                f"[0, {x_max}] x [0, {y_max}] (strict=True)"
+            )
     col_f = float(np.clip(x / resolution, 0.0, cols - 1.0))
     row_f = float(np.clip(y / resolution, 0.0, rows - 1.0))
 

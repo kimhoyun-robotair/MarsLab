@@ -1,8 +1,8 @@
-"""Mars photo → PBR texture set (albedo + normal + roughness).
+"""Mars photo -> PBR texture set (albedo + normal + roughness).
 
 Converts NASA HiRISE orthoimages or Mars surface photos into a
 PBR texture set usable by MarsLab's material pipeline.
-- Albedo: crop + resize + Mars color tint (grayscale → reddish-brown)
+- Albedo: crop + resize + Mars color tint (grayscale -> reddish-brown)
 - Normal: auto-generated via Sobel filter
 - Roughness: derived from albedo luminance
 
@@ -34,7 +34,7 @@ def photo_to_albedo(
         input_path: Source image (JPG/PNG/JP2).
         output_path: Output albedo PNG.
         size: Output texture size (square).
-        mars_tint: RGB tint for grayscale → Mars color conversion.
+        mars_tint: RGB tint for grayscale -> Mars color conversion.
     """
     Image.MAX_IMAGE_PIXELS = None  # Allow large HiRISE images
     img = Image.open(input_path)
@@ -50,7 +50,7 @@ def photo_to_albedo(
     img = img.resize((size, size), Image.LANCZOS)
 
     if img.mode == "L":
-        # Grayscale HiRISE → apply Mars reddish-brown tint
+        # Grayscale HiRISE -> apply Mars reddish-brown tint
         gray = np.array(img, dtype=np.float32) / 255.0
         rgb = np.stack(
             [
@@ -117,7 +117,7 @@ def albedo_to_roughness(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Mars photo → PBR texture conversion")
+    parser = argparse.ArgumentParser(description="Mars photo -> PBR texture conversion")
     parser.add_argument(
         "--input",
         default=os.path.expanduser("~/Downloads/jezero_ortho_red_c.jp2"),

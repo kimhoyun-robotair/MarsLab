@@ -1,19 +1,19 @@
-"""Cover for ``rewrite_urdf_root_to_base_link`` (S3 release-blocker fix).
+"""Cover for ``rewrite_urdf_root_to_base_link``.
 
 The function does three text-level rewrites on the JPL m2020 URDF so
 the URDF root link agrees with the OG-side TF tree's ``base_link``
-frame_id.  Tests exercise the helper on:
+frame_id. Tests exercise the helper on:
 
 * a synthetic minimal URDF (anchors + idempotency),
 * the actual ``assets/m2020-urdf-models/rover/m2020.urdf`` (smoke
   check the global rewrite hits every reference + parses with
   ``xml.etree.ElementTree`` as a urdf_parser sanity proxy).
 
-2026-04-28 hardening: the original "switch JointRoot to fixed"
-approach left ``<parent link="ground"/>`` dangling, which
-``urdf_parser/src/model.cpp:253`` rejects.  Option A
-(JointRoot block fully removed) was chosen so ``base_link`` becomes
-the natural URDF tree root.  Tests below pin that behaviour.
+The current rewrite removes the JointRoot block entirely so
+``base_link`` becomes the natural URDF tree root. An earlier "switch
+JointRoot to fixed" approach left ``<parent link="ground"/>``
+dangling, which ``urdf_parser/src/model.cpp`` rejects. Tests below
+pin the current behaviour.
 """
 
 from __future__ import annotations
@@ -65,12 +65,12 @@ class TestRewriteUrdfRootToBaseLink:
         assert '<link name="ground">' not in out
 
     def test_jointroot_block_removed_entirely(self) -> None:
-        """Option A (2026-04-28): JointRoot is deleted, not converted to fixed.
+        """JointRoot is deleted, not converted to fixed.
 
-        The previous "switch type to fixed" approach left
-        ``<parent link="ground"/>`` dangling, which urdf_parser rejects.
-        Pin the new behaviour: no ``JointRoot`` substring of any kind
-        survives the rewrite.
+        An earlier "switch type to fixed" approach left
+        ``<parent link="ground"/>`` dangling, which urdf_parser
+        rejects. Pin the current behaviour: no ``JointRoot``
+        substring of any kind survives the rewrite.
         """
         out = rewrite_urdf_root_to_base_link(_SYNTHETIC_URDF)
         assert "JointRoot" not in out
@@ -146,11 +146,11 @@ class TestRewriteOnRealUrdf:
 
     def test_global_rewrite_eliminates_all_body_chassis_tokens(self, real_urdf_text: str) -> None:
         out = rewrite_urdf_root_to_base_link(real_urdf_text)
-        # 46 raw occurrences observed in production (verified by grep
-        # 2026-04-27).  After Option A rewrite the JointRoot block is
-        # deleted wholesale, taking with it ONE ``<child link="Body_Chassis"/>``
-        # reference inside the block.  The remaining 45 references all
-        # rename to ``base_link``.  Pin both expectations.
+        # 46 raw occurrences observed in production. After the rewrite,
+        # the JointRoot block is deleted wholesale, taking with it ONE
+        # ``<child link="Body_Chassis"/>`` reference inside the block.
+        # The remaining 45 references all rename to ``base_link``.
+        # Pin both expectations.
         assert "Body_Chassis" not in out
         body_chassis_count = real_urdf_text.count("Body_Chassis")
         # ``base_link`` may also appear in mesh filenames or comments;
@@ -161,10 +161,10 @@ class TestRewriteOnRealUrdf:
     def test_real_urdf_jointroot_completely_gone(self, real_urdf_text: str) -> None:
         """Strengthened from the original ``floating only`` check.
 
-        The Option A regex deletes the whole block, so the substring
-        ``JointRoot`` must not survive.  ``Joint_MHS_DebrisShield``
-        does not contain ``JointRoot`` as a substring, so this check
-        is precise.
+        The current rewrite regex deletes the whole block, so the
+        substring ``JointRoot`` must not survive.
+        ``Joint_MHS_DebrisShield`` does not contain ``JointRoot`` as
+        a substring, so this check is precise.
         """
         out = rewrite_urdf_root_to_base_link(real_urdf_text)
         assert "JointRoot" not in out

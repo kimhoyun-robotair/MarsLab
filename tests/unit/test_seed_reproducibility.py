@@ -1,7 +1,7 @@
 """End-to-end seed reproducibility tests.
 
 Verifies that the full pipeline produces identical output when given
-the same master seed. This is a MUST requirement per PLAN.md.
+the same master seed. This is a MUST requirement for reproducibility.
 """
 
 import numpy as np
@@ -44,7 +44,7 @@ def _run_pipeline(master_seed: int) -> dict:
         config.mars_env.sun_elevation_deg,
     )
     intensity = compute_direct_intensity(
-        config.mars_env.solar_constant_mean,
+        config.mars_env.solar_constant,
         config.mars_env.dust_optical_depth,
         sun.zenith_angle_rad,
     )

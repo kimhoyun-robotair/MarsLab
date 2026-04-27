@@ -24,7 +24,7 @@ def boot_simulation_app(
         headless: Pass ``True`` for CI / remote runs without a Kit
             viewport; ``False`` keeps the Kit window.
         renderer: Isaac Sim renderer name.  ``"RaytracedLighting"``
-            matches the Stage-3 default.
+            matches the runtime default.
         ros2_bridge_extension: Extension id to ``enable_extension``
             after the app has booted.  Override only for tests.
 

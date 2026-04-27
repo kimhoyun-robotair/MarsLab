@@ -1,12 +1,12 @@
-"""Integration test: ROS2 topics appear after run_stage4 headless boot.
+"""Integration test: ROS2 topics appear after the Stage-3 headless boot.
 
-Covers the CLAUDE.md Integration Tests requirement::
+Covers the integration-test requirement::
 
     Sensors publish on ROS2 topics at configured Hz +/- 10%
     ROS2 bridge: topics appear, messages received within 5s
 
 The test spawns the Stage-3 runtime using the same helpers as
-``scripts/phase1/run_stage4.py``, subscribes to ``/rover/cmd_vel``,
+``scripts/phase1/main.py``, subscribes to ``/rover/cmd_vel``,
 ``/rover/odom``, and ``/rover/imu``, and asserts at least one message
 lands on each topic inside a 30-second budget.
 
@@ -45,13 +45,14 @@ def test_rover_ros2_topics_publish_within_budget() -> None:
 
     The odometry publisher is the narrowest witness of a healthy Stage-3
     runtime: it depends on the rover spawn, the articulation reset, the
-    rclpy bridge, and the main-loop tick all succeeding.  If it publishes,
+    rclpy bridge, and the main-loop tick all succeeding. If it publishes,
     every upstream dependency booted correctly.
 
-    We intentionally do NOT assert a Hz rate here — Reviewer 2 #4 already
-    owns QoS and rate coverage.  This test only proves reproducibility:
-    an external user can ``scripts/isaac_python.sh
-    scripts/run_integration_test.py`` and see green/red.
+    We intentionally do NOT assert a Hz rate here -- QoS and rate
+    coverage live in the dedicated ROS2 unit tests. This test only
+    proves reproducibility: an external user can run
+    ``scripts/isaac_python.sh scripts/run_integration_test.py`` and see
+    green/red.
     """
     from nav_msgs.msg import Odometry  # noqa: PLC0415
 

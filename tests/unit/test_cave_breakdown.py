@@ -1,4 +1,4 @@
-"""Unit tests for marslab.terrain.cave.breakdown (R5)."""
+"""Unit tests for marslab.terrain.cave.breakdown."""
 
 from __future__ import annotations
 
@@ -28,7 +28,6 @@ def test_zero_coverage_returns_empty(geometry, rng):
         centerline,
         cross_sections,
         floor_z=0.0,
-        ring_pts=RING_PTS,
         coverage_pct=0.0,
         block_mean=0.5,
         block_sigma=0.3,
@@ -47,7 +46,6 @@ def test_coverage_area_approximates_target(geometry, rng):
         centerline,
         cross_sections,
         floor_z=0.0,
-        ring_pts=RING_PTS,
         coverage_pct=coverage_pct,
         block_mean=0.5,
         block_sigma=0.3,
@@ -69,7 +67,6 @@ def test_diameter_capped_at_5m(geometry, rng):
         centerline,
         cross_sections,
         floor_z=0.0,
-        ring_pts=RING_PTS,
         coverage_pct=30.0,
         block_mean=1.0,
         block_sigma=1.0,
@@ -91,7 +88,6 @@ def test_avoids_skylights(geometry, rng):
         centerline,
         cross_sections,
         floor_z=0.0,
-        ring_pts=RING_PTS,
         coverage_pct=20.0,
         block_mean=0.5,
         block_sigma=0.3,
@@ -113,7 +109,6 @@ def test_block_z_equals_floor_z(geometry, rng):
         centerline,
         cross_sections,
         floor_z=-3.5,
-        ring_pts=RING_PTS,
         coverage_pct=10.0,
         block_mean=0.5,
         block_sigma=0.3,
@@ -133,7 +128,6 @@ def test_seed_reproducibility(geometry):
         centerline=centerline,
         cross_sections=cross_sections,
         floor_z=0.0,
-        ring_pts=RING_PTS,
         coverage_pct=15.0,
         block_mean=0.5,
         block_sigma=0.3,
@@ -154,7 +148,6 @@ def test_different_seeds_differ(geometry):
         centerline=centerline,
         cross_sections=cross_sections,
         floor_z=0.0,
-        ring_pts=RING_PTS,
         coverage_pct=15.0,
         block_mean=0.5,
         block_sigma=0.3,
@@ -167,12 +160,13 @@ def test_different_seeds_differ(geometry):
 
 
 # ---------------------------------------------------------------------------
-# Lognormal mean-correction regression tests (Reviewer 2 audit #11).
+# Lognormal mean-correction regression tests.
 #
 # ``generate_breakdown_positions`` must draw diameters whose expected
-# value equals the configured ``block_mean``.  Prior to the fix, the
-# implementation passed ``mean=log(block_mean)`` which gave
-# ``median=block_mean`` but ``E[X] = block_mean * exp(sigma**2 / 2)``.
+# value equals the configured ``block_mean``. The mean-corrected form
+# ``mean = log(block_mean) - sigma**2 / 2`` makes ``E[X] = block_mean``
+# exactly; the un-corrected ``mean = log(block_mean)`` form would bias
+# the expected value upward by ``exp(sigma**2 / 2)``.
 # ---------------------------------------------------------------------------
 
 
@@ -196,9 +190,9 @@ def _draw_uncapped_diameters(
 def test_block_size_distribution_statistic():
     """Uncapped sample mean approximates ``block_mean`` within 5 percent.
 
-    Regression guard for Reviewer 2 audit #11: the old code passed
-    ``mean=log(block_mean)`` to ``rng.lognormal``, which biased ``E[X]``
-    upward by ``exp(sigma**2/2)`` (roughly 4.6 percent at sigma=0.3).
+    Regression guard: the un-corrected form ``mean=log(block_mean)``
+    biases ``E[X]`` upward by ``exp(sigma**2/2)`` (roughly 4.6 percent
+    at sigma=0.3).
     """
     block_mean = 0.5
     block_sigma = 0.3
@@ -259,8 +253,8 @@ def test_generator_mean_matches_config_within_cap(geometry):
     Exercises the real ``generate_breakdown_positions`` path (including
     the 5 m cap and rejection sampling). With ``block_mean=0.5`` and
     ``block_sigma=0.3`` the cap almost never fires, so the observed
-    sample mean should be close to 0.5 m. Before the fix the observed
-    mean was biased upward to ~0.523 m.
+    sample mean should be close to 0.5 m. The un-corrected lognormal
+    form would bias it upward to ~0.523 m.
     """
     centerline, cross_sections = geometry
     rng = np.random.default_rng(7)
@@ -268,7 +262,6 @@ def test_generator_mean_matches_config_within_cap(geometry):
         centerline,
         cross_sections,
         floor_z=0.0,
-        ring_pts=RING_PTS,
         coverage_pct=40.0,
         block_mean=0.5,
         block_sigma=0.3,

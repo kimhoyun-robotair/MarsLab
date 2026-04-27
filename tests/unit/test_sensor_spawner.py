@@ -212,10 +212,10 @@ class TestSpawnSensors:
         assert handles.lidar_3d is not None
         assert handles.lidar_2d is not None
         assert handles.imu is not None
-        assert handles.camera_prim_path == "/World/Rover/stage1_camera"
-        assert handles.lidar_3d_prim_path == "/World/Rover/stage1_lidar"
-        assert handles.lidar_2d_prim_path == "/World/Rover/stage1_lidar_2d"
-        assert handles.imu_prim_path == "/World/Rover/stage1_imu"
+        assert handles.camera_prim_path == "/World/Rover/camera"
+        assert handles.lidar_3d_prim_path == "/World/Rover/lidar_3d"
+        assert handles.lidar_2d_prim_path == "/World/Rover/lidar_2d"
+        assert handles.imu_prim_path == "/World/Rover/imu"
 
     def test_missing_lidar_2d_leaves_slot_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured = _make_stub_modules(monkeypatch)
@@ -257,8 +257,8 @@ class TestSpawnSensors:
         # one level deeper so no xformOps touch the Camera prim itself.
         assert captured["xform_define_calls"], "parent Xform must be Defined"
         _stage, parent_path = captured["xform_define_calls"][0]
-        assert parent_path == "/World/Rover/stage1_camera_xform"
-        assert handles.camera_prim_path == ("/World/Rover/stage1_camera_xform/stage1_camera")
+        assert parent_path == "/World/Rover/camera_xform"
+        assert handles.camera_prim_path == ("/World/Rover/camera_xform/camera")
         # Xform was zeroed, translated, and oriented exactly once.
         assert captured["xform_clear_called"] == 1
         assert len(captured["xform_translate_sets"]) == 1
@@ -281,7 +281,7 @@ class TestSpawnSensors:
             rigid_body_path="/World/Rover",
         )
 
-        assert handles.camera_prim_path == "/World/Rover/stage1_camera"
+        assert handles.camera_prim_path == "/World/Rover/camera"
         # No parent Xform must be created when the orientation is zero.
         assert captured["xform_define_calls"] == []
         # Translation ends up on the Camera constructor.

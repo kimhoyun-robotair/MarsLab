@@ -1,10 +1,9 @@
-"""Single orchestrator facade for Stage-3 sensor spawn.
+"""Single orchestrator facade for rover sensor spawn.
 
 This module centralises the camera / LiDAR-3D / LiDAR-2D / IMU
-instantiation for the Stage 3 rover runtime.  The
-``isaacsim.*`` / ``pxr.*`` imports are kept inside :func:`spawn_sensors`
-so that importing this module does not require Isaac Sim to be running
-(P3 offline-first testing).
+instantiation for the rover runtime.  The ``isaacsim.*`` / ``pxr.*``
+imports are kept inside :func:`spawn_sensors` so that importing this
+module does not require Isaac Sim to be running (offline-first testing).
 
 This file is the single place that knows how the four physical sensors
 are attached to the rover.  The :class:`SensorHandles` dataclass exposes
@@ -12,23 +11,22 @@ both the live sensor objects (needed to feed ``get_current_frame`` /
 ``initialize`` call sites further down in the runtime) and their USD
 prim paths (needed later by the OmniGraph sensor_graph orchestrator).
 
-Reviewer-2 item #16 (2026-04-24): this module absorbed the invariants
-that previously lived in :mod:`marslab.sensors.imu` / ``.camera`` /
-``.lidar`` (Path A).  In particular:
+Highlights:
 
-* :func:`_assert_mars_gravity` (ported from Path A ``imu.py``) is called
-  before the IMU is spawned — THE critical test.  Earth gravity on the
+* :func:`_assert_mars_gravity` is called before the IMU is spawned --
+  the critical Mars-gravity attach-time check.  Earth gravity on the
   ``UsdPhysics.Scene`` raises ``ValueError`` at spawn time rather than
   letting the IMU publish bogus accelerations.
-* The IMU ``local_orientation_rpy_deg`` YAML key (ZYX roll-pitch-yaw in
-  degrees) is honoured via the parent-Xform pattern the camera already
-  uses.  Previous Path A code hard-coded identity on one path and
-  ignored orientation entirely on the other — both are gone now.
+* The IMU and camera ``local_orientation_rpy_deg`` YAML key (ZYX
+  roll-pitch-yaw in degrees) is honoured via a parent-Xform pattern.
+  Placing xformOps on a Camera/IMU prim directly corrupts the RTX
+  pipeline; the dedicated parent Xform isolates the sensor prim from
+  any local transform.
 * :meth:`SensorHandles.read_imu` / ``read_camera_rgb`` /
   ``read_camera_depth`` / ``read_lidar_3d_point_cloud`` expose the
-  read-side helpers that used to live in the Path A modules.  The
-  ``read_imu`` soft warning when the z-axis deviates from Mars gravity
-  by more than 0.5 m/s^2 is preserved.
+  read-side helpers.  ``read_imu`` emits a soft warning when the
+  z-axis acceleration deviates from Mars gravity by more than
+  0.5 m/s^2.
 """
 
 from __future__ import annotations
@@ -36,15 +34,31 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, Optional
 
 import numpy as np
 
 _MARS_GRAVITY_MS2 = 3.72
-_MARS_GRAVITY_TOL_STRICT = 0.05  # attach-time hard assertion (THE critical test)
+_MARS_GRAVITY_TOL_STRICT = 0.05  # attach-time hard assertion
 _MARS_GRAVITY_TOL_WARN = 0.5  # read-time soft warning threshold
 
 _LOG = logging.getLogger(__name__)
+
+# Per-sensor child prim names attached under the rover rigid-body path.
+# Centralised so the camera/IMU parent Xform names stay in sync with the
+# child sensor prim names.  Names are bare semantic tokens; the rover
+# rigid-body prim path already namespaces them (e.g.
+# ``/World/Rover/Body_Chassis/camera``) so a ``rover_`` prefix would be
+# redundant.  Multi-rover scenarios will namespace at the rover prim path
+# level instead (e.g. ``/World/Rover_0/...``).
+_SENSOR_PRIM_NAMES: Dict[str, str] = {
+    "camera": "camera",
+    "lidar_3d": "lidar_3d",
+    "lidar_2d": "lidar_2d",
+    "imu": "imu",
+    "camera_xform": "camera_xform",
+    "imu_xform": "imu_xform",
+}
 
 
 def _assert_mars_gravity(
@@ -69,7 +83,8 @@ def _assert_mars_gravity(
             need to gate this themselves.
         expected: Expected gravity magnitude in m/s^2 (Mars = 3.72).
         tol: Allowable absolute deviation.  Default 0.05 matches the
-            ``integration`` test requirement in CLAUDE.md Testing.
+            integration-test requirement (rover IMU
+            z in [3.67, 3.77] m/s^2).
 
     Raises:
         ValueError: If the USD scene reports a gravity magnitude that
@@ -118,7 +133,7 @@ def _assert_mars_gravity(
             "IMU gravity assertion failed: UsdPhysics.Scene gravity magnitude "
             f"{magnitude:.3f} m/s^2 outside Mars range "
             f"[{expected - tol:.3f}, {expected + tol:.3f}] m/s^2. "
-            "Expected 3.72 m/s^2 (THE critical test). "
+            "Expected 3.72 m/s^2 (Mars gravity attach-time check). "
             "Call marslab.sim.world_setup.create_world(gravity=3.72) before "
             "spawn_sensors()."
         )
@@ -127,18 +142,18 @@ def _assert_mars_gravity(
 def _resolve_lidar_profile(lidar_cfg: Dict[str, Any]) -> str:
     """Pick the ``LidarRtx.config_file_name`` value from a LiDAR YAML block.
 
-    Preference order (Sprint Day 2 Task D + E, 2026-04-25):
+    Preference order:
 
-    1. ``profile_json_path`` — explicit escape hatch, takes precedence so a
-       user-supplied custom JSON profile always wins over a stock name.
-    2. ``profile_name`` — Isaac-Sim bundled profile name (e.g.
-       ``"Example_Rotary"``).  This is the canonical Task D field.
-    3. ``profile`` — legacy pre-Task-D key, kept for backward compat with
-       any unmigrated YAML.  Pydantic ``Lidar3DConfig`` /
-       ``Lidar2DConfig`` already rewrites this to ``profile_name`` via
-       ``mode="before"`` validators, but ``spawn_sensors`` is also called
-       with raw dicts in the integration test harness, so the runtime
-       fallback stays.
+    1. ``profile_json_path`` -- explicit escape hatch, takes precedence
+       so a user-supplied custom JSON profile always wins over a stock
+       name.
+    2. ``profile_name`` -- Isaac-Sim bundled profile name (e.g.
+       ``"Example_Rotary"``).  This is the canonical schema field.
+    3. ``profile`` -- legacy key kept for the test harness; production
+       callers use the validated ``profile_name`` directly via the
+       schema.  Pydantic ``Lidar3DConfig`` / ``Lidar2DConfig`` already
+       rewrites it to ``profile_name`` via ``mode="before"`` validators
+       at YAML load time.
 
     Raises:
         KeyError: If none of the three keys is present.  The schema
@@ -162,7 +177,13 @@ def _rpy_deg_to_quat_wxyz(rpy_deg: Optional[Iterable[float]]) -> tuple:
     """Convert ``[roll, pitch, yaw]`` in degrees (ZYX intrinsic) to ``(w, x, y, z)``.
 
     ``None`` or an all-zero list yields the identity quaternion.  Kept
-    local so the tests don't need to stub ``marslab.math.quaternion``.
+    local so the tests do not need to stub ``marslab.math.quaternion``.
+
+    Note:
+        ``marslab.math.quaternion`` exposes a radian-input
+        ``rpy_to_quat``; a degree-input variant has not yet been
+        promoted there.  When that variant lands, this helper can be
+        replaced with a one-line import.
     """
     if rpy_deg is None:
         return (1.0, 0.0, 0.0, 0.0)
@@ -194,8 +215,8 @@ class SensorHandles:
             for the 2D LaserScan LiDAR, or ``None`` if
             ``sensors_cfg["lidar_2d"]`` is absent.
         imu: Live :class:`isaacsim.sensors.physics.IMUSensor` handle.
-        camera_prim_path: Full USD prim path of the camera — either
-            ``{rigid_body_path}/stage1_camera`` or, if the camera has
+        camera_prim_path: Full USD prim path of the camera -- either
+            ``{rigid_body_path}/camera`` or, if the camera has
             non-zero RPY, nested under a parent Xform.
         lidar_3d_prim_path: USD prim path of the 3D LiDAR.
         lidar_2d_prim_path: USD prim path of the 2D LiDAR, or ``None``
@@ -308,16 +329,15 @@ def spawn_sensors(
       pattern for symmetry and so that the YAML schema is uniform.
     * Before the IMU is spawned, :func:`_assert_mars_gravity` verifies
       the ``UsdPhysics.Scene`` gravity magnitude matches Mars
-      (3.72 +/- 0.05 m/s^2).  Earth gravity raises ``ValueError``.  This
-      is THE critical test (CLAUDE.md Testing).
+      (3.72 +/- 0.05 m/s^2).  Earth gravity raises ``ValueError``.
     * 3D LiDAR uses the profile *name* (e.g. ``"Example_Rotary"``) via
       :class:`isaacsim.sensors.rtx.LidarRtx.config_file_name`.  The
-      Sprint Day 2 Task D YAML schema (``profile_name`` / legacy
-      ``profile`` / ``profile_json_path`` escape hatch) is resolved by
-      :func:`_resolve_lidar_profile`.  The ``usd_profile`` key (Task E)
-      is forwarded to ``LidarRtx(name=...)`` only when the YAML overrides
-      it — ``null`` falls back to the pre-Task-E behaviour where
-      ``LidarRtx`` uses its own bundled USD asset.
+      YAML schema (``profile_name`` / legacy ``profile`` /
+      ``profile_json_path`` escape hatch) is resolved by
+      :func:`_resolve_lidar_profile`.  The ``usd_profile`` key is
+      forwarded to ``LidarRtx(name=...)`` only when the YAML overrides
+      it -- ``null`` falls back to the default where ``LidarRtx`` uses
+      its own bundled USD asset.
     * 2D LiDAR is only spawned if ``sensors_cfg.get("lidar_2d")`` is
       truthy, mirroring the optional-block guard.
     * IMU frequency is sourced from ``ros2_cfg["rates"]["imu"]`` so the
@@ -367,21 +387,17 @@ def spawn_sensors(
 
     if has_cam_orient:
         cam_qw, cam_qx, cam_qy, cam_qz = _rpy_deg_to_quat_wxyz(cam_orient_deg)
-        camera_xform_path = f"{rigid_body_path}/stage1_camera_xform"
+        camera_xform_path = f"{rigid_body_path}/{_SENSOR_PRIM_NAMES['camera_xform']}"
         camera_xform = UsdGeom.Xform.Define(stage, camera_xform_path)
         camera_xform.ClearXformOpOrder()
         cx_translate = camera_xform.AddTranslateOp()
         cx_translate.Set(Gf.Vec3d(*[float(x) for x in camera_cfg["local_translation"]]))
         cx_orient = camera_xform.AddOrientOp()
         cx_orient.Set(Gf.Quatf(float(cam_qw), float(cam_qx), float(cam_qy), float(cam_qz)))
-        camera_prim_path = f"{camera_xform_path}/stage1_camera"
-        print(
-            f"[spawn_sensors] Camera parent Xform: {camera_xform_path} "
-            f"rpy_deg={cam_orient_deg}",
-            flush=True,
-        )
+        camera_prim_path = f"{camera_xform_path}/{_SENSOR_PRIM_NAMES['camera']}"
+        _LOG.info("Camera parent Xform: %s rpy_deg=%s", camera_xform_path, cam_orient_deg)
     else:
-        camera_prim_path = f"{rigid_body_path}/stage1_camera"
+        camera_prim_path = f"{rigid_body_path}/{_SENSOR_PRIM_NAMES['camera']}"
 
     camera = Camera(
         prim_path=camera_prim_path,
@@ -399,33 +415,24 @@ def spawn_sensors(
         float(camera_cfg["clipping_range"][0]), float(camera_cfg["clipping_range"][1])
     )
 
-    lidar_prim_path = f"{rigid_body_path}/stage1_lidar"
-    # Sprint Day 2 Task D (2026-04-25): resolve the JSON profile via the
-    # ``profile_name`` / ``profile_json_path`` / legacy ``profile`` priority
-    # chain.  The ``usd_profile`` key (Task E) is honoured only when the
-    # caller wants to swap the LiDAR USD model — by default it is ``None``
-    # and ``LidarRtx`` falls back to its own asset path resolution keyed off
-    # ``config_file_name``.
+    lidar_prim_path = f"{rigid_body_path}/{_SENSOR_PRIM_NAMES['lidar_3d']}"
+    # Resolve the LiDAR profile via the
+    # ``profile_name`` / ``profile_json_path`` / legacy ``profile``
+    # priority chain.  The ``usd_profile`` key is honoured only when the
+    # caller wants to swap the LiDAR USD model -- by default it is
+    # ``None`` and ``LidarRtx`` falls back to its own asset path
+    # resolution keyed off ``config_file_name``.
     #
-    # Sprint Day 3 Task H1 (2026-04-25): when the YAML supplies
-    # ``range_min`` / ``range_max`` / ``rotation_rate_hz`` overrides AND we
-    # are using a bundled profile *name* (not the ``profile_json_path``
-    # escape hatch), materialise a runtime JSON copy with those values
-    # patched into the ``profile`` block.  Without this step the YAML
-    # numerics are validated by pydantic and then dropped — see Day 2
-    # review H1 in ``~/MarsLab/tmp/day2_code_review.md``.
-    # Day 3 H1 rollback (2026-04-25, post-integration smoke):
     # Isaac Sim 5.1 ``LidarRtx.config_file_name`` only accepts a bundled
     # profile *name* (resolved via ``omni.sensors.nv.common`` and
     # ``isaacsim.sensors.rtx`` data dirs) -- it does NOT accept absolute
-    # filesystem paths.  Passing one yields the runtime warning
-    # ``Config '<path>' not found for OmniLidar`` and the LiDAR prim is
-    # never created (verified in ``~/MarsLab/log.txt`` line 493).
-    # Therefore the YAML overrides ``range_min`` / ``range_max`` /
-    # ``rotation_rate_hz`` are NOT applied at runtime in v1.0; only
-    # ``profile_name`` and ``profile_json_path`` (escape hatch) flow to
-    # Isaac Sim.  See ``~/MarsLab/tmp/task_H1_finding.md`` for the v1.5
-    # follow-up plan (custom search-path injection or PR upstream).
+    # filesystem paths.  Passing an absolute path yields the runtime
+    # warning ``Config '<path>' not found for OmniLidar`` and the LiDAR
+    # prim is never created.  Therefore the YAML overrides ``range_min``
+    # / ``range_max`` / ``rotation_rate_hz`` are NOT applied at runtime
+    # in v1.0; only ``profile_name`` and ``profile_json_path`` (escape
+    # hatch) flow to Isaac Sim.  Custom search-path injection or an
+    # upstream PR is the v1.5 follow-up.
     lidar_3d_profile = _resolve_lidar_profile(lidar_cfg)
     lidar_3d_kwargs: Dict[str, Any] = {
         "prim_path": lidar_prim_path,
@@ -440,16 +447,16 @@ def spawn_sensors(
     lidar_3d = LidarRtx(**lidar_3d_kwargs)
     lidar_3d.initialize()
 
-    # 2D LiDAR (LaserScan) — optional, mirrors the 3D LiDAR pipeline.
-    # config_file_name receives the Isaac-Sim bundled profile *name* only
-    # (e.g. "Example_Rotary_2D"), never a filesystem path (10.8 regression).
+    # 2D LiDAR (LaserScan) -- optional, mirrors the 3D LiDAR pipeline.
+    # ``config_file_name`` receives the Isaac-Sim bundled profile *name*
+    # only (e.g. "Example_Rotary_2D"), never a filesystem path.
     lidar_2d_cfg = sensors_cfg.get("lidar_2d")
     lidar_2d: Optional[Any] = None
     lidar_2d_prim_path: Optional[str] = None
     if lidar_2d_cfg is not None:
-        lidar_2d_prim_path = f"{rigid_body_path}/stage1_lidar_2d"
-        # Day 3 H1 rollback: same as 3D LiDAR — runtime override disabled
-        # in v1.0 (Isaac Sim API limitation, see comment above).
+        lidar_2d_prim_path = f"{rigid_body_path}/{_SENSOR_PRIM_NAMES['lidar_2d']}"
+        # Same Isaac Sim API limitation as 3D LiDAR -- runtime override
+        # of range / rate is disabled in v1.0 (see comment above).
         lidar_2d_profile = _resolve_lidar_profile(lidar_2d_cfg)
         lidar_2d_kwargs: Dict[str, Any] = {
             "prim_path": lidar_2d_prim_path,
@@ -460,17 +467,17 @@ def spawn_sensors(
             lidar_2d_kwargs["name"] = str(lidar_2d_cfg["usd_profile"])
         lidar_2d = LidarRtx(**lidar_2d_kwargs)
         lidar_2d.initialize()
-        print(
-            f"[spawn_sensors] 2D LiDAR attached at {lidar_2d_prim_path} "
-            f"profile='{lidar_2d_profile}'",
-            flush=True,
+        _LOG.info(
+            "2D LiDAR attached at %s profile=%r",
+            lidar_2d_prim_path,
+            lidar_2d_profile,
         )
 
     # ------------------------------------------------------------------
-    # IMU: attach-time Mars gravity assertion (THE critical test), then
-    # spawn under an optional parent Xform if the YAML requested a non-
-    # identity orientation.  ``local_orientation_rpy_deg`` follows the
-    # camera schema so the YAML is uniform across sensors.
+    # IMU: attach-time Mars gravity assertion, then spawn under an
+    # optional parent Xform if the YAML requested a non-identity
+    # orientation.  ``local_orientation_rpy_deg`` follows the camera
+    # schema so the YAML is uniform across sensors.
     # ------------------------------------------------------------------
     _assert_mars_gravity(stage)
 
@@ -480,21 +487,18 @@ def spawn_sensors(
 
     if has_imu_orient:
         imu_qw, imu_qx, imu_qy, imu_qz = _rpy_deg_to_quat_wxyz(imu_orient_deg)
-        imu_xform_path = f"{rigid_body_path}/stage1_imu_xform"
+        imu_xform_path = f"{rigid_body_path}/{_SENSOR_PRIM_NAMES['imu_xform']}"
         imu_xform = UsdGeom.Xform.Define(stage, imu_xform_path)
         imu_xform.ClearXformOpOrder()
         ix_translate = imu_xform.AddTranslateOp()
         ix_translate.Set(Gf.Vec3d(*[float(x) for x in imu_cfg["local_translation"]]))
         ix_orient = imu_xform.AddOrientOp()
         ix_orient.Set(Gf.Quatf(float(imu_qw), float(imu_qx), float(imu_qy), float(imu_qz)))
-        imu_prim_path = f"{imu_xform_path}/stage1_imu"
+        imu_prim_path = f"{imu_xform_path}/{_SENSOR_PRIM_NAMES['imu']}"
         imu_translation_arg = np.zeros(3, dtype=np.float32)
-        print(
-            f"[spawn_sensors] IMU parent Xform: {imu_xform_path} rpy_deg={imu_orient_deg}",
-            flush=True,
-        )
+        _LOG.info("IMU parent Xform: %s rpy_deg=%s", imu_xform_path, imu_orient_deg)
     else:
-        imu_prim_path = f"{rigid_body_path}/stage1_imu"
+        imu_prim_path = f"{rigid_body_path}/{_SENSOR_PRIM_NAMES['imu']}"
         imu_translation_arg = imu_translation
 
     imu = IMUSensor(
@@ -516,7 +520,7 @@ def spawn_sensors(
     )
 
 
-__all__: List[str] = [
+__all__ = [
     "SensorHandles",
     "spawn_sensors",
 ]

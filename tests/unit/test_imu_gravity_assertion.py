@@ -1,16 +1,12 @@
-"""Unit tests for the IMU Mars-gravity invariants — THE critical test.
+"""Unit tests for the IMU Mars-gravity invariants -- THE critical test.
 
-Reviewer-2 Batch 1 item #6 (2026-04-24) originally added the hard
-assertion / soft warning / offset_orientation plumbing to
-``marslab.sensors.imu.attach_imu`` (Path A).  Batch 5 item #16
-consolidated Path A and Path B into :mod:`marslab.sensors.sensor_spawner`
-(Path B), so these tests now exercise the Path B surface:
+The hard assertion / soft warning / offset_orientation plumbing now
+lives on the unified :mod:`marslab.sensors.sensor_spawner` surface:
 
-* :func:`marslab.sensors.sensor_spawner._assert_mars_gravity`
-  (ported verbatim from Path A).
-* :meth:`marslab.sensors.sensor_spawner.SensorHandles.read_imu`
-  (replacement for the free function ``read_imu``) — soft warning when
-  z-axis deviates from Mars gravity by more than 0.5 m/s^2.
+* :func:`marslab.sensors.sensor_spawner._assert_mars_gravity`.
+* :meth:`marslab.sensors.sensor_spawner.SensorHandles.read_imu` --
+  soft warning when z-axis deviates from Mars gravity by more than
+  0.5 m/s^2.
 * IMU parent-Xform ``local_orientation_rpy_deg`` plumbing + the
   attach-time hard gravity assertion are checked against the full
   :func:`spawn_sensors` entry point using the same stub strategy as
@@ -18,8 +14,9 @@ consolidated Path A and Path B into :mod:`marslab.sensors.sensor_spawner`
 
 Mock strategy (one sentence): we install minimal stub modules for
 ``pxr`` / ``pxr.UsdPhysics`` / ``isaacsim.sensors.*`` via
-``monkeypatch.setitem(sys.modules, ...)`` so ``marslab.sensors.sensor_spawner``
-can be imported and exercised with zero Isaac-Sim dependencies.
+``monkeypatch.setitem(sys.modules, ...)`` so
+``marslab.sensors.sensor_spawner`` can be imported and exercised with
+zero Isaac-Sim dependencies.
 """
 
 from __future__ import annotations
@@ -359,10 +356,10 @@ class TestReadImuRangeWarning:
             lidar_3d=None,
             lidar_2d=None,
             imu=object(),
-            camera_prim_path="/World/Rover/stage1_camera",
-            lidar_3d_prim_path="/World/Rover/stage1_lidar",
+            camera_prim_path="/World/Rover/camera",
+            lidar_3d_prim_path="/World/Rover/lidar_3d",
             lidar_2d_prim_path=None,
-            imu_prim_path="/World/Rover/stage1_imu",
+            imu_prim_path="/World/Rover/imu",
         )
 
         caplog.set_level(logging.WARNING)
@@ -390,10 +387,10 @@ class TestReadImuRangeWarning:
             lidar_3d=None,
             lidar_2d=None,
             imu=object(),
-            camera_prim_path="/World/Rover/stage1_camera",
-            lidar_3d_prim_path="/World/Rover/stage1_lidar",
+            camera_prim_path="/World/Rover/camera",
+            lidar_3d_prim_path="/World/Rover/lidar_3d",
             lidar_2d_prim_path=None,
-            imu_prim_path="/World/Rover/stage1_imu",
+            imu_prim_path="/World/Rover/imu",
         )
 
         caplog.set_level(logging.WARNING, logger="marslab.sensors.sensor_spawner")
@@ -425,8 +422,8 @@ class TestIMUOrientationAndAttachTimeAssertion:
 
         # Parent Xform path defined at the expected location, IMU nested beneath.
         defined_paths = [p for _, p in captured["xform_define_calls"]]
-        assert "/World/Rover/stage1_imu_xform" in defined_paths
-        assert handles.imu_prim_path == "/World/Rover/stage1_imu_xform/stage1_imu"
+        assert "/World/Rover/imu_xform" in defined_paths
+        assert handles.imu_prim_path == "/World/Rover/imu_xform/imu"
 
         # Orient op received the expected quaternion (cos 22.5, 0, 0, sin 22.5).
         imu_orient_ops = [
@@ -456,7 +453,7 @@ class TestIMUOrientationAndAttachTimeAssertion:
             rigid_body_path="/World/Rover",
         )
 
-        assert handles.imu_prim_path == "/World/Rover/stage1_imu"
+        assert handles.imu_prim_path == "/World/Rover/imu"
         # No IMU parent Xform should have been defined.
         assert not any("imu_xform" in p for _, p in captured["xform_define_calls"])
 

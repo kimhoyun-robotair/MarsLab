@@ -1,6 +1,6 @@
-"""B-2 refactor (2026-04-28) cover for ``main_loop._publish_odometry``.
+"""Cover for ``main_loop._publish_odometry``.
 
-The function is now a thin adapter around
+The function is a thin adapter around
 :func:`marslab.ros2_bridge.odometry_publisher.publish_odometry`.
 Tests pin:
 

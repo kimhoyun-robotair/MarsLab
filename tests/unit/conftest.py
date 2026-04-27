@@ -127,15 +127,21 @@ class FakeStaticTransformBroadcaster:
 
 
 # ---------------------------------------------------------------------------
-# Fake ``usdrt`` for offline OmniGraph builder tests (F3 fix, 2026-04-26).
+# Fake ``usdrt`` for offline OmniGraph builder tests.
 #
 # ``marslab.ros2_bridge.sensor_graph_builder._build_set_values`` lazily
 # imports ``usdrt`` to wrap the articulation root path (canonical
-# pattern at ``isaacsim/.../tests/test_pose_tree.py:77-84``). ``usdrt``
-# ships with Isaac Sim, not the system Python — without this fixture
-# every offline test that exercises ``_build_set_values`` would fail
-# with ``ModuleNotFoundError``. Installed session-wide so tests do not
-# need to opt in individually.
+# pattern at ``isaacsim/.../tests/test_pose_tree.py``). ``usdrt`` ships
+# with Isaac Sim, not the system Python -- without this fixture every
+# offline test that exercises ``_build_set_values`` would fail with
+# ``ModuleNotFoundError``. Installed session-wide so tests do not need
+# to opt in individually.
+#
+# The two pure quaternion test suites (``test_quaternion`` and
+# ``test_odometry_math``) intentionally cover the same family of math
+# helpers from different angles; per the project's flat-architecture
+# guidance, duplication below the 3x threshold is acceptable and the
+# tests stay separate.
 # ---------------------------------------------------------------------------
 
 

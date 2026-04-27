@@ -1,35 +1,32 @@
-"""Rover USD spawn + DriveAPI setup for Stage 3.
+"""Rover USD spawn and DriveAPI setup orchestration.
 
-Extracted from ``scripts/phase1/run_stage1.py`` so the Stage 3 runtime
-can orchestrate rover + scene + ROS2 without inlining ~400 lines of
-Isaac-Sim boilerplate.  Every function here touches Isaac Sim / USD, so
-imports are deferred inside each function and unit tests are deferred
-to integration smoke runs.  Public surface is declared via ``__all__``.
-See ``work_log/rover_generation/`` for the step-by-step rationale.
+Every function here touches Isaac Sim / USD, so imports are deferred
+inside each function. Public surface is declared via ``__all__``.
 """
 
 from __future__ import annotations
 
+import logging
 import os
-import sys
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-# R3-A1: ``rpy_to_quat`` was relocated to ``marslab.math.quaternion`` as
-# the single source of truth.  Re-exported here so every existing import
-# site — ``from marslab.robots.rover import rpy_to_quat`` — keeps working
-# without modification (tests/unit/test_rover_module.py, sensors/rover_rig.py).
+# ``rpy_to_quat`` is the single source of truth in
+# ``marslab.math.quaternion``.  Re-exported here so existing import
+# sites (``from marslab.robots.rover import rpy_to_quat``) keep working.
 from marslab.math.quaternion import rpy_to_quat  # noqa: F401
 
-# R4-3 (2026-04-22): DriveAPI + PD-gain helpers relocated to
-# ``marslab.robots.drive_api_setup``.  Re-exported here so existing
-# imports (``from marslab.robots.rover import configure_drives``,
-# ``reinforce_pd_gains``) keep working.  Original inline bodies are
+# DriveAPI and PD-gain helpers live in ``marslab.robots.drive_api_setup``.
+# Re-exported here so existing imports (``from marslab.robots.rover import
+# configure_drives``, ``reinforce_pd_gains``) keep working.
 from marslab.robots.drive_api_setup import (  # noqa: F401
     _apply_drive_api,
     configure_drives,
     reinforce_pd_gains,
+    resolve_joint_indices,
 )
+
+_LOG = logging.getLogger(__name__)
 
 __all__ = [
     "rpy_to_quat",
@@ -47,22 +44,6 @@ __all__ = [
     "reinforce_pd_gains",
     "spawn_rover",
 ]
-
-
-def resolve_joint_indices(dof_names: List[str], requested: List[str]) -> List[int]:
-    """Resolve each requested joint name to its index in ``dof_names``.
-
-    Raises:
-        ValueError: If any requested joint is not present.
-    """
-    name_to_index = {name: idx for idx, name in enumerate(dof_names)}
-    missing = [name for name in requested if name not in name_to_index]
-    if missing:
-        raise ValueError(
-            f"Joint(s) not present in articulation DOF list: {missing}. "
-            f"Available DOFs: {list(dof_names)}"
-        )
-    return [name_to_index[name] for name in requested]
 
 
 @dataclass
@@ -116,6 +97,12 @@ def apply_spawn_pose(
         prim_path: Rover root prim path.
         spawn_xyz: World-frame position (m).
         orientation_rpy: ``(roll, pitch, yaw)`` in radians (ZYX intrinsic).
+
+    Note:
+        For the NASA JPL m2020 URDF, callers pass ``[pi, 0, 0]`` to
+        compensate for the URDF's non-standard link frame convention.
+        See ``docs/frame_conventions.md`` for the full coordinate-frame
+        story.
     """
     from pxr import Gf, UsdGeom
 
@@ -149,15 +136,11 @@ def apply_mass_properties(
     All three overrides are optional (pass ``None`` / ``0.0`` to skip).
     See ``configs/robots/rover_m2020.yaml`` comments for tuning rationale.
     """
-    from pxr import Gf, Sdf, UsdPhysics
+    from pxr import Gf, PhysxSchema, UsdPhysics
 
     art_root_prim = stage.GetPrimAtPath(art_root_path)
     if not art_root_prim.IsValid():
-        print(
-            f"[marslab.robots.rover] WARNING: {art_root_path} not found; "
-            "skipping mass override.",
-            file=sys.stderr,
-        )
+        _LOG.warning("%s not found; skipping mass override.", art_root_path)
         return
 
     if com_offset is not None:
@@ -168,20 +151,17 @@ def apply_mass_properties(
             Gf.Vec3f(float(com_offset[0]), float(com_offset[1]), float(com_offset[2]))
         )
 
-    if angular_damping > 0.0:
-        attr = art_root_prim.CreateAttribute(
-            "physxRigidBody:angularDamping", Sdf.ValueTypeNames.Float
-        )
-        attr.Set(float(angular_damping))
-
-    if linear_damping > 0.0:
-        attr = art_root_prim.CreateAttribute(
-            "physxRigidBody:linearDamping", Sdf.ValueTypeNames.Float
-        )
-        attr.Set(float(linear_damping))
+    if angular_damping > 0.0 or linear_damping > 0.0:
+        if not art_root_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI):
+            PhysxSchema.PhysxRigidBodyAPI.Apply(art_root_prim)
+        rb_api = PhysxSchema.PhysxRigidBodyAPI(art_root_prim)
+        if angular_damping > 0.0:
+            rb_api.CreateAngularDampingAttr().Set(float(angular_damping))
+        if linear_damping > 0.0:
+            rb_api.CreateLinearDampingAttr().Set(float(linear_damping))
 
 
-# --- Day 2 Task B (2026-04-26): M2020 ballpark physics injection -----------
+# --- M2020 ballpark physics injection ---------------------------------------
 # Three small helpers below replace the URDF auto-computed mass / inertia /
 # friction placeholders with the values declared in
 # ``configs/robots/rover_m2020.yaml`` ``chassis:`` / ``wheels:`` /
@@ -315,9 +295,9 @@ def apply_wheel_physics(
         results[name] = _set_mass_and_inertia(stage, wheel_prim_path, mass, inertia)
         # Friction lands on the wheel collider via a dedicated PhysX
         # material.  Failure to find the prim has already been recorded
-        # in ``results[name]``; we still attempt the friction binding so
-        # a follow-up fix to the wheel-link name list takes effect on
-        # the next spawn without revisiting this helper.
+        # in ``results[name]``; the friction binding is still attempted
+        # so a follow-up fix to the wheel-link name list takes effect
+        # on the next spawn without revisiting this helper.
         _bind_wheel_friction_material(
             stage,
             wheel_prim_path,
@@ -415,6 +395,12 @@ def _write_joint_damping(stage: Any, joint_path: str, damping: float) -> bool:
     treats the suspension damping channel identically to the wheel /
     steering damping channels.  Returns False if the joint prim is
     missing.
+
+    Note:
+        The raw USD attribute path is kept here (not the typed
+        ``UsdPhysics.DriveAPI`` accessors) for symmetry with
+        ``_apply_drive_api`` and so the unit-test fakes can verify the
+        attribute by string key.
     """
     prim = stage.GetPrimAtPath(joint_path)
     if not prim.IsValid():
@@ -450,12 +436,132 @@ def find_rigid_body_path(stage: Any, chassis_path: str) -> str:
         if child.HasAPI(UsdPhysics.RigidBodyAPI):
             return str(child.GetPath())
 
-    print(
-        f"[marslab.robots.rover] WARNING: no RigidBodyAPI child under {chassis_path}; "
-        "sensors will be static!",
-        file=sys.stderr,
-    )
+    _LOG.warning("no RigidBodyAPI child under %s; sensors will be static!", chassis_path)
     return chassis_path
+
+
+def _spawn_rover_usd(
+    stage: Any,
+    prim_path: str,
+    usd_abs: str,
+    spawn_xyz: Tuple[float, float, float],
+    spawn_orientation_rpy: Tuple[float, float, float],
+) -> str:
+    """Attach the USD reference, set the spawn pose, and locate the rigid body.
+
+    Loads the rover USD under ``prim_path``, writes the world-frame
+    translation + X-roll orientation onto the root Xform, then walks the
+    chassis to find the prim that actually carries ``RigidBodyAPI``.
+
+    Args:
+        stage: USD stage (post-``SimulationApp`` init).
+        prim_path: Destination stage path (e.g. ``/World/Rover``).
+        usd_abs: Absolute filesystem path to the rover USD file.
+        spawn_xyz: World-frame spawn position (m).
+        spawn_orientation_rpy: ``(roll, pitch, yaw)`` in radians.  See
+            ``docs/frame_conventions.md`` for the M2020 X-roll rationale.
+
+    Returns:
+        Path of the moving ``RigidBodyAPI`` prim under
+        ``{prim_path}/Body_Chassis``.  Falls back to the chassis path
+        itself with a warning when no rigid-body child is found.
+    """
+    load_rover_usd(usd_abs, prim_path)
+    apply_spawn_pose(stage, prim_path, spawn_xyz, spawn_orientation_rpy)
+    chassis_path = f"{prim_path}/Body_Chassis"
+    # Discover the moving rigid-body prim BEFORE applying mass / damping
+    # so both ``apply_mass_properties`` and ``apply_chassis_physics``
+    # operate on the same articulation body. Earlier code path applied
+    # mass to a literal ``{chassis_path}/Body_Chassis`` while applying
+    # chassis physics to the discovered rigid_body_path, which could
+    # silently mismatch if the USD layout changes.
+    return find_rigid_body_path(stage, chassis_path)
+
+
+def _apply_rover_mass(
+    stage: Any,
+    rigid_body_path: str,
+    com_offset: Optional[Tuple[float, float, float]],
+    angular_damping: float,
+    linear_damping: float,
+) -> None:
+    """Forward CoM offset + damping overrides to :func:`apply_mass_properties`.
+
+    Thin pass-through that exists so :func:`spawn_rover` can stay a flat
+    orchestrator: every override here is optional and any of the three
+    inputs may be ``None`` / ``0.0`` to skip.
+    """
+    apply_mass_properties(
+        stage,
+        rigid_body_path,
+        com_offset,
+        angular_damping,
+        linear_damping,
+    )
+
+
+def _apply_rover_articulation_physics(
+    stage: Any,
+    rigid_body_path: str,
+    rover_cfg: Dict[str, Any],
+) -> None:
+    """Validate and apply chassis / wheel / suspension overrides.
+
+    Each block is optional -- a rover YAML that omits a block keeps the
+    legacy behaviour (URDF-derived mass + the single
+    ``control.suspension_damping`` channel).  See
+    ``configs/robots/rover_m2020.yaml`` for value rationale.  Each block
+    is wrapped with ``model_validate`` so YAML typos / negative masses /
+    unknown keys fail at spawn with ``ValidationError`` instead of
+    ``KeyError`` deep inside the ``apply_*_physics`` helpers.
+
+    Args:
+        stage: USD stage handle.
+        rigid_body_path: Articulation root path returned by
+            :func:`find_rigid_body_path`.  Wheel and suspension joints
+            are addressed relative to its parent (the chassis Xform).
+        rover_cfg: Merged ``rover:`` block from the scenario config.  The
+            ``chassis:`` / ``wheels:`` / ``suspension:`` keys are the
+            ones consumed here; the wheel link list is sourced from
+            ``control.drive_joint_names``.
+    """
+    from marslab.config.schema.robot import (  # noqa: PLC0415
+        ChassisConfig,
+        SuspensionConfig,
+        WheelsConfig,
+    )
+
+    # Wheels and suspension joints live under the chassis Xform; the
+    # rigid-body prim is the chassis's moving child.  Source the chassis
+    # path from ``rover_cfg["prim_path"]`` so the helper is robust to the
+    # ``find_rigid_body_path`` fallback (which returns the chassis path
+    # itself when no rigid-body child is found).
+    prim_path = str(rover_cfg.get("prim_path", "/World/Rover"))
+    chassis_path = f"{prim_path}/Body_Chassis"
+
+    chassis_cfg = rover_cfg.get("chassis")
+    if isinstance(chassis_cfg, dict):
+        validated_chassis = ChassisConfig.model_validate(chassis_cfg).model_dump()
+        if not apply_chassis_physics(stage, rigid_body_path, validated_chassis):
+            _LOG.warning(
+                "chassis prim missing at %s; chassis mass/inertia override skipped.",
+                rigid_body_path,
+            )
+
+    wheels_cfg = rover_cfg.get("wheels")
+    if isinstance(wheels_cfg, dict):
+        validated_wheels = WheelsConfig.model_validate(wheels_cfg).model_dump()
+        # Default wheel link list = the six ``*_DRIVE`` links from the
+        # M2020 URDF.  Pulled from ``control.drive_joint_names`` so a
+        # custom rover variant only has to declare its joint names once.
+        wheel_link_names = list(rover_cfg.get("control", {}).get("drive_joint_names", []))
+        if wheel_link_names:
+            apply_wheel_physics(stage, chassis_path, wheel_link_names, validated_wheels)
+
+    suspension_cfg = rover_cfg.get("suspension")
+    if isinstance(suspension_cfg, dict):
+        validated_suspension = SuspensionConfig.model_validate(suspension_cfg).model_dump()
+        apply_suspension_damping_split(stage, chassis_path, validated_suspension)
 
 
 def spawn_rover(
@@ -466,10 +572,16 @@ def spawn_rover(
 ) -> SpawnedRover:
     """Attach the rover USD, position it, and set physics overrides.
 
-    This is a convenience wrapper that calls
-    :func:`load_rover_usd` → :func:`apply_spawn_pose` →
-    :func:`apply_mass_properties` → :func:`find_rigid_body_path` in
-    order.  Drive configuration (pre-reset) and PD gain reinforcement
+    Thin orchestrator that delegates to three helpers in order:
+
+    1. :func:`_spawn_rover_usd` -- USD reference + spawn pose + rigid
+       body discovery.
+    2. :func:`_apply_rover_mass` -- CoM offset + angular / linear
+       damping on the articulation body.
+    3. :func:`_apply_rover_articulation_physics` -- chassis / wheel /
+       suspension overrides validated through pydantic.
+
+    Drive configuration (pre-reset) and PD gain reinforcement
     (post-reset) are left for the caller so it can interleave them
     around ``world.reset()``.
 
@@ -482,98 +594,42 @@ def spawn_rover(
 
     Returns:
         :class:`SpawnedRover` with discovered prim paths.
+
+    Note:
+        The caller is responsible for invoking ``apply_nameoverride``
+        and ``create_odom_anchor`` from
+        :mod:`marslab.ros2_bridge.tf_nameoverrides` after spawn if
+        ROS2 TF integration is required.  The recommended sequence is::
+
+            result = spawn_rover(stage, ...)
+            apply_nameoverride(stage, result.rigid_body_path, "base_link")
+            create_odom_anchor(
+                stage, DEFAULT_ODOM_ANCHOR_PATH, spawn_xyz, frame_name="odom"
+            )
     """
     prim_path = str(rover_cfg.get("prim_path", "/World/Rover"))
-    load_rover_usd(usd_abs, prim_path)
-
     spawn_block = rover_cfg.get("spawn", {}) if isinstance(rover_cfg, dict) else {}
     rpy = tuple(
         spawn_block.get("orientation_rpy")
         or rover_cfg.get("spawn_orientation_rpy", [0.0, 0.0, 0.0])
     )
-    apply_spawn_pose(stage, prim_path, spawn_xyz, rpy)
 
-    chassis_path = f"{prim_path}/Body_Chassis"
-    # The articulation body lives one level deeper; that's also where
-    # damping + CoM overrides belong.
-    com_offset = rover_cfg.get("com_offset")
-    apply_mass_properties(
+    rigid_body_path = _spawn_rover_usd(stage, prim_path, usd_abs, spawn_xyz, rpy)
+
+    com_offset_raw = rover_cfg.get("com_offset")
+    com_offset = None if com_offset_raw is None else tuple(float(v) for v in com_offset_raw)
+    _apply_rover_mass(
         stage,
-        f"{chassis_path}/Body_Chassis",
-        None if com_offset is None else tuple(float(v) for v in com_offset),
+        rigid_body_path,
+        com_offset,
         float(rover_cfg.get("angular_damping", 0.0)),
         float(rover_cfg.get("linear_damping", 0.0)),
     )
 
-    rigid_body_path = find_rigid_body_path(stage, chassis_path)
-
-    # --- S3 release-blocker fix (2026-04-27): REP-105 frame names -------
-    # Pin the rover articulation root to ``base_link`` and create a
-    # stationary ``odom`` anchor prim at the rover's spawn pose.  The
-    # non-Raw ``ROS2PublishTransformTree`` reads ``isaac:nameOverride``
-    # on every ``compute()`` tick (OGN ``Has State? = False``) so the
-    # published chain reads ``odom -> base_link -> {wheels, sensors}``
-    # instead of ``world -> Body_Chassis -> ...``.  Citation:
-    # ``test_pose_tree.py:154-156, :215-229``.
-    from marslab.ros2_bridge.tf_nameoverrides import (  # noqa: PLC0415
-        DEFAULT_ODOM_ANCHOR_PATH,
-        apply_nameoverride,
-        create_odom_anchor,
-    )
-
-    apply_nameoverride(stage, rigid_body_path, "base_link")
-    create_odom_anchor(stage, DEFAULT_ODOM_ANCHOR_PATH, spawn_xyz, frame_name="odom")
-
-    # --- Day 2 Task B (2026-04-26): M2020 ballpark physics overrides ----
-    # ``chassis:`` / ``wheels:`` / ``suspension:`` blocks pin mass,
-    # inertia, friction so PhysX never sees the URDF auto-computed
-    # placeholders.  Each block is optional — a rover YAML that omits a
-    # block keeps the legacy behaviour (URDF-derived mass + the single
-    # ``control.suspension_damping`` channel).  See
-    # ``configs/robots/rover_m2020.yaml`` for value rationale.
-    #
-    # Day 3 Reviewer 2 fix-up (H2, 2026-04-25): wrap each block with
-    # ``model_validate`` so YAML typos / negative masses / unknown keys
-    # fail at spawn with ``ValidationError`` instead of ``KeyError`` deep
-    # in apply_*_physics.  Same shape after dump — no behaviour change
-    # for valid YAML.  Closes the schema-bypass anti-pattern flagged in
-    # ``~/MarsLab/tmp/day2_code_review.md`` H2.
-    from marslab.config.schema.robot import (  # noqa: PLC0415
-        ChassisConfig,
-        SuspensionConfig,
-        WheelsConfig,
-    )
-
-    chassis_cfg = rover_cfg.get("chassis")
-    if isinstance(chassis_cfg, dict):
-        validated_chassis = ChassisConfig.model_validate(chassis_cfg).model_dump()
-        if not apply_chassis_physics(stage, rigid_body_path, validated_chassis):
-            print(
-                "[marslab.robots.rover] WARNING: chassis prim missing at "
-                f"{rigid_body_path}; chassis mass/inertia override skipped.",
-                file=sys.stderr,
-            )
-
-    wheels_cfg = rover_cfg.get("wheels")
-    if isinstance(wheels_cfg, dict):
-        validated_wheels = WheelsConfig.model_validate(wheels_cfg).model_dump()
-        # Default wheel link list = the six ``*_DRIVE`` links from the
-        # M2020 URDF.  Pulled from ``control.drive_joint_names`` so a
-        # custom rover variant only has to declare its joint names once.
-        wheel_link_names = list(
-            validated_wheels.get("link_names")
-            or rover_cfg.get("control", {}).get("drive_joint_names", [])
-        )
-        if wheel_link_names:
-            apply_wheel_physics(stage, chassis_path, wheel_link_names, validated_wheels)
-
-    suspension_cfg = rover_cfg.get("suspension")
-    if isinstance(suspension_cfg, dict):
-        validated_suspension = SuspensionConfig.model_validate(suspension_cfg).model_dump()
-        apply_suspension_damping_split(stage, chassis_path, validated_suspension)
+    _apply_rover_articulation_physics(stage, rigid_body_path, rover_cfg)
 
     return SpawnedRover(
         prim_path=prim_path,
-        chassis_path=chassis_path,
+        chassis_path=f"{prim_path}/Body_Chassis",
         rigid_body_path=rigid_body_path,
     )

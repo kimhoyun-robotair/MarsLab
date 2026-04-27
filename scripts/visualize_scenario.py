@@ -1,4 +1,4 @@
-"""Offline visualizer for MarsLab scenario YAMLs (Wk2 #1-#3).
+"""Offline visualizer for MarsLab scenario YAMLs.
 
 Loads a scenario YAML through the pydantic schema, applies the optional
 DEM crop, runs the Golombek rock sampler, and produces a 2x2 matplotlib
@@ -18,7 +18,7 @@ Usage:
 
 Example:
     python3 scripts/visualize_scenario.py configs/scenarios/basic_mars.yaml
-    -> writes _workspace/wk2_terrain_basic_mars.png
+    -> writes _workspace/scenario_basic_mars.png
 """
 
 from __future__ import annotations
@@ -113,7 +113,7 @@ def visualize(config: MarsLabConfig, output_png: str) -> None:
     fig.colorbar(im1, ax=ax1, label="Elevation (m)")
     _setup_panel(
         ax1,
-        f"{terrain.scenario_name or 'scenario'} — DEM crop "
+        f"{terrain.scenario_name or 'scenario'} -- DEM crop "
         f"({meta['width']}x{meta['height']} @ {res_x:.1f} m/px)",
     )
     if config.robots:
@@ -126,7 +126,7 @@ def visualize(config: MarsLabConfig, output_png: str) -> None:
     fig.colorbar(im2, ax=ax2, label="Slope (deg)")
     _setup_panel(
         ax2,
-        "Slope magnitude — "
+        "Slope magnitude -- "
         f"mean={slope_stats['mean']:.1f} p90={slope_stats['p90']:.1f} "
         f"max={slope_stats['max']:.1f} deg",
     )
@@ -147,7 +147,7 @@ def visualize(config: MarsLabConfig, output_png: str) -> None:
     ax3.set_aspect("equal")
     _setup_panel(
         ax3,
-        f"Rock placement — k={terrain.rock_sfd_k} "
+        f"Rock placement -- k={terrain.rock_sfd_k} "
         f"(n={len(rocks)}, measured CFA={measured_cfa:.3f})",
     )
 
@@ -206,7 +206,7 @@ def main(argv: list[str]) -> int:
     if len(argv) >= 3:
         out_path = argv[2]
     else:
-        out_path = os.path.join("_workspace", f"wk2_terrain_{scenario_name}.png")
+        out_path = os.path.join("_workspace", f"scenario_{scenario_name}.png")
 
     visualize(config, out_path)
     return 0

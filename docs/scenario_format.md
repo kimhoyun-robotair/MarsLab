@@ -15,10 +15,10 @@ step.
 * Sensor presets: `configs/sensors/*.yaml`.
 * Rover base config: `configs/robots/rover_m2020.yaml`.
 
-This file targets MarsLab v1.0 (sprint Day 4-5 2026-04-25).  The format is
-stable for v1.0; v2.0 may add a `photorealism:` block and v3.0 will add
-`terramechanics:` — both will land as additive, optional top-level keys so
-v1.0 scenarios continue to load without edits.
+This file targets MarsLab v1.0.  The format is stable for v1.0; future
+releases may add additive, optional top-level blocks (e.g. a
+`photorealism:` block, or a `terramechanics:` block) so v1.0 scenarios
+continue to load without edits.
 
 ---
 
@@ -26,7 +26,7 @@ v1.0 scenarios continue to load without edits.
 
 Every scenario YAML is a map with a small, fixed set of top-level keys.
 Anything outside this set fails validation (`extra="forbid"` is set on every
-schema model — Reviewer 2 #12, 2026-04-24).  The keys are:
+schema model).  The keys are:
 
 | Key                | Required | Schema model                         |
 |--------------------|----------|--------------------------------------|
@@ -122,7 +122,7 @@ sun sweep + tau profile at runtime.
 | `atmo_pressure`               | int         | Pascals; 610 Pa is the M2020 / MSL mean        |
 | `atmo_density`                | float       | kg/m^3; 0.020 default                          |
 | `dust_optical_depth`          | float       | tau; clear-ish default 0.3                     |
-| `solar_constant_mean`         | float       | W/m^2 at Mars distance (589 default)           |
+| `solar_constant`              | float       | W/m^2 at Mars distance (589 default)           |
 | `surface_albedo_range`        | [float, float] | [0.10, 0.40] for v1.0                       |
 | `sol_duration_seconds`        | int         | 88642 s (24 h 37 m 22 s)                       |
 | `dust_opacity_range`          | [float, float] | tau range for domain randomisation          |
@@ -181,8 +181,8 @@ the lava-tube geometry parameters used by
 ## 4. `rover` block
 
 The `rover` block enables a single rover and points at the M2020 base
-config.  v1.0 ships **a single M2020 rover** — multi-rover support is
-deferred to v1.5 (after iSpaRo 2026).  The schema is
+config.  v1.0 ships **a single M2020 rover**; multi-rover support is
+deferred to a future release.  The schema is
 `marslab.config.schema.robot.RobotConfig` (chassis + wheels + suspension
 + control + sensors), with the rover-base merge handled by
 `marslab/config/yaml_loader.py:load_scenario_config`.
@@ -278,8 +278,8 @@ modules, solar arrays, drop-in OBJ rocks, etc.  Two parallel sub-lists:
 | `structures:`        | `.usd` / `.usda` / `.usdc` | `marslab.scene.structure_loader.load_structures` |
 | `structure_assets:`  | `.obj` / `.stl`            | runtime conversion via `omni.kit.asset_converter` |
 
-The `structure_assets:` list is the v1.0 sprint Day-2 (Task H) addition
-for drop-in art — every scenario inherits an empty list from
+The `structure_assets:` list lets scenarios drop in OBJ/STL art without
+USD authoring -- every scenario inherits an empty list from
 `_base.yaml` and overrides only the entries it actually wants.
 
 ```yaml
@@ -401,7 +401,7 @@ to drop in OBJ rocks beyond the procedural placer.
 
 ```bash
 PYTHONPATH=/path/to/MarsLab ~/isaacsim/python.sh \
-    scripts/phase1/run_stage3_monolithic.py \
+    scripts/phase1/main.py \
     --config configs/scenarios/jezero_delta.yaml
 ```
 
@@ -433,8 +433,7 @@ Every YAML key validates against a pydantic model under
 
 All models declare `model_config = ConfigDict(extra="forbid")` so a
 typo (`focal_lenght`, `rage_min`) fails validation at YAML load time
-instead of being silently dropped to a default — this is the Reviewer 2
-#12 (2026-04-24) fix that closed the schema-bypass class of bugs.
+instead of being silently dropped to a default.
 
 ---
 
@@ -442,17 +441,17 @@ instead of being silently dropped to a default — this is the Reviewer 2
 
 v1.0 ships a **single M2020 Perseverance rover** per scenario.  Every
 reference scenario in `configs/scenarios/` declares one `rover:` block.
-Multi-rover coordination — running two M2020 rovers, or one rover plus
-one quadruped, in the same scene — is deferred to **v1.5** (post-iSpaRo
-2026).  The current `RobotConfig.prim_path` already supports per-instance
-prim paths so the schema is multi-rover-ready; only the orchestration
-runtime (sensor namespacing, TF tree composition, two articulated drive
-loops) remains to be wired.
+Multi-rover coordination -- running two M2020 rovers, or one rover plus
+one quadruped, in the same scene -- is deferred to a future release.
+The current `RobotConfig.prim_path` already supports per-instance prim
+paths so the schema is multi-rover-ready; only the orchestration runtime
+(sensor namespacing, TF tree composition, two articulated drive loops)
+remains to be wired.
 
-If you need a multi-rover smoke before v1.5, copy the rover block,
-suffix the prim path (`/World/Rover_0`, `/World/Rover_1`), and run the
-scenario manually — but expect TF / topic collisions until the v1.5
-namespacing work lands.
+If you need a multi-rover smoke today, copy the rover block, suffix the
+prim path (`/World/Rover_0`, `/World/Rover_1`), and run the scenario
+manually -- but expect TF / topic collisions until the namespacing work
+lands.
 
 ---
 

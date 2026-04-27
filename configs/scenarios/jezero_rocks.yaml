@@ -1,10 +1,10 @@
 # Jezero Rock-Dense Scenario
-# HiRISE DEM crop: same flat region as jezero_flat (row=180, col=0, 200x200)
-# High-density large rocks for visual verification and rover obstacle testing
-# CFA k=0.08 (~VL1-class density), diameter 0.5-5.0m (large rocks only)
+# HiRISE DEM crop: same flat region as jezero_flat (row=180, col=0, 200x200).
+# High-density large rocks for visual verification and rover obstacle testing.
+# CFA k=0.08 (~VL1-class density), diameter 0.5-5.0m (large rocks only).
 #
-# Reviewer 2 #17 (2026-04-24): mars_env + rendering defaults come from
-# ``_base.yaml`` via the root-level ``base_config`` include.
+# mars_env + rendering defaults come from ``_base.yaml`` via the root-level
+# ``base_config`` include.
 
 base_config: _base.yaml
 

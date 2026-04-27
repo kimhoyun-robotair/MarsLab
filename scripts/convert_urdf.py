@@ -1,9 +1,15 @@
-"""URDF to USD conversion utility.
+"""Generic URDF to USD conversion utility (Isaac Sim importer).
+
+Converts an arbitrary URDF file to USD format using Isaac Sim's URDF
+importer and saves the result as a USD file.
+
+For NASA JPL m2020 Perseverance specifically, use
+``scripts/phase1/convert_urdf_to_usd.py`` instead.  That variant
+handles JPL-specific URDF sanitization (DBL_MAX joint limits, the
+floating root joint, mass/inertia placeholders) which this generic
+converter does not perform.
 
 Run with: ~/isaacsim/python.sh scripts/convert_urdf.py --urdf <path>
-
-Converts a URDF file to USD format using Isaac Sim's URDF importer
-and saves the result as a USD file.
 """
 
 import argparse

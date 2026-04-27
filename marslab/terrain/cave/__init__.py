@@ -1,14 +1,9 @@
 """Cave subpackage: geometry, mesh, features, breakdown, orchestrator, USD builder.
 
-R5 (2026-04-23) split the previously 884-LOC ``cave_generator.py`` into
-four focused submodules. The 2026-04-26 follow-up moved the thin
-orchestrator and the USD builder into this same subpackage so all
-cave-related code lives under one folder:
-
-* ``orchestrator`` (was top-level ``cave_generator.py``) -- thin numpy +
-  trimesh assembly entry point :func:`generate_cave_mesh`.
-* ``usd_builder`` (was top-level ``cave_mesh_builder.py``) -- Isaac Sim
-  USD prim creation :func:`build_cave_scene`.
+The cave generation pipeline is split into focused submodules so that
+each layer can be unit-tested in isolation. The orchestrator is a thin
+numpy + trimesh assembly entry point; the USD builder turns the
+trimesh objects into Isaac Sim prims.
 
 Submodules:
     geometry     -- centerline, cross-section, tangent frames (pure math)

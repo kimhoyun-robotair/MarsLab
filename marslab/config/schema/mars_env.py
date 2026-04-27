@@ -1,12 +1,12 @@
 """Mars environmental parameters (gravity, atmosphere, solar, albedo, seed).
 
-Adds ``DynamicAtmosphereConfig`` (plus the ``SunSweepConfig`` /
-``TauConstantConfig`` / ``TauRampConfig`` / ``TauSineConfig`` leaves) so
-the ``mars_env.dynamic_atmosphere`` YAML block gets pydantic validation
-instead of the previous untyped ``dict.get()`` parsing.
+Includes ``DynamicAtmosphereConfig`` (with the ``SunSweepConfig`` /
+``TauConstantConfig`` / ``TauRampConfig`` / ``TauSineConfig`` leaves)
+so the ``mars_env.dynamic_atmosphere`` YAML block gets pydantic
+validation instead of untyped ``dict.get()`` parsing.
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -20,22 +20,21 @@ __all__ = [
 ]
 
 
-# Reviewer 2 #12 (2026-04-24): ``extra="forbid"`` turned on across every
-# schema model in this module.  Before this change pydantic v2's default
-# (``extra="ignore"``) silently dropped unknown YAML keys, hiding typos
-# like ``sun_azimuth`` (no ``_deg`` suffix) as well as entire scenario
-# blocks (``rover:`` -- MarsLabConfig has no ``rover`` field so the
-# whole rover tuning was being thrown away by ``load_and_validate``).
-# Each BaseModel below attaches this ConfigDict so any unknown key fails
-# with ``pydantic.ValidationError`` at config-load time.
+# Every schema model in this module pins ``extra="forbid"`` so unknown
+# YAML keys fail loudly instead of being silently dropped by pydantic
+# v2's default ``extra="ignore"``.  Without this, typos like
+# ``sun_azimuth`` (no ``_deg`` suffix) or whole scenario blocks
+# (``rover:`` when MarsLabConfig had no rover field) would be discarded
+# without diagnosis.  Each BaseModel below attaches this ConfigDict so
+# any unknown key raises ``pydantic.ValidationError`` at config-load
+# time.
 
 
 class SunSweepConfig(BaseModel):
     """Azimuth / elevation envelope for the diurnal sun sweep.
 
     Matches the ``mars_env.dynamic_atmosphere.sun_sweep`` YAML block.
-    Consumed by ``compute_sol_sun_position`` via
-    ``scripts/phase1/run_stage2.py``.
+    Consumed by ``compute_sol_sun_position`` in the Stage-2 runtime.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -109,9 +108,9 @@ class DynamicAtmosphereConfig(BaseModel):
     """Runtime sun sweep + tau profile for the dynamic atmosphere loop.
 
     Matches the ``mars_env.dynamic_atmosphere`` YAML block. Consumed by
-    ``scripts/phase1/run_stage2.py`` and the phase-3 runtime. Every
-    field defaults so existing scenario YAMLs that omit some keys
-    continue to validate (backward-compat guarantee).
+    the Stage-2 and Stage-3 runtimes. Every field defaults so existing
+    scenario YAMLs that omit some keys continue to validate
+    (backward-compat guarantee).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -157,7 +156,17 @@ class MarsEnvConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    gravity: float = Field(default=3.72, ge=3.0, le=4.0, description="Surface gravity in m/s^2")
+    gravity: float = Field(
+        default=3.72,
+        ge=3.6,
+        le=3.85,
+        description=(
+            "Surface gravity in m/s^2. Tightened bounds (3.60-3.85) match "
+            "the integration test tolerance for the Mars gravity check "
+            "(3.72 +/- 0.05); values outside this range break the IMU "
+            "z-axis assertion."
+        ),
+    )
     atmo_pressure: float = Field(
         default=610, ge=400, le=1200, description="Atmospheric pressure in Pa"
     )
@@ -167,8 +176,11 @@ class MarsEnvConfig(BaseModel):
     dust_optical_depth: float = Field(
         default=0.3, ge=0.05, le=6.0, description="Dust optical depth (tau)"
     )
-    solar_constant_mean: float = Field(
-        default=589, ge=480, le=730, description="Solar constant in W/m^2 at 1.52 AU"
+    solar_constant: float = Field(
+        default=589,
+        ge=480,
+        le=730,
+        description="Solar constant in W/m^2 at 1.52 AU (Mars mean orbital radius).",
     )
     surface_albedo_range: tuple[float, float] = Field(
         default=(0.10, 0.40), description="Surface albedo min/max"
@@ -188,10 +200,34 @@ class MarsEnvConfig(BaseModel):
     sun_elevation_deg: float = Field(
         default=45.0, ge=0.0, le=90.0, description="Sun elevation above horizon in degrees"
     )
-    # P6 (2026-04-23) physics integration tick. Not a Mars constant — the
-    # engine step size — but grouped here so every environmental scalar
-    # flows through a single pydantic model rather than duplicated
-    # ``1.0/60.0`` literals in :mod:`marslab.runtime.stage2_scene` and
+    obliquity_deg: float = Field(
+        default=25.19,
+        ge=24.0,
+        le=26.0,
+        description=(
+            "Mars axial tilt (obliquity) in degrees. Drives the seasonal "
+            "sun-elevation envelope used by ``compute_sol_sun_position``. "
+            "Mars current obliquity is ~25.19 deg (Allison and McEwen 2000); "
+            "the bounds permit small per-scenario tweaks while rejecting "
+            "values that would silently corrupt the spherical-trigonometry "
+            "sun-position computation."
+        ),
+    )
+    default_latitude_deg: float = Field(
+        default=18.44,
+        ge=-90.0,
+        le=90.0,
+        description=(
+            "Default planetographic latitude in degrees. Used by "
+            "``compute_sol_sun_position`` when a scenario does not specify "
+            "a custom latitude. Default is 18.44 deg N -- Jezero crater "
+            "landing site (M2020 Perseverance)."
+        ),
+    )
+    # Physics integration tick. Not a Mars constant -- the engine step
+    # size -- but grouped here so every environmental scalar flows
+    # through a single pydantic model rather than duplicated ``1.0/60.0``
+    # literals in :mod:`marslab.runtime.stage2_scene` and
     # :mod:`marslab.runtime.stage2_loop`.
     physics_dt: float = Field(
         default=1.0 / 60.0,
@@ -201,14 +237,33 @@ class MarsEnvConfig(BaseModel):
     )
     seed: int = Field(default=42, ge=0)
 
-    # R2-A2 (2026-04-22): structured replacement for the previously
-    # untyped ``mars_env.dynamic_atmosphere`` dict. ``default_factory``
-    # guarantees backward-compat for any config that omits the block
-    # entirely (the Wk1 probe configs do).
+    # Structured replacement for the previously untyped
+    # ``mars_env.dynamic_atmosphere`` dict. ``default_factory`` guarantees
+    # backward-compat for any config that omits the block entirely.
     dynamic_atmosphere: DynamicAtmosphereConfig = Field(
         default_factory=DynamicAtmosphereConfig,
         description="Runtime sun sweep + tau profile. See ``DynamicAtmosphereConfig`` for fields.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_legacy_solar_constant_mean(cls, data: Any) -> Any:
+        """Map the legacy ``solar_constant_mean`` key onto ``solar_constant``.
+
+        The ``_mean`` suffix was misleading because no min/max companion
+        fields exist. Accept the legacy key for one release so existing
+        YAMLs keep loading; if both keys are present the new
+        ``solar_constant`` value wins.
+        """
+        if not isinstance(data, dict):
+            return data
+        if "solar_constant_mean" in data and "solar_constant" not in data:
+            data = dict(data)
+            data["solar_constant"] = data.pop("solar_constant_mean")
+        elif "solar_constant_mean" in data:
+            data = dict(data)
+            data.pop("solar_constant_mean", None)
+        return data
 
     @model_validator(mode="after")
     def check_ranges(self) -> "MarsEnvConfig":

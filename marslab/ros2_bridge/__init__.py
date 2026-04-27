@@ -5,7 +5,7 @@ Public surface
 
 * :func:`init_rclpy_side` -- Create the rclpy node + cmd_vel
   subscriber + static sensor TF + odometry publisher in one call.
-  The only function needed by ``scripts/phase1/run_stage3.py``.
+  The only function needed by ``scripts/phase1/main.py``.
 * :func:`build_sensor_graph` -- OmniGraph construction (re-exported
   from :mod:`marslab.ros2_bridge.sensor_graph`).
 * Pure math helpers in :mod:`marslab.ros2_bridge.odometry_math`.
@@ -13,9 +13,10 @@ Public surface
 The individual submodules (``cmd_vel_subscriber``, ``odometry_publisher``,
 ``tf_broadcaster``) stay importable on their own for unit tests.
 
-R4-6 (2026-04-22): ``BridgeContext`` dataclass and ``init_rclpy_side``
-moved to :mod:`marslab.ros2_bridge.context` and
-:mod:`marslab.ros2_bridge.rclpy_integration` respectively.
+The ``BridgeContext`` dataclass and ``init_rclpy_side`` live in
+:mod:`marslab.ros2_bridge.context` and
+:mod:`marslab.ros2_bridge.rclpy_integration` respectively so importing
+this package does not pull rclpy at module load time.
 """
 
 from __future__ import annotations

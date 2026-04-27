@@ -1,19 +1,19 @@
-"""Verify `marslab/**/*.py` ↔ `Instruction/marslab/**/*.md` tree isomorphism.
+"""Verify ``marslab/**/*.py`` <-> ``Instruction/marslab/**/*.md`` tree isomorphism.
 
-Phase A-4 of the Instruction-wiki plan. Part of MarsLab's "Source↔Wiki Parity"
-invariant: whenever the source tree changes (add/rename/move/split/merge/
-delete), the Instruction/ wiki tree must change in the same diff.
+Part of MarsLab's "Source <-> Wiki Parity" invariant: whenever the source
+tree changes (add/rename/move/split/merge/delete), the ``Instruction/``
+wiki tree must change in the same diff.
 
 Checks performed:
-  1. Every `marslab/**/*.py` has a twin `Instruction/marslab/**/*.md`.
-  2. Every `.md` under `Instruction/marslab/` has a matching `.py` source.
-  3. Each `.md` frontmatter `source:` path exists on disk.
-  4. (With --staged) Any staged `.py` has its twin `.md` also staged.
+  1. Every ``marslab/**/*.py`` has a twin ``Instruction/marslab/**/*.md``.
+  2. Every ``.md`` under ``Instruction/marslab/`` has a matching ``.py`` source.
+  3. Each ``.md`` frontmatter ``source:`` path exists on disk.
+  4. (With ``--staged``) Any staged ``.py`` has its twin ``.md`` also staged.
 
 Exit codes:
-  0  — all good
-  1  — drift detected, details printed
-  2  — tool error (e.g. git not available and --staged was requested)
+  0  -- all good
+  1  -- drift detected, details printed
+  2  -- tool error (e.g. git not available and ``--staged`` was requested)
 
 Usage:
   python3 scripts/check_instruction_sync.py
@@ -74,14 +74,14 @@ def check_tree_isomorphism() -> list[str]:
             disp = md.relative_to(REPO_ROOT)
         except ValueError:
             disp = md
-        errors.append(f"[missing-md] no twin for .py → expected {disp}")
+        errors.append(f"[missing-md] no twin for .py -> expected {disp}")
 
     for md in orphan_md:
         try:
             disp = md.relative_to(REPO_ROOT)
         except ValueError:
             disp = md
-        errors.append(f"[orphan-md] .md exists but no matching .py → {disp}")
+        errors.append(f"[orphan-md] .md exists but no matching .py -> {disp}")
 
     return errors
 
@@ -92,7 +92,7 @@ def check_frontmatter_sources() -> list[str]:
         src = read_source_field(md)
         if src is None:
             errors.append(
-                f"[no-source] missing `source:` in frontmatter → " f"{md.relative_to(REPO_ROOT)}"
+                f"[no-source] missing `source:` in frontmatter -> {md.relative_to(REPO_ROOT)}"
             )
             continue
         src_path = (REPO_ROOT / src).resolve()
@@ -144,7 +144,7 @@ def main() -> int:
     if not all_errors:
         py_count = sum(1 for _ in SRC_ROOT.rglob("*.py"))
         md_count = sum(1 for _ in WIKI_ROOT.rglob("*.md"))
-        print(f"[ok] {py_count} .py ↔ {md_count} .md in sync")
+        print(f"[ok] {py_count} .py <-> {md_count} .md in sync")
         return 0
 
     for err in all_errors:

@@ -1,8 +1,8 @@
-# Nav2 params for MarsLab jezero_flat smoke (ROS2 Jazzy).
+# Nav2 params for the MarsLab jezero_flat smoke (ROS2 Jazzy).
 #
 # Paired with:
 #   - slam_toolbox (configs/slam/slam_toolbox_async.yaml) for map -> odom
-#   - scripts/phase1/run_stage4.py which subscribes /rover/cmd_vel and
+#   - scripts/phase1/main.py which subscribes /rover/cmd_vel and
 #     publishes /rover/odom, /rover/scan, /tf, /tf_static, /clock
 #
 # NOTE: the launch file globally remaps /cmd_vel -> /rover/cmd_vel so that
@@ -10,6 +10,13 @@
 #
 # Localization: slam_toolbox publishes map -> odom. amcl and map_server are
 # NOT used.
+#
+# NOTE: This file references ``/rover/scan_corrected``. Isaac Sim publishes
+# ``/rover/scan`` (the raw lidar topic). The bridge node
+# ``scripts/ros2/scan_header_fix.py`` republishes ``/rover/scan`` ->
+# ``/rover/scan_corrected`` after fixing the LaserScan header timestamps.
+# Run ``scan_header_fix.py`` BEFORE launching nav2 or slam_toolbox;
+# otherwise these YAML topic subscriptions get zero messages.
 
 bt_navigator:
   ros__parameters:

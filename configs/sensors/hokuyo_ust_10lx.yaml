@@ -1,30 +1,27 @@
 # Hokuyo UST-10LX preset for the MarsLab 2D LiDAR slot.
 #
-# Sprint Day 2 Task D + E (2026-04-25): drop-in replacement for the
-# ``sensors.lidar_2d`` block in ``configs/robots/rover_m2020.yaml``.
-# Every numeric parameter is exposed (G5).
+# Drop-in replacement for the ``sensors.lidar_2d`` block in
+# ``configs/robots/rover_m2020.yaml``.  Every numeric parameter is
+# exposed.
 #
 # Datasheet reference (Hokuyo UST-10LX):
 #   * Single-beam planar scanner (no vertical FOV)
-#   * 270° horizontal angular range (-135° to +135°)
-#   * 0.25° angular resolution
+#   * 270 deg horizontal angular range (-135 deg to +135 deg)
+#   * 0.25 deg angular resolution
 #   * 25 ms scan period (40 Hz update rate)
 #   * 10 m maximum range, 0.06 m minimum range (rounded to 0.1 m for
 #     parity with the Isaac Sim Example_Rotary_2D minimum)
 #
-# Day 3 H1 fix-up (2026-04-25): Isaac Sim 5.1 does NOT bundle
-# ``Hokuyo_UST_10LX.json``; using ``Example_Rotary_2D`` (bundled) as the
-# base profile so the runtime JSON override (``range_min``/``range_max``/
-# ``rotation_rate_hz``) succeeds. ``horizontal_fov_deg: 270.0`` is
-# descriptive of the *target* UST-10LX spec but does NOT override the
-# bundled emitter angular range. v1.5 follow-up: emitterStates generation
-# (see ``~/MarsLab/tmp/task_H1_finding.md``).
+# Isaac Sim 5.1 does NOT bundle ``Hokuyo_UST_10LX.json``; using
+# ``Example_Rotary_2D`` (bundled) as the base profile so the runtime JSON
+# override (``range_min`` / ``range_max`` / ``rotation_rate_hz``) succeeds.
+# ``horizontal_fov_deg: 270.0`` is descriptive of the target UST-10LX spec
+# but does NOT override the bundled emitter angular range.
 
-# 2026-04-28 (Fix 7): Z sign restored to -0.25.  YAML is authored in
-# the X-rolled body frame matched by ``rover_m2020.yaml``'s
-# ``spawn_orientation_rpy = [3.14159, 0, 0]`` (NASA JPL m2020 URDF
-# link convention).  In that frame ``Z_body = -Z_world`` so a 2-D
-# scanner 0.25 m above the chassis is at ``Z = -0.25``.
+# YAML authored in the X-rolled body frame matched by ``rover_m2020.yaml``'s
+# ``spawn_orientation_rpy = [3.14159, 0, 0]`` (see
+# ``docs/frame_conventions.md``).  In that frame ``Z_body = -Z_world`` so
+# a 2-D scanner 0.25 m above the chassis is at ``Z = -0.25``.
 parent_link: "Body_Chassis"
 local_translation: [0.3, 0.0, -0.25]
 local_orientation_rpy_deg: [0.0, 0.0, 0.0]
@@ -33,8 +30,8 @@ local_orientation_rpy_deg: [0.0, 0.0, 0.0]
 range_min: 0.1
 range_max: 10.0
 rotation_rate_hz: 40.0
-# Descriptive of UST-10LX (270 deg, 0.25 deg) but do NOT override the
-# bundled Example_Rotary_2D emitter geometry (Day 3 H1 limitation).
+# Descriptive of UST-10LX (270 deg, 0.25 deg) but does NOT override the
+# bundled Example_Rotary_2D emitter geometry.
 horizontal_fov_deg: 270.0
 horizontal_resolution_deg: 0.25
 

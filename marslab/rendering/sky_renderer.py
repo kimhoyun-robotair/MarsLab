@@ -23,7 +23,7 @@ def configure_sky_dome(
 
     Dome light intensity is scaled by diffuse_fraction to represent
     the proportion of irradiance arriving as scattered skylight.
-    All scaling factors are read from rendering_config (G5).
+    All scaling factors are read from ``rendering_config``.
 
     Args:
         stage: USD stage.

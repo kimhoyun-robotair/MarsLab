@@ -1,11 +1,10 @@
 # Jezero Flat Region Scenario
-# HiRISE DEM crop: west side of Jezero crater, minimal elevation variation
-# Candidate: Flat #1 from analyze_dem_regions.py
-# dz=3.00m, mean_slope=1.97 deg, std=0.62m
+# HiRISE DEM crop: west side of Jezero crater, minimal elevation variation.
+# Candidate: Flat #1 from analyze_dem_regions.py.
+# dz=3.00m, mean_slope=1.97 deg, std=0.62m.
 #
-# Reviewer 2 #17 (2026-04-24): mars_env + rendering defaults come from
-# ``_base.yaml`` via the root-level ``base_config`` include; only real
-# overrides live here.
+# mars_env + rendering defaults come from ``_base.yaml`` via the root-level
+# ``base_config`` include; only real overrides live here.
 
 base_config: _base.yaml
 
@@ -44,11 +43,10 @@ rover:
     z_offset: 0.5
     orientation_rpy: [3.14159, 0.0, 0.0]
 
-# Sprint Day-2 Task H (2026-04-26): single drop-in OBJ smoke. Demonstrates
-# the ``structure_assets:`` block end-to-end against the procedurally
-# generated test fixture (``tests/fixtures/sample_rock.obj`` is a 209-byte
-# tetrahedron). Scenarios that do not want a drop-in inherit the empty
-# default from ``_base.yaml``.
+# Single drop-in OBJ smoke. Demonstrates the ``structure_assets:`` block
+# end-to-end against the procedurally generated test fixture
+# (``tests/fixtures/sample_rock.obj`` is a 209-byte tetrahedron). Scenarios
+# that do not want a drop-in inherit the empty default from ``_base.yaml``.
 scene:
   structure_assets:
     - path: "tests/fixtures/sample_rock.obj"

@@ -106,30 +106,44 @@ def compute_tau_sine(
 def compute_tau(profile: str, t: float, **kwargs: float) -> float:
     """Dispatch to the appropriate tau profile function.
 
+    Required kwargs per profile (no defaults are filled in here -- the
+    canonical caller pattern is to pass the schema's ``model_dump()``,
+    which already guarantees every key is present):
+
+    * ``constant``: ``base_tau``.
+    * ``ramp``:     ``start_tau``, ``end_tau``.
+    * ``sine``:     ``base_tau``, ``amplitude``, ``period_fraction``.
+
+    Missing keys raise :class:`TypeError` so a schema/profile mismatch
+    fails loudly instead of silently substituting a default that is not
+    declared in the YAML.
+
     Args:
         profile: One of "constant", "ramp", "sine".
         t: Time-of-sol fraction [0, 1].
-        **kwargs: Profile-specific parameters forwarded to the chosen function.
+        **kwargs: Profile-specific parameters forwarded to the chosen
+            function. Must contain every required key for that profile.
 
     Returns:
         Tau at time t.
 
     Raises:
-        ValueError: If profile is unknown or required kwargs are missing.
+        ValueError: If profile is unknown.
+        TypeError: If a required kwarg for the chosen profile is missing.
     """
     if profile == "constant":
-        return compute_tau_constant(base_tau=kwargs.get("base_tau", 0.3), t=t)
+        return compute_tau_constant(base_tau=kwargs["base_tau"], t=t)
     elif profile == "ramp":
         return compute_tau_ramp(
-            start_tau=kwargs.get("start_tau", 0.3),
-            end_tau=kwargs.get("end_tau", 2.0),
+            start_tau=kwargs["start_tau"],
+            end_tau=kwargs["end_tau"],
             t=t,
         )
     elif profile == "sine":
         return compute_tau_sine(
-            base_tau=kwargs.get("base_tau", 0.5),
-            amplitude=kwargs.get("amplitude", 0.3),
-            period_fraction=kwargs.get("period_fraction", 1.0),
+            base_tau=kwargs["base_tau"],
+            amplitude=kwargs["amplitude"],
+            period_fraction=kwargs["period_fraction"],
             t=t,
         )
     else:

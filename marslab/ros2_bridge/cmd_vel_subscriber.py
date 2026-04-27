@@ -2,23 +2,21 @@
 
 The Stage-3 runtime consumes ``/<ns>/cmd_vel`` each physics step to
 drive the Ackermann controller.  Keeping the subscriber in its own
-module lets us unit-test the state container without importing
+module lets the state container be unit-tested without importing
 ``rclpy``.
 
-R4-5 extension (2026-04-23): ``queue_size`` is no longer a Python
-default.  The historical value (``10``) now lives in
+``queue_size`` is keyword-only with no default.  The historical value
+(``10``) lives in
 :class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig` under
 ``cmd_vel_queue_size`` and is threaded through ``init_rclpy_side``.
-The ``queue_size`` parameter here remains keyword-only with no default
-so every call site must pass it explicitly -- there is no longer a
-silent fallback that would hide a missing YAML key.
+Every call site must pass it explicitly so a missing YAML key cannot
+hide behind a Python fallback.
 
-Reviewer 2 #04 (2026-04-24) added an optional ``qos`` parameter.
-When supplied it is passed directly to ``create_subscription`` so the
-caller can pin reliability / durability / history depth through YAML
-via :class:`marslab.config.schema.ros2_bridge.QoSProfileConfig`.
-When omitted the legacy integer-``queue_size`` call is preserved so
-existing tests and older call sites keep working.
+The optional ``qos`` parameter pins reliability / durability / history
+depth through YAML via
+:class:`marslab.config.schema.ros2_bridge.QoSProfileConfig`.  When
+omitted the legacy integer-``queue_size`` call is preserved so existing
+tests and older call sites keep working.
 """
 
 from __future__ import annotations
@@ -59,11 +57,20 @@ def create_cmd_vel_subscriber(
 
     Returns:
         The created ``rclpy`` subscription handle.
+
+    Raises:
+        ValueError: When ``qos is None`` and ``queue_size < 1``.  The
+            integer overload requires a positive depth -- a zero or
+            negative depth would be silently rejected by rclpy at
+            runtime, so this guard fails fast at the call site.
     """
     from geometry_msgs.msg import Twist
 
     if not {"v", "w"} <= set(twist_state.keys()):
         raise KeyError("twist_state must contain keys 'v' and 'w'")
+
+    if qos is None and queue_size < 1:
+        raise ValueError("queue_size must be >= 1 when qos is None")
 
     def _cb(msg: Twist) -> None:
         twist_state["v"] = float(msg.linear.x)

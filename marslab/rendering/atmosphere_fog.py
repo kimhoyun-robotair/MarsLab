@@ -2,7 +2,7 @@
 
 Configures RTX fog settings to simulate Mars dust haze based on
 dust optical depth (tau). Higher tau = lower visibility.
-All parameters read from config (G5).
+All parameters are read from configuration; no values are hardcoded.
 Requires Isaac Sim runtime.
 """
 
@@ -19,7 +19,7 @@ def configure_atmosphere_fog(
     """Configure atmospheric fog based on dust optical depth.
 
     Maps tau to fog density and color to simulate Mars dust haze.
-    All scaling factors and colors from rendering_config (G5).
+    All scaling factors and colors come from ``rendering_config``.
 
     Args:
         stage: USD stage (unused but kept for API consistency).

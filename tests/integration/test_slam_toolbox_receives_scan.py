@@ -1,16 +1,17 @@
 """Integration test: ``/scan`` topic QoS matches slam_toolbox expectations.
 
-Reviewer 2 #4 fixed the QoS profile taxonomy across the ros2_bridge; this
-integration test is the end-to-end witness that the 2D LaserScan actually
-lands on ``/rover/scan`` in a form slam_toolbox can consume.
+The QoS profile taxonomy across the ros2_bridge is fixed by the unit
+tests; this integration test is the end-to-end witness that the 2D
+LaserScan actually lands on ``/rover/scan`` in a form slam_toolbox
+can consume.
 
 slam_toolbox's scan subscriber uses ``QoSProfile(depth=5,
 reliability=BEST_EFFORT, durability=VOLATILE, history=KEEP_LAST)``.
 A publisher with ``RELIABLE`` durability+reliability is compatible
-(reliable satisfies best-effort).  This test's pass criterion is simply
-that ``rclpy`` can create a subscription on the same QoS slam_toolbox
-uses, and that at least one ``sensor_msgs/LaserScan`` message arrives
-within a 30 s budget while the Stage-3 runtime ticks.
+(reliable satisfies best-effort). This test's pass criterion is
+simply that ``rclpy`` can create a subscription on the same QoS
+slam_toolbox uses, and that at least one ``sensor_msgs/LaserScan``
+message arrives within a 30 s budget while the Stage-3 runtime ticks.
 
 Invoke via::
 

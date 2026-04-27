@@ -1,10 +1,11 @@
-"""Rover DriveAPI + PD-gain facade.
+"""Rover DriveAPI and PD-gain facade.
 
-The three functions below — ``_apply_drive_api``, ``configure_drives``,
-``reinforce_pd_gains`` — provide the Stage 3 runtime scripts with a
-focused module for rover drive configuration.  ``marslab/robots/rover.py``
-re-exports each name to preserve existing imports (``from
-marslab.robots.rover import configure_drives``).
+The four functions below — ``resolve_joint_indices``,
+``_apply_drive_api``, ``configure_drives``, ``reinforce_pd_gains`` —
+provide the runtime scripts with a focused module for rover drive
+configuration.  ``marslab/robots/rover.py`` re-exports each name to
+preserve existing imports (``from marslab.robots.rover import
+configure_drives``).
 
 Ordering contract (critical — PhysX tensor-cache semantics):
 
@@ -28,17 +29,20 @@ from typing import Any, Dict, List
 import numpy as np
 
 
-def _resolve_joint_indices(dof_names: List[str], requested: List[str]) -> List[int]:
-    """Local trampoline that defers to ``marslab.robots.rover.resolve_joint_indices``.
+def resolve_joint_indices(dof_names: List[str], requested: List[str]) -> List[int]:
+    """Resolve each requested joint name to its index in ``dof_names``.
 
-    A direct ``from marslab.robots.rover import resolve_joint_indices`` at
-    module import time would create a circular import once ``rover.py``
-    imports from this module.  Doing the import inside the function keeps
-    the cycle broken.
+    Raises:
+        ValueError: If any requested joint is not present.
     """
-    from marslab.robots.rover import resolve_joint_indices as _impl
-
-    return _impl(dof_names, requested)
+    name_to_index = {name: idx for idx, name in enumerate(dof_names)}
+    missing = [name for name in requested if name not in name_to_index]
+    if missing:
+        raise ValueError(
+            f"Joint(s) not present in articulation DOF list: {missing}. "
+            f"Available DOFs: {list(dof_names)}"
+        )
+    return [name_to_index[name] for name in requested]
 
 
 def _apply_drive_api(
@@ -95,8 +99,8 @@ def configure_drives(
     steer_joint_names = list(control_cfg["steer_joint_names"])
     suspension_names = list(control_cfg.get("suspension_joint_names", []))
 
-    # R2-A3 + R2-4a: G5 — all keys below are required in the ``control:``
-    # block. ``SkidSteerDriveConfig`` validates at load time so a missing YAML
+    # All keys below are required in the ``control:`` block.
+    # ``SkidSteerDriveConfig`` validates at load time so a missing YAML
     # key raises ``KeyError`` rather than silently substituting a literal.
     drive_damping = float(control_cfg["drive_damping"])
     drive_max_force = float(control_cfg["drive_max_force"])
@@ -162,18 +166,18 @@ def reinforce_pd_gains(
     steer_joint_names = list(control_cfg["steer_joint_names"])
     suspension_names = list(control_cfg.get("suspension_joint_names", []))
 
-    # R2-A3 + R2-4a: see ``configure_drives``; all required keys validated by
+    # See ``configure_drives``; all required keys validated by
     # ``SkidSteerDriveConfig`` at load time.
     drive_damping = float(control_cfg["drive_damping"])
     steer_stiffness = float(control_cfg["steer_stiffness"])
     steer_damping = float(control_cfg["steer_damping"])
     suspension_damping = float(control_cfg["suspension_damping"])
 
-    drive_indices = _resolve_joint_indices(dof_names, drive_joint_names)
-    steer_indices = _resolve_joint_indices(dof_names, steer_joint_names)
+    drive_indices = resolve_joint_indices(dof_names, drive_joint_names)
+    steer_indices = resolve_joint_indices(dof_names, steer_joint_names)
     susp_indices: List[int] = []
     if suspension_names and suspension_damping > 0.0:
-        susp_indices = _resolve_joint_indices(dof_names, suspension_names)
+        susp_indices = resolve_joint_indices(dof_names, suspension_names)
 
     num_dof = len(dof_names)
     kps = np.zeros((1, num_dof), dtype=np.float32)

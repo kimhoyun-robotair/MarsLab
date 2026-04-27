@@ -1,8 +1,9 @@
 """World + Mars gravity + PhysxScene solver iteration setup.
 
-Extracted during R4-1 so the Mars gravity / solver iteration knobs live in
-one tested spot. ``create_world`` assumes ``boot_simulation_app`` has already
-been called — the Isaac Sim imports only resolve after Kit is alive.
+Centralises the Mars gravity / solver iteration knobs so the rest of
+the runtime can ignore them. ``create_world`` assumes
+``boot_simulation_app`` has already been called -- the Isaac Sim
+imports only resolve after Kit is alive.
 """
 
 from __future__ import annotations
@@ -20,14 +21,17 @@ def create_world(
     """Create the Isaac Sim ``World`` and apply Mars physics defaults.
 
     Args:
-        physics_dt: Physics step size in seconds (e.g. ``1/60``).
+        physics_dt: Physics step size in seconds (e.g. ``1/60``). The
+            60 Hz default matches the SLAM / Nav2 runtime main-loop
+            cadence -- physics and rendering tick at the same rate so
+            sensor publishers stay in lockstep with the controller.
         gravity: Mars gravity magnitude in m/s^2 (e.g. ``3.72``).  Sign is
             normalised internally -- always applied as ``-abs(gravity)``
             along +Z.
         solver_type: ``"TGS"`` (default) or ``"PGS"``.
         solver_position_iteration_count: Written to
             ``physxScene:solverPositionIterationCount`` on ``/physicsScene``.
-            Stage-3 default 16 accommodates the 29-DOF rover articulation
+            The default of 16 accommodates the 29-DOF rover articulation
             with high-gain drives.
         solver_velocity_iteration_count: Written to
             ``physxScene:solverVelocityIterationCount``.

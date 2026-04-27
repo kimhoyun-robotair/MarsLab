@@ -8,26 +8,33 @@ Generates four plots without Isaac Sim:
 
 Run: python3 scripts/visualize_atmosphere.py
 
-Output: work_log/atmosphere_visualization.png
+Output: work_log/scene_generation/atmosphere_visualization.png
 """
 
 import math
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from marslab.config.loader import load_and_validate
-from marslab.environment.diffuse_fraction import compute_diffuse_fraction
-from marslab.environment.light_intensity import compute_direct_intensity
-from marslab.environment.sky_dome import compute_sky_dome_params
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from marslab.config.loader import load_and_validate  # noqa: E402
+from marslab.environment.diffuse_fraction import compute_diffuse_fraction  # noqa: E402
+from marslab.environment.light_intensity import compute_direct_intensity  # noqa: E402
+from marslab.environment.sky_dome import compute_sky_dome_params  # noqa: E402
 
 # Lowest tau plotted in the sweeps.  Kept as a module-level constant because
 # it anchors the figure's horizontal axis, not the physics.  The upper bound
-# comes from ``mars_env.dust_opacity_range`` (configs/mars_env.yaml) so the
-# R3 G5 literal migration only removes values that belong to the physics.
+# comes from ``mars_env.dust_opacity_range`` (configs/mars_env.yaml).
 _PLOT_TAU_MIN = 0.05
 _PLOT_TAU_SAMPLES = 100
+
+OUTPUT_DIR = os.path.join(REPO_ROOT, "work_log", "scene_generation")
+OUTPUT_PNG = os.path.join(OUTPUT_DIR, "atmosphere_visualization.png")
 
 
 def main() -> None:
@@ -48,7 +55,7 @@ def main() -> None:
     ax1.plot(taus, direct, "b-", linewidth=2)
     ax1.set_title("Direct Beam Irradiance (Beer's Law)")
     ax1.set_xlabel("Dust Optical Depth (tau)")
-    ax1.set_ylabel("Irradiance (W/m²)")
+    ax1.set_ylabel("Irradiance (W/m^2)")
     ax1.grid(True, alpha=0.3)
     ax1.axhline(y=0, color="k", linewidth=0.5)
 
@@ -92,15 +99,15 @@ def main() -> None:
     ax4.plot(taus, total, "k-", linewidth=1.5, label="Total")
     ax4.set_title("Irradiance Breakdown")
     ax4.set_xlabel("Dust Optical Depth (tau)")
-    ax4.set_ylabel("Irradiance (W/m²)")
+    ax4.set_ylabel("Irradiance (W/m^2)")
     ax4.legend()
     ax4.grid(True, alpha=0.3)
 
-    os.makedirs("work_log", exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     fig.tight_layout()
-    fig.savefig("work_log/atmosphere_visualization.png", dpi=150)
+    fig.savefig(OUTPUT_PNG, dpi=150)
     plt.close(fig)
-    print("Saved: work_log/atmosphere_visualization.png")
+    print(f"Saved: {OUTPUT_PNG}")
 
 
 if __name__ == "__main__":

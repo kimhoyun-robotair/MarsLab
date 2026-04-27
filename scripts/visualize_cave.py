@@ -19,6 +19,7 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
+from marslab.config.schema.terrain import CaveConfig  # noqa: E402
 from marslab.terrain.cave.orchestrator import generate_cave_mesh  # noqa: E402
 
 
@@ -50,15 +51,17 @@ def main() -> int:
         flush=True,
     )
 
-    result = generate_cave_mesh(
-        tube_width_m=args.width,
-        skylight_count=args.skylight_count,
-        skylight_diameter_m=args.skylight_diameter,
-        debris_cone_count=args.debris_cone_count,
-        domain_size=(args.domain, args.domain),
-        resolution=1.0,
-        seed=args.seed,
+    cfg = CaveConfig.model_validate(
+        {
+            "tube_width_m": args.width,
+            "skylight_count": args.skylight_count,
+            "skylight_diameter_m": args.skylight_diameter,
+            "debris_cone_count": args.debris_cone_count,
+            "domain_size": (args.domain, args.domain),
+            "resolution": 1.0,
+        }
     )
+    result = generate_cave_mesh(args.seed, cfg)
 
     tube = result["tube_mesh"]
     floor = result["floor_mesh"]
@@ -77,7 +80,7 @@ def main() -> int:
     # --- Figure ---
     fig = plt.figure(figsize=(16, 12))
     fig.suptitle(
-        f"Mars Cave (Lava Tube) Preview — width={args.width}m, seed={args.seed}",
+        f"Mars Cave (Lava Tube) Preview -- width={args.width}m, seed={args.seed}",
         fontsize=14,
         fontweight="bold",
     )

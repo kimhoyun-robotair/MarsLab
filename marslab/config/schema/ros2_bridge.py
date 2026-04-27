@@ -1,42 +1,41 @@
 """ROS2 bridge schema: OmniGraph prim path + rclpy subscription tuning.
 
-R4-5 extension (2026-04-23) promoted two literals that had been sitting
-as module constants / Python defaults inside the ROS2 bridge into a
-pydantic ``Ros2BridgeConfig`` block:
+Two literals that would otherwise sit as module constants / Python
+defaults inside the ROS2 bridge are surfaced here as pydantic fields on
+``Ros2BridgeConfig``:
 
-* ``GRAPH_PATH = "/World/Stage3ROS2Graph"`` in
-  ``marslab/ros2_bridge/sensor_graph.py:35`` was a bare module-level
-  constant — every scenario shipped the same prim path and the only
-  way to relocate the action graph was a source edit.
-* ``queue_size=10`` in
-  ``marslab/ros2_bridge/cmd_vel_subscriber.create_cmd_vel_subscriber``
-  was a Python default that the caller (rclpy_integration) never
-  overrode, so a noisy Nav2 controller_server could not back-pressure
-  through YAML.
+* ``GRAPH_PATH = "/World/Stage3ROS2Graph"`` previously declared in
+  ``marslab/ros2_bridge/sensor_graph.py``.  As a bare module-level
+  constant the only way to relocate the action graph was a source
+  edit.
+* ``queue_size=10`` previously hardcoded in
+  ``marslab/ros2_bridge/cmd_vel_subscriber.create_cmd_vel_subscriber``.
+  The caller (rclpy_integration) never overrode it, so a noisy Nav2
+  controller_server could not back-pressure through YAML.
 
-Both are now declared here.  ``configs/robots/rover_m2020.yaml``
+Both are declared here.  ``configs/robots/rover_m2020.yaml``
 (``rover.ros2`` block) gains an optional ``graph_path`` +
-``cmd_vel_queue_size`` pair.  Absent values fall back to the historical
-constants via the pydantic defaults so existing scenarios keep loading.
+``cmd_vel_queue_size`` pair.  Absent values fall back to the
+historical constants via the pydantic defaults so existing scenarios
+keep loading.
 
 The schema enforces prim-path hygiene (non-empty, ``/``-prefixed, no
 internal whitespace) with ``model_validator`` so a typo like
 ``" /World/Graph"`` fails at load time rather than surfacing as an
 opaque ``omni.graph.core`` failure inside Isaac Sim.
 
-Reviewer 2 #04 (2026-04-24) promoted **QoS profiles** for every topic
-into the schema.  Before this change ``marslab/ros2_bridge/*.py`` did
-not import ``rclpy.qos`` at all; every publisher and subscriber was
-created with the rclpy default profile (``RELIABLE`` + ``VOLATILE`` +
-``KEEP_LAST`` depth=10).  The defaults mismatch real-world SLAM/Nav2
-pipelines and caused silent message drop in mixed RELIABLE /
+QoS profiles for every topic are also surfaced into the schema.
+Without these fields ``marslab/ros2_bridge/*.py`` would not import
+``rclpy.qos`` at all and every publisher/subscriber would be created
+with the rclpy default profile (``RELIABLE`` + ``VOLATILE`` +
+``KEEP_LAST`` depth=10).  Those defaults mismatch real-world SLAM/Nav2
+pipelines and cause silent message drop in mixed RELIABLE /
 BEST_EFFORT environments:
 
 * ``/cmd_vel``: ``teleop_twist_keyboard`` ships ``BEST_EFFORT``; a
-  ``RELIABLE`` subscriber on our side drops every keypress.  We keep
-  the profile ``reliable`` here (Nav2 ``controller_server`` default)
-  but surface it as YAML so a teleop-heavy scenario can flip to
-  ``best_effort``.
+  ``RELIABLE`` subscriber drops every keypress.  Default ``reliable``
+  here (Nav2 ``controller_server`` default), surfaced in YAML so a
+  teleop-heavy scenario can flip to ``best_effort``.
 * ``/odom``: ``nav_msgs/Odometry`` is REP-2003 SystemDefault =
   ``RELIABLE``.  Kept reliable.  Depth stays at 10 because Nav2
   accepts one odom per control cycle.
@@ -65,10 +64,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 __all__ = ["QoSProfileConfig", "Ros2BridgeConfig"]
 
 
-# Reviewer 2 #12 (2026-04-24): both models below pin ``extra="forbid"``
-# so a misspelled QoS policy string (``"best_efforts"``) or a stray
-# ``graph_path_override`` key fails at YAML load time rather than being
-# silently dropped by pydantic v2's default ``extra="ignore"``.
+# Both models below pin ``extra="forbid"`` so a misspelled QoS policy
+# string (``"best_efforts"``) or a stray ``graph_path_override`` key
+# fails at YAML load time rather than being silently dropped by
+# pydantic v2's default ``extra="ignore"``.
 
 
 class QoSProfileConfig(BaseModel):
@@ -76,13 +75,13 @@ class QoSProfileConfig(BaseModel):
 
     Mirrors the four fields that matter for SLAM/Nav2 round-tripping:
     ``reliability``, ``durability``, ``history``, ``depth``.  Liveliness
-    / deadline are intentionally omitted — v1.0 does not exercise them
+    / deadline are intentionally omitted -- v1.0 does not exercise them
     and exposing unused knobs in YAML invites drift.
 
     The string enums match the rclpy policy names (lower-cased) so a
     reader familiar with rclpy docs can map YAML to code without a
     lookup table.  Invalid strings raise ``pydantic.ValidationError``
-    at config load time — the whole point of surfacing QoS in YAML is
+    at config load time -- the whole point of surfacing QoS in YAML is
     to fail loudly before Isaac Sim boots.
     """
 
@@ -177,10 +176,10 @@ class Ros2BridgeConfig(BaseModel):
 
     Mirrors the ``rover.ros2`` YAML sub-block.  Only the keys that
     used to live as Python constants are declared here; the existing
-    free-form ``namespace`` / ``topics`` / ``rates`` / ``odom_publisher``
-    keys continue to flow through ``init_rclpy_side`` as an untyped
-    dict because they are already covered by legacy tests.  A later
-    pass (R4-6+) may promote the remaining dict keys.
+    free-form ``namespace`` / ``topics`` / ``rates`` /
+    ``odom_publisher`` keys continue to flow through ``init_rclpy_side``
+    as an untyped dict because they are already covered by legacy
+    tests.  A later pass may promote the remaining dict keys.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -189,10 +188,11 @@ class Ros2BridgeConfig(BaseModel):
         default="/World/Stage3ROS2Graph",
         description=(
             "USD prim path for the Stage-3 OmniGraph action graph.  The Isaac Sim stage "
-            "must not already contain a prim at this path.  Previously hardcoded as "
-            "``GRAPH_PATH`` in ``marslab/ros2_bridge/sensor_graph.py``.  Promoted to "
-            "schema in R4-5 (2026-04-23) so scenarios with unusual stage layouts "
-            "(e.g. multi-robot Stage-4) can relocate the graph without a source edit."
+            "must not already contain a prim at this path.  Surfaces what would otherwise "
+            "be a hardcoded ``GRAPH_PATH`` constant in "
+            "``marslab/ros2_bridge/sensor_graph.py``, so scenarios with unusual stage "
+            "layouts (multi-robot, custom Stage layouts) can relocate the graph without "
+            "a source edit."
         ),
     )
     cmd_vel_queue_size: int = Field(
@@ -200,11 +200,12 @@ class Ros2BridgeConfig(BaseModel):
         ge=1,
         le=1000,
         description=(
-            "rclpy subscription queue depth for ``/<ns>/cmd_vel``.  Previously hardcoded "
-            "as ``queue_size=10`` in ``marslab/ros2_bridge/cmd_vel_subscriber.py``.  "
-            "Promoted in R4-5 (2026-04-23) so Nav2 tuning that needs a deeper buffer "
-            "(bursty controller_server output) can be expressed in YAML.  Upper bound "
-            "1000 prevents misconfigurations that would swamp rclpy with unbounded queues."
+            "rclpy subscription queue depth for ``/<ns>/cmd_vel``.  Surfaces what would "
+            "otherwise be a hardcoded ``queue_size=10`` in "
+            "``marslab/ros2_bridge/cmd_vel_subscriber.py`` so Nav2 tuning that needs a "
+            "deeper buffer (bursty controller_server output) can be expressed in YAML.  "
+            "Upper bound 1000 prevents misconfigurations that would swamp rclpy with "
+            "unbounded queues."
         ),
     )
     publish_pointcloud2: bool = Field(
@@ -226,7 +227,36 @@ class Ros2BridgeConfig(BaseModel):
             "introducing an unattached optical frame.  Default ``True`` "
             "matches the RealSense convention -- flip to ``False`` for "
             "headless data-gen scenarios where the extra bandwidth is not "
-            "wanted.  Added on Day 2 of the MarsLab v1.0 sprint (2026-04-25)."
+            "wanted."
+        ),
+    )
+    publish_camera_info: bool = Field(
+        default=True,
+        description=(
+            "When ``True`` the Stage-3 OmniGraph appends a "
+            "``isaacsim.ros2.bridge.ROS2CameraInfoHelper`` node fed off the "
+            "RGB render product so the camera publishes a "
+            "``sensor_msgs/CameraInfo`` topic alongside ``rgb/image_raw``.  "
+            "The helper auto-derives K / P / R / D matrices and width / "
+            "height from the USD ``Camera`` prim's focal length, aperture, "
+            "and clipping range -- intrinsics are NOT authored in YAML, "
+            "the camera prim is the single source of truth.  Source: "
+            "``isaacsim/exts/isaacsim.ros2.bridge/docs/ogn/"
+            "OgnROS2CameraInfoHelper.rst:21`` -- "
+            "*'This node automates the CameraInfo message pipeline for "
+            "monocular and stereo cameras.'*  Topic name comes from "
+            "``rover.ros2.topics.camera_info`` (default ``rgb/camera_info``); "
+            "``frameId`` reuses ``camera_optical_frame`` so consumers like "
+            "``image_proc``, ``depth_image_proc``, RTAB-Map and ORB-SLAM3 "
+            "see geometry consistent with the RGB / Depth / PointCloud2 "
+            "headers (REP-105 optical convention).  Default ``True`` "
+            "matches the canonical RGB-D ROS workflow -- visual SLAM and "
+            "image rectification packages refuse to run without "
+            "``CameraInfo``.  Flip to ``False`` for headless data-gen "
+            "scenarios that consume raw images via Replicator instead of "
+            "the ROS image pipeline.  Reuses the existing ``RPCamera`` "
+            "render product so the GPU cost is one extra encode pass per "
+            "frame, not a second render."
         ),
     )
     publish_robot_description: bool = Field(
@@ -236,30 +266,28 @@ class Ros2BridgeConfig(BaseModel):
             "``/<ns>/robot_description`` with TRANSIENT_LOCAL + RELIABLE + "
             "KEEP_LAST(1) so a late-joining RViz subscriber latches it.  "
             "Default ``True`` matches the canonical ROS workflow; flip to "
-            "``False`` for headless data-gen scenarios that do not need RViz "
-            "RobotModel display.  Added 2026-04-26 as RC-3 of the v1.0 "
-            "release-blocker fixes."
+            "``False`` for headless data-gen scenarios that do not need "
+            "RViz RobotModel display."
         ),
     )
     publish_odom_tf: bool = Field(
         default=False,
         description=(
-            "When ``False`` (default, post-S3) the rclpy-side odometry "
-            "publisher does NOT broadcast ``odom -> base_link`` on ``/tf``.  "
-            "The OG ``ROS2PublishTransformTree`` becomes the sole TF "
+            "When ``False`` (default) the rclpy-side odometry publisher "
+            "does NOT broadcast ``odom -> base_link`` on ``/tf``.  The "
+            "OmniGraph ``ROS2PublishTransformTree`` becomes the sole TF "
             "authority for the kinematic chain (``/tf_raw``); an external "
             "``ros2 run topic_tools relay /tf_raw /tf`` merges the chain "
             "into the canonical ``/tf`` topic.  Set ``True`` to restore "
-            "the pre-S3 dual-publisher behaviour for debugging or smoke "
-            "tests that do not run the relay.  Memory: "
-            "``feedback_no_tf_consolidation`` -- never run both ``True`` "
-            "and the relay simultaneously, that yields two parents for "
-            "``base_link``.  Added 2026-04-27 as the v1.0 S3 release-blocker "
-            "fix.  NOTE: ``run_stage4.py`` currently passes the raw YAML "
-            "dict ``rover.ros2`` straight to ``init_rclpy_side`` without a "
-            "Pydantic round-trip, so this field is documentation + future-"
-            "validation rather than a runtime gate.  The runtime default is "
-            "enforced by ``rclpy_integration.py``'s ``.get(..., False)``."
+            "the dual-publisher behaviour for debugging or smoke tests "
+            "that do not run the relay.  Never run both ``True`` and the "
+            "relay simultaneously -- that yields two parents for "
+            "``base_link``.  NOTE: the Stage-3 entry point currently "
+            "passes the raw YAML dict ``rover.ros2`` straight to "
+            "``init_rclpy_side`` without a Pydantic round-trip, so this "
+            "field is documentation plus future validation rather than a "
+            "runtime gate.  The runtime default is enforced by "
+            "``rclpy_integration.py``'s ``.get(..., False)``."
         ),
     )
     cmd_vel_qos: QoSProfileConfig = Field(
@@ -285,7 +313,7 @@ class Ros2BridgeConfig(BaseModel):
             "QoS profile for sensor streams (``/imu``, ``/camera/*``, "
             "``/lidar/*``, ``/scan``).  Matches the ROS 2 ``sensor_data`` "
             "convention (BEST_EFFORT + KEEP_LAST depth=5).  slam_toolbox "
-            "LaserScan subscribers default to BEST_EFFORT — shipping "
+            "LaserScan subscribers default to BEST_EFFORT -- shipping "
             "RELIABLE here would yield 0 messages received."
         ),
     )

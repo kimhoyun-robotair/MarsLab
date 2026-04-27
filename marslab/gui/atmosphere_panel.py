@@ -18,22 +18,53 @@ gracefully.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict
 
 import omni.ui as ui
+
+_LOG = logging.getLogger(__name__)
+
+_REQUIRED_STATE_KEYS = (
+    "tau",
+    "sun_mode",
+    "sun_azimuth_deg",
+    "sun_elevation_deg",
+    "time_of_sol",
+    "direct_intensity",
+    "diffuse_fraction",
+    "sol_duration_seconds",
+)
 
 
 class AtmospherePanel:
     """omni.ui window for interactive atmosphere parameter control.
 
+    Widget references (sliders, labels, buttons) are stored as attributes
+    on the instance so they can be updated from the render loop. They are
+    constructed inside an ``omni.ui`` ``with`` block; once that builder
+    scope exits, Kit's C++ proxy lifetime is independent of the Python
+    reference. This means the ``.enabled`` setter on a stored slider may
+    later raise ``AttributeError`` or ``RuntimeError`` if the underlying
+    proxy has been finalized. ``_update_slider_enabled`` catches and
+    logs those cases instead of crashing the GUI thread; see the
+    rationale block in that method.
+
     Args:
         atmosphere_state: Mutable dict shared with the render loop.
-            Expected keys: tau, sun_mode, sun_azimuth_deg,
-            sun_elevation_deg, time_of_sol, direct_intensity,
-            diffuse_fraction.
+            Must contain the keys listed in ``_REQUIRED_STATE_KEYS``;
+            ``__init__`` raises ``KeyError`` if any are missing so that
+            misconfiguration surfaces immediately rather than as a later
+            ``KeyError`` deep inside the render loop.
     """
 
     def __init__(self, atmosphere_state: Dict[str, Any]) -> None:
+        missing = [k for k in _REQUIRED_STATE_KEYS if k not in atmosphere_state]
+        if missing:
+            raise KeyError(
+                "AtmospherePanel requires atmosphere_state to be populated by "
+                "build_atmosphere_state(); missing keys: " + ", ".join(missing)
+            )
         self._state = atmosphere_state
         self._build_ui()
 
@@ -136,14 +167,19 @@ class AtmospherePanel:
         # may be finalized, so `.enabled` can raise AttributeError/RuntimeError
         # even though the attribute binding still exists. Model-level gating
         # in _on_{azimuth,elevation}_changed already enforces state safety,
-        # so silently skipping here is behaviourally equivalent.
+        # so logging-and-skipping here is behaviourally equivalent.
         for attr in ("_az_slider", "_el_slider"):
             widget = getattr(self, attr, None)
             if widget is None:
                 continue
             try:
                 widget.enabled = is_manual
-            except (AttributeError, RuntimeError):
+            except (AttributeError, RuntimeError) as exc:
+                _LOG.debug(
+                    "Widget %r enable/disable failed (proxy likely finalized): %s",
+                    widget,
+                    exc,
+                )
                 continue
 
     # --- Status formatting ---
@@ -159,7 +195,8 @@ class AtmospherePanel:
             t = self._state.get("time_of_sol", 0.0)
             # ``sol_duration_seconds`` is seeded by ``build_atmosphere_state``
             # from the pydantic ``MarsEnvConfig.sol_duration_seconds`` default,
-            # so no local fallback literal is needed here (G5).
+            # so no local fallback literal is needed here. ``__init__``
+            # validated its presence already.
             sol_seconds = self._state["sol_duration_seconds"]
             hours = t * (sol_seconds / 3600.0)
             return f"  Mode: Auto Sweep  |  Sol time: {hours:.1f}h ({t:.2f})"

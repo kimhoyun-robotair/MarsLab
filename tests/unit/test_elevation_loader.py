@@ -55,6 +55,11 @@ class TestProceduralElevation:
 
 class TestCaveElevation:
     def test_cave_preset_stashes_cave_data(self) -> None:
+        # Values respect ``CaveConfig`` validators (tube_width >= 80 m,
+        # ceiling/skylight thickness >= 20 m, debris_cone_angle >= 20 deg);
+        # the loader builds a full :class:`CaveConfig` so out-of-range
+        # YAML values are now rejected at validation time rather than
+        # silently passed through.
         cfg = {
             "source": "procedural",
             "procedural_preset": "cave",
@@ -62,19 +67,19 @@ class TestCaveElevation:
             "terrain_resolution": 2.0,
             "seed": 42,
             "cave": {
-                "tube_width_m": 40.0,
+                "tube_width_m": 80.0,
                 "tube_height_ratio": 0.5,
                 "cross_section_noise": 0.0,
                 "tube_direction_deg": 0.0,
                 "tube_curvature": 0.0,
-                "ceiling_thickness_m": 10.0,
+                "ceiling_thickness_m": 20.0,
                 "skylight_count": 0,
                 "skylight_diameter_m": 10.0,
-                "skylight_depth_m": 10.0,
+                "skylight_depth_m": 40.0,
                 "skylight_overhang_deg": 0.0,
                 "debris_cone_present": False,
                 "debris_cone_count": 0,
-                "debris_cone_angle_deg": 0.0,
+                "debris_cone_angle_deg": 20.0,
                 "breakdown_coverage_pct": 0.0,
                 "breakdown_block_mean_m": 0.1,
                 "breakdown_block_sigma": 0.05,

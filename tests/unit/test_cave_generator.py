@@ -5,28 +5,38 @@ import hashlib
 import numpy as np
 import pytest
 
+from marslab.config.schema.terrain import CaveConfig
 from marslab.terrain.cave.orchestrator import generate_cave_mesh
 
-# Shared small-domain params for fast tests
-SMALL = {
+# Shared small-domain params for fast tests. The 100x100 domain only
+# fits a single skylight once the diameter + margin + separation
+# checks are honoured, so the count is reduced from the production
+# default (10) to keep ``compute_skylight_positions`` from raising.
+SMALL: dict = {
     "domain_size": (100, 100),
     "resolution": 1.0,
     "path_resolution": 30,
     "ring_resolution": 20,
-    "seed": 42,
+    "skylight_count": 1,
 }
+SMALL_SEED = 42
+
+
+def _small_cfg(**overrides: object) -> CaveConfig:
+    """Build a :class:`CaveConfig` from the shared small-domain preset."""
+    return CaveConfig.model_validate({**SMALL, **overrides})
 
 
 @pytest.fixture()
 def cave_default():
     """Default cave mesh with small domain for speed."""
-    return generate_cave_mesh(**SMALL)
+    return generate_cave_mesh(SMALL_SEED, _small_cfg())
 
 
 @pytest.fixture()
 def cave_full():
     """Full-size cave (400x400) for dimensional tests."""
-    return generate_cave_mesh(seed=42)
+    return generate_cave_mesh(42, CaveConfig())
 
 
 # --- Output structure ---
@@ -194,9 +204,9 @@ def test_surface_has_skylight_hole(cave_default):
 
 def test_no_skylight_variant():
     """skylight_count=0 produces no skylights but debris cones still spawn."""
-    result = generate_cave_mesh(skylight_count=0, **SMALL)
+    result = generate_cave_mesh(SMALL_SEED, _small_cfg(skylight_count=0))
     assert len(result["skylight_meshes"]) == 0
-    # Debris cones are independent of skylights — they still spawn inside the tube
+    # Debris cones are independent of skylights -- they still spawn inside the tube
     assert len(result["debris_cones"]) >= 1
 
 
@@ -221,14 +231,17 @@ def test_debris_cone_apex_above_floor(cave_default):
 
 def test_debris_cone_avoids_centerline():
     """Debris cones are offset from centerline (rover passage)."""
-    result = generate_cave_mesh(
-        debris_cone_count=5,
-        domain_size=(400, 400),
-        resolution=1.0,
-        path_resolution=60,
-        ring_resolution=20,
-        seed=42,
+    cfg = CaveConfig.model_validate(
+        {
+            "debris_cone_count": 5,
+            "skylight_count": 5,
+            "domain_size": (400, 400),
+            "resolution": 1.0,
+            "path_resolution": 60,
+            "ring_resolution": 20,
+        }
     )
+    result = generate_cave_mesh(42, cfg)
     assert len(result["debris_cones"]) >= 1
 
 
@@ -252,7 +265,7 @@ def test_breakdown_positions_have_required_keys(cave_default):
 
 def test_breakdown_zero_coverage():
     """breakdown_coverage_pct=0 produces no blocks."""
-    result = generate_cave_mesh(breakdown_coverage_pct=0.0, **SMALL)
+    result = generate_cave_mesh(SMALL_SEED, _small_cfg(breakdown_coverage_pct=0.0))
     assert len(result["breakdown_positions"]) == 0
 
 
@@ -261,8 +274,8 @@ def test_breakdown_zero_coverage():
 
 def test_seed_determinism():
     """Same seed produces identical output."""
-    r1 = generate_cave_mesh(**SMALL)
-    r2 = generate_cave_mesh(**SMALL)
+    r1 = generate_cave_mesh(SMALL_SEED, _small_cfg())
+    r2 = generate_cave_mesh(SMALL_SEED, _small_cfg())
     assert np.array_equal(r1["tube_mesh"].vertices, r2["tube_mesh"].vertices)
     assert np.array_equal(r1["floor_mesh"].vertices, r2["floor_mesh"].vertices)
     assert np.array_equal(r1["surface_mesh"].vertices, r2["surface_mesh"].vertices)
@@ -270,8 +283,8 @@ def test_seed_determinism():
 
 def test_different_seeds_differ():
     """Different seeds produce different output."""
-    r1 = generate_cave_mesh(seed=42, **{k: v for k, v in SMALL.items() if k != "seed"})
-    r2 = generate_cave_mesh(seed=99, **{k: v for k, v in SMALL.items() if k != "seed"})
+    r1 = generate_cave_mesh(42, _small_cfg())
+    r2 = generate_cave_mesh(99, _small_cfg())
     assert not np.array_equal(r1["tube_mesh"].vertices, r2["tube_mesh"].vertices)
 
 
@@ -280,7 +293,7 @@ def test_different_seeds_differ():
 
 def test_narrow_tube():
     """width=80m produces a narrower tube."""
-    result = generate_cave_mesh(tube_width_m=80.0, **SMALL)
+    result = generate_cave_mesh(SMALL_SEED, _small_cfg(tube_width_m=80.0))
     verts = result["tube_mesh"].vertices
     x_range = verts[:, 0].max() - verts[:, 0].min()
     assert x_range < 200.0  # narrower than default 200m
@@ -288,37 +301,47 @@ def test_narrow_tube():
 
 def test_wide_tube():
     """width=300m produces a wider tube."""
-    result = generate_cave_mesh(tube_width_m=300.0, skylight_depth_m=180.0, **SMALL)
+    result = generate_cave_mesh(
+        SMALL_SEED,
+        _small_cfg(tube_width_m=300.0, skylight_depth_m=180.0),
+    )
     verts = result["tube_mesh"].vertices
     x_range = verts[:, 0].max() - verts[:, 0].min()
     assert x_range > 100.0  # wider than narrow
 
 
 def test_many_skylights():
-    """skylight_count=10 on large domain produces multiple skylights."""
-    result = generate_cave_mesh(
-        skylight_count=10,
-        skylight_diameter_m=20.0,
-        domain_size=(400, 400),
-        resolution=1.0,
-        path_resolution=60,
-        ring_resolution=20,
-        seed=42,
+    """skylight_count produces exactly the requested number of skylights.
+
+    With strict count enforcement, the domain must fit every requested
+    skylight or the call raises ``ValueError``. The seed/curvature/
+    domain combo here was chosen so all 7 requests honour the
+    1.5*diameter separation constraint along the centerline.
+    """
+    cfg = CaveConfig.model_validate(
+        {
+            "skylight_count": 7,
+            "skylight_diameter_m": 20.0,
+            "domain_size": (400, 400),
+            "resolution": 1.0,
+            "path_resolution": 60,
+            "ring_resolution": 20,
+        }
     )
-    # Large domain should fit most of the 10 requested
-    assert len(result["skylight_meshes"]) >= 5
-    assert len(result["skylight_positions"]) >= 5
+    result = generate_cave_mesh(42, cfg)
+    assert len(result["skylight_meshes"]) == 7
+    assert len(result["skylight_positions"]) == 7
 
 
 def test_high_breakdown_coverage():
     """High breakdown coverage produces many blocks."""
-    result = generate_cave_mesh(breakdown_coverage_pct=80.0, **SMALL)
+    result = generate_cave_mesh(SMALL_SEED, _small_cfg(breakdown_coverage_pct=80.0))
     assert len(result["breakdown_positions"]) > 50
 
 
 def test_no_debris_cone():
     """debris_cone_present=False produces no cones."""
-    result = generate_cave_mesh(debris_cone_present=False, **SMALL)
+    result = generate_cave_mesh(SMALL_SEED, _small_cfg(debris_cone_present=False))
     assert len(result["debris_cones"]) == 0
 
 
@@ -344,35 +367,39 @@ def test_metadata_keys(cave_default):
 
 
 def test_metadata_values(cave_default):
-    """Metadata values match configuration."""
+    """Metadata values match configuration.
+
+    ``surface_z`` is driven by ``skylight_depth_m`` (CaveConfig default
+    110.0 m) rather than ``ceiling_thickness_m``: the actual shaft
+    length is ``skylight_depth_m`` so the surface sits ``floor_z +
+    tube_height_m + skylight_depth_m`` above the tube floor.
+    """
     meta = cave_default["metadata"]
     assert meta["tube_width_m"] == 200.0
     assert meta["tube_height_m"] == 100.0
     assert meta["ceiling_thickness_m"] == 50.0
-    assert meta["surface_z"] == 150.0
+    # floor_z (0) + tube_height_m (100) + skylight_depth_m (110, CaveConfig default)
+    assert meta["surface_z"] == 210.0
     assert meta["floor_z"] == 0.0
     assert meta["seed"] == 42
 
 
-# --- R5 regression guard ---
+# --- Regression guard ---
 
 
-# Hash captured from the pre-R5 monolithic cave_generator on 2026-04-23 for
-# SMALL = seed=42, domain_size=(100, 100), resolution=1.0, path_resolution=30,
-# ring_resolution=20. If this hash changes, either the RNG consumption order
-# drifted (serious bug -- fix the split) or the user intentionally tuned the
-# generator (update the hash here with a work_log entry).
-#
-# Updated 2026-04-24 (Reviewer 2 audit #11): the breakdown lognormal
-# draw was mean-corrected (``mean=log(m) - sigma**2/2`` instead of
-# ``mean=log(m)``) so the sampled diameter stream changed. RNG order is
-# unchanged; only the transformed draw values differ.
-_R5_REGRESSION_HASH = "a8d0af1c9b0b3fb00a78fb94f7b821b26816ca67b02bad60c347b8084307d9b1"
+# Hash captured for the SMALL fixture (seed=42, domain_size=(100, 100),
+# resolution=1.0, path_resolution=30, ring_resolution=20, skylight_count=1)
+# with all other parameters at the :class:`CaveConfig` defaults
+# (skylight_depth_m=110.0 m, etc.). If this hash changes, either the
+# RNG consumption order drifted (serious bug -- fix the call sites) or
+# the generator was intentionally tuned (update the hash here in the
+# same commit as the tuning change).
+_GENERATOR_REGRESSION_HASH = "46f1c250b8937c80aff3c180d4873121f98a3da56660167831fae3eeb4b91b29"
 
 
-def test_r5_regression_hash_stable():
-    """RNG draw order and numeric output survive the R5 4-way split."""
-    result = generate_cave_mesh(**SMALL)
+def test_generator_regression_hash_stable():
+    """RNG draw order and numeric output stay stable across edits."""
+    result = generate_cave_mesh(SMALL_SEED, _small_cfg())
 
     parts: list[bytes] = []
     for key in ("tube_mesh", "floor_mesh", "surface_mesh"):
@@ -387,7 +414,7 @@ def test_r5_regression_hash_stable():
     parts.append(np.nan_to_num(result["surface_elevation"], nan=-9999.0).tobytes())
 
     actual = hashlib.sha256(b"".join(parts)).hexdigest()
-    assert actual == _R5_REGRESSION_HASH, (
+    assert actual == _GENERATOR_REGRESSION_HASH, (
         "Cave generator bit-exact regression guard failed. "
-        "Either the R5 submodule split changed RNG order, or parameters drifted."
+        "Either the RNG consumption order drifted or generator parameters changed."
     )

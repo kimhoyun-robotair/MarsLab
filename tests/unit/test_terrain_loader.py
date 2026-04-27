@@ -1,4 +1,4 @@
-"""Unit tests for marslab.terrain.terrain_loader facade + DEM-path resolver (offline, R3-A3)."""
+"""Unit tests for marslab.terrain.terrain_loader facade + DEM-path resolver (offline)."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def test_load_scenario_terrain_cave_branch(monkeypatch: pytest.MonkeyPatch) -> N
         "ceiling_mesh": None,
     }
 
-    def fake_generate_cave_mesh(**_kwargs: object) -> dict:
+    def fake_generate_cave_mesh(seed: int, cfg: object) -> dict:
         return fake_cave
 
     monkeypatch.setattr(

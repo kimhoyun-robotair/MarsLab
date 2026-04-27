@@ -12,9 +12,9 @@ class TestBuildCreateNodes:
         nodes = dict(_build_create_nodes())
         assert nodes["OnTick"] == "omni.graph.action.OnPlaybackTick"
         assert nodes["ReadSimTime"] == "isaacsim.core.nodes.IsaacReadSimulationTime"
-        # F3 fix (2026-04-26): switched to the non-Raw publisher so the
-        # node auto-walks the rover articulation chain. See
-        # ``OgnROS2PublishTransformTree.rst:21,45``.
+        # Switched to the non-Raw publisher so the node auto-walks the
+        # rover articulation chain. See
+        # ``OgnROS2PublishTransformTree.rst``.
         assert nodes["PubTF"] == "isaacsim.ros2.bridge.ROS2PublishTransformTree"
         assert nodes["Lidar3DHelper"] == "isaacsim.ros2.bridge.ROS2RtxLidarHelper"
 

@@ -3,12 +3,14 @@
 Owns the mutable per-frame atmosphere state, spawns the GUI panel (when not
 headless), and drives the dynamic sun sweep / tau slider updates. Isaac Sim
 imports stay lazy so the module is importable offline. Naming mirrors the
-R6 Stage 3 extraction (``setup_*_scene`` + ``run_*_loop``); the two loop
-modules deliberately do not share a base class (P1 no-premature-abstraction).
+Stage 3 extraction (``setup_*_scene`` + ``run_*_loop``); the two loop
+modules deliberately do not share a base class to avoid premature
+abstraction.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from typing import Any, Dict
@@ -16,11 +18,12 @@ from typing import Any, Dict
 from marslab.runtime.stage2_boot import StageTwoAtmosphereInit, StageTwoBootResult
 from marslab.runtime.stage2_scene import StageTwoScene
 
-# P6 G5 (2026-04-23): the physics tick used by the sun-sweep cadence lives
-# in :class:`StageTwoAtmosphereInit.physics_dt`, which is populated from the
-# pydantic ``MarsEnvConfig.physics_dt`` default. The module-level literal
-# that used to live here (``_PHYSICS_DT = 1.0 / 60.0``) was deleted to
-# satisfy "Zero hardcoded constants in Python source" (CLAUDE.md G5).
+_LOG = logging.getLogger(__name__)
+
+# The physics tick used by the sun-sweep cadence lives in
+# :class:`StageTwoAtmosphereInit.physics_dt`, populated from the pydantic
+# ``MarsEnvConfig.physics_dt`` default. Zero hardcoded Mars constants in
+# Python source: every value flows through the YAML config + schema.
 
 
 def build_atmosphere_state(atmo: StageTwoAtmosphereInit) -> Dict[str, Any]:
@@ -92,21 +95,14 @@ def run_stage2_loop(
 
     if dynamic_enabled:
         tau_profile_name = dyn.tau_profile
-        # ``tau_kwargs`` is preserved for parity with the legacy code path;
-        # the render loop below does not consume it today (tau is driven by
-        # ``atmosphere_state['tau']`` via the GUI slider). The separate
-        # ticket that wires tau_profile into the per-frame ``compute_tau``
-        # call will read this dict.
-        _tau_kwargs: Dict[str, float] = dict(  # noqa: F841
-            getattr(dyn, f"tau_{tau_profile_name}").model_dump()
-        )
-        print(
-            f"[run_stage2] Dynamic atmosphere ON: time_scale={time_scale}x, "
-            f"tau_profile={tau_profile_name}, update_interval={update_interval}",
-            flush=True,
+        _LOG.info(
+            "Dynamic atmosphere ON: time_scale=%sx, tau_profile=%s, update_interval=%s",
+            time_scale,
+            tau_profile_name,
+            update_interval,
         )
     else:
-        print("[run_stage2] Dynamic atmosphere OFF (static).", flush=True)
+        _LOG.info("Dynamic atmosphere OFF (static).")
 
     atmosphere_state = build_atmosphere_state(atmo)
 
@@ -116,12 +112,9 @@ def run_stage2_loop(
             from marslab.gui.atmosphere_panel import AtmospherePanel
 
             atmo_panel = AtmospherePanel(atmosphere_state)
-            print("[run_stage2] Atmosphere control panel created.", flush=True)
+            _LOG.info("Atmosphere control panel created.")
         except Exception as exc:  # noqa: BLE001
-            print(
-                f"[run_stage2] GUI panel unavailable ({exc}), using YAML config.",
-                flush=True,
-            )
+            _LOG.warning("GUI panel unavailable (%s), using YAML config.", exc)
 
     world = scene.world
     stage = scene.stage
@@ -130,7 +123,7 @@ def run_stage2_loop(
     hdri_dir = atmo.hdri_dir
 
     world.reset()
-    print("[run_stage2] Scene ready. Explore in GUI. Ctrl+C to exit.", flush=True)
+    _LOG.info("Scene ready. Explore in GUI. Ctrl+C to exit.")
     frame = 0
     elapsed = 0.0
 
@@ -139,25 +132,25 @@ def run_stage2_loop(
 
         Closes over the outer-loop locals (``elapsed``, render handles,
         env callables). Returns nothing; mutates ``atmosphere_state`` and
-        ``elapsed`` in place. Kept local to :func:`run_stage2_loop` — the
+        ``elapsed`` in place. Kept local to :func:`run_stage2_loop`; the
         twin mutator in :mod:`marslab.runtime.main_loop` uses a different
-        callable-injection layout so we do not share a base (P1).
+        callable-injection layout so the two paths do not share a base.
         """
         nonlocal elapsed
 
         current_tau = atmosphere_state["tau"]
+        dyn_sun_pos = None
 
         if atmosphere_state["sun_mode"] == "auto" and dynamic_enabled:
             elapsed += physics_dt * update_interval * time_scale
             t = (elapsed % sol_duration) / sol_duration
             atmosphere_state["time_of_sol"] = t
 
-            # ``mode="linear"`` pins the historical envelope semantics
-            # (linear azimuth sweep + half-sine elevation) that
-            # ``SunSweepConfig`` was designed around. The new default
-            # ``mode="spherical"`` is opt-in — switching to it requires
-            # extending SunSweepConfig with latitude_deg/ls_deg, which is
-            # a separate follow-up to the Reviewer-2 #8 fix.
+            # ``mode="linear"`` pins the linear azimuth sweep + half-sine
+            # elevation envelope semantics that ``SunSweepConfig`` was
+            # designed around. ``mode="spherical"`` is opt-in and requires
+            # extending ``SunSweepConfig`` with ``latitude_deg`` /
+            # ``ls_deg`` first.
             dyn_sun_pos = compute_sol_sun_position(
                 time_of_sol_fraction=t,
                 start_azimuth_deg=sweep_start_az,
@@ -172,7 +165,8 @@ def run_stage2_loop(
                 azimuth_deg=atmosphere_state["sun_azimuth_deg"],
                 elevation_deg=max(0.5, min(89.5, atmosphere_state["sun_elevation_deg"])),
             )
-        else:
+
+        if dyn_sun_pos is None:
             return
 
         dyn_intensity = compute_direct_intensity(
@@ -202,12 +196,12 @@ def run_stage2_loop(
             _step_atmosphere()
 
     except KeyboardInterrupt:
-        print("[run_stage2] KeyboardInterrupt -- shutting down.", flush=True)
+        _LOG.info("KeyboardInterrupt -- shutting down.")
     finally:
         try:
             simulation_app.close()
         except Exception as exc:  # noqa: BLE001
-            print(f"[run_stage2] simulation_app.close() raised: {exc}", file=sys.stderr)
+            _LOG.error("simulation_app.close() raised: %s", exc)
             sys.stdout.flush()
             sys.stderr.flush()
             os._exit(1)

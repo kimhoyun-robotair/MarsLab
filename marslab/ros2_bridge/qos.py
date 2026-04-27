@@ -8,9 +8,9 @@ runtime actually spins up rclpy.  Unit tests that import
 succeed at import time and fail only if they call
 :func:`to_rclpy_qos`.
 
-Reviewer 2 #04 (2026-04-24) mandated QoS profile plumbing through
-every publisher / subscriber in the bridge.  The adapter here is the
-single conversion point so the mapping
+QoS profile plumbing flows through every publisher / subscriber in the
+bridge.  The adapter here is the single conversion point so the
+mapping
 
     reliability: "reliable" | "best_effort"
     durability:  "volatile" | "transient_local"
@@ -33,15 +33,13 @@ Isaac Sim 5.1) is::
      "liveliness": "automatic" | "manualByTopic" | "systemDefault",
      "leaseDuration": <double seconds>}
 
-Day 5 v1.0 sprint fix-up (2026-04-25):
-:func:`to_omnigraph_qos_json` previously returned bare preset names
-(``"SystemDefault"``, ``"SensorData"``).  The downstream OmniGraph
-node ran ``json.loads("SystemDefault")`` on every step and emitted
-``Parsing error: ... last read: 'S'`` to stderr, flooding the log
-(verified ``~/MarsLab/log.txt:520+`` ~5500 lines per session).  The
-preset name was non-fatally interpreted by the C++ writer so the
-simulation worked, but the noise made other warnings unreadable.
-The helper now returns proper JSON which the writer parses cleanly.
+:func:`to_omnigraph_qos_json` returns the proper JSON encoding so the
+downstream OmniGraph C++ writer parses it cleanly.  An earlier
+implementation returned bare preset names (``"SystemDefault"``,
+``"SensorData"``); the writer ran ``json.loads("SystemDefault")`` on
+every step and emitted ``Parsing error: ... last read: 'S'`` to
+stderr.  The bare-name path was non-fatal but produced thousands of
+log lines per session, drowning out other diagnostics.
 """
 
 from __future__ import annotations
@@ -58,6 +56,19 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+# Module-level latch: emit the ``transient_local`` warning once per
+# process so callers iterating over many sensor topics (or the schema
+# default tf_qos firing on every scenario load) do not flood the log
+# with the same advisory.  Reset by tests via
+# ``marslab.ros2_bridge.qos._reset_transient_local_warned()`` if needed.
+_transient_local_warned = False
+
+
+def _reset_transient_local_warned() -> None:
+    """Test hook: clear the once-per-process warning latch."""
+    global _transient_local_warned
+    _transient_local_warned = False
 
 
 def to_rclpy_qos(cfg: QoSProfileConfig) -> Any:
@@ -81,7 +92,7 @@ def to_rclpy_qos(cfg: QoSProfileConfig) -> Any:
     # Runtime-only import keeps the module import surface pure-Python.
     # Callers that do not have rclpy (unit tests) should never reach
     # this line in the first place.
-    from rclpy.qos import (
+    from rclpy.qos import (  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
         DurabilityPolicy,
         HistoryPolicy,
         QoSProfile,
@@ -130,15 +141,8 @@ def to_omnigraph_qos_json(cfg: QoSProfileConfig) -> str:
       ``"keep_all"`` → ``"keepAll"``.
     * ``depth``: passed through.
     * ``deadline`` / ``lifespan`` / ``leaseDuration``: 0.0 (no policy).
-    * ``liveliness``: ``"systemDefault"`` (we do not expose this knob).
-
-    Day 5 fix-up (2026-04-25): switched from bare preset names
-    (``"SystemDefault"``, ``"SensorData"``) to the JSON encoding that
-    the C++ writer expects.  The bare-name path produced
-    ``Parsing error: ... last read: 'S'`` log spam on every step
-    (verified ``~/MarsLab/log.txt:520+``).  The bare-name fallback in
-    the C++ writer was non-fatal, so behaviour was correct, but the
-    noise made other diagnostic output unreadable.
+    * ``liveliness``: ``"systemDefault"`` (this knob is intentionally
+      not surfaced in YAML).
 
     Args:
         cfg: The validated :class:`QoSProfileConfig`.
@@ -150,11 +154,13 @@ def to_omnigraph_qos_json(cfg: QoSProfileConfig) -> str:
         ``sort_keys=True``) so identical configs produce identical
         strings, which keeps unit tests stable.
     """
+    global _transient_local_warned
+
     reliability_map = {"reliable": "reliable", "best_effort": "bestEffort"}
     durability_map = {"volatile": "volatile", "transient_local": "transientLocal"}
     history_map = {"keep_last": "keepLast", "keep_all": "keepAll"}
 
-    if cfg.durability == "transient_local":
+    if cfg.durability == "transient_local" and not _transient_local_warned:
         logger.warning(
             "to_omnigraph_qos_json: transient_local durability is "
             "honoured on the rclpy publish path but the OmniGraph "
@@ -162,6 +168,7 @@ def to_omnigraph_qos_json(cfg: QoSProfileConfig) -> str:
             "Sim 5.1.  Late joiners may still miss the first message "
             "on OmniGraph-only topics."
         )
+        _transient_local_warned = True
 
     qos_dict = {
         "history": history_map[cfg.history],

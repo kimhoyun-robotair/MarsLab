@@ -1,3 +1,10 @@
+# NOTE: This file references ``/rover/scan_corrected``. Isaac Sim publishes
+# ``/rover/scan`` (the raw lidar topic). The bridge node
+# ``scripts/ros2/scan_header_fix.py`` republishes ``/rover/scan`` ->
+# ``/rover/scan_corrected`` after fixing the LaserScan header timestamps.
+# Run ``scan_header_fix.py`` BEFORE launching nav2 or slam_toolbox;
+# otherwise these YAML topic subscriptions get zero messages.
+
 slam_toolbox:
   ros__parameters:
 

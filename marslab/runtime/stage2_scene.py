@@ -8,12 +8,15 @@ are lazy so unit tests can assert on signatures without a live Kit app.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
 from marslab.runtime.stage2_boot import StageTwoBootResult
+
+_LOG = logging.getLogger(__name__)
 
 
 @dataclass
@@ -67,8 +70,8 @@ def setup_stage2_scene(boot: StageTwoBootResult) -> StageTwoScene:
     atmo = boot.atmosphere_init
 
     # --- Physics world (Mars gravity + solver iterations from config) --------
-    # 2026-04-24: route World creation through :func:`create_world` so Stage 2
-    # and Stage 3 share a single physics setup path (16/4 solver iterations
+    # Route World creation through :func:`create_world` so Stage 2 and
+    # Stage 3 share a single physics setup path (16/4 solver iterations
     # needed for the 29-DOF rover articulation; harmless for Stage-2-only
     # scenes).  Gravity + physics_dt still come from the pydantic-validated
     # MarsEnvConfig via ``boot.atmosphere_init`` / ``boot.mars_cfg``.
@@ -78,7 +81,7 @@ def setup_stage2_scene(boot: StageTwoBootResult) -> StageTwoScene:
     physics_dt = atmo.physics_dt
     gravity = mars_env_model.gravity
     world, stage = create_world(physics_dt=physics_dt, gravity=gravity)
-    print(f"[run_stage2] Gravity: {gravity} m/s^2", flush=True)
+    _LOG.info("Gravity: %s m/s^2", gravity)
 
     # --- Build terrain / cave mesh ------------------------------------------
     is_cave = terrain_cfg.get("procedural_preset") == "cave"
@@ -102,7 +105,7 @@ def setup_stage2_scene(boot: StageTwoBootResult) -> StageTwoScene:
     )
     configure_sky_dome(stage, atmo.sky_params, atmo.diffuse_fraction, render_config)
     configure_atmosphere_fog(stage, atmo.tau, render_config)
-    print("[run_stage2] Atmosphere configured (sun + sky + fog).", flush=True)
+    _LOG.info("Atmosphere configured (sun + sky + fog).")
 
     return StageTwoScene(
         world=world,
@@ -123,12 +126,11 @@ def _build_cave_scene(stage: Any, boot: StageTwoBootResult) -> np.ndarray:
 
     cave_data = terrain_cfg["_cave_data"]
     norm_elevation = build_cave_scene(cave_data, stage)
-    print(
-        f"[run_stage2] Cave scene built: "
-        f"tube={len(cave_data['tube_mesh'].vertices)} verts, "
-        f"skylights={len(cave_data['skylight_positions'])}, "
-        f"breakdown={len(cave_data['breakdown_positions'])} blocks",
-        flush=True,
+    _LOG.info(
+        "Cave scene built: tube=%d verts, skylights=%d, breakdown=%d blocks",
+        len(cave_data["tube_mesh"].vertices),
+        len(cave_data["skylight_positions"]),
+        len(cave_data["breakdown_positions"]),
     )
 
     cave_cfg = terrain_cfg.get("cave", {})
@@ -154,7 +156,7 @@ def _build_cave_scene(stage: Any, boot: StageTwoBootResult) -> np.ndarray:
         seed=cave_seed,
         texture_dir=texture_dir,
     )
-    print("[run_stage2] Cave materials applied.", flush=True)
+    _LOG.info("Cave materials applied.")
     return norm_elevation
 
 
@@ -175,10 +177,11 @@ def _build_heightmap_scene(stage: Any, boot: StageTwoBootResult) -> np.ndarray:
         terrain_prim_path,
         uv_scale,
     )
-    print(
-        f"[run_stage2] Terrain mesh: {terrain_prim_path}, "
-        f"normalized z=[{norm_elevation.min():.2f}, {norm_elevation.max():.2f}]",
-        flush=True,
+    _LOG.info(
+        "Terrain mesh: %s, normalized z=[%.2f, %.2f]",
+        terrain_prim_path,
+        norm_elevation.min(),
+        norm_elevation.max(),
     )
 
     albedo_range = tuple(mars_cfg.get("surface_albedo_range", [0.10, 0.40]))
@@ -191,7 +194,7 @@ def _build_heightmap_scene(stage: Any, boot: StageTwoBootResult) -> np.ndarray:
         seed=int(terrain_cfg.get("seed", 42)),
         texture_dir=texture_dir,
     )
-    print("[run_stage2] Terrain material applied.", flush=True)
+    _LOG.info("Terrain material applied.")
     return norm_elevation
 
 
@@ -205,7 +208,7 @@ def _place_rocks_if_enabled(
 
     rock_k = float(terrain_cfg.get("rock_sfd_k", 0))
     if rock_k <= 0:
-        print("[run_stage2] Rock placement skipped (rock_sfd_k=0).", flush=True)
+        _LOG.info("Rock placement skipped (rock_sfd_k=0).")
         return
 
     from marslab.terrain.rock_instancer import place_rocks_on_terrain
@@ -236,7 +239,7 @@ def _place_rocks_if_enabled(
         rock_mesh_dir=rock_mesh_dir,
         rock_texture_dir=rock_texture_dir,
     )
-    print(f"[run_stage2] Placed {len(rocks)} rocks (k={rock_k}).", flush=True)
+    _LOG.info("Placed %d rocks (k=%s).", len(rocks), rock_k)
 
 
 __all__ = ["StageTwoScene", "setup_stage2_scene"]

@@ -73,10 +73,19 @@ def main() -> None:
     print("[convert_dem] Verifying round-trip...")
     loaded_elev, loaded_meta = load_converted_dem(output_dir)
 
-    assert loaded_elev.shape == elevation.shape, "Shape mismatch after round-trip"
-    assert loaded_elev.dtype == np.float32, "Dtype mismatch after round-trip"
-    assert np.allclose(loaded_elev, elevation, equal_nan=True), "Elevation data mismatch"
-    assert loaded_meta["resolution_x"] == metadata["resolution_x"], "Resolution mismatch"
+    if loaded_elev.shape != elevation.shape:
+        raise ValueError(
+            f"Shape mismatch after round-trip: {loaded_elev.shape} != {elevation.shape}"
+        )
+    if loaded_elev.dtype != np.float32:
+        raise ValueError(f"Dtype mismatch after round-trip: {loaded_elev.dtype} != float32")
+    if not np.allclose(loaded_elev, elevation, equal_nan=True):
+        raise ValueError("Elevation data mismatch after round-trip")
+    if loaded_meta["resolution_x"] != metadata["resolution_x"]:
+        raise ValueError(
+            "Resolution mismatch after round-trip: "
+            f"{loaded_meta['resolution_x']} != {metadata['resolution_x']}"
+        )
 
     npy_size = os.path.getsize(os.path.join(output_dir, "elevation.npy"))
     print(f"  Round-trip verification: PASSED | Output size: {npy_size / 1024:.1f} KB")

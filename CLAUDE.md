@@ -261,7 +261,7 @@ mars_env:
 ## Testing Requirements
 
 ### Unit Tests (No Isaac Sim)
-Run with: `pytest tests/unit/ -q`. Current count: **893 tests** (post-v0.7 sweep).
+Run with: `pytest tests/unit/ -q`. Current count: **1142 tests**.
 
 Coverage areas:
 - Config schema (`extra="forbid"` enforcement, pydantic validators)

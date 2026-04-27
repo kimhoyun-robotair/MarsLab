@@ -1,7 +1,7 @@
-"""Regenerate Instruction/INDEX.md from the current Instruction/marslab/ tree.
+"""Regenerate ``Instruction/INDEX.md`` from the current ``Instruction/marslab/`` tree.
 
-Phase A-3 of the Instruction-wiki plan. Safe to re-run any time — it fully
-overwrites INDEX.md using current frontmatter (`loc`, `status`, `source`).
+Safe to re-run any time -- it fully overwrites ``INDEX.md`` using
+current frontmatter (``loc``, ``status``, ``source``).
 
 Output sections:
 1. Progress bar (draft/reviewed/needs_refactor counts)
@@ -67,7 +67,7 @@ def progress_bar(counts: dict[str, int], width: int = 30) -> str:
     filled_r = int(width * counts.get("reviewed", 0) / total)
     filled_n = int(width * counts.get("needs_refactor", 0) / total)
     filled_d = width - filled_r - filled_n
-    bar = "█" * filled_r + "▒" * filled_n + "·" * filled_d
+    bar = "#" * filled_r + "=" * filled_n + "." * filled_d
     return (
         f"`{bar}` "
         f"reviewed {counts.get('reviewed', 0)} / "
@@ -98,25 +98,25 @@ def main() -> int:
     lines.append("generated_by: scripts/tools/generate_instruction_index.py")
     lines.append("---")
     lines.append("")
-    lines.append("# MarsLab Instruction Wiki — INDEX")
+    lines.append("# MarsLab Instruction Wiki -- INDEX")
     lines.append("")
     lines.append(
-        "> **English summary (1 paragraph):** Auto-generated navigation for the "
+        "> **Summary (1 paragraph):** Auto-generated navigation for the "
         "MarsLab Instruction wiki. Each row mirrors one source file under `marslab/` "
         "and links to its twin `.md`. Re-run `scripts/tools/generate_instruction_index.py` "
         "after adding/removing source files or flipping a `.md` status to reviewed."
     )
     lines.append("")
-    lines.append("## 진행률")
+    lines.append("## Progress")
     lines.append("")
-    lines.append("_(정확한 값은 아래 테이블에서 집계됨)_")
+    lines.append("_(Exact values are aggregated from the table below.)_")
     lines.append("")
     progress_placeholder_idx = len(lines)
     lines.append("PLACEHOLDER_PROGRESS")
     lines.append("")
 
     # Per-module tables
-    lines.append("## 모듈별 파일")
+    lines.append("## Files by module")
     lines.append("")
 
     for module in sorted(module_files.keys()):
@@ -124,7 +124,7 @@ def main() -> int:
         header = "### marslab/ (root)" if module == "(root)" else f"### marslab/{module}/"
         lines.append(header)
         lines.append("")
-        lines.append("| 파일 | LOC | status | 역할 | Isaac | ROS2 |")
+        lines.append("| File | LOC | status | Role | Isaac | ROS2 |")
         lines.append("|-----|-----|--------|------|-------|------|")
 
         for py in files:
@@ -135,12 +135,12 @@ def main() -> int:
             status_counts[status] += 1
             loc = fm.get("loc", "?")
             role, isaac, ros2 = source_role_and_flags(py)
-            role = role[:80] + ("…" if len(role) > 80 else "")
+            role = role[:80] + ("..." if len(role) > 80 else "")
             if not role:
-                role = "_(docstring 없음)_"
+                role = "_(no docstring)_"
             md_link = f"[[Instruction/{py.relative_to(REPO_ROOT).with_suffix('').as_posix()}]]"
-            isaac_mark = "✅" if isaac else ""
-            ros2_mark = "✅" if ros2 else ""
+            isaac_mark = "yes" if isaac else ""
+            ros2_mark = "yes" if ros2 else ""
             lines.append(
                 f"| `{rel}` → {md_link} | {loc} | {status} | {role} | {isaac_mark} | {ros2_mark} |"
             )
@@ -153,39 +153,40 @@ def main() -> int:
         lines.append("")
 
     # Quick filters
-    lines.append("## 빠른 필터")
+    lines.append("## Quick filters")
     lines.append("")
-    lines.append("### Isaac Sim / Omniverse / pxr 를 터치하는 파일")
+    lines.append("### Files that touch Isaac Sim / Omniverse / pxr")
     lines.append("")
     if isaac_hits:
         for rel, role in isaac_hits:
-            lines.append(f"- `{rel}` — {role or '(docstring 없음)'}")
+            lines.append(f"- `{rel}` -- {role or '(no docstring)'}")
     else:
-        lines.append("- (없음)")
+        lines.append("- (none)")
     lines.append("")
-    lines.append("### ROS2 (rclpy / tf2_ros / *_msgs) 를 터치하는 파일")
+    lines.append("### Files that touch ROS2 (rclpy / tf2_ros / *_msgs)")
     lines.append("")
     if ros2_hits:
         for rel, role in ros2_hits:
-            lines.append(f"- `{rel}` — {role or '(docstring 없음)'}")
+            lines.append(f"- `{rel}` -- {role or '(no docstring)'}")
     else:
-        lines.append("- (없음)")
+        lines.append("- (none)")
     lines.append("")
 
     # Glossary
-    lines.append("## 글로서리")
+    lines.append("## Glossary")
     lines.append("")
     for name in sorted((REPO_ROOT / "Instruction" / "_glossary").glob("*.md")):
         stem = name.stem
         lines.append(f"- [[Instruction/_glossary/{stem}]]")
     lines.append("")
 
-    lines.append("## 다음 단계")
+    lines.append("## Next steps")
     lines.append("")
-    lines.append("- Phase A-4: `scripts/check_instruction_sync.py` (동형성 검증)")
-    lines.append("- Phase B: 파일별 워크스루 — `marslab/utils/` 부터 시작 권장")
+    lines.append("- Run `scripts/check_instruction_sync.py` to verify tree isomorphism.")
+    lines.append("- Walk through files module by module; `marslab/utils/` is a good start.")
     lines.append(
-        "- `.md` 프리필을 다시 돌리려면: `python3 scripts/tools/generate_instruction_skeleton.py`"
+        "- To regenerate the `.md` skeletons: "
+        "`python3 scripts/tools/generate_instruction_skeleton.py`."
     )
     lines.append("")
 

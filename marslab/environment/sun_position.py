@@ -7,38 +7,33 @@ Three entry points for callers:
 * :func:`sun_position_from_utc` — wall-clock UTC + lat/lon -> sun position
   via the Allison & McEwen (2000) JD -> MSD -> Local Mean Solar Time chain.
 
-Historically the sweep used a linear azimuth interpolation plus a
-``sin(pi * t)`` elevation, which is off by 20–40° in azimuth near transit
-for Jezero crater (18.4 deg N). Reviewer 2 flagged the Allison & McEwen
-(2000) citation as not reflecting the actual implementation.
-
-The sweep now defaults to ``mode="spherical"``, which evaluates the
-standard astronomy identities
+The sweep defaults to ``mode="spherical"``, which evaluates the standard
+astronomy identities
 
     sin(el) = sin(phi) sin(delta) + cos(phi) cos(delta) cos(H)
     sin(az) = -cos(delta) sin(H) / cos(el)
 
 where ``phi`` is the observer latitude, ``delta`` the solar declination,
-and ``H`` the hour angle (``H = (t_frac - 0.5) * 2*pi``).
-
-``mode="linear"`` preserves the first-order approximation for
-backward-compat with callers that explicitly want the sunrise-azimuth /
-sunset-azimuth / peak-elevation envelope. This mode is documented as an
-approximation and is not used by v1.0 paper figures.
+and ``H`` the hour angle (``H = (t_frac - 0.5) * 2*pi``). A linear
+azimuth + half-sine elevation sweep (``mode="linear"``) is preserved for
+callers that explicitly want the sunrise-azimuth / sunset-azimuth /
+peak-elevation envelope; it is a first-order approximation off by
+20-40 deg in azimuth near transit for Jezero crater (18.44 deg N) and
+is not used by paper figures.
 
 Scientific basis:
 
 * Mars sol = 88,642 s (IAU).
-* Mars obliquity = 25.19 deg. Declination over an orbit is
-  ``delta ≈ obliquity * sin(Ls)`` where Ls is the areocentric longitude.
-* Jezero (phi = 18.44 deg N) at Ls=90 (northern summer solstice) peaks
-  near ``90 - (phi - obliquity) ≈ 83.25`` deg elevation.
-* At Ls=0 / Ls=180 (equinoxes) the peak is ``90 - phi ≈ 71.56`` deg.
+* Mars obliquity ~ 25.19 deg. Declination over an orbit is
+  ``delta ~ obliquity * sin(Ls)`` where Ls is the areocentric longitude.
+* Jezero (phi ~ 18.44 deg N) at Ls=90 (northern summer solstice) peaks
+  near ``90 - (phi - obliquity) ~ 83.25`` deg elevation.
+* At Ls=0 / Ls=180 (equinoxes) the peak is ``90 - phi ~ 71.56`` deg.
 
 References:
     Allison & McEwen (2000). A post-Pathfinder evaluation of areocentric
     solar coordinates with improved timing recipes for Mars seasonal/diurnal
-    climate studies. Planet. Space Sci. 48 (2-3), 215–235.
+    climate studies. Planet. Space Sci. 48 (2-3), 215-235.
 """
 
 import math
@@ -46,16 +41,19 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
 
-# Mars obliquity (axial tilt). Used to derive the solar declination from
-# areocentric longitude Ls. Constant-by-epoch; treated as a fixed
-# planetary parameter here rather than a YAML field because every
-# MarsLab scenario is locked to the modern Mars epoch.
+# Default Mars obliquity (axial tilt) used when the caller does not
+# inject the value from ``MarsEnvConfig.obliquity_deg``. Allison &
+# McEwen (2000) cite 25.19 deg for the modern Mars epoch. Exposed as a
+# public name so tests and external callers can reference the canonical
+# default; config-driven runtime paths should pass the value through
+# ``MarsEnvConfig.obliquity_deg`` instead.
 MARS_OBLIQUITY_DEG: float = 25.19
 
-# Default observer latitude for the diurnal sweep. Matches Jezero crater
-# (Perseverance landing site, 18.4447 deg N). Individual callers can
-# override via ``latitude_deg``; the runtime loops currently do not, so
-# the default is the one that actually ships in paper figures.
+# Default planetographic observer latitude used when the caller does
+# not inject ``MarsEnvConfig.default_latitude_deg``. 18.44 deg N is
+# Jezero crater (Mars 2020 Perseverance landing site, rounded from
+# 18.4447 deg N). Same backward-compat exposure rationale as
+# ``MARS_OBLIQUITY_DEG``.
 DEFAULT_LATITUDE_DEG: float = 18.44
 
 
@@ -102,23 +100,29 @@ def compute_sun_position(azimuth_deg: float, elevation_deg: float) -> SunPositio
     )
 
 
-def solar_declination_deg(ls_deg: float) -> float:
+def solar_declination_deg(
+    ls_deg: float,
+    obliquity_deg: float = MARS_OBLIQUITY_DEG,
+) -> float:
     """Solar declination for a given areocentric longitude Ls.
 
     Uses the first-harmonic Allison & McEwen (2000) form
     ``delta = obliquity * sin(Ls)``. This matches their Table 2 within
-    0.5 deg across the full orbit for the modern epoch — sufficient for
-    v1.0 lighting because the sweep is evaluated to +/- ~1 deg.
+    0.5 deg across the full orbit for the modern epoch -- sufficient for
+    lighting at the +/- ~1 deg precision targeted here.
 
     Args:
         ls_deg: Areocentric longitude of the Sun in degrees [0, 360).
             Ls=0 is northern spring equinox, Ls=90 northern summer
             solstice.
+        obliquity_deg: Mars axial tilt in degrees. Defaults to the
+            modern-epoch value 25.19 deg. Pass ``MarsEnvConfig.obliquity_deg``
+            for config-driven runs.
 
     Returns:
         Declination in degrees.
     """
-    return MARS_OBLIQUITY_DEG * math.sin(math.radians(ls_deg))
+    return obliquity_deg * math.sin(math.radians(ls_deg))
 
 
 def _spherical_sun_position(
@@ -198,42 +202,48 @@ def compute_sol_sun_position(
     latitude_deg: float = DEFAULT_LATITUDE_DEG,
     ls_deg: float = 0.0,
     declination_deg: float | None = None,
+    obliquity_deg: float = MARS_OBLIQUITY_DEG,
 ) -> SunPosition:
     """Compute sun position from a fractional time-of-sol.
 
     The default ``mode="spherical"`` evaluates the standard spherical
     astronomy identities for altitude and azimuth. This is the
-    physically correct path-of-the-sun and is what the v1.0 paper
-    figures render. It was introduced to fix a reviewer-flagged
-    mismatch where the older code cited Allison & McEwen (2000) but
-    used a linear azimuth sweep (20–40° error near transit for Jezero).
-
-    ``mode="linear"`` preserves the legacy first-order approximation
+    physically correct path-of-the-sun and is what the paper figures
+    render. ``mode="linear"`` preserves a first-order approximation
     (linear azimuth + half-sine elevation) for callers that want an
-    explicit envelope. The ``start_azimuth_deg`` / ``end_azimuth_deg`` /
+    explicit envelope; the ``start_azimuth_deg`` / ``end_azimuth_deg`` /
     ``max_elevation_deg`` arguments are ignored in ``"spherical"`` mode
-    but retained for signature stability with pre-refactor code.
+    but retained for signature stability.
+
+    Pass ``MarsEnvConfig.default_latitude_deg`` and
+    ``MarsEnvConfig.obliquity_deg`` for config-driven runs; the defaults
+    below match those schema defaults so standalone callers behave
+    identically.
 
     Args:
         time_of_sol_fraction: Fraction of the sol [0, 1] where 0 is
             local midnight-to-sunrise (``mode="linear"`` treats 0 as
             sunrise; ``mode="spherical"`` treats 0.5 as solar transit
             and 0/1 as local midnight).
-        start_azimuth_deg: Legacy linear-mode sunrise azimuth. Ignored
-            in spherical mode.
-        end_azimuth_deg: Legacy linear-mode sunset azimuth. Ignored in
+        start_azimuth_deg: Linear-mode sunrise azimuth. Ignored in
             spherical mode.
-        max_elevation_deg: Legacy linear-mode peak elevation. Ignored
-            in spherical mode.
+        end_azimuth_deg: Linear-mode sunset azimuth. Ignored in
+            spherical mode.
+        max_elevation_deg: Linear-mode peak elevation. Ignored in
+            spherical mode.
         mode: ``"spherical"`` (default, physically correct) or
-            ``"linear"`` (legacy envelope approximation).
+            ``"linear"`` (envelope approximation).
         latitude_deg: Observer latitude, degrees (spherical mode only).
-            Defaults to Jezero crater 18.44°N.
+            Defaults to Jezero crater 18.44 deg N.
         ls_deg: Areocentric longitude of the Sun, degrees (spherical
             mode only). 0 = northern spring equinox, 90 = northern
             summer solstice. Ignored if ``declination_deg`` is given.
         declination_deg: Solar declination override, degrees (spherical
-            mode only). If ``None``, derived from ``ls_deg``.
+            mode only). If ``None``, derived from ``ls_deg`` and
+            ``obliquity_deg``.
+        obliquity_deg: Mars axial tilt in degrees, used only when
+            ``declination_deg`` is ``None`` and ``mode == "spherical"``.
+            Defaults to the modern-epoch value 25.19 deg.
 
     Returns:
         SunPosition for the requested time of sol. Sub-horizon
@@ -259,7 +269,11 @@ def compute_sol_sun_position(
     if mode == "spherical":
         if not -90.0 <= latitude_deg <= 90.0:
             raise ValueError(f"latitude_deg must be in [-90, 90], got {latitude_deg}")
-        delta = declination_deg if declination_deg is not None else solar_declination_deg(ls_deg)
+        delta = (
+            declination_deg
+            if declination_deg is not None
+            else solar_declination_deg(ls_deg, obliquity_deg=obliquity_deg)
+        )
         return _spherical_sun_position(
             time_of_sol_fraction=time_of_sol_fraction,
             latitude_deg=latitude_deg,
@@ -273,18 +287,17 @@ def compute_sol_sun_position(
 # ---------------------------------------------------------------------------
 #
 # The chain implemented below follows Allison & McEwen (2000), §A.1, as
-# popularised by NASA GISS' Mars24 Sunclock algorithm document
+# popularised by the NASA GISS Mars24 Sunclock algorithm document
 # (https://www.giss.nasa.gov/tools/mars24/help/algorithm.html). The
 # constants are the public Mars24 ones; they reproduce the Mars24 sample
-# outputs to within < 1e-3 sol after the leap-second correction is
+# outputs to within < 1e-3 sol once the leap-second correction is
 # applied.
 #
 # Step-by-step:
 #   1. UTC -> Julian Date (UT1):  JD_UT = unix_seconds/86400 + 2440587.5
 #   2. UT1 -> Terrestrial Time:   JD_TT = JD_UT + (TAI-UTC + 32.184)/86400
-#      We use TAI-UTC = 37 s (post-2017-01-01 leap second; constant for
-#      every UTC date this project plausibly simulates -- v1.0 paper
-#      figures are anchored to 2024-2026).
+#      TAI-UTC = 37 s (post-2017-01-01 leap second) is constant for the
+#      modern-epoch UTC range simulated here.
 #   3. Days since J2000:          dT = JD_TT - 2451545.0
 #   4. Mars Sol Date (MSD):
 #         MSD = ((dT - 4.5) / 1.027491252) + 44796.0 - 0.00096
@@ -295,24 +308,21 @@ def compute_sol_sun_position(
 #   5. Mars Coordinated Time (MTC), hours:  MTC = (24 * MSD) mod 24
 #      This is the mean solar time at Airy-0 (longitude 0).
 #   6. Local Mean Solar Time at observer longitude L (positive east):
-#         LMST = (MTC - L * 24/360) mod 24
-#      The sign matches Mars24: a site east of Airy-0 sees the sun cross
-#      its meridian *earlier* than Airy-0, so its LMST is larger than MTC.
-#      We negate longitude to express that as "earlier on the clock"
-#      relative to the reverse-rotating MTC frame (Allison & McEwen Eq. A6).
-#   7. sol_fraction = LMST / 24, fed to ``compute_sun_position`` via
-#      the existing spherical-mode helper. Solar declination is derived
-#      either from a caller-supplied Ls or, by default, from the same
-#      Allison & McEwen formulation:
-#         Ls(t) ≈ M + 10.691*sin(M) + 0.623*sin(2M) + ... (truncated)
-#      This is Allison & McEwen Eq. A12, kept to 4 harmonics. The
-#      truncation matches Mars24 within 0.05 deg of Ls.
+#         LMST = (MTC + L * 24/360) mod 24
+#      A site east of Airy-0 sees the sun cross its meridian *earlier*
+#      than Airy-0; the sign convention matches Allison & McEwen Eq. A6.
+#   7. sol_fraction = LMST / 24, fed to the spherical-mode helper.
+#      Solar declination is derived either from a caller-supplied Ls
+#      or, by default, from the same Allison & McEwen formulation:
+#         Ls(t) ~ M + 10.691*sin(M) + 0.623*sin(2M) + ... (truncated)
+#      This is Allison & McEwen Eq. A12, kept to 5 equation-of-centre
+#      harmonics plus 7 PBS perturbation terms. The truncation matches
+#      Mars24 within 0.05 deg of Ls.
 #
-# Reviewer 2 note: we deliberately keep the leap-second constant rather
-# than reading IERS bulletins. v1.0 lighting tolerances are ~1 deg in
-# elevation; a 37 s vs 38 s drift over five years is ~5e-7 sol, which
-# is < 1e-4 deg. Documenting the assumption here so a future reviewer
-# does not "fix" it without realising the precision budget.
+# The leap-second constant is intentionally hard-coded rather than
+# read from IERS bulletins: lighting tolerances here are ~1 deg in
+# elevation, and a 37 s vs 38 s drift over five years is ~5e-7 sol
+# (< 1e-4 deg), well below the precision budget.
 
 _JULIAN_DATE_UNIX_EPOCH: float = 2440587.5
 """Julian Date of the Unix epoch (1970-01-01 00:00:00 UTC)."""
@@ -321,10 +331,10 @@ _J2000_JULIAN_DATE: float = 2451545.0
 """Julian Date of the J2000.0 epoch (2000-01-01 12:00:00 TT)."""
 
 _TAI_MINUS_UTC_SECONDS: float = 37.0
-"""TAI-UTC offset assumed for the v1.0 paper epoch (post-2017-01-01).
+"""TAI-UTC offset assumed for the modern Mars epoch (post-2017-01-01).
 
-Constant within the simulated range. See module docstring for the
-precision budget that justifies the constant assumption.
+Constant within the simulated range. See the module-level UTC chain
+notes for the precision budget that justifies the constant assumption.
 """
 
 _TT_MINUS_TAI_SECONDS: float = 32.184
@@ -468,6 +478,7 @@ def sun_position_from_utc(
     longitude_deg: float,
     *,
     ls_override_deg: float | None = None,
+    obliquity_deg: float = MARS_OBLIQUITY_DEG,
 ) -> SunPosition:
     """Compute Mars sun position for a wall-clock UTC moment.
 
@@ -500,6 +511,9 @@ def sun_position_from_utc(
         ls_override_deg: Optional override for the areocentric longitude
             Ls (degrees, ``[0, 360)``). Lets callers reuse the rest of
             the UTC pipeline while pinning a synthetic season.
+        obliquity_deg: Mars axial tilt in degrees. Defaults to the
+            modern-epoch value 25.19 deg. Pass
+            ``MarsEnvConfig.obliquity_deg`` for config-driven runs.
 
     Returns:
         :class:`SunPosition` for the observer at the requested wall
@@ -533,4 +547,5 @@ def sun_position_from_utc(
         mode="spherical",
         latitude_deg=latitude_deg,
         ls_deg=ls_deg,
+        obliquity_deg=obliquity_deg,
     )

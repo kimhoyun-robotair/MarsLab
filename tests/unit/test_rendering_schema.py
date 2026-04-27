@@ -1,4 +1,4 @@
-"""Module-focused tests for marslab.config.schema.rendering (R8-5)."""
+"""Module-focused tests for marslab.config.schema.rendering."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class TestLightingSpec:
             RenderingConfig(sun_angular_diameter_deg=10.0)
 
     def test_sun_prim_path_default(self) -> None:
-        """R3 migrated ``/World/SunLight`` literal into YAML."""
+        """``/World/SunLight`` literal lives in YAML, not Python source."""
         assert RenderingConfig().sun_prim_path == "/World/SunLight"
 
 
@@ -73,7 +73,7 @@ class TestSkyDomeParams:
             SkyDomeConfig(brightness_decay=-0.01)
 
     def test_dome_prim_path_default(self) -> None:
-        """R3 migrated ``/World/DomeLight`` literal into YAML."""
+        """``/World/DomeLight`` literal lives in YAML, not Python source."""
         assert RenderingConfig().dome_prim_path == "/World/DomeLight"
 
 

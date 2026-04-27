@@ -1,11 +1,9 @@
 """Skylight placement and debris cone construction.
 
-Extracted from the pre-R5 monolithic ``cave_generator.py`` in R5
-(2026-04-23); the orchestrator now lives at
-:mod:`marslab.terrain.cave.orchestrator`. Pure numpy + trimesh. No
-Isaac Sim.
+Pure numpy + trimesh. No Isaac Sim. The orchestrator entry point lives
+at :mod:`marslab.terrain.cave.orchestrator`.
 
-RNG consumption order preserved from the pre-split module:
+RNG consumption order is fixed:
 
     1. :func:`compute_skylight_positions` -- NO RNG draws. The ``rng``
        parameter is accepted only for API symmetry with the other
@@ -62,9 +60,15 @@ def compute_skylight_positions(
             skylights from kissing the domain edge.
 
     Returns:
-        List of ``(x, y)`` tuples for skylight centers. The list may
-        contain fewer than ``count`` items if the domain is too small
-        to honour the separation check.
+        List of ``(x, y)`` tuples for skylight centers, length exactly
+        ``count``.
+
+    Raises:
+        ValueError: If the requested ``count`` cannot be satisfied for
+            the given domain (no valid centerline indices, or the
+            separation check rejects too many candidates). Cave SLAM
+            benchmarks rely on exact count so the function fails fast
+            rather than silently returning fewer items.
     """
     if count == 0:
         return []
@@ -81,7 +85,11 @@ def compute_skylight_positions(
     valid_indices = np.where(valid)[0]
 
     if len(valid_indices) == 0:
-        return [(width_m / 2.0, height_m / 2.0)]
+        raise ValueError(
+            f"compute_skylight_positions: no centerline station fits the "
+            f"in-domain margin (diameter={diameter}, margin_extra_m={margin_extra_m}, "
+            f"domain={domain_m}); cannot place {count} skylight(s)"
+        )
 
     positions: list[tuple[float, float]] = []
     min_dist = diameter * separation_ratio
@@ -98,6 +106,14 @@ def compute_skylight_positions(
                 break
         if not too_close:
             positions.append((cx, cy))
+
+    if len(positions) < count:
+        raise ValueError(
+            f"compute_skylight_positions: requested count={count} but only "
+            f"{len(positions)} position(s) satisfied the separation check "
+            f"(min_dist={min_dist:.2f} m, valid_indices={len(valid_indices)}); "
+            f"reduce skylight_count, shrink skylight_diameter_m, or enlarge the domain"
+        )
 
     return positions
 

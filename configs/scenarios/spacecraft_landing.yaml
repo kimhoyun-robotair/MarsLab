@@ -1,4 +1,4 @@
-# Spacecraft Landing Site Scenario (Scenario 6)
+# Spacecraft Landing Site Scenario
 # ---------------------------------------------------------------
 # Reuses the Jezero flat terrain from ``jezero_flat.yaml`` (same DEM
 # crop, same rover, same atmosphere dials) and dresses it with an
@@ -6,7 +6,7 @@
 # at realistic Mars-2020 landing-debris spacing.  The rover spawns
 # 10 m east of the lander so it can drive up to the inspection zone.
 #
-# Placeholder asset paths — the actual USD assets under
+# Placeholder asset paths -- the actual USD assets under
 # ``assets/structures/spacecraft/`` are produced out-of-band by the
 # artist team (InSight lander is NASA public domain; heat shield /
 # backshell / parachute are Apache-2.0 user-made).  See
@@ -15,16 +15,15 @@
 # the .usd file is missing, so this YAML validates offline even before
 # the assets land.
 #
-# Reviewer 2 #17 (2026-04-24): mars_env + rendering defaults come from
-# ``_base.yaml`` via the root-level ``base_config`` include; only the
-# morning sun overrides live here.
+# mars_env + rendering defaults come from ``_base.yaml`` via the root-level
+# ``base_config`` include; only the morning sun overrides live here.
 # ---------------------------------------------------------------
 
 base_config: _base.yaml
 
 mars_env:
-  # Morning sun, light from east-southeast — picked so the landing
-  # debris is photogenic for the iSpaRo paper figure.
+  # Morning sun, light from east-southeast -- picked so the landing
+  # debris is photogenic for paper figures.
   sun_azimuth_deg: 135
   sun_elevation_deg: 40
   dynamic_atmosphere:
@@ -61,7 +60,7 @@ terrain:
 #   * Parachute canopy lies a few metres downstream of the backshell,
 #     crumpled on the surface (roll=90 + scale reduction to look slumped).
 #   * Inspection cone + nav beacon are small reference props the rover
-#     visits during the Wk3 SLAM/Nav2 trial.
+#     visits during the SLAM / Nav2 trial.
 scene:
   structures:
     - name: "insight_lander"

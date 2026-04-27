@@ -1,8 +1,7 @@
 #!/bin/bash
-# Wk1/Wk2 rescue Phase A1' (2026-04-15): thin wrapper that strips the
-# user's system ROS 2 Jazzy environment BEFORE invoking Isaac Sim's
-# python.sh. Do NOT edit ~/.bashrc -- this wrapper is process-local and
-# leaves the user's shell untouched.
+# Thin wrapper that strips the user's system ROS 2 Jazzy environment
+# BEFORE invoking Isaac Sim's python.sh. Do NOT edit ~/.bashrc -- this
+# wrapper is process-local and leaves the user's shell untouched.
 #
 # Why this exists:
 # The user's ~/.bashrc sources /opt/ros/jazzy/setup.bash, which sets
@@ -16,25 +15,24 @@
 # Letting them leak into the Isaac Sim process produces two failure
 # modes we have actually observed:
 #
-#   (Phase A1, Python side) -- temp.txt 2026-04-15 L697-719:
-#     `import rclpy` resolves /opt/ros/jazzy/.../python3.12/.../rclpy,
-#     which imports `_rclpy_pybind11.cpython-311-*.so`, which does not
-#     exist -> ModuleNotFoundError -> Kit atexit SIGSEGV.
+# Background (Python side):
+#   `import rclpy` resolves /opt/ros/jazzy/.../python3.12/.../rclpy,
+#   which imports `_rclpy_pybind11.cpython-311-*.so`, which does not
+#   exist -> ModuleNotFoundError -> Kit atexit SIGSEGV.
 #
-#   (Phase A1', C side, fixed by this wrapper) -- temp.txt 2026-04-15
-#   L646, L1099:
-#     After sys.path was purged inside run_scene.py, the Python import
-#     resolved to the Isaac Sim bundled rclpy at
-#     ~/isaacsim/exts/isaacsim.ros2.bridge/jazzy, BUT the C dynamic
-#     linker still saw LD_LIBRARY_PATH=/opt/ros/jazzy/... and loaded
-#     /opt/ros/jazzy/lib/librcl_interfaces__rosidl_generator_py.so
-#     (Python 3.12 ABI) into the Python 3.11 process. That .so tried
-#     to convert a ParameterEvent PyObject* built from its 3.12 struct
-#     layout against the 3.11 runtime type and abort()ed on the
-#     assertion
-#       strncmp("rcl_interfaces.msg._parameter_event.ParameterEvent",
-#               full_classname_dest, 50) == 0
-#     fired from rosidl_generator_py/rcl_interfaces/msg/_parameter_event_s.c:69.
+# Background (C side, fixed by this wrapper):
+#   After sys.path was purged inside the Python entry script, the
+#   import resolved to the Isaac Sim bundled rclpy at
+#   ~/isaacsim/exts/isaacsim.ros2.bridge/jazzy, BUT the C dynamic
+#   linker still saw LD_LIBRARY_PATH=/opt/ros/jazzy/... and loaded
+#   /opt/ros/jazzy/lib/librcl_interfaces__rosidl_generator_py.so
+#   (Python 3.12 ABI) into the Python 3.11 process. That .so tried
+#   to convert a ParameterEvent PyObject* built from its 3.12 struct
+#   layout against the 3.11 runtime type and abort()ed on the
+#   assertion
+#     strncmp("rcl_interfaces.msg._parameter_event.ParameterEvent",
+#             full_classname_dest, 50) == 0
+#   fired from rosidl_generator_py/rcl_interfaces/msg/_parameter_event_s.c:69.
 #
 # Because Python sys.path manipulation does not reach the dynamic
 # linker, we must purge the environment BEFORE the Python process boots.
@@ -107,18 +105,15 @@ fi
 # when building its bundled rclpy path.
 export ISAAC_SIM_PATH
 
-# Wk1/Wk2 rescue Phase A1'' (2026-04-15): after purging /opt/ros/jazzy
-# from LD_LIBRARY_PATH we ALSO need to prepend the Isaac Sim-bundled
-# ROS 2 lib directory. Without this, the dynamic linker can no longer
-# find the bundle's own dependency chain (librmw_implementation.so ->
-# libament_index_cpp.so, librcl_action.so, etc.) because those libs
-# are NOT in /etc/ld.so.cache -- they live only inside the Isaac Sim
-# extension tree. Observed 2026-04-15 after Phase A1' landed: the
-# purge removed /opt/ros/jazzy pollution (good) but left LD_LIBRARY_PATH
-# empty, which broke the bundle's self-dependency resolution. Fix
-# pattern inspired by OmniLRS docker/Dockerfile L64:
-#   ENV LD_LIBRARY_PATH=/isaac-sim/exts/isaacsim.ros2.bridge/humble/lib
-# (G3: single-idea inspiration, no code copy.) We target the jazzy
+# Background:
+# After purging /opt/ros/jazzy from LD_LIBRARY_PATH we ALSO need to
+# prepend the Isaac Sim-bundled ROS 2 lib directory. Without this, the
+# dynamic linker can no longer find the bundle's own dependency chain
+# (librmw_implementation.so -> libament_index_cpp.so, librcl_action.so,
+# etc.) because those libs are NOT in /etc/ld.so.cache -- they live only
+# inside the Isaac Sim extension tree. Symptom: the purge removed
+# /opt/ros/jazzy pollution (good) but left LD_LIBRARY_PATH empty, which
+# broke the bundle's self-dependency resolution. We target the jazzy
 # distribution the bundle ships.
 _BUNDLED_ROS2_LIB="$ISAAC_SIM_PATH/exts/isaacsim.ros2.bridge/jazzy/lib"
 if [[ ! -d "$_BUNDLED_ROS2_LIB" ]]; then

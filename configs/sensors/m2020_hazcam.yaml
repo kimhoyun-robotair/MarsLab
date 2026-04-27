@@ -1,11 +1,10 @@
 # M2020 Perseverance Hazcam (Hazard Avoidance Camera, FRONT-LEFT) preset.
 #
-# Sprint Day 4-5 Task I-B (2026-04-25): drop-in replacement for the
-# ``sensors.camera`` block in ``configs/robots/rover_m2020.yaml`` when a
-# wide-FOV, body-mounted camera is needed instead of the mast-mounted
-# Navcam.  Validates against
+# Drop-in replacement for the ``sensors.camera`` block in
+# ``configs/robots/rover_m2020.yaml`` when a wide-FOV, body-mounted camera
+# is needed instead of the mast-mounted Navcam.  Validates against
 # :class:`marslab.config.schema.robot.CameraConfig`.  Every numeric
-# parameter is exposed (G5).
+# parameter is exposed.
 #
 # ---------------------------------------------------------------
 # Datasheet reference
@@ -26,8 +25,7 @@
 #       HFOV = 2 * arctan(23.55 / (2 * 7.4)) = 116.6 deg
 #     The Maki 2020 paper quotes 136 deg in Table 3 (diagonal-corrected
 #     FOV including lens distortion).  Isaac Sim's Camera projection
-#     matrix uses the geometry-derived 117 deg HFOV.  See
-#     ``~/MarsLab/tmp/task_IB_finding.md`` for the reconciliation.
+#     matrix uses the geometry-derived 117 deg HFOV.
 #   * Mount: body-mounted at four chassis corners (Front-L, Front-R,
 #     Rear-L, Rear-R), ~0.68 m above ground (Maki 2020 Section 2.1
 #     + Fig 3).  This preset captures the FRONT-LEFT location.
@@ -35,7 +33,7 @@
 #
 # Resolution choice:
 #   Per Maki 2020 Section 2.6 the rover downsamples to 1280 x 960 (4x
-#   binning) before downlink.  v1.0 MarsLab uses the binned size to keep
+#   binning) before downlink.  MarsLab uses the binned size to keep the
 #   sensor graph throughput tractable; downstream perception models do
 #   not benefit from the full 5120 x 3840 image.  Edit ``resolution`` to
 #   ``[5120, 3840]`` if your workflow needs the full detector format.
@@ -50,21 +48,17 @@
 #
 #   TODO verify exact translation against Maki 2020 Section 2.1 + URDF
 #   kinematic chain (m2020-urdf-models repo).  The values below are
-#   best-effort literature ballpark and are sufficient for v1.0 SLAM /
-#   Nav2 development; paper figures should re-derive against the JPL
-#   primary source.
+#   best-effort literature ballpark and are sufficient for SLAM / Nav2
+#   development; paper figures should re-derive against the JPL primary
+#   source.
 
-# 2026-04-28 (Fix 7): values restored to ``[0.85, -0.21, -1.4]``.
-# YAML is authored in the X-rolled body frame matched by
-# ``rover_m2020.yaml``'s ``spawn_orientation_rpy = [3.14159, 0, 0]``
-# (NASA JPL m2020 URDF link convention -- empirical TF evidence
-# tmp3.txt).  In that frame ``Y_body = -Y_world`` so LEFT hazcam at
-# ``Y = -0.21`` lands at world ``+0.21``; ``Z_body = -Z_world`` so
-# ``Z = -1.4`` lands at world ``+1.4``.  The Z=+1.4 m world position
-# is acknowledged as taller than a true M2020 hazcam (~0.6 m above
-# ground); revisit this physical mounting height once the frame
-# convention is fully verified, but keep the *empirical* working
-# value for now to match the working X-rolled regime.
+# YAML authored in the X-rolled body frame matched by ``rover_m2020.yaml``'s
+# ``spawn_orientation_rpy = [3.14159, 0, 0]`` (see
+# ``docs/frame_conventions.md``).  In that frame ``Y_body = -Y_world`` so
+# LEFT hazcam at ``Y = -0.21`` lands at world ``+0.21``; ``Z_body =
+# -Z_world`` so ``Z = -1.4`` lands at world ``+1.4``.  The world-frame
+# +1.4 m position is taller than a true M2020 hazcam (~0.6 m above ground)
+# and is on the v1.5 calibration backlog.
 parent_link: "Body_Chassis"
 local_translation: [0.85, -0.21, -1.4]
 local_orientation_rpy_deg: [180.0, 0.0, 0.0]

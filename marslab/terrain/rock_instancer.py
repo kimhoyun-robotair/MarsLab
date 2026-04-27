@@ -2,8 +2,9 @@
 
 Places rocks as 3D USD primitives on the terrain surface using
 PointInstancer for efficient rendering. Supports OBJ mesh prototypes
-(from generate_rock_meshes.py) or Sphere fallback. PBR material applied.
-Requires Isaac Sim runtime — do NOT import from offline code.
+(from ``scripts/blender_generate_rocks.py``) or Sphere fallback. A PBR
+material is applied to all prototypes. Requires Isaac Sim runtime --
+do NOT import from offline code.
 """
 
 import os
@@ -11,6 +12,7 @@ import os
 import numpy as np
 from pxr import Gf, Sdf, UsdGeom, UsdShade
 
+from marslab.terrain._pbr_helpers import apply_pbr_textures
 from marslab.terrain.rock_placer import RockPlacement
 
 
@@ -29,8 +31,8 @@ def place_rocks_on_terrain(
     """Place rocks as 3D instanced primitives on the terrain.
 
     If rock_mesh_dir is provided and contains OBJ files, uses those
-    as prototypes. Otherwise falls back to Sphere prototypes.
-    PBR material applied from config (G5).
+    as prototypes. Otherwise falls back to Sphere prototypes. PBR
+    material parameters are sourced from scenario YAML.
 
     Args:
         stage: USD stage.
@@ -174,26 +176,10 @@ def _apply_rock_material(
     material.set_reflection_roughness(roughness)
     material.set_metallic_constant(0.0)
 
-    # Apply PBR textures if directory provided
+    # Apply PBR textures if directory provided. Rock prototypes do not
+    # carry authored UVs, so enable world-space UVW projection.
     if texture_dir and os.path.isdir(texture_dir):
-        shader = material.shaders_list[0]
-        albedo_path = os.path.join(texture_dir, "albedo.png")
-        if os.path.isfile(albedo_path):
-            material.set_texture(os.path.abspath(albedo_path))
-            material.set_project_uvw(True)
-        normal_path = os.path.join(texture_dir, "normal.png")
-        if os.path.isfile(normal_path):
-            shader.CreateInput("normalmap_texture", Sdf.ValueTypeNames.Asset).Set(
-                Sdf.AssetPath(os.path.abspath(normal_path))
-            )
-        roughness_path = os.path.join(texture_dir, "roughness.png")
-        if os.path.isfile(roughness_path):
-            shader.CreateInput("reflectionroughness_texture", Sdf.ValueTypeNames.Asset).Set(
-                Sdf.AssetPath(os.path.abspath(roughness_path))
-            )
-            shader.CreateInput(
-                "reflection_roughness_texture_influence", Sdf.ValueTypeNames.Float
-            ).Set(1.0)
+        apply_pbr_textures(material, texture_dir, project_uvw=True)
 
     mat_prim = stage.GetPrimAtPath(mat_path)
     if mat_prim.IsValid():

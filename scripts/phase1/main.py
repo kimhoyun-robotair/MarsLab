@@ -1,12 +1,10 @@
-"""Phase 1 Stage 3 monolithic runtime: rover + scene + ROS2, compact edition.
+"""Stage 3 monolithic runtime: rover + scene + ROS2.
 
-``run_stage4.py`` is the writable Stage 3 runtime entry point.  The body
-is collapsed onto the Stage 2 / Stage 3 facades landed in
-``marslab.runtime``, ``marslab.robots``, ``marslab.sensors``, and
-``marslab.ros2_bridge``:
+The body delegates to the modular facades exposed by ``marslab.runtime``,
+``marslab.robots``, ``marslab.sensors``, and ``marslab.ros2_bridge``:
 
 *   :func:`marslab.runtime.stage2_boot.run_stage2_boot` --- config +
-    terrain + atmosphere (G7 seed propagation happens inside).
+    terrain + atmosphere (seed propagation happens inside).
 *   :func:`marslab.runtime.stage2_scene.setup_stage2_scene` --- world,
     stage, terrain/cave mesh, materials, rocks, sun/sky/fog.
 *   :func:`marslab.robots.rover.spawn_rover` --- USD reference, spawn
@@ -21,9 +19,15 @@ is collapsed onto the Stage 2 / Stage 3 facades landed in
     rclpy node + cmd_vel + static TF + odom publisher.
 *   :func:`marslab.runtime.main_loop.run_main_loop` /
     :func:`build_atmosphere_loop_state` --- per-step body.
+*   :func:`marslab.runtime.articulation_setup.apply_initial_joint_positions`
+    --- post-reset arm-stow / RA pose application.
+*   :func:`marslab.runtime.sensor_frames.build_sensor_frames` --- pure
+    YAML→TF-frame-list helper consumed by the static TF broadcaster.
+*   :func:`marslab.runtime.loop_context.build_loop_context` --- factory
+    that assembles :class:`LoopContext` from spawn outputs.
 
 Usage:
-    scripts/isaac_python.sh scripts/phase1/run_stage4.py \\
+    scripts/isaac_python.sh scripts/phase1/main.py \\
         --config configs/scenarios/jezero_flat.yaml
 """
 
@@ -31,9 +35,9 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import sys
-from typing import List
 
 import numpy as np
 
@@ -41,21 +45,29 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-# G7 safety: propagate_seeds_in_dict is re-exported here so the twin-lock
-# regression tests stay green even though run_stage2_boot already enforces
-# ``terrain.seed == mars_env.seed + 1`` internally.
+# ``propagate_seeds_in_dict`` is re-exported here as a safety net so the
+# twin-lock regression tests stay green even though ``run_stage2_boot``
+# already enforces ``terrain.seed == mars_env.seed + 1`` internally.
 from marslab.config.loader import propagate_seeds_in_dict  # noqa: E402, F401
 from marslab.config.scenario_loader import load_scenario_config, resolve_spawn_pose  # noqa: E402
-from marslab.math.quaternion import rpy_to_quat  # noqa: E402
 from marslab.robots.drive_api_setup import configure_drives, reinforce_pd_gains  # noqa: E402
 from marslab.robots.rover import resolve_joint_indices, spawn_rover  # noqa: E402
 from marslab.robots.rover_control import ackermann_command  # noqa: E402
 from marslab.ros2_bridge.rclpy_integration import init_rclpy_side  # noqa: E402
 from marslab.ros2_bridge.sensor_graph import build_sensor_graph  # noqa: E402
-from marslab.ros2_bridge.tf_nameoverrides import DEFAULT_ODOM_ANCHOR_PATH  # noqa: E402
+from marslab.ros2_bridge.tf_nameoverrides import (  # noqa: E402
+    DEFAULT_ODOM_ANCHOR_PATH,
+    apply_nameoverride,
+    create_odom_anchor,
+)
+from marslab.runtime.articulation_setup import (  # noqa: E402
+    apply_initial_joint_positions,
+    pin_articulation_root_pose,
+    zero_steer_joints,
+)
+from marslab.runtime.loop_context import build_loop_context  # noqa: E402
 from marslab.runtime.main_loop import (  # noqa: E402
     AtmosphereLoopState,
-    ControlState,
     LoopContext,
     build_atmosphere_loop_state,
     run_main_loop,
@@ -65,13 +77,16 @@ from marslab.runtime.precheck import (  # noqa: E402
     check_rover_block,
     check_rover_usd,
 )
+from marslab.runtime.sensor_frames import build_sensor_frames, sensor_frames_to_tuples  # noqa: E402
 from marslab.runtime.stage2_boot import run_stage2_boot  # noqa: E402
 from marslab.runtime.stage2_scene import setup_stage2_scene  # noqa: E402
+
+_LOG = logging.getLogger(__name__)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Phase 1 Stage 3 monolithic runtime: rover + scene + ROS2."
+        description="Stage 3 monolithic runtime: rover + scene + ROS2."
     )
     parser.add_argument(
         "--config",
@@ -91,7 +106,7 @@ def main() -> int:
     args = parser.parse_args()
     args.config = args.config.strip()
 
-    # --- Stage-2 boot (config + terrain + atmosphere, G7 enforced) ----------
+    # --- Stage-2 boot (config + terrain + atmosphere, seed enforcement) ------
     config_path = os.path.abspath(args.config)
     boot = run_stage2_boot(config_path, repo_root=REPO_ROOT)
     cfg = boot.config
@@ -101,18 +116,15 @@ def main() -> int:
     control_cfg = rover_cfg["control"]
     ros2_cfg = rover_cfg["ros2"]
     camera_cfg = sensors_cfg["camera"]
-    lidar_cfg = sensors_cfg.get("lidar_3d") or sensors_cfg.get("lidar")
-    check_lidar_cfg(lidar_cfg)
-    imu_cfg = sensors_cfg["imu"]
-    lidar_2d_cfg = sensors_cfg.get("lidar_2d")
+    check_lidar_cfg(sensors_cfg.get("lidar_3d") or sensors_cfg.get("lidar"))
 
     # Spawn pose comes from the DEM/metadata bundled on the boot result.
     spawn_xyz = resolve_spawn_pose(rover_cfg, boot.elevation, boot.metadata, boot.resolution)
     # Resolve the spawn orientation here so it can be reused for both the
-    # USD root Xform (via ``spawn_rover``→``apply_spawn_pose``) and the
-    # PhysX articulation root pose pin (Fix 7, 2026-04-28).  Single
-    # source of truth: ``rover.spawn.orientation_rpy`` (with Stage-1
-    # fallback ``rover.spawn_orientation_rpy``).
+    # USD root Xform (via ``spawn_rover``->``apply_spawn_pose``) and the
+    # PhysX articulation root pose pin.  Single source of truth:
+    # ``rover.spawn.orientation_rpy`` (with Stage-1 fallback
+    # ``rover.spawn_orientation_rpy``).
     _spawn_block = rover_cfg.get("spawn", {}) if isinstance(rover_cfg, dict) else {}
     spawn_rpy_for_articulation = tuple(
         _spawn_block.get("orientation_rpy")
@@ -124,7 +136,7 @@ def main() -> int:
     )
     check_rover_usd(usd_abs)
     print(
-        f"[run_stage4] Scenario loaded; spawn=({spawn_xyz[0]:.3f},"
+        f"[main] Scenario loaded; spawn=({spawn_xyz[0]:.3f},"
         f"{spawn_xyz[1]:.3f},{spawn_xyz[2]:.3f})",
         flush=True,
     )
@@ -164,9 +176,17 @@ def main() -> int:
     prim_path = spawned.prim_path
     chassis_path = spawned.chassis_path
     rigid_body_path = spawned.rigid_body_path
-    print(f"[run_stage4] Rover prim: {prim_path}, rigid body: {rigid_body_path}", flush=True)
+    print(f"[main] Rover prim: {prim_path}, rigid body: {rigid_body_path}", flush=True)
 
-    # --- Optional scene structures (P1-1c) -----------------------------------
+    # Post-spawn: apply nameOverrides + create the odom anchor prim.  These
+    # were previously folded into ``spawn_rover`` but the contract has moved
+    # to "caller is responsible" so the rover module stays free of TF
+    # frame-naming details.  The sensor graph below references the odom
+    # anchor, so these calls must happen before ``build_sensor_graph``.
+    apply_nameoverride(stage, rigid_body_path, "base_link")
+    create_odom_anchor(stage, DEFAULT_ODOM_ANCHOR_PATH, spawn_xyz, frame_name="odom")
+
+    # --- Optional scene structures ------------------------------------------
     scene_cfg = cfg.get("scene") or {}
     scene_structures = scene_cfg.get("structures") if isinstance(scene_cfg, dict) else None
     if scene_structures:
@@ -176,15 +196,14 @@ def main() -> int:
         structure_cfgs = [StructureConfigSchema(**s).to_dataclass() for s in scene_structures]
         _prim_paths = _load_structures(stage, structure_cfgs)
         print(
-            f"[run_stage4] Attached {len(_prim_paths)} scene structure(s).",
+            f"[main] Attached {len(_prim_paths)} scene structure(s).",
             flush=True,
         )
 
-    # --- Day 3 Reviewer 2 fix-up (M3, 2026-04-25): structure_assets runtime
-    # ``structure_assets:`` is the OBJ/STL drop-in block from Day 2 Task H.
-    # Without this wiring, the schema/loader/test stack added in
-    # ``marslab/scene/structure_loader.py:230-414`` is unreachable from
-    # the live Stage-3 runtime. Empty list = zero overhead.
+    # ``structure_assets:`` is the OBJ/STL drop-in block.  Without this
+    # wiring, the schema/loader/test stack added in
+    # ``marslab/scene/structure_loader.py:230-414`` would be unreachable
+    # from the live Stage-3 runtime.  Empty list = zero overhead.
     structure_assets = scene_cfg.get("structure_assets") if isinstance(scene_cfg, dict) else None
     if structure_assets:
         from marslab.config.schema.scene import StructureAssetConfig
@@ -197,7 +216,7 @@ def main() -> int:
         runtime_assets = [build_structure_asset(a) for a in validated_assets]
         attached_paths = load_structure_assets(stage, runtime_assets)
         print(
-            f"[run_stage4] Attached {len(attached_paths)} structure_asset(s).",
+            f"[main] Attached {len(attached_paths)} structure_asset(s).",
             flush=True,
         )
 
@@ -210,9 +229,8 @@ def main() -> int:
         camera_resolution=tuple(camera_cfg["resolution"]),
         lidar_3d_prim_path=handles.lidar_3d_prim_path,
         imu_prim_path=handles.imu_prim_path,
-        # F3 follow-up (2026-04-26): pass the prim that actually carries
-        # ``PhysxArticulationRootAPI``.  USD inspection shows the import
-        # produces a nested layout:
+        # Pass the prim that actually carries ``PhysxArticulationRootAPI``.
+        # USD inspection shows the import produces a nested layout:
         #   /World/Rover                    (Xform spawn container)
         #     /Body_Chassis                 (Xform-only container)
         #       /Body_Chassis  <-- [ART_ROOT, RIGID] -- this prim
@@ -226,9 +244,9 @@ def main() -> int:
         # cross-validates that this is where PhysX recognises the
         # articulation.
         articulation_root_prim_path=f"{chassis_path}/Body_Chassis",
-        # S3 fix (2026-04-27): the anchor prim is created by
-        # ``spawn_rover`` via ``create_odom_anchor`` at this exact path.
-        # Both call sites import the same constant so they cannot drift.
+        # The anchor prim is created above by ``create_odom_anchor`` at
+        # this exact path.  Both call sites import the same constant so
+        # they cannot drift.
         parent_anchor_prim_path=DEFAULT_ODOM_ANCHOR_PATH,
         lidar_2d_prim_path=handles.lidar_2d_prim_path,
     )
@@ -236,7 +254,7 @@ def main() -> int:
     # --- Pre-reset DriveAPI (must run BEFORE world.reset) --------------------
     configure_drives(stage, chassis_path, control_cfg)
     print(
-        f"[run_stage4] DriveAPI configured (drive_type={control_cfg['drive_type']})",
+        f"[main] DriveAPI configured (drive_type={control_cfg['drive_type']})",
         flush=True,
     )
 
@@ -245,43 +263,26 @@ def main() -> int:
     world.reset()
     articulation.initialize()
 
-    # 2026-04-28 (Fix 2 + Fix 7): pin the PhysX articulation root world
-    # pose to ``(spawn_xyz, spawn_rpy)``.  Without the explicit pose
-    # set, the free articulation (``fix_base=False``) starts at the
-    # USD-native pose of ``/World/Rover/Body_Chassis/Body_Chassis``
-    # (identity at world origin), even though ``apply_spawn_pose`` set
-    # ``/World/Rover`` to ``spawn_xyz`` -- PhysX ignores the parent
-    # Xform translate for the articulation root.  Without the
-    # ``spawn_rpy``-derived quaternion, identity would conflict with
-    # the X-roll spawn that compensates for the NASA JPL m2020 URDF
-    # link convention (Fix 7, see ``rover_m2020.yaml`` history).  Using
-    # the YAML ``spawn_rpy`` here makes ``rover_m2020.yaml`` the single
-    # source of truth for both the USD ``/World/Rover`` orientation
-    # (via ``apply_spawn_pose``) and the PhysX root pose (here).
-    _qw, _qx, _qy, _qz = rpy_to_quat(
-        float(spawn_rpy_for_articulation[0]),
-        float(spawn_rpy_for_articulation[1]),
-        float(spawn_rpy_for_articulation[2]),
-    )
-    articulation.set_world_poses(
-        positions=np.asarray([spawn_xyz], dtype=np.float32),
-        orientations=np.asarray([[_qw, _qx, _qy, _qz]], dtype=np.float32),
-    )
+    # Pin the PhysX articulation root world pose so the YAML
+    # ``rover.spawn`` block is the single source of truth (the helper
+    # documents the PhysX-vs-USD-parent-Xform subtlety).
+    pin_articulation_root_pose(articulation, spawn_xyz, spawn_rpy_for_articulation)
 
     dof_names = list(articulation.dof_names)
     drive_indices = resolve_joint_indices(dof_names, list(control_cfg["drive_joint_names"]))
     steer_indices = resolve_joint_indices(dof_names, list(control_cfg["steer_joint_names"]))
 
     # Initialize steer joints at zero so PD gains land on a sane reference.
-    try:
-        articulation.set_joint_positions(
-            np.zeros(len(steer_indices), dtype=np.float32),
-            joint_indices=np.asarray(steer_indices),
-        )
-    except Exception as exc:  # noqa: BLE001
-        print(f"[run_stage4] Warning: could not init steer joints: {exc}", file=sys.stderr)
+    zero_steer_joints(articulation, steer_indices)
 
-    print("[run_stage4] Warming up physics handle ...", flush=True)
+    # Apply optional RA arm (or any other named joint) initial positions
+    # from ``rover.control.initial_joint_positions``.  Empty dict = keep
+    # URDF default pose.  Use case: stow the RA arm before ground contact
+    # so the 70 kg arm+turret cluster does not drift the chassis during
+    # the warmup loop.  Helper logs unknown joint names + PhysX failures.
+    apply_initial_joint_positions(articulation, dof_names, control_cfg)
+
+    print("[main] Warming up physics handle ...", flush=True)
     for _ in range(10):
         world.step(render=True)
     import omni.timeline  # noqa: E402
@@ -293,7 +294,7 @@ def main() -> int:
             world.step(render=True)
 
     reinforce_pd_gains(articulation, control_cfg, dof_names)
-    print("[run_stage4] PD gains reinforced post-reset.", flush=True)
+    print("[main] PD gains reinforced post-reset.", flush=True)
 
     # --- Optional atmosphere GUI panel (built AFTER world.reset + warmup) ----
     # The panel's omni.ui widgets are finalised lazily by the Kit event loop,
@@ -313,9 +314,10 @@ def main() -> int:
             atmo_panel = AtmospherePanel(atmosphere_loop_state.atmosphere_dict)
             for _ in range(5):
                 simulation_app.update()
-            print("[run_stage4] Atmosphere control panel created.", flush=True)
+            print("[main] Atmosphere control panel created.", flush=True)
         except Exception as exc:  # noqa: BLE001
-            print(f"[run_stage4] GUI panel unavailable ({exc}).", flush=True)
+            # Warning, not fatal: GUI panel is optional, the loop runs without it.
+            _LOG.error("[main] GUI panel unavailable (%s).", exc)
 
     # --- Capture initial pose for manual odometry ----------------------------
     init_poses = articulation.get_world_poses()
@@ -329,15 +331,12 @@ def main() -> int:
 
     # --- rclpy bridge (cmd_vel + static TF + manual odom) --------------------
     bridge = None
-    twist_state = {"v": 0.0, "w": 0.0}
     if not args.no_ros2:
-        sensor_frames: List[tuple] = [
-            ("camera_link", camera_cfg["local_translation"]),
-            ("lidar_link", lidar_cfg["local_translation"]),
-            ("imu_link", imu_cfg["local_translation"]),
-        ]
-        if lidar_2d_cfg is not None:
-            sensor_frames.append(("scan_frame", lidar_2d_cfg["local_translation"]))
+        # ``build_sensor_frames`` returns the canonical dict-per-sensor
+        # list (camera/lidar_3d/lidar_2d/imu) sourced from the
+        # validated YAML; ``sensor_frames_to_tuples`` adapts that to the
+        # ``(child_frame, xyz)`` shape ``init_rclpy_side`` consumes.
+        sensor_frames = sensor_frames_to_tuples(build_sensor_frames(rover_cfg, sensors_cfg))
         urdf_rel = rover_cfg.get("urdf_source_path")
         urdf_abs = (
             urdf_rel
@@ -352,22 +351,15 @@ def main() -> int:
             node_name="stage3_runtime",
             urdf_path=urdf_abs,
         )
-        twist_state = bridge.twist_state
 
     # --- LoopContext construction + main loop --------------------------------
-    control_state = ControlState(
-        current_drive_targets=np.zeros(len(drive_indices), dtype=np.float32),
-        current_steer_targets=np.zeros(len(steer_indices), dtype=np.float32),
-        latest_twist=twist_state,
-    )
-
     def _spin_once() -> None:
         if bridge is not None:
             import rclpy  # noqa: PLC0415
 
             rclpy.spin_once(bridge.node, timeout_sec=0.0)
 
-    ctx = LoopContext(
+    ctx = build_loop_context(
         simulation_app=simulation_app,
         world=world,
         stage=stage,
@@ -375,24 +367,12 @@ def main() -> int:
         imu=imu,
         drive_indices=drive_indices,
         steer_indices=steer_indices,
-        wheelbase=float(control_cfg["wheelbase"]),
-        track_steer=float(control_cfg["track_steer"]),
-        track_middle=float(control_cfg["track_middle"]),
-        wheel_radius=float(control_cfg["wheel_radius"]),
-        v_max=float(control_cfg["max_linear_velocity"]),
-        w_max=float(control_cfg["max_angular_velocity"]),
+        control_cfg=control_cfg,
         physics_dt=atmo_init.physics_dt,
-        negate_steer=bool(control_cfg.get("negate_steer", False)),
-        debug_logging=bool(control_cfg.get("debug_logging", False)),
-        max_wheel_accel_rate=float(control_cfg.get("max_wheel_accel_rate", 0.5)),
-        decel_multiplier=float(control_cfg.get("decel_multiplier", 1.0)),
-        max_steer_angle=float(control_cfg.get("max_steer_angle", 0.7)),
-        steer_ramp_rate=float(control_cfg.get("steer_ramp_rate", 2.0)),
-        control=control_state,
         atmosphere=atmosphere_loop_state,
-        odom_ctx=(bridge.odom_ctx if bridge is not None else None),
         render_config=render_config,
         ackermann_fn=ackermann_command,
+        bridge=bridge,
         spin_once=_spin_once,
         update_sun_fn=update_sun_light,
         update_sky_fn=update_sky_dome,
@@ -406,9 +386,9 @@ def main() -> int:
     )
 
     # Silence unused-import linters for names kept as F401 for test-text checks.
-    _ = (propagate_seeds_in_dict, AtmosphereLoopState, load_scenario_config)
+    _ = (propagate_seeds_in_dict, AtmosphereLoopState, LoopContext, load_scenario_config)
 
-    print("[run_stage4] Entering main loop. Ctrl+C to exit.", flush=True)
+    print("[main] Entering main loop. Ctrl+C to exit.", flush=True)
     try:
         exit_code = run_main_loop(ctx)
     finally:
@@ -422,7 +402,7 @@ def main() -> int:
         try:
             simulation_app.close()
         except Exception as exc:  # noqa: BLE001
-            print(f"[run_stage4] simulation_app.close() raised: {exc}", file=sys.stderr)
+            _LOG.error("[main] simulation_app.close() raised: %s", exc)
             sys.stdout.flush()
             sys.stderr.flush()
             os._exit(1)

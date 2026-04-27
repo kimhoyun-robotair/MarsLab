@@ -1,4 +1,4 @@
-"""Module-focused tests for marslab.config.schema.robot.RobotConfig (R8-5)."""
+"""Module-focused tests for marslab.config.schema.robot.RobotConfig."""
 
 from __future__ import annotations
 
@@ -90,7 +90,7 @@ class TestUrdfPathResolve:
         assert c.urdf_path == path
 
     def test_prim_path_override(self) -> None:
-        """R3 ``prim_path`` override lets multiple quadrupeds coexist."""
+        """``prim_path`` override lets multiple quadrupeds coexist."""
         c = RobotConfig(
             type="quadruped",
             usd_asset_path="go2.usd",
@@ -105,7 +105,7 @@ class TestUrdfPathResolve:
 
 
 class TestBroaderRobotFields:
-    """Broader-than-drive fields introduced in R3 / Wk2."""
+    """Broader-than-drive fields on RobotConfig."""
 
     def test_drive_field_optional(self) -> None:
         """Non-teleop robots (rotorcraft, quadruped) do not need a drive block."""

@@ -2,7 +2,7 @@
 
 This wrapper is the modular entry point for the Stage 3 rover runtime.
 It parses ``--scenario`` / ``--headless`` / ``--no-ros2`` and delegates
-to :func:`scripts.phase1.run_stage4.main`, which drives the refactored
+to :func:`scripts.phase1.main.main`, which drives the refactored
 facades in ``marslab.runtime``, ``marslab.robots``, ``marslab.sensors``,
 and ``marslab.ros2_bridge``.
 
@@ -67,7 +67,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    """Delegate to :func:`scripts.phase1.run_stage4.main` after argument translation.
+    """Delegate to :func:`scripts.phase1.main.main` after argument translation.
 
     The downstream runner uses ``--config`` rather than ``--scenario``, so we
     re-inject the translated argv before calling into it.  This keeps
@@ -92,9 +92,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     original_argv = sys.argv
     try:
         sys.argv = forwarded
-        from scripts.phase1.run_stage4 import main as _stage4_main
+        from scripts.phase1.main import main as _stage3_main
 
-        return int(_stage4_main())
+        return int(_stage3_main())
     finally:
         sys.argv = original_argv
 

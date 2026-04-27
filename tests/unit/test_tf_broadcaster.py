@@ -1,8 +1,8 @@
 """Unit tests for marslab.ros2_bridge.tf_broadcaster.
 
-2026-04-28: removed the Y/Z flip assertions that pinned the (now
-removed) 180° X-roll spawn workaround.  Translations are now
-broadcast identity-mapped from YAML ``local_translation``.
+Translations are broadcast identity-mapped from YAML
+``local_translation``; previous Y/Z flip assertions that pinned a
+180-degree X-roll spawn workaround have been removed.
 """
 
 from __future__ import annotations
@@ -97,12 +97,10 @@ class TestQuatNormalization:
     def test_translation_is_broadcast_identity(self, fake_ros2_tf_modules: None) -> None:
         """YAML local_translation is in the REP-103 base_link frame.
 
-        2026-04-28 (B1 fix): the rover is no longer spawned with a
-        180° X-roll, so ``base_link`` axes coincide with the URDF /
-        REP-103 convention and ``local_translation`` does not need
-        to be flipped on broadcast.  The previous version of this
-        test asserted ``y = -2.0, z = -3.0`` (circular validator
-        against the buggy flip).
+        The rover is no longer spawned with a 180-degree X-roll, so
+        ``base_link`` axes coincide with the URDF / REP-103 convention
+        and ``local_translation`` does not need to be flipped on
+        broadcast.
         """
         from marslab.ros2_bridge.tf_broadcaster import build_static_sensor_transforms
 
@@ -114,7 +112,7 @@ class TestQuatNormalization:
 
 class TestSeedDeterminism:
     """Calling the builder repeatedly with the same input list must yield
-    bitwise-identical output — no implicit randomness anywhere."""
+    bitwise-identical output -- no implicit randomness anywhere."""
 
     def test_same_input_yields_same_output(self, fake_ros2_tf_modules: None) -> None:
         from marslab.ros2_bridge.tf_broadcaster import build_static_sensor_transforms
@@ -152,10 +150,10 @@ class TestSeedDeterminism:
     def test_publish_static_sensor_tfs_uses_broadcaster(self, fake_ros2_tf_modules: None) -> None:
         """``publish_static_sensor_tfs`` sends every transform exactly once.
 
-        Day 5 (2026-04-25): when ``camera_link`` is in the sensor list,
-        a ``camera_link → camera_optical_frame`` transform is appended
+        When ``camera_link`` is in the sensor list, a
+        ``camera_link -> camera_optical_frame`` transform is appended
         automatically (REP-105 optical convention for RViz / image
-        pipeline).  So 2 sensors with camera_link → 3 broadcast msgs.
+        pipeline). So 2 sensors with camera_link -> 3 broadcast msgs.
         """
         from marslab.ros2_bridge.tf_broadcaster import publish_static_sensor_tfs
 
@@ -175,7 +173,7 @@ class TestSeedDeterminism:
     def test_publish_static_sensor_tfs_skips_optical_frame_without_camera(
         self, fake_ros2_tf_modules: None
     ) -> None:
-        """No ``camera_link`` in sensors → no optical-frame transform.
+        """No ``camera_link`` in sensors -> no optical-frame transform.
 
         Cave / canyon scenarios that strip the camera should not
         broadcast a stub optical frame.
@@ -190,11 +188,11 @@ class TestSeedDeterminism:
 
 
 class TestCameraOpticalFrameTransform:
-    """Day 5 (2026-04-25): camera_link → camera_optical_frame static TF.
+    """``camera_link -> camera_optical_frame`` static TF.
 
     REP-105 standard: camera_link is REP-103 body convention
     (X forward, Y left, Z up); camera_optical_frame is optical
-    (Z forward, X right, Y down).  RPY = (-π/2, 0, -π/2) →
+    (Z forward, X right, Y down). RPY = (-pi/2, 0, -pi/2) ->
     quaternion (x, y, z, w) = (-0.5, 0.5, -0.5, 0.5).
     """
 

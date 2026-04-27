@@ -1,14 +1,12 @@
-# NASA JPL Perseverance (M2020) rover — common base configuration.
+# NASA JPL Perseverance (M2020) rover -- common base configuration.
 #
-# This file is consumed by Stage 3 scenarios via
+# This file is consumed by scenarios via
 # ``configs/scenarios/<name>.yaml``  ->  rover.base_config .
 # The scenario loader deep-merges the scenario's ``rover:`` block onto
 # these defaults (scenario wins on leaf conflicts).
 #
-# Blocks here mirror the legacy ``configs/phase1.yaml`` rover block
-# verbatim so Stage 1 and Stage 3 share identical physics/sensors/
-# control tuning.  Do NOT put per-scenario tweaks here — put them in
-# the scenario YAML instead.
+# Do NOT put per-scenario tweaks here -- put them in the scenario YAML
+# instead.
 
 usd_path: "assets/robots/rover/m2020.usd"
 # URDF source: NASA JPL m2020-urdf-models, vendored as a git submodule
@@ -28,33 +26,22 @@ usd_path: "assets/robots/rover/m2020.usd"
 urdf_source_path: "assets/m2020-urdf-models/rover/m2020.urdf"
 prim_path: "/World/Rover"
 
-# Stage-1 spawn pose is a fallback only; Stage-3 scenarios override
-# via the ``spawn:`` block below.
+# Stage-1 spawn pose is a fallback only; scenario YAMLs override via the
+# ``spawn:`` block below.
 #
-# History:
-#   2026-04-28 (오전, Issue B):  ``[3.14159, 0, 0]`` -> ``[0, 0, 0]``.
-#       Hypothesis: the X-roll was a workaround for a downstream Y/Z
-#       sign flip; remove both, sensors broadcast identity.
-#   2026-04-28 (오후, Fix 7):    ``[0, 0, 0]`` -> ``[3.14159, 0, 0]``.
-#       Empirical evidence (``ros2 run tf2_ros tf2_echo odom base_link``
-#       output captured in ``tmp3.txt``) showed RPY=[-179.488°, -6.568°,
-#       11.009°] AFTER the Issue-B Z-up fix -- i.e. ``base_link`` frame
-#       was X-rolled despite the USD chassis prim being identity.  The
-#       NASA JPL m2020 URDF authors link frames in a non-standard
-#       convention (link +Z appears as world -Z after a flat
-#       ``URDFParseAndImportFile`` import).  The 180° X-roll spawn is
-#       therefore the correct compensation: it brings the published TF
-#       chain into REP-103 alignment.  Sensor YAML ``local_translation``
-#       Z signs are restored to negative (pre-Issue-B).  The
-#       ``tf_broadcaster.py`` Y/Z flip is **not** restored -- the X-roll
-#       at the spawn root applies once across the whole chain, so a
-#       second flip in the broadcaster would double-correct (the
-#       ΔZ = 2|z_yaml| symptom diagnosed by the 2026-04-28 오전 Reviewer
-#       2 audit).
+# The 180-deg X-roll spawn is intentional: the NASA JPL m2020 URDF authors
+# link frames in a non-standard convention (link +Z appears as world -Z
+# after a flat ``URDFParseAndImportFile`` import), so the spawn-time roll
+# brings the published TF chain into REP-103 alignment.  Sensor YAML
+# ``local_translation`` Z values are authored in this X-rolled body frame
+# (negative Z = above the chassis).  ``tf_broadcaster.py`` broadcasts these
+# values identity; the X-roll on the spawn root is the single canonical
+# rotation across the whole chain.  See ``docs/frame_conventions.md`` for
+# the full convention.
 spawn_position: [0.0, 0.0, 0.0]
 spawn_orientation_rpy: [3.14159, 0.0, 0.0]
 
-# Default Stage-3 spawn spec.  Scenarios override mode / xy / z_offset
+# Default scenario spawn spec.  Scenarios override mode / xy / z_offset
 # to land the rover at a scenario-appropriate starting point.
 spawn:
   mode: "dem_center"
@@ -62,12 +49,12 @@ spawn:
   z_offset: 0.5
   orientation_rpy: [3.14159, 0.0, 0.0]
 
-# Chassis mass-bias compensation (see phase1.yaml comments).
+# Chassis mass-bias compensation.
 com_offset: [0.2, 0.0, 0.0]
 angular_damping: 12.0
 linear_damping: 0.5
 
-# --- Day 2 Task B (2026-04-26): M2020 ballpark physics override ---
+# --- M2020 ballpark physics override ---
 # Values below are M2020 Perseverance order-of-magnitude correct (NOT exact).
 # Speed/control limits stay user-tunable (see ``control:`` block); these
 # blocks pin chassis mass / wheel mass / friction / inertia so the URDF
@@ -139,11 +126,13 @@ ros2:
   namespace: "rover"
   topics:
     cmd_vel: "cmd_vel"
+    robot_description: "robot_description"
     imu: "imu"
     odom: "odom"
     rgb: "rgb/image_raw"
     depth: "depth/image_raw"
-    points: "depth/points"       # RGB-D PointCloud2 (RealSense-style); Day 2 sprint task F (2026-04-25).
+    points: "depth/points"       # RGB-D PointCloud2 (RealSense-style)
+    camera_info: "rgb/camera_info"  # CameraInfo (intrinsics K/P/R/D)
     lidar: "lidar/points"
     scan: "scan"                 # 2D LaserScan for slam_toolbox / Nav2
   rates:
@@ -152,13 +141,12 @@ ros2:
     rgb: 30
     depth: 30
     points: 30                   # depth-derived PointCloud2 matches the depth rate
+    camera_info: 30              # CameraInfo published in lock-step with rgb/depth
     lidar: 10
     scan: 30                     # Example_Rotary_2D scanRateBaseHz = 30 Hz
-  # R3 (2026-04-22) G5 — frame names previously hardcoded in
-  # marslab/ros2_bridge/odometry_publisher.py defaults.  init_rclpy_side
-  # reads this sub-map and threads the values through
-  # create_odometry_publisher so slam_toolbox and Nav2 YAMLs share one
-  # source of truth.  Absent → fall back to the function defaults.
+  # Frame names threaded through ``create_odometry_publisher`` so the
+  # slam_toolbox and Nav2 YAMLs share one source of truth.  Absent ->
+  # fall back to the function defaults.
   odom_publisher:
     frame_id: "odom"
     child_frame_id: "base_link"
@@ -166,14 +154,12 @@ ros2:
 
 sensors:
   # Sensor frames are authored in the X-rolled body frame matched by
-  # ``spawn_orientation_rpy = [3.14159, 0, 0]`` above (Fix 7,
-  # 2026-04-28 오후).  In that frame ``+Z_body = -Z_world`` so a sensor
-  # 2.1 m above the chassis is at ``z = -2.1`` (NOT +2.1).  See the
-  # spawn block comment block for the empirical TF evidence
-  # (``tmp3.txt``: odom → base_link RPY=[-179.5°, -6.6°, 11°]).
-  # ``tf_broadcaster.py`` broadcasts these YAML values identity; the
-  # X-roll on the spawn parent provides the single canonical frame
-  # rotation.
+  # ``spawn_orientation_rpy = [3.14159, 0, 0]`` above.  In that frame
+  # ``+Z_body = -Z_world`` so a sensor 2.1 m above the chassis is at
+  # ``z = -2.1`` (NOT +2.1).  See the spawn block comment above and
+  # ``docs/frame_conventions.md``.  ``tf_broadcaster.py`` broadcasts these
+  # YAML values identity; the X-roll on the spawn parent provides the
+  # single canonical frame rotation.
   camera:
     parent_link: "Body_Chassis"
     local_translation: [0.3, 0.0, -2.1]
@@ -182,13 +168,11 @@ sensors:
     focal_length: 24.0
     clipping_range: [0.1, 1000.0]
 
-  # 3D rotary RTX LiDAR.  Sprint Day 2 Task D (2026-04-25): every
-  # numeric parameter that used to hide inside Isaac Sim's
-  # ``Example_Rotary.json`` profile is now declared here so the YAML is
-  # the single source of truth (G5).  Values mirror the bundled JSON for
-  # behaviour-preserving migration: 16-beam Velodyne-style scanner,
-  # 30 deg vertical FOV, 360 deg horizontal at 0.4 deg horizontal step,
-  # 10 Hz rotation, 0.5–100 m range.
+  # 3D rotary RTX LiDAR.  Every numeric parameter that used to hide inside
+  # Isaac Sim's ``Example_Rotary.json`` profile is declared here so the YAML
+  # is the single source of truth.  Values mirror the bundled JSON: 16-beam
+  # Velodyne-style scanner, 30 deg vertical FOV, 360 deg horizontal at
+  # 0.4 deg horizontal step, 10 Hz rotation, 0.5-100 m range.
   lidar_3d:
     parent_link: "Body_Chassis"
     local_translation: [0.3, 0.0, -0.5]
@@ -202,16 +186,15 @@ sensors:
     rotation_rate_hz: 10.0
     profile_name: "Example_Rotary"
     profile_json_path: null
-    # Task E (2026-04-25): swap the LiDAR USD model by changing this
-    # key (e.g. ``Velodyne_VLP16``).  ``null`` falls back to
-    # ``profile_name`` so the runtime behaviour matches pre-Task-E.
+    # Swap the LiDAR USD model by changing this key (e.g. ``Velodyne_VLP16``).
+    # ``null`` falls back to ``profile_name``.
     usd_profile: null
 
   # 2D LaserScan sensor for slam_toolbox / Nav2.  Clones the RTX Lidar
   # pipeline used by ``lidar_3d``; only the bundled profile and mount
   # height differ (0.25 m below the 3D lidar).  Numerics mirror the
-  # Isaac Sim bundled ``Example_Rotary_2D`` JSON (single beam at -2°
-  # elevation, 360° horizontal, 0.25° step, 30 Hz rotation).
+  # Isaac Sim bundled ``Example_Rotary_2D`` JSON (single beam at -2 deg
+  # elevation, 360 deg horizontal, 0.25 deg step, 30 Hz rotation).
   lidar_2d:
     parent_link: "Body_Chassis"
     local_translation: [0.3, 0.0, -0.25]
@@ -272,3 +255,22 @@ control:
   steer_ramp_rate: 2.0
   decel_multiplier: 3.0
   debug_logging: false
+
+  # RA arm initial joint positions for spawn-time stability.  When the
+  # rover spawns with the RA arm in the URDF-default deployed pose
+  # (arm tip ~3 m forward, +X), the 25 kg arm + 45 kg turret cluster
+  # produces a forward pitching moment during the post-reset warmup
+  # loop.  Empirically this drifts the chassis ~1.5 m on +X before
+  # ground contact stabilises it.
+  #
+  # Setting RA joints here at spawn lets the user pick a stowed-like
+  # pose that keeps the arm mass close to the chassis centre of mass.
+  # Joint name keys must match ``articulation.dof_names`` (M2020 USD
+  # exposes ``JOINT1_ENC`` .. ``JOINT5_ENC`` for the 5-DOF arm; the
+  # fixed ``JointRobotArmBase`` is not in dof_names).
+  #
+  # Default = empty dict, keep URDF-default pose (no override).
+  # Empirically iterate by editing this dict and re-running Isaac Sim;
+  # verify via ``ros2 run tf2_ros tf2_echo odom base_link`` that the
+  # lateral drift shrinks.
+  initial_joint_positions: {}

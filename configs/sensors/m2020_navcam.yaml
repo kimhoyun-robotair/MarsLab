@@ -1,9 +1,8 @@
 # M2020 Perseverance Navcam (Navigation Camera, LEFT) preset.
 #
-# Sprint Day 4-5 Task I-B (2026-04-25): drop-in replacement for the
-# ``sensors.camera`` block in ``configs/robots/rover_m2020.yaml``.  Every
-# numeric parameter is exposed (G5).  Validates against
-# :class:`marslab.config.schema.robot.CameraConfig`.
+# Drop-in replacement for the ``sensors.camera`` block in
+# ``configs/robots/rover_m2020.yaml``.  Every numeric parameter is exposed.
+# Validates against :class:`marslab.config.schema.robot.CameraConfig`.
 #
 # ---------------------------------------------------------------
 # Datasheet reference
@@ -24,8 +23,7 @@
 #     The Maki 2020 paper quotes a wider 96-deg "FOV" in Table 3; that is
 #     the diagonal-corrected FOV including lens distortion.  The geometry-
 #     derived HFOV used by Isaac Sim's Camera projection matrix is 63.5
-#     deg.  See ``~/MarsLab/tmp/task_IB_finding.md`` for the full
-#     reconciliation note.
+#     deg.
 #   * Stereo baseline: 0.42 m (Maki 2020 Section 2.1 + Fig 4).  Only the
 #     LEFT Navcam is provided in this preset; copy this file and shift
 #     ``local_translation`` Y by +0.42 m for the RIGHT Navcam.
@@ -36,7 +34,7 @@
 # Resolution choice (binned vs full-frame):
 #   The flight detector is 5120 x 3840, but Maki 2020 Section 2.6 notes
 #   the rover routinely downsamples to 1280 x 960 (4x binning) before
-#   downlink.  v1.0 MarsLab uses the binned size to keep the sensor graph
+#   downlink.  MarsLab uses the binned size to keep the sensor graph
 #   throughput tractable; SLAM and Nav2 do not benefit from the full
 #   5120 x 3840 image.  Edit ``resolution`` to ``[5120, 3840]`` if your
 #   workflow needs the full detector format.
@@ -51,14 +49,12 @@
 #   against the JPL m2020-urdf-models repo (mars2020 frame -> NCAM_LEFT).
 #   TODO verify against Maki 2020 Section 2.1 + URDF kinematic chain.
 
-# 2026-04-28 (Fix 7): Y sign restored to -0.21.  YAML is authored in
-# the X-rolled body frame matched by ``rover_m2020.yaml``'s
-# ``spawn_orientation_rpy = [3.14159, 0, 0]`` (NASA JPL m2020 URDF
-# link convention requires this compensation, confirmed empirically
-# via tmp3.txt: odom→base_link RPY=[-179.5°, ...] without it).  In
-# the X-rolled body frame ``+Y_body = -Y_world``, so the LEFT navcam
-# (NCL) sits at ``Y = -0.21`` to land at world ``+Y`` (= REP-103
-# left).  Right-Navcam variant: shift Y by +0.42 to land at +0.21.
+# YAML authored in the X-rolled body frame matched by ``rover_m2020.yaml``'s
+# ``spawn_orientation_rpy = [3.14159, 0, 0]`` (see
+# ``docs/frame_conventions.md``).  In that frame ``+Y_body = -Y_world``, so
+# the LEFT navcam (NCL) sits at ``Y = -0.21`` to land at world ``+Y``
+# (= REP-103 left).  Right-Navcam variant: shift Y by +0.42 to land at
+# +0.21.
 parent_link: "Body_Chassis"
 local_translation: [0.3, -0.21, 0.0]
 local_orientation_rpy_deg: [180.0, 0.0, 0.0]

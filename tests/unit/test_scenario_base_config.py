@@ -1,13 +1,13 @@
-"""Reviewer 2 #17 (2026-04-24): regression tests for the scenario ``base_config`` include.
+"""Regression tests for the scenario ``base_config`` include.
 
-Pre-#17 every ``configs/scenarios/*.yaml`` duplicated ~35 lines of
-identical ``mars_env`` + ``rendering`` boilerplate.  Drift had already
-leaked in (``enabled: True`` vs ``enabled: true`` — H-19) and the wider
-review flagged the whole pattern as a copy-paste maintenance hazard.
+Each ``configs/scenarios/*.yaml`` previously duplicated ~35 lines of
+identical ``mars_env`` + ``rendering`` boilerplate, which led to drift
+(e.g. ``enabled: True`` vs ``enabled: true``) and was flagged as a
+copy-paste maintenance hazard.
 
-Item #17 consolidates that boilerplate into
-``configs/scenarios/_base.yaml`` and pulls it into every scenario via
-a root-level ``base_config`` include resolved by both loaders:
+The shared boilerplate now lives in ``configs/scenarios/_base.yaml``
+and is pulled into every scenario via a root-level ``base_config``
+include resolved by both loaders:
 
 * ``marslab.config.loader.load_and_validate`` (pydantic path)
 * ``marslab.config.yaml_loader.load_scenario_config`` (raw dict path
@@ -19,7 +19,7 @@ These tests lock down three guarantees:
    result for every scenario (inheritance works end-to-end).
 2. Scenario-local overrides still win (``spacecraft_landing`` keeps
    its 135/40 sun, ``mars_base`` keeps 50-deg sun elevation).
-3. No scenario re-declares a ``mars_env`` common key — i.e. the dedup
+3. No scenario re-declares a ``mars_env`` common key -- i.e. the dedup
    actually happened and cannot silently regress via a future
    copy-paste.
 """
@@ -38,11 +38,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_DIR = REPO_ROOT / "configs" / "scenarios"
 BASE_YAML = SCENARIO_DIR / "_base.yaml"
 
-# Runnable scenario YAMLs — excludes shared include fragments (underscore prefix)
-# and self-contained templates (``template_*.yaml``).  Templates demonstrate the
-# inline / no-base_config pattern by design and therefore opt out of the
-# Reviewer 2 #17 dedup invariants enforced below (every other scenario MUST
-# pull from ``_base.yaml``).
+# Runnable scenario YAMLs -- excludes shared include fragments (underscore
+# prefix) and self-contained templates (``template_*.yaml``). Templates
+# demonstrate the inline / no-base_config pattern by design and therefore opt
+# out of the dedup invariants enforced below (every other scenario MUST pull
+# from ``_base.yaml``).
 _SCENARIOS = sorted(
     p
     for p in SCENARIO_DIR.glob("*.yaml")
@@ -51,16 +51,16 @@ _SCENARIOS = sorted(
 
 # Common keys that MUST live only in ``_base.yaml``, not in scenario overrides.
 # These are the values every scenario shares; a scenario re-declaring them
-# silently re-introduces the drift that item #17 just removed.  Note:
-# ``seed`` is excluded — scenarios are allowed to override seeds for
-# deterministic per-scenario reproducibility experiments.
+# silently re-introduces the drift the dedup removed. Note: ``seed`` is
+# excluded -- scenarios are allowed to override seeds for deterministic
+# per-scenario reproducibility experiments.
 _MARS_ENV_COMMON_KEYS = frozenset(
     {
         "gravity",
         "atmo_pressure",
         "atmo_density",
         "dust_optical_depth",
-        "solar_constant_mean",
+        "solar_constant",
         "surface_albedo_range",
         "surface_temp_mean",
         "sol_duration_seconds",
@@ -87,7 +87,7 @@ def test_all_scenarios_inherit_from_mars_env(yaml_path: Path) -> None:
     # Shared from _base.yaml:
     assert cfg.mars_env.gravity == pytest.approx(3.72)
     assert cfg.mars_env.atmo_pressure == pytest.approx(610.0)
-    assert cfg.mars_env.solar_constant_mean == pytest.approx(589.0)
+    assert cfg.mars_env.solar_constant == pytest.approx(589.0)
     assert cfg.mars_env.sol_duration_seconds == 88642
     assert cfg.mars_env.dust_opacity_range == pytest.approx((0.5, 2.0))
     # Shared rendering defaults:
@@ -97,7 +97,7 @@ def test_all_scenarios_inherit_from_mars_env(yaml_path: Path) -> None:
 
 
 def test_scenario_override_wins_over_base_sun_azimuth() -> None:
-    """``spacecraft_landing`` overrides the sun azimuth — the scenario value wins.
+    """``spacecraft_landing`` overrides the sun azimuth -- the scenario value wins.
 
     Regression guard: if the deep-merge order ever flipped (base over
     scenario instead of scenario over base), ``sun_azimuth_deg`` would
@@ -123,12 +123,12 @@ def test_scenario_override_wins_over_base_sun_elevation() -> None:
 def test_dynamic_atmosphere_enabled_scenario_flip() -> None:
     """Scenarios flip ``dynamic_atmosphere.enabled`` from false to true.
 
-    Doubles as a YAML-1.2-boolean regression: pre-#17 the scenario files
-    had a mix of ``enabled: True`` and ``enabled: true``.  After dedup
-    every scenario declares lowercase ``true`` exclusively.  If a
+    Doubles as a YAML-1.2-boolean regression: scenario files previously
+    had a mix of ``enabled: True`` and ``enabled: true``. After dedup
+    every scenario declares lowercase ``true`` exclusively. If a
     scenario file reverts to the capitalised form PyYAML still parses
     it as Python ``True``, but the visible text is a drift signal that
-    the dedup policy got weakened — the source-file scan below catches
+    the dedup policy got weakened -- the source-file scan below catches
     that variant.
     """
     # Base default is false:
@@ -148,18 +148,18 @@ def test_dynamic_atmosphere_enabled_scenario_flip() -> None:
 def test_no_scenario_duplicates_mars_env_common_block(yaml_path: Path) -> None:
     """No scenario re-declares a mars_env key that already lives in ``_base.yaml``.
 
-    Reviewer 2 #17's whole point: if a future patch copy-pastes
+    The whole point of the include: if a future patch copy-pastes
     ``gravity: 3.72`` back into a scenario file, it creates exactly the
-    drift hazard H-17/H-19 flagged.  This test reads the RAW YAML
+    drift hazard the dedup just removed. This test reads the RAW YAML
     (bypassing merge) and asserts only permitted keys appear under
     ``mars_env`` in each scenario.
 
     Permitted keys:
-    * ``sun_azimuth_deg`` / ``sun_elevation_deg`` — scenario-specific
+    * ``sun_azimuth_deg`` / ``sun_elevation_deg`` -- scenario-specific
       solar geometry overrides (documented cases: mars_base,
       spacecraft_landing).
-    * ``dynamic_atmosphere`` — scenarios flip ``enabled`` to true.
-    * ``seed`` — allowed per-scenario seed override for experiments.
+    * ``dynamic_atmosphere`` -- scenarios flip ``enabled`` to true.
+    * ``seed`` -- allowed per-scenario seed override for experiments.
     """
     with open(yaml_path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
@@ -168,7 +168,7 @@ def test_no_scenario_duplicates_mars_env_common_block(yaml_path: Path) -> None:
     assert not forbidden_present, (
         f"{yaml_path.name}: mars_env re-declares {sorted(forbidden_present)} "
         "which already live in configs/scenarios/_base.yaml. Drop them so "
-        "there is a single source of truth (Reviewer 2 #17)."
+        "there is a single source of truth."
     )
 
 
@@ -185,7 +185,7 @@ def test_scenario_declares_base_config_include(yaml_path: Path) -> None:
         raw = yaml.safe_load(f) or {}
     assert "base_config" in raw, (
         f"{yaml_path.name}: missing root-level ``base_config`` include. "
-        "Add ``base_config: _base.yaml`` at the top (Reviewer 2 #17)."
+        "Add ``base_config: _base.yaml`` at the top."
     )
     # Normalise path for platform-agnostic comparison.
     ref = str(raw["base_config"]).replace("\\", "/").split("/")[-1]
@@ -221,10 +221,10 @@ def test_raw_dict_loader_also_merges_root_base_config() -> None:
 def test_base_yaml_uses_lowercase_boolean_only() -> None:
     """_base.yaml and every scenario must use YAML 1.2 lowercase booleans.
 
-    H-19 from the Reviewer 2 audit: ``enabled: True`` and
-    ``enabled: true`` coexisted across scenarios.  PyYAML parses both
-    as Python ``True`` but the visible drift signals weakening
-    discipline.  Scan the raw text for the capitalised variant.
+    Earlier scenario files had a mix of ``enabled: True`` and
+    ``enabled: true``. PyYAML parses both as Python ``True`` but the
+    visible drift signals weakening discipline. Scan the raw text for
+    the capitalised variant.
     """
     offenders: list[str] = []
     # ``_SCENARIOS`` already excludes ``_*.yaml`` and ``template_*.yaml``; we

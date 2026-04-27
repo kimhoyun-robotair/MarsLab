@@ -1,4 +1,4 @@
-"""Unit tests for marslab.ros2_bridge.odometry_publisher (R8-5). Stubs rclpy/nav_msgs/tf2_ros."""
+"""Unit tests for marslab.ros2_bridge.odometry_publisher. Stubs rclpy/nav_msgs/tf2_ros."""
 
 from __future__ import annotations
 
@@ -220,7 +220,7 @@ class TestHeaderStampMonotonic:
 
 
 class TestPublishTfFlag:
-    """``publish_tf=False`` (S3 default) skips TF broadcast but keeps Odometry."""
+    """``publish_tf=False`` (current default) skips TF broadcast but keeps Odometry."""
 
     def test_publish_tf_false_creates_no_broadcaster(self, fake_ros2_modules: None) -> None:
         from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
@@ -263,7 +263,7 @@ class TestPublishTfFlag:
         # ``tf_broadcaster`` is None so there is nothing to send to.
 
     def test_publish_tf_default_is_true_for_back_compat(self, fake_ros2_modules: None) -> None:
-        """Pre-S3 callers (no kwarg) get the legacy dual-publisher behaviour."""
+        """Legacy callers (no kwarg) get the dual-publisher behaviour."""
         from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
 
         node = _make_node([FakeStamp(1, 0)])

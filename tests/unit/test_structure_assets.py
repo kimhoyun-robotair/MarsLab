@@ -113,7 +113,7 @@ def test_schema_rejects_wrong_position_length():
 
 
 def test_schema_extra_forbid():
-    """Misspelled keys fail validation (Reviewer 2 #12)."""
+    """Misspelled keys fail validation (extra='forbid')."""
     with pytest.raises(ValidationError):
         StructureAssetConfig(
             path="x.obj",

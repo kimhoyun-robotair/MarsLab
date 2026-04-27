@@ -1,22 +1,22 @@
-"""Regression tests for the ROS2 QoS schema + helper (Reviewer 2 #04).
+"""Regression tests for the ROS2 QoS schema and helper.
 
 These tests cover the pure-Python / pydantic surface so they run
-without rclpy on the PYTHONPATH.  The one rclpy-dependent helper
+without rclpy on the PYTHONPATH. The one rclpy-dependent helper
 (:func:`marslab.ros2_bridge.qos.to_rclpy_qos`) is exercised with a
 ``pytest.importorskip`` guard so the test is silently skipped in the
-unit harness and active when rclpy is available (e.g. the user's
-workstation with ROS 2 Jazzy sourced).
+unit harness and active when rclpy is available (e.g. on a workstation
+with ROS 2 Jazzy sourced).
 
 Context
 -------
 
-Before Reviewer 2 #04 every publisher and subscriber in
-``marslab/ros2_bridge/`` was created with the rclpy default QoS
-(``RELIABLE`` + ``VOLATILE`` + ``KEEP_LAST`` depth=10).  That caused
+Without explicit QoS, every publisher and subscriber in
+``marslab/ros2_bridge/`` would use the rclpy default QoS
+(``RELIABLE`` + ``VOLATILE`` + ``KEEP_LAST`` depth=10), which causes
 silent message drop against slam_toolbox (``BEST_EFFORT``) and
-teleop_twist_keyboard (``BEST_EFFORT``).  The schema fields added in
-this change pin the four topic families to SLAM/Nav2-friendly
-defaults while leaving them overridable per-scenario.
+teleop_twist_keyboard (``BEST_EFFORT``). The schema fields here pin
+the four topic families to SLAM/Nav2-friendly defaults while leaving
+them overridable per-scenario.
 """
 
 from __future__ import annotations
@@ -129,11 +129,11 @@ class TestRos2BridgeConfigQoSFields:
 
 
 class TestOmniGraphPresetMapping:
-    """``to_omnigraph_qos_json`` returns JSON-encoded QoS dict.
+    """``to_omnigraph_qos_json`` returns a JSON-encoded QoS dict.
 
-    Day 5 fix-up (2026-04-25): switched from bare preset names
-    (``"SystemDefault"``, ``"SensorData"``) to JSON encoding matching
-    ``OgnROS2QoSProfile.py:101-113``.  The bare-name path produced
+    The helper switched from bare preset names (``"SystemDefault"``,
+    ``"SensorData"``) to JSON encoding matching
+    ``OgnROS2QoSProfile.py``. The bare-name path produced
     ``Parsing error: ... last read: 'S'`` log spam on every step.
     """
 
@@ -159,13 +159,25 @@ class TestOmniGraphPresetMapping:
     def test_transient_local_emits_warning_and_writes_transient_local_json(self, caplog) -> None:
         """transient_local now reaches the OmniGraph JSON honestly.
 
-        We log a soft warning (the C++ writer's transient_local
-        support is unverified in Isaac Sim 5.1) but the JSON encodes
-        the user's requested durability rather than silently falling
-        back to systemDefault.
+        Logs a soft warning (the C++ writer's transient_local support
+        is unverified in Isaac Sim 5.1) but the JSON encodes the
+        user's requested durability rather than silently falling back
+        to systemDefault.
         """
         import json
         import logging
+
+        # Re-import to pick up the fresh module instance: the
+        # ``test_ros2_bridge_lazy_import`` suite prunes
+        # ``marslab.ros2_bridge`` between tests, which means the
+        # ``to_omnigraph_qos_json`` symbol bound at file scope can be a
+        # stale reference to a module whose once-per-process latch was
+        # already tripped.  Resolving the function through the live
+        # module (after resetting its latch) keeps this assertion
+        # order-independent.
+        from marslab.ros2_bridge import qos as qos_module
+
+        qos_module._reset_transient_local_warned()
 
         qos_logger = logging.getLogger("marslab.ros2_bridge.qos")
         prev_propagate = qos_logger.propagate
@@ -173,7 +185,7 @@ class TestOmniGraphPresetMapping:
         try:
             cfg = QoSProfileConfig(reliability="reliable", durability="transient_local", depth=100)
             with caplog.at_level(logging.WARNING):
-                result_json = to_omnigraph_qos_json(cfg)
+                result_json = qos_module.to_omnigraph_qos_json(cfg)
         finally:
             qos_logger.propagate = prev_propagate
 
@@ -303,7 +315,7 @@ class TestResolveQosPresets:
     """``sensor_graph._resolve_qos_presets`` reads YAML overrides."""
 
     def test_defaults_when_yaml_absent(self) -> None:
-        # Day 5 fix-up: ``to_omnigraph_qos_json`` now returns JSON.
+        # ``to_omnigraph_qos_json`` returns JSON, not bare preset names.
         import json
 
         from marslab.ros2_bridge.sensor_graph import _resolve_qos_presets
@@ -318,7 +330,7 @@ class TestResolveQosPresets:
         assert tf_dict["durability"] == "transientLocal"
 
     def test_override_sensor_to_reliable_flips_preset(self) -> None:
-        # Day 5 fix-up: JSON instead of preset name.
+        # JSON encoding instead of bare preset name.
         import json
 
         from marslab.ros2_bridge.sensor_graph import _resolve_qos_presets

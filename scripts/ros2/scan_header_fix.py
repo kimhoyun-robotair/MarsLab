@@ -44,7 +44,7 @@ class ScanHeaderFix(Node):
         self._pub = self.create_publisher(LaserScan, out_topic, qos)
         self._sub = self.create_subscription(LaserScan, in_topic, self._cb, qos)
         self.get_logger().info(
-            f"scan_header_fix: {in_topic} -> {out_topic} " "(angle_max -= angle_increment)"
+            f"scan_header_fix: {in_topic} -> {out_topic} (angle_max -= angle_increment)"
         )
 
     def _cb(self, msg: LaserScan) -> None:

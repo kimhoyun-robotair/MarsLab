@@ -2,43 +2,44 @@
 
 Attaches pre-authored ``.usd`` / ``.usda`` / ``.usdc`` assets under a
 configurable prim path, applies translate/orient/scale, and optionally
-enables collision. Pure USD by default -- per
-``reference_rover_usd_source`` runtime URDF import remains forbidden, but
-v1.0 sprint Day-2 (Task H) layered an additional ``structure_assets``
-pathway that accepts ``.obj`` / ``.stl`` meshes and converts to USD on
-the fly via ``omni.kit.asset_converter``.
+enables collision. Pure USD by default; the ``structure_assets`` path
+also accepts ``.obj`` / ``.stl`` meshes and converts to USD on the fly
+via ``omni.kit.asset_converter``.
 
-Offline-first (P3): ``StructureConfig`` and ``StructureAsset`` stay
-plain dataclasses, and importing this module does not touch Isaac Sim
+Offline-first: ``StructureConfig`` and ``StructureAsset`` stay plain
+dataclasses, and importing this module does not touch Isaac Sim
 (``pxr`` + ``isaacsim`` imports are deferred to call sites).
 
 ``static=True`` applies ``UsdPhysics.CollisionAPI`` only; ``static=False``
-additionally applies ``RigidBodyAPI``. Mass/damping are not modified --
-authored USD values win. G5: zero Mars-physics constants live here.
+additionally applies ``RigidBodyAPI``.  Mass/damping are not modified --
+authored USD values win.  No Mars-physics constants live here.
 """
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import re
-import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Iterable, List, Tuple
 
 from marslab.math.quaternion import rpy_to_quat
 
-# Reviewer 2 (sprint Day-2 Task H): the OBJ/STL drop-in pathway uses
-# ``omni.kit.asset_converter``.  Documented at
+# The OBJ/STL drop-in pathway uses ``omni.kit.asset_converter``,
+# documented at
 # ``docs.omniverse.nvidia.com/extensions/latest/ext_asset-converter.html``
 # (kit-105+).  The extension exposes ``AssetConverterContext`` +
-# ``create_converter_task`` which we drive synchronously inside
-# ``_convert_mesh_to_usd``.
+# ``create_converter_task`` which is driven synchronously inside
+# :func:`convert_mesh_to_usd`.
 STRUCTURE_ASSET_EXTENSIONS: Tuple[str, ...] = (".obj", ".stl")
 
+_LOG = logging.getLogger(__name__)
+
 # Sanitiser regex shared by ``_default_asset_name`` and tests.  USD child
-# tokens must match ``[A-Za-z_][A-Za-z0-9_]*``; we replace anything else
-# with ``_`` and prepend ``a_`` if the leading char becomes a digit.
+# tokens must match ``[A-Za-z_][A-Za-z0-9_]*``; anything else is
+# replaced with ``_`` and ``a_`` is prepended if the leading char
+# becomes a digit.
 _USD_TOKEN_BAD = re.compile(r"[^A-Za-z0-9_]")
 
 __all__ = [
@@ -227,21 +228,13 @@ def load_structures(stage: Any, cfgs: List[StructureConfig]) -> List[str]:
         try:
             prim_paths.append(load_structure(stage, cfg))
         except FileNotFoundError as exc:
-            # Re-raise with batch context -- the spacecraft / base
-            # scenarios ship placeholder paths while the artist team
-            # produces the real assets.  The error already names the
-            # file; include the structure name so the YAML line is
-            # easy to locate.
-            print(
-                f"[marslab.scene.structure_loader] Missing asset for "
-                f"structure '{cfg.name}': {exc}",
-                file=sys.stderr,
-            )
-            raise
+            # Re-raise with batch context so the YAML line that referenced
+            # the missing asset is easy to locate.
+            raise FileNotFoundError(f"Missing asset for structure {cfg.name!r}: {exc}") from exc
     return prim_paths
 
 
-# --- structure_assets: OBJ/STL drop-in (sprint Day-2 Task H) -----------------
+# --- structure_assets: OBJ/STL drop-in --------------------------------------
 #
 # The ``structure_assets:`` block in scenario YAML lets users drop in a
 # ``.obj`` / ``.stl`` mesh without going through an offline USD bake.
@@ -269,7 +262,8 @@ class StructureAsset:
         rotation_rpy_deg: ZYX intrinsic [roll, pitch, yaw] in degrees.
         scale: Uniform scale factor applied after orient.
         prim_path: Destination prim path -- defaults to
-            ``/World/StructureAssets/{name}`` per Reviewer 2 spec.
+            ``/World/StructureAssets/{name}`` for namespace isolation
+            from the pre-baked USD structures.
     """
 
     name: str
@@ -348,7 +342,7 @@ def build_structure_asset(
 
     ``cfg`` is typed loosely (``Any``) so this module does not import
     pydantic just for a type hint -- pydantic stays a config-layer
-    concern. The duck-typed access keeps the function P3-friendly.
+    concern.  The duck-typed access keeps the function offline-safe.
 
     Args:
         cfg: ``StructureAssetConfig`` (pydantic) instance from the
@@ -403,7 +397,7 @@ def convert_mesh_to_usd(source_path: str, dest_path: str) -> str:
     """Convert ``.obj`` / ``.stl`` to ``.usd`` via Isaac Sim.
 
     Uses ``omni.kit.asset_converter`` -- the canonical extension for
-    OBJ/STL/FBX -> USD inside Kit (kit-105+, see
+    OBJ/STL -> USD inside Kit (kit-105+, see
     ``docs.omniverse.nvidia.com/extensions/latest/ext_asset-converter.html``).
     The function blocks until the converter task completes; for the
     small props this loader targets (rocks, tools, pebbles) the
@@ -429,11 +423,11 @@ def convert_mesh_to_usd(source_path: str, dest_path: str) -> str:
     _validate_mesh_source(source_path)
 
     context = asset_converter.AssetConverterContext()
-    # Defaults are tuned for static prop import: skip materials we do
-    # not have, keep the original mesh hierarchy.  ``ignore_materials``
-    # is True because OBJ MTL paths usually break when files move; the
-    # caller can swap this in a follow-up if material-faithful import
-    # becomes a v2.0 ask.
+    # Defaults are tuned for static prop import: skip absent materials,
+    # keep the original mesh hierarchy.  ``ignore_materials`` is True
+    # because OBJ MTL paths usually break when files move; the caller
+    # can flip this if material-faithful import becomes a follow-up
+    # requirement.
     context.ignore_materials = True
     context.ignore_camera = True
     context.ignore_animations = True
@@ -444,17 +438,22 @@ def convert_mesh_to_usd(source_path: str, dest_path: str) -> str:
     instance = asset_converter.get_instance()
     task = instance.create_converter_task(source_path, dest_path, None, context)
 
-    # Day 3 Reviewer 2 fix-up (M4, 2026-04-25): ``asyncio.get_event_loop()``
-    # raises ``DeprecationWarning`` on Python 3.10+ when no loop is
-    # running and is removed in 3.12+. Inside Isaac Sim Kit there is
-    # usually a running loop; in unit-test paths the converter is
-    # stubbed entirely. The try/except keeps both paths working without
-    # importing nest_asyncio.
+    # ``asyncio.get_event_loop()`` raises ``DeprecationWarning`` on
+    # Python 3.10+ when no loop is running and is removed in 3.12+.
+    # Inside Isaac Sim Kit there is usually a running loop; in unit-test
+    # paths the converter is stubbed entirely.  Any freshly created
+    # loop is closed in the ``finally`` block so the loop does not leak.
+    created_loop = False
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = asyncio.new_event_loop()
-    success = loop.run_until_complete(task.wait_until_finished())
+        created_loop = True
+    try:
+        success = loop.run_until_complete(task.wait_until_finished())
+    finally:
+        if created_loop:
+            loop.close()
     if not success:
         raise RuntimeError(
             f"omni.kit.asset_converter failed for {source_path} -> {dest_path}: "
@@ -549,10 +548,3 @@ def load_structure_assets(
 
         prim_paths.append(prim_path)
     return prim_paths
-
-
-# Defensive re-bind so static type checkers pick up the module-level
-# default_factory pattern without importing ``dataclasses.field``
-# transitively.  Keeping the import visible silences ``F401`` on
-# ``field`` which may be used by downstream subclasses.
-_ = field  # noqa: F841

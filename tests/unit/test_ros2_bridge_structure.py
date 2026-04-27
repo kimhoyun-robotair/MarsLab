@@ -69,9 +69,8 @@ class TestSensorGraphOfflineHelpers:
 
         Sharing one ``/tf`` between the OmniGraph ``PubTF`` and the
         rclpy ``TransformBroadcaster`` was tried and rolled back: the
-        two backends produced duplicated / out-of-phase frames in RViz
-        and Nav2.  See memory ``feedback_no_tf_consolidation`` for the
-        rationale and the user-facing constraint.
+        two backends produced duplicated / out-of-phase frames in
+        RViz and Nav2. The two topics stay separate by design.
         """
         from marslab.ros2_bridge.sensor_graph import _build_set_values
 
@@ -133,12 +132,9 @@ class TestTfBroadcasterValidation:
     def test_translation_broadcast_is_identity(self) -> None:
         """YAML local_translation is in the REP-103 base_link frame.
 
-        2026-04-28 (B1 fix): with the spawn-time 180° X-roll
-        removed, ``base_link`` aligns with REP-103 (X forward, Y
-        left, Z up) and ``local_translation`` broadcasts as-is.  The
-        previous expectation (``y = -0.2, z = +2.1``) was a circular
-        validator against the buggy double-flip described in the
-        2026-04-28 LOG entry.
+        With the spawn-time 180-degree X-roll removed, ``base_link``
+        aligns with REP-103 (X forward, Y left, Z up) and
+        ``local_translation`` broadcasts as-is.
         """
         pytest.importorskip("geometry_msgs")
         from marslab.ros2_bridge.tf_broadcaster import (

@@ -1,16 +1,15 @@
 """Pure-Python rover control primitives (Ackermann + ramp helpers).
 
-Everything here is pure
-NumPy — no Isaac Sim, no ROS2, no IO — so it can be unit-tested offline
-(project principle P3).
+Everything here is pure NumPy -- no Isaac Sim, no ROS2, no IO -- so it
+can be unit-tested without booting any simulation.
 
 Contents:
-    * ``ackermann_command`` — ICR-based steer angles + Euclidean
+    * ``ackermann_command`` -- ICR-based steer angles + Euclidean
       per-wheel angular velocities for a 6-wheel rocker-bogie rover.
-    * ``ramp_wheel_velocities`` — per-step drive velocity target limiter
+    * ``ramp_wheel_velocities`` -- per-step drive velocity target limiter
       with asymmetric acceleration/deceleration rates.
-    * ``ramp_steer_angles`` — per-step steer angle target limiter.
-    * ``clamp_steer_angles`` — saturate steer angles at mechanical
+    * ``ramp_steer_angles`` -- per-step steer angle target limiter.
+    * ``clamp_steer_angles`` -- saturate steer angles at mechanical
       limits (rocker-bogie collision avoidance).
 
 Coordinate convention (internal):
@@ -92,22 +91,22 @@ def ackermann_command(
     for i, (x_w, y_w) in enumerate(steer_xy):
         dy = R - y_w
         if abs(dy) < _EPS_DY:
-            # ICR exactly at wheel lateral position → ±90° steer.
-            # np.arctan2(x_w, 0) already returns sign(x_w)*π/2, but we
-            # branch explicitly to handle x_w == 0 (degenerate, pick +)
-            # and to avoid propagating float subnormals into downstream
+            # ICR exactly at wheel lateral position -> +/-90 deg steer.
+            # ``np.arctan2(x_w, 0)`` already returns ``sign(x_w)*pi/2``,
+            # but the branch is explicit so ``x_w == 0`` (degenerate,
+            # pick +) does not propagate float subnormals into downstream
             # clamps.
             steer_angles[i] = float(np.copysign(np.pi / 2.0, x_w if x_w != 0.0 else 1.0))
         else:
             # arctan2(x_w, dy) instead of arctan(x_w/dy): the division
-            # form silently drops the sign of dy so tight turns (R <
-            # half_ts, dy < 0 on the inside wheel) land in the wrong
-            # quadrant and the "dy == 0" branch above is never reached
-            # for small-but-nonzero dy (reviewer 2 audit 05§C1).  We
-            # wrap the result into the principal wheel-axis range
-            # (-π/2, π/2] — a real steer joint has ±40° limits, so
-            # values outside (-π/2, π/2) must flip the wheel by π and
-            # let the drive velocity compensate (see below).
+            # form silently drops the sign of dy so tight turns
+            # (R < half_ts, dy < 0 on the inside wheel) land in the
+            # wrong quadrant and the "dy == 0" branch above is never
+            # reached for small-but-nonzero dy.  The result is wrapped
+            # into the principal wheel-axis range (-pi/2, pi/2] -- a
+            # real steer joint has +/-40 deg limits, so values outside
+            # (-pi/2, pi/2) must flip the wheel by pi and let the drive
+            # velocity compensate (see below).
             theta = float(np.arctan2(x_w, dy))
             if theta > np.pi / 2.0:
                 theta -= np.pi
@@ -115,16 +114,18 @@ def ackermann_command(
                 theta += np.pi
             steer_angles[i] = theta
 
-    # Euclidean distance to ICR — matches NVIDIA AckermannController
-    # approach.  Each wheel at (x_w, y_w) has distance sqrt(x_w^2 + (R-y_w)^2).
+    # Euclidean distance to ICR -- matches the NVIDIA
+    # AckermannController approach.  Each wheel at (x_w, y_w) has
+    # distance sqrt(x_w^2 + (R-y_w)^2).
     #
-    # Sign: we keep steer in the (-π/2, π/2] principal range above, so
-    # positive wheel rotation moves along the direction (cos θ, sin θ).
-    # The tangential velocity at the contact is  w × (r_icr_to_wheel) =
-    # (w*dy, w*x_w).  Matching projected onto (cos θ, sin θ) gives
-    # ω_wheel * r = w * dy / cos θ.  Because cos θ > 0 in the principal
-    # range, ω_wheel has the sign of (w * dy) — exactly the original
-    # copysign(w, w*dy) convention.
+    # Sign: steer stays in the (-pi/2, pi/2] principal range above, so
+    # positive wheel rotation moves along the direction
+    # (cos theta, sin theta).  The tangential velocity at the contact
+    # is w x (r_icr_to_wheel) = (w*dy, w*x_w).  Projected onto
+    # (cos theta, sin theta) this gives
+    # omega_wheel * r = w * dy / cos theta.  Because cos theta > 0 in
+    # the principal range, omega_wheel has the sign of (w * dy) --
+    # exactly the original copysign(w, w*dy) convention.
     drive_xy = [
         (+half_wb, +half_ts),  # LF
         (0.0, +half_tm),  # LM
@@ -173,7 +174,7 @@ def ramp_steer_angles(
     """Limit per-step change in steer angle targets.
 
     Prevents snap transitions (e.g. cmd_vel going to zero while wheels
-    are still spinning → sudden lateral impulse).  If ``per_step_limit``
+    are still spinning -> sudden lateral impulse).  If ``per_step_limit``
     is 0 or negative, the function returns ``target`` unchanged (ramp
     disabled).
 
@@ -184,6 +185,11 @@ def ramp_steer_angles(
 
     Returns:
         New ramped targets, same shape/dtype as ``current``.
+
+    Note:
+        As of v1.0 the steer ramp is also implemented inline at the
+        runtime level (``marslab.runtime.main_loop``).  Prefer this
+        helper for new code paths so the ramp logic stays single-sourced.
     """
     if per_step_limit <= 0.0:
         return target.astype(current.dtype, copy=True)

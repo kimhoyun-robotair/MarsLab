@@ -1,4 +1,4 @@
-"""Schema tests for DynamicAtmosphereConfig and leaf sub-configs (R2-3a). Offline."""
+"""Schema tests for DynamicAtmosphereConfig and leaf sub-configs. Offline."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from marslab.config.schema import (
 
 
 class TestDefaults:
-    """All fields default so pre-R2-A2 YAML configs still validate."""
+    """All fields default so legacy flat YAML configs still validate."""
 
     def test_dynamic_atmosphere_defaults(self) -> None:
         cfg = DynamicAtmosphereConfig()
@@ -138,7 +138,7 @@ class TestMarsEnvIntegration:
 
 
 class TestYamlRoundtrip:
-    """YAML → MarsLabConfig survives without losing fields."""
+    """YAML -> MarsLabConfig survives without losing fields."""
 
     def test_roundtrip_via_marslab_config(self, tmp_path) -> None:
         import yaml

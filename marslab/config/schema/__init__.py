@@ -1,7 +1,8 @@
 """Aggregated pydantic schema for MarsLab configuration.
 
-R2 (2026-04-22) split the original 670-LOC schema.py into seven domain
-modules plus a root aggregator. Public imports remain unchanged:
+The schema is split into seven domain modules plus a root aggregator
+to keep each module under ~300 LOC and surfaced area focused. Public
+imports remain unchanged:
 
     from marslab.config.schema import MarsLabConfig, MarsEnvConfig, ...
 """
@@ -23,16 +24,20 @@ from marslab.config.schema.rendering import (
 )
 from marslab.config.schema.robot import (
     CameraConfig,
+    ChassisConfig,
     IMUConfig,
     Lidar2DConfig,
     Lidar3DConfig,
     OdometryCovarianceConfig,
+    OdomPublisherConfig,
     RobotConfig,
     SensorsConfig,
     SkidSteerDriveConfig,
+    SuspensionConfig,
+    WheelsConfig,
 )
 from marslab.config.schema.root import MarsLabConfig
-from marslab.config.schema.ros2_bridge import Ros2BridgeConfig
+from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
 from marslab.config.schema.scene import (
     SceneConfig,
     StructureAssetConfig,
@@ -46,17 +51,11 @@ from marslab.config.schema.terrain import (
     TerrainConfig,
 )
 
-# R2-A1 (2026-04-22) exported FogConfig / RayTracingConfig /
-# PathTracingConfig / SkyDomeConfig alongside the pre-existing public
-# names.
-# R2-A2 (2026-04-22) extended the list with DynamicAtmosphereConfig /
-# SunSweepConfig / TauConstantConfig / TauRampConfig / TauSineConfig so
-# ``from marslab.config.schema import DynamicAtmosphereConfig`` works
-# without reaching into ``marslab.config.schema.mars_env``.
 __all__ = [
     "CameraConfig",
     "CaveConfig",
     "CaveGeometryConfig",
+    "ChassisConfig",
     "DemCropConfig",
     "DynamicAtmosphereConfig",
     "FogConfig",
@@ -65,9 +64,11 @@ __all__ = [
     "Lidar3DConfig",
     "MarsEnvConfig",
     "MarsLabConfig",
+    "OdomPublisherConfig",
     "OdometryCovarianceConfig",
     "PathTracingConfig",
     "ProceduralCanyonConfig",
+    "QoSProfileConfig",
     "RayTracingConfig",
     "RenderingConfig",
     "RobotConfig",
@@ -79,8 +80,10 @@ __all__ = [
     "StructureAssetConfig",
     "StructureConfigSchema",
     "SunSweepConfig",
+    "SuspensionConfig",
     "TauConstantConfig",
     "TauRampConfig",
     "TauSineConfig",
     "TerrainConfig",
+    "WheelsConfig",
 ]

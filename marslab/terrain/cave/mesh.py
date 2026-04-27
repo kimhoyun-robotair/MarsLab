@@ -1,12 +1,10 @@
 """Trimesh ring-stitching for cave tube/floor/shaft/surface meshes.
 
-Extracted from the pre-R5 monolithic ``cave_generator.py`` in R5
-(2026-04-23); the thin orchestrator that previously lived at that
-top-level path is now :mod:`marslab.terrain.cave.orchestrator`. Every
-function is pure: it takes numpy arrays and returns a
-:class:`trimesh.Trimesh`, with no Isaac Sim dependency.
+Every function is pure: it takes numpy arrays and returns a
+:class:`trimesh.Trimesh`, with no Isaac Sim dependency. The thin
+assembly entry point lives at :mod:`marslab.terrain.cave.orchestrator`.
 
-RNG consumption order preserved from the pre-split module:
+RNG consumption order is fixed:
 
     1. :func:`build_tube_shell` uses no RNG.
     2. :func:`build_tube_floor` draws ``rng.random(...)`` then
@@ -49,18 +47,18 @@ def build_tube_shell(
 ) -> trimesh.Trimesh:
     """Stitch cross-section rings into a tube shell (ceiling + walls).
 
-    Winding convention (Reviewer 2 H-12, verified 2026-04-24)
-    ---------------------------------------------------------
+    Winding convention
+    ------------------
     Face winding is arranged so that the computed vertex order
     ``[v0, v2, v1]`` / ``[v1, v2, v3]`` produces face normals that
-    point **inward** — toward the tube interior, i.e. a ceiling face
+    point **inward** -- toward the tube interior, i.e. a ceiling face
     has a ``-Z`` normal and a left-wall face has a ``+X`` normal.
     This matches the rendering requirement that cameras inside the
     tube (rover viewpoint) see the inner surface.
 
     The USD builder sets ``double_sided=True`` so PhysX collisions
-    fire from either side — the inward normal here is the **rendering**
-    contract, not the collision contract. A dedicated regression test
+    fire from either side -- the inward normal here is the **rendering**
+    contract, not the collision contract. A regression test
     (``test_tube_shell_normals_inward`` in ``tests/unit/test_cave_mesh.py``)
     sweeps ceiling samples and asserts the normal points toward the
     axis so that this docstring stays trustworthy across future edits.
@@ -191,7 +189,16 @@ def build_skylight_shaft(
 
     Returns:
         :class:`trimesh.Trimesh` of the shaft wall (inward normals).
+
+    Raises:
+        ValueError: If ``surface_z`` is not strictly above ``ceiling_z``.
     """
+    if surface_z <= ceiling_z:
+        raise ValueError(
+            f"surface_z ({surface_z}) must be strictly greater than "
+            f"ceiling_z ({ceiling_z}) for a non-degenerate shaft"
+        )
+
     cx, cy = center_xy
     r_surface = diameter / 2.0
     overhang_rad = np.radians(overhang_deg)

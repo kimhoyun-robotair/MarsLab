@@ -2,10 +2,10 @@
 """Run integration tests requiring Isaac Sim.
 
 This entry point is intended to be launched via the Isaac Sim Python
-runtime wrapper ``scripts/isaac_python.sh`` (Reviewer 2 #15 reinstate,
-2026-04-24).  It strips ``-m 'not integration'`` from the pyproject
-``addopts`` and runs exactly the ``integration``-marked suite, so the
-default ``pytest tests/unit/`` remains GPU-free.
+runtime wrapper ``scripts/isaac_python.sh``.  It strips
+``-m 'not integration'`` from the pyproject ``addopts`` and runs
+exactly the ``integration``-marked suite, so the default
+``pytest tests/unit/`` remains GPU-free.
 
 Usage::
 
@@ -23,7 +23,7 @@ Usage::
 If you bypass ``scripts/isaac_python.sh`` and invoke with system Python,
 every integration test is reported SKIPPED with a readable reason
 (``pytest.importorskip("isaacsim")`` gate).  That mode is safe but
-useless — the whole point of these tests is to exercise Isaac Sim.
+useless -- the whole point of these tests is to exercise Isaac Sim.
 """
 
 from __future__ import annotations

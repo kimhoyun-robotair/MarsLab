@@ -1,9 +1,9 @@
-"""Unit tests for :func:`marslab.runtime.main_loop._log_once` (Reviewer 2 #13).
+"""Unit tests for :func:`marslab.runtime.main_loop._log_once`.
 
-Verifies the consolidated shotgun-surgery replacement preserves the
-historical behaviour: emit during the leading grace window, stay silent
-afterwards. Also guards the ``ERROR`` level contract so downstream log
-collectors keep filtering on severity rather than message substrings.
+Verifies the consolidated helper preserves the original behaviour:
+emit during the leading grace window, stay silent afterwards. Also
+guards the ``ERROR`` level contract so downstream log collectors keep
+filtering on severity rather than message substrings.
 """
 
 from __future__ import annotations

@@ -110,17 +110,18 @@ def test_surface_cap_hole_face_reduction(rng):
 
 
 # ---------------------------------------------------------------------------
-# Reviewer 2 #19 / H-12 regression — tube-shell normals point inward
+# Tube-shell normals point inward (geometric contract)
 # ---------------------------------------------------------------------------
 
 
 def test_tube_shell_normals_inward(geometry):
-    """H-12: docstring claims inward normals; ceiling faces must have ``n_z < 0``.
+    """Docstring claims inward normals; ceiling faces must have ``n_z < 0``.
 
-    If a future refactor flips the winding (e.g. someone swaps ``v0, v2, v1``
-    to ``v0, v1, v2``) the docstring lies.  This test pins the geometric
-    contract regardless of what the docstring says — the two must stay in
-    sync because PhysX collision + render lighting both depend on it.
+    If a future refactor flips the winding (e.g. someone swaps
+    ``v0, v2, v1`` to ``v0, v1, v2``) the docstring lies. This test
+    pins the geometric contract regardless of what the docstring
+    says -- the two must stay in sync because PhysX collision and
+    render lighting both depend on it.
     """
     centerline, cross_sections = geometry
     mesh = build_tube_shell(centerline, cross_sections, RING_PTS)
@@ -143,19 +144,19 @@ def test_tube_shell_normals_inward(geometry):
 
 
 # ---------------------------------------------------------------------------
-# Reviewer 2 #19 / H-16 regression — build_cave_scene seed is not hardcoded
+# build_cave_scene seed is not hardcoded
 # ---------------------------------------------------------------------------
 
 
 def test_build_cave_scene_seed_is_parameterized():
-    """H-16: ``build_cave_scene`` must accept a ``seed`` argument.
+    """``build_cave_scene`` must accept a ``seed`` argument.
 
-    Prior to the 2026-04-24 fix the breakdown PointInstancer hardcoded
-    ``seed=42`` inside ``_build_breakdown_instancer``, silently
-    overriding any user-provided scenario seed.  We can't exercise the
-    USD path offline, so this regression checks the public surface
-    instead: the argument must exist and ``_build_breakdown_instancer``
-    must accept a seed without defaulting to 42.
+    An earlier breakdown PointInstancer hardcoded ``seed=42`` inside
+    ``_build_breakdown_instancer``, silently overriding any
+    user-provided scenario seed. We can't exercise the USD path
+    offline, so this regression checks the public surface instead:
+    the argument must exist and ``_build_breakdown_instancer`` must
+    accept a seed without defaulting to 42.
     """
     import inspect
 
@@ -173,13 +174,13 @@ def test_build_cave_scene_seed_is_parameterized():
     assert (
         "seed" in inner_sig.parameters
     ), "_build_breakdown_instancer must accept seed (no more hardcoded 42)"
-    # Default is 0, not 42 — ensures any silent-fallback would be detectable
+    # Default is 0, not 42 -- ensures any silent-fallback would be detectable
     # via a seed-determinism regression test on the caller.
     assert inner_sig.parameters["seed"].default == 0
 
 
 def test_build_cave_scene_seed_respects_metadata(monkeypatch):
-    """H-16: without explicit seed, scene builder sources from cave_data metadata.
+    """Without explicit seed, scene builder sources from cave_data metadata.
 
     Drives the seed-threading logic without needing Isaac Sim by
     intercepting the inner ``_build_breakdown_instancer`` call.

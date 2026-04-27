@@ -1,23 +1,23 @@
-"""Sprint Day 4-5 Task I-B (2026-04-25): M2020 calibrated sensor presets.
+"""M2020 calibrated sensor presets.
 
-These tests cover the two new Camera presets in ``configs/sensors/``:
+These tests cover the two Camera presets in ``configs/sensors/``:
 
-* ``m2020_navcam.yaml`` — RSM-mounted Navigation Camera (LEFT).
-* ``m2020_hazcam.yaml`` — chassis-mounted FRONT-LEFT Hazard Camera.
+* ``m2020_navcam.yaml`` -- RSM-mounted Navigation Camera (LEFT).
+* ``m2020_hazcam.yaml`` -- chassis-mounted FRONT-LEFT Hazard Camera.
 
-Acceptance criteria (Reviewer 2):
+Acceptance criteria:
 
 1. Both YAMLs round-trip cleanly through
    :class:`marslab.config.schema.robot.CameraConfig` (extra='forbid', so
    typos fail at load time).
-2. The numerical values match Maki et al. 2020 Tables 2 + 3 to within the
-   geometric-vs-diagonal FOV reconciliation documented in the YAML
-   comments and ``~/MarsLab/tmp/task_IB_finding.md``.
-3. Both presets share the M2020 detector format (5120 × 3840 full /
-   1280 × 960 binned 4×) — the resolutions in the preset are a valid
+2. The numerical values match Maki et al. 2020 Tables 2 + 3 to within
+   the geometric-vs-diagonal FOV reconciliation documented in the YAML
+   comments.
+3. Both presets share the M2020 detector format (5120 x 3840 full /
+   1280 x 960 binned 4x) -- the resolutions in the preset are a valid
    subset of the flight detector.
 4. Focal lengths are positive and inside the M2020 envelope (1 mm <= f
-   <= 50 mm — the M2020 mast cameras Mastcam-Z go up to 110 mm but
+   <= 50 mm -- the M2020 mast cameras Mastcam-Z go up to 110 mm but
    engineering cameras stay short).
 5. Clipping ranges are well-formed (near > 0, far > near).
 6. Mount transforms are well-formed (3-element translation, 3-element
@@ -57,7 +57,7 @@ def _load_yaml(path: Path) -> dict:
 # Navcam preset
 # ---------------------------------------------------------------------------
 class TestNavcamPreset:
-    """Acceptance #1+#2: Navcam YAML loads as ``CameraConfig`` cleanly."""
+    """Acceptance 1+2: Navcam YAML loads as ``CameraConfig`` cleanly."""
 
     def test_yaml_file_exists(self) -> None:
         assert NAVCAM_YAML.is_file(), f"Navcam preset missing: {NAVCAM_YAML}"
@@ -105,12 +105,11 @@ class TestNavcamPreset:
 
         Isaac Sim's Camera +Z axis is the optical axis pointing into
         the scene; the parent ``Body_Chassis`` frame has +X forward,
-        +Z up (REP-103, since the 2026-04-28 B1 fix removed the
-        spawn-time 180° X-roll).  The 180° X-rotation on the camera
-        *prim* is therefore an Isaac-Sim-convention requirement
-        (image-plane Y axis alignment) -- not a compensation for the
-        spawn pose.  Pin the YAML carries that 180-deg X flip; any
-        downstream change must update this test deliberately.
+        +Z up (REP-103). The 180-degree X-rotation on the camera
+        *prim* is an Isaac-Sim-convention requirement (image-plane Y
+        axis alignment), not a compensation for the spawn pose. The
+        YAML carries that 180-degree X flip; any downstream change
+        must update this test deliberately.
         """
         cfg = CameraConfig(**_load_yaml(NAVCAM_YAML))
         roll = cfg.local_orientation_rpy_deg[0]
@@ -121,7 +120,7 @@ class TestNavcamPreset:
 # Hazcam preset
 # ---------------------------------------------------------------------------
 class TestHazcamPreset:
-    """Acceptance #1+#2: Hazcam YAML loads as ``CameraConfig`` cleanly."""
+    """Acceptance 1+2: Hazcam YAML loads as ``CameraConfig`` cleanly."""
 
     def test_yaml_file_exists(self) -> None:
         assert HAZCAM_YAML.is_file(), f"Hazcam preset missing: {HAZCAM_YAML}"
@@ -218,13 +217,13 @@ class TestM2020CameraSharedDetector:
         cfg = CameraConfig(**_load_yaml(preset_path))
         assert 5.0 <= cfg.focal_length <= 25.0, (
             f"{preset_path.name}: focal length {cfg.focal_length} mm is "
-            "outside the M2020 engineering camera envelope [5, 25] mm — "
+            "outside the M2020 engineering camera envelope [5, 25] mm -- "
             "verify against Maki 2020 Table 3."
         )
 
 
 class TestPresetsRejectTypos:
-    """``CameraConfig`` is declared with ``extra='forbid'`` (Reviewer 2 #12);
+    """``CameraConfig`` is declared with ``extra='forbid'``;
     this test confirms that a hand-written typo on top of the M2020 YAML
     does NOT silently load (regression guard for the schema-bypass class
     of bug)."""

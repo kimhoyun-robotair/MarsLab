@@ -1,10 +1,9 @@
 """Literal defaults for cave geometry tuning knobs.
 
 These constants are consumed as fallbacks when a ``CaveConfig`` does
-not carry a ``geometry`` block (backward compatibility with pre-R5
-YAMLs). The top nine knobs that materially affect centerline / surface
-tuning are also mirrored in :class:`CaveGeometryConfig` so scenarios
-can override them from YAML.
+not carry a ``geometry`` block. The top nine knobs that materially
+affect centerline / surface tuning are also mirrored in
+:class:`CaveGeometryConfig` so scenarios can override them from YAML.
 
 Kept private (``_constants``) because the submodules call the wrapper
 functions with explicit kwargs; external callers should pass values

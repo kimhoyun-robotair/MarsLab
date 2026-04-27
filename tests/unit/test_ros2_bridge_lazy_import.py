@@ -1,4 +1,4 @@
-"""Regression tests that marslab.ros2_bridge imports rclpy/geometry_msgs lazily (R4-4)."""
+"""Regression tests that marslab.ros2_bridge imports rclpy/geometry_msgs lazily."""
 
 from __future__ import annotations
 

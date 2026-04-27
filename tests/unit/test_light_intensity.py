@@ -59,7 +59,8 @@ def test_appelbaum_airmass_at_horizon_is_finite():
     """At z=89 deg Appelbaum returns a bounded value (~26.3).
 
     The flat approximation gives ~57.3 at this zenith, which severely
-    overstates the attenuation and is the core Reviewer 2 C-1 complaint.
+    overstates the attenuation -- the bug this regression test guards
+    against.
     """
     m = _appelbaum_airmass(math.radians(89.0))
     flat = 1.0 / math.cos(math.radians(89.0))

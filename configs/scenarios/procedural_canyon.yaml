@@ -1,11 +1,11 @@
 # Procedural Canyon Scenario (Corridor)
-# Synthetic canyon: steep walls on both sides, traversable floor in the center
-# Floor width ~30m, total canyon width ~80m, depth ~40m
-# Small craters on floor for obstacle avoidance
-# Purpose: navigation, exploration, SLAM, traversability in confined corridor
+# Synthetic canyon: steep walls on both sides, traversable floor in the center.
+# Floor width ~30m, total canyon width ~80m, depth ~40m.
+# Small craters on the floor for obstacle avoidance.
+# Purpose: navigation, exploration, SLAM, traversability in a confined corridor.
 #
-# Reviewer 2 #17 (2026-04-24): mars_env + rendering defaults come from
-# ``_base.yaml`` via the root-level ``base_config`` include.
+# mars_env + rendering defaults come from ``_base.yaml`` via the root-level
+# ``base_config`` include.
 
 base_config: _base.yaml
 
@@ -49,4 +49,4 @@ rover:
     mode: "dem_relative"
     xy: [0.0, -140.0]
     z_offset: 0.4
-    orientation_rpy: [3.14159, 0.0, 1.570796]  # yaw=+90° ⇒ face +Y
+    orientation_rpy: [3.14159, 0.0, 1.570796]  # yaw=+90 deg, face +Y

@@ -1,6 +1,7 @@
 """Integration test: IMU z-axis gravity on spawned rover (THE critical test).
 
-This is the Wk1 acceptance gate from ``CLAUDE.md`` Testing Requirements::
+This is the rover-spawn acceptance gate from ``CLAUDE.md`` Testing
+Requirements::
 
     Robot spawn: IMU z-axis = 3.72 +/- 0.05 m/s^2 (THE critical test)
 
@@ -12,11 +13,9 @@ Execution (Isaac Sim required, GPU required)::
 The test is marked ``integration`` so ``pytest tests/unit/`` skips it.
 It also uses ``pytest.importorskip("isaacsim")`` so that even a manual
 ``pytest tests/integration/`` on a non-Isaac host reports SKIPPED
-rather than ERROR — matching Reviewer 2 #15's "external reproducibility"
-requirement.
+rather than ERROR (external reproducibility requirement).
 
 References:
-  * PLAN.md §5.3 Wk1 acceptance criteria
   * tests/visual_inspection/checklist.md V9 (IMU probe procedure)
   * marslab/sensors/sensor_spawner.py (IMU spawn path)
 """
@@ -58,8 +57,9 @@ def test_imu_z_gravity_within_mars_band() -> None:
          ``isaacsim.sensors.physics.IMUSensor.get_current_frame()``.
       5. Assert ``abs(imu.lin_acc[2] - 3.72) <= 0.05``.
 
-    The test purposefully uses the same spawn helper as ``run_stage4.py``
-    so that a regression in the production runtime surfaces here.
+    The test purposefully uses the same spawn helper as
+    ``scripts/phase1/main.py`` so that a regression in the production
+    runtime surfaces here.
     """
     # Deferred imports: available only inside the Isaac Sim Python runtime.
     from marslab.robots.rover import spawn_rover  # noqa: PLC0415
@@ -87,7 +87,11 @@ def test_imu_z_gravity_within_mars_band() -> None:
 
         from isaacsim.sensors.physics import IMUSensor  # noqa: PLC0415
 
-        imu_path = f"{spawned.prim_path}/base_link/integration_imu_probe"
+        # Attach the IMU under the actual articulation rigid-body prim
+        # (``Body_Chassis`` in the JPL m2020 USD layout). ``base_link``
+        # is a TF frame label applied via ``apply_nameoverride`` and is
+        # not a real USD prim path.
+        imu_path = f"{spawned.rigid_body_path}/integration_imu_probe"
         imu = IMUSensor(prim_path=imu_path)
 
         world.reset()

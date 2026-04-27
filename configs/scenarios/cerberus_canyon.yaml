@@ -1,11 +1,11 @@
 # Cerberus Fossae Canyon Scenario (Challenge)
-# HiRISE DEM crop: mid-south canyon rim + floor
-# dz=460m, mean_slope=25.3 deg, traversable(<15 deg)=43%, impassable(>30 deg)=28%
-# Scenario flow: plain approach -> canyon rim -> slope descent -> canyon floor
-# Purpose: traversability limits, SLAM degradation, path planning under constraints
+# HiRISE DEM crop: mid-south canyon rim + floor.
+# dz=460m, mean_slope=25.3 deg, traversable(<15 deg)=43%, impassable(>30 deg)=28%.
+# Scenario flow: plain approach -> canyon rim -> slope descent -> canyon floor.
+# Purpose: traversability limits, SLAM degradation, path planning under constraints.
 #
-# Reviewer 2 #17 (2026-04-24): mars_env + rendering defaults come from
-# ``_base.yaml`` via the root-level ``base_config`` include.
+# mars_env + rendering defaults come from ``_base.yaml`` via the root-level
+# ``base_config`` include.
 
 base_config: _base.yaml
 
@@ -44,4 +44,4 @@ rover:
     mode: "dem_relative"
     xy: [0.0, 200.0]
     z_offset: 0.8
-    orientation_rpy: [3.14159, 0.0, -1.570796]  # yaw=-90° ⇒ face -Y toward rim
+    orientation_rpy: [3.14159, 0.0, -1.570796]  # yaw=-90 deg, face -Y toward rim

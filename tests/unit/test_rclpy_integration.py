@@ -49,7 +49,7 @@ def fake_rclpy(monkeypatch: pytest.MonkeyPatch) -> types.ModuleType:
     param_module.Parameter = _Parameter  # type: ignore[attr-defined]
     fake.parameter = param_module
 
-    # Reviewer 2 #04 (2026-04-24): ``init_rclpy_side`` now resolves QoS
+    # ``init_rclpy_side`` resolves QoS
     # profiles via ``marslab.ros2_bridge.qos.to_rclpy_qos`` which imports
     # ``rclpy.qos``.  Stub the enum / QoSProfile surface so the offline
     # fake rclpy can satisfy the adapter without installing ROS 2.
@@ -108,14 +108,14 @@ class TestInitRclpySide:
             queue_size: int,
             qos: Any = None,
         ) -> Any:
-            # Reviewer 2 #04 (2026-04-24): ``qos`` is a new keyword arg.
+            # ``qos`` is a keyword arg on the QoS-aware factory.
             # Record it so downstream assertions can pin the QoS contract.
             captured["cmd_vel"] = (node, topic, state, queue_size)
             captured["cmd_vel_qos"] = qos
             return types.SimpleNamespace(topic=topic)
 
         def fake_static_tfs(node: Any, sensor_frames: Any, **kwargs: Any) -> Any:
-            # ``qos`` keyword added in Reviewer 2 #04; swallow transparently.
+            # ``qos`` keyword added by the QoS-aware factory; swallow transparently.
             captured["static_tfs"] = (node, list(sensor_frames))
             captured["static_tfs_kwargs"] = kwargs
             return types.SimpleNamespace(kind="static_broadcaster")
@@ -215,7 +215,7 @@ class TestInitRclpySide:
         fake_rclpy: types.ModuleType,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """R4-5 extension: ``cmd_vel_queue_size`` flows from ``ros2_cfg``."""
+        """``cmd_vel_queue_size`` flows from ``ros2_cfg``."""
         captured = self._patch_factories(monkeypatch)
         from marslab.ros2_bridge.rclpy_integration import init_rclpy_side
 
@@ -281,7 +281,7 @@ class TestInitRclpySide:
         fake_rclpy: types.ModuleType,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Reviewer 2 #04: default ``cmd_vel_qos`` lands on the subscriber.
+        """Default ``cmd_vel_qos`` lands on the subscriber.
 
         The default :class:`Ros2BridgeConfig` ships RELIABLE for the
         command channel; the fake ``rclpy.qos.QoSProfile`` records the

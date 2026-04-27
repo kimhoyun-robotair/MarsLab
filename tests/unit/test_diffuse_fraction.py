@@ -1,9 +1,8 @@
 """Unit tests for marslab.environment.diffuse_fraction.
 
 The module ships a **1-D cartoon approximation** of COMIMART
-(Vicente-Retortillo et al. 2015). These tests encode both the legacy
-PLAN.md acceptance bands and the post-audit Rayleigh-floor regression
-bounds (reviewer 2 consolidated audit §C-2, 2026-04-24).
+(Vicente-Retortillo et al. 2015). These tests encode both the
+acceptance bands and the Rayleigh-floor regression bounds.
 """
 
 import pytest
@@ -15,13 +14,13 @@ from marslab.environment.diffuse_fraction import (
 
 
 def test_tau_0_3_range():
-    """PLAN.md criterion: tau=0.3 -> [0.29, 0.38]."""
+    """tau=0.3 -> [0.29, 0.38]."""
     df = compute_diffuse_fraction_1d_approx(0.3)
     assert 0.29 <= df <= 0.38, f"tau=0.3: got {df}"
 
 
 def test_tau_1_0_range():
-    """PLAN.md criterion: tau=1.0 -> [0.50, 0.53]."""
+    """tau=1.0 -> [0.50, 0.53]."""
     df = compute_diffuse_fraction_1d_approx(1.0)
     assert 0.50 <= df <= 0.53, f"tau=1.0: got {df}"
 
@@ -64,7 +63,7 @@ def test_bounded_output():
 
 
 # ---------------------------------------------------------------------------
-# Reviewer 2 audit regression tests (§C-2)
+# Diffuse-fraction regression tests
 # ---------------------------------------------------------------------------
 
 

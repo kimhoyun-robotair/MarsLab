@@ -31,10 +31,21 @@ def load_config(config_path: str) -> MarsLabConfig:
 
 
 def propagate_seeds(config: MarsLabConfig, master_seed: int | None = None) -> MarsLabConfig:
-    """Derive deterministic child seeds from a master seed.
+    """Derive deterministic child seeds from a master seed (typed path).
 
     Each sub-config gets a unique seed derived from the master seed using
     simple offsets. This ensures full reproducibility from a single seed value.
+
+    This is the typed twin of :func:`propagate_seeds_in_dict`. Use this
+    function when the caller already holds a validated ``MarsLabConfig``;
+    use :func:`propagate_seeds_in_dict` when working with the raw dict
+    returned by ``load_scenario_config``. Both paths must enforce the
+    same invariant: ``terrain.seed == mars_env.seed + 1``.
+
+    Canonical seed-propagation list: ``mars_env``, ``terrain``. Any new
+    sub-config that requires deterministic randomization must be added
+    here AND in :func:`propagate_seeds_in_dict` so the two paths stay in
+    lockstep.
 
     Args:
         config: The configuration to update.
@@ -45,6 +56,9 @@ def propagate_seeds(config: MarsLabConfig, master_seed: int | None = None) -> Ma
     """
     seed = master_seed if master_seed is not None else config.mars_env.seed
 
+    # Canonical seed-propagation list -- keep aligned with the dict-path
+    # twin in ``propagate_seeds_in_dict``. Future seeded sub-configs need
+    # to be added to BOTH places.
     updates: dict = {
         "mars_env": config.mars_env.model_copy(update={"seed": seed}),
         "terrain": config.terrain.model_copy(update={"seed": seed + 1}),
@@ -58,14 +72,26 @@ def propagate_seeds_in_dict(cfg: dict, master_seed: int | None = None) -> dict:
 
     Runtime scripts that consume the raw dict returned by
     :func:`marslab.config.scenario_loader.load_scenario_config` (rather than
-    constructing a :class:`MarsLabConfig`) still need G7's invariant that
-    ``terrain.seed == mars_env.seed + 1`` so every randomised stage receives
-    a deterministic, distinct seed. This helper enforces that invariant on
-    the dict path.
+    constructing a :class:`MarsLabConfig`) still need the deterministic
+    seeding invariant that ``terrain.seed == mars_env.seed + 1`` so every
+    randomised stage receives a deterministic, distinct seed. This helper
+    enforces that invariant on the dict path.
 
-    The function mutates and returns ``cfg`` in place. Missing ``mars_env``
-    or ``terrain`` blocks are left untouched — callers that skip terrain
-    (e.g. structure-only tests) are free to omit them.
+    This function differs from :func:`propagate_seeds` in that it:
+
+    * Operates on a raw ``dict`` (no pydantic validation) so it works
+      before ``MarsLabConfig`` construction.
+    * Performs explicit type / range checking (``int``, ``>= 0``) that
+      pydantic would otherwise catch on the typed path.
+    * Mutates and returns the dict in place.
+
+    Canonical seed-propagation list: ``mars_env``, ``terrain``. Future
+    seeded sub-configs need to be added here AND in
+    :func:`propagate_seeds` so the two paths stay in lockstep.
+
+    Missing ``mars_env`` or ``terrain`` blocks are left untouched —
+    callers that skip terrain (e.g. structure-only tests) are free to
+    omit them.
 
     Args:
         cfg: Config dict, typically the output of ``load_scenario_config``.
@@ -81,17 +107,16 @@ def propagate_seeds_in_dict(cfg: dict, master_seed: int | None = None) -> dict:
     if not isinstance(mars_cfg, dict) or not isinstance(terrain_cfg, dict):
         return cfg
     raw = master_seed if master_seed is not None else mars_cfg.get("seed", 42)
-    # Tight type check: pydantic ``propagate_seeds`` receives a typed ``int``
-    # from ``MarsEnvConfig``; this dict path must enforce the same contract so
-    # a ``seed: 42.0`` YAML author gets a loud error instead of silent
-    # truncation, and a negative seed (G7 reproducibility smell) is rejected.
-    # ``bool`` is an ``int`` subclass in Python -- exclude explicitly.
+    # Tight type check: the typed ``propagate_seeds`` path receives a typed
+    # ``int`` from ``MarsEnvConfig``; this dict path must enforce the same
+    # contract so a ``seed: 42.0`` YAML author gets a loud error instead of
+    # silent truncation, and a negative seed (a reproducibility smell) is
+    # rejected. ``bool`` is an ``int`` subclass in Python -- exclude
+    # explicitly.
     if not isinstance(raw, int) or isinstance(raw, bool):
         raise TypeError(f"mars_env.seed must be int, got {type(raw).__name__}: {raw!r}")
     if raw < 0:
-        raise ValueError(
-            f"mars_env.seed must be >= 0 for deterministic G7 reproducibility; got {raw}"
-        )
+        raise ValueError(f"mars_env.seed must be >= 0 for deterministic reproducibility; got {raw}")
     seed = raw
     mars_cfg["seed"] = seed
     terrain_cfg["seed"] = seed + 1

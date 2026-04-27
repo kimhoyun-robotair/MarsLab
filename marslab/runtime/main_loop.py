@@ -1,28 +1,25 @@
-"""Main-loop extraction for the monolithic Stage 3 runtime (R6-1).
+"""Main-loop extraction for the monolithic Stage 3 runtime.
 
 Public entry point :func:`run_main_loop` consumes a :class:`LoopContext`
-bundling every object and scalar the legacy inline loop closed over.
+bundling every object and scalar the inline loop closed over.
 Mutable ramp / atmosphere state is carried in :class:`ControlState` /
-:class:`AtmosphereLoopState` (mutated in place for Oracle byte-exact
-parity).  Odometry publishing is delegated to
-:func:`marslab.ros2_bridge.odometry_publisher.publish_odometry` via the
-:class:`~marslab.ros2_bridge.odometry_publisher.OdometryPublisherContext`
+:class:`AtmosphereLoopState` (mutated in place).  Odometry publishing is
+delegated to :func:`marslab.ros2_bridge.odometry_publisher.publish_odometry`
+via the :class:`~marslab.ros2_bridge.odometry_publisher.OdometryPublisherContext`
 carried on :attr:`LoopContext.odom_ctx` -- a single source of truth that
-honours the S3 ``publish_tf`` gate (memory:
-feedback_no_tf_consolidation).  Isaac Sim / ``rclpy`` symbols enter via
-the context only -- the module itself is offline-importable (P3).
+honours the ``publish_tf`` gate so OmniGraph ``PubTF`` and the rclpy
+``TransformBroadcaster`` never publish to the same ``/tf`` topic.
+Isaac Sim / ``rclpy`` symbols enter via the context only -- the module
+itself is offline-importable (no Isaac Sim imports at module scope).
 Normal exit or ``KeyboardInterrupt`` returns ``0``; the caller owns
 ``simulation_app.close()``.
 
-2026-04-28 (Reviewer 2 B-2 refactor): :class:`OdomPublishState` was
-deleted and the inline ``sendTransform`` block in :func:`_publish_odometry`
-was replaced with a call to
-:func:`marslab.ros2_bridge.odometry_publisher.publish_odometry`.  The
-prior dual implementation hid an S3 follow-up bug where the ``main_loop``
-copy did not gate ``sendTransform`` on the new ``tf_broadcaster is None``
-condition (post-S3 rclpy odom TF is OFF by default), surfacing as
-``AttributeError("'NoneType' object has no attribute 'sendTransform'")``
-every step at runtime.
+The inline ``sendTransform`` block in :func:`_publish_odometry` was
+replaced with a call to
+:func:`marslab.ros2_bridge.odometry_publisher.publish_odometry` so the
+``tf_broadcaster is None`` gate (rclpy odom TF is OFF by default) is
+enforced in a single place. ``scripts/phase1/main.py`` is the live
+Stage 3 runtime entry point.
 """
 
 from __future__ import annotations
@@ -34,9 +31,9 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 import numpy as np
 
 if TYPE_CHECKING:
-    # Type-only import: keeps the runtime offline-importable (P3)
-    # because the publisher module's ``rclpy`` / ``tf2_ros`` /
-    # ``nav_msgs`` imports are themselves function-local.
+    # Type-only import: keeps the runtime offline-importable because the
+    # publisher module's ``rclpy`` / ``tf2_ros`` / ``nav_msgs`` imports
+    # are themselves function-local.
     from marslab.ros2_bridge.odometry_publisher import OdometryPublisherContext
 
 logger = logging.getLogger(__name__)
@@ -45,10 +42,10 @@ logger = logging.getLogger(__name__)
 #: promoted to ``logger.error`` output. Steps beyond this grace window
 #: intentionally silence the per-frame chatter to keep long runs readable.
 #:
-#: Honest caveat (Reviewer 2 #13): a critical failure surfacing *after*
-#: step 120 (e.g. IMU gravity drift, articulation desync) is still not
-#: observable from this helper alone — callers that need mid-run
-#: invariants must add dedicated periodic assertions (see
+#: Honest caveat: a critical failure surfacing *after* step 120 (e.g.
+#: IMU gravity drift, articulation desync) is still not observable from
+#: this helper alone -- callers that need mid-run invariants must add
+#: dedicated periodic assertions (see
 #: ``tests/unit/test_imu_gravity_assertion.py``).
 _DEFAULT_GRACE_STEPS = 120
 
@@ -120,7 +117,7 @@ class AtmosphereLoopState:
     attributes are scalars the loop carries across steps.
 
     ``sol_duration`` and ``solar_constant`` are required constructor
-    arguments (G5): callers must source them from the pydantic
+    arguments: callers must source them from the pydantic
     :class:`marslab.config.schema.MarsEnvConfig` rather than duplicate
     the Mars physics constants (``88642.0`` s, ``589.0`` W/m^2) here.
 
@@ -160,9 +157,8 @@ class AtmosphereLoopState:
 class VehicleGeometry:
     """Static rover kinematics consumed by the Ackermann controller.
 
-    Extracted from :class:`LoopContext` in R7 (Reviewer 2 H-1,
-    2026-04-24).  These values are computed once from URDF / scenario
-    YAML and never mutate at runtime.
+    Extracted from :class:`LoopContext`. These values are computed once
+    from URDF / scenario YAML and never mutate at runtime.
 
     Attributes:
         wheelbase: Distance between front and rear axles (m).
@@ -181,9 +177,8 @@ class VehicleGeometry:
 class ControlLimits:
     """Ramp-rate and saturation envelope for cmd_vel → joint targets.
 
-    Extracted from :class:`LoopContext` in R7 (Reviewer 2 H-1,
-    2026-04-24).  These are controller-tunable bounds separate from
-    the static vehicle geometry.
+    Extracted from :class:`LoopContext`. These are controller-tunable
+    bounds separate from the static vehicle geometry.
 
     Attributes:
         v_max: Linear velocity saturation (m/s, symmetric).
@@ -212,10 +207,9 @@ class ControlLimits:
 class AtmosphereCallables:
     """Optional atmosphere / rendering callbacks shared across the loop.
 
-    Extracted from :class:`LoopContext` in R7 (Reviewer 2 H-1,
-    2026-04-24).  Every field defaults to ``None`` so ``--no-atmosphere``
-    / headless unit-test callers can construct the context without
-    stubbing the entire rendering pipeline.
+    Extracted from :class:`LoopContext`. Every field defaults to ``None``
+    so ``--no-atmosphere`` / headless unit-test callers can construct
+    the context without stubbing the entire rendering pipeline.
 
     Attributes:
         update_sun_fn: Pushes new sun position/intensity into the stage.
@@ -261,14 +255,14 @@ class LoopContext:
         ``compute_diffuse_fraction_fn``, ``compute_sky_dome_fn``,
         ``atmo_panel_update``.
 
-    Decomposition (Reviewer 2 H-1, 2026-04-24)
-    ------------------------------------------
+    Decomposition
+    -------------
     The original 34-field / 10-callable dataclass is the classic
-    god-object anti-pattern. R7 splits it into three composed views:
+    god-object anti-pattern. The class is split into three composed views:
 
-    * :class:`VehicleGeometry` — static rover kinematics.
-    * :class:`ControlLimits` — ramp / saturation envelope.
-    * :class:`AtmosphereCallables` — optional rendering callbacks.
+    * :class:`VehicleGeometry` -- static rover kinematics.
+    * :class:`ControlLimits` -- ramp / saturation envelope.
+    * :class:`AtmosphereCallables` -- optional rendering callbacks.
 
     To keep backward compatibility with existing callers (and the
     byte-level signature tests), the flat attributes remain on
@@ -314,7 +308,7 @@ class LoopContext:
     compute_sky_dome_fn: Optional[Callable[..., Any]] = None
     atmo_panel_update: Optional[Callable[[], None]] = None
 
-    # --- Sub-dataclass views (H-1 decomposition) ----------------------------
+    # --- Sub-dataclass views ------------------------------------------------
 
     @property
     def geometry(self) -> VehicleGeometry:
@@ -401,7 +395,7 @@ def build_atmosphere_loop_state(
     Collapses the boilerplate Stage-3 callers used to write inline to
     wire every ``DynamicAtmosphereConfig`` + ``StageTwoAtmosphereInit``
     field into a mutable loop state.  Keeps
-    ``scripts/phase1/run_stage4.py`` focused on Stage-3 orchestration.
+    ``scripts/phase1/main.py`` focused on Stage-3 orchestration.
 
     Args:
         atmo_init: :class:`marslab.runtime.stage2_boot.StageTwoAtmosphereInit`
@@ -417,8 +411,8 @@ def build_atmosphere_loop_state(
     # Parity with ``marslab.runtime.stage2_loop.build_atmosphere_state``:
     # ``sol_duration_seconds`` is required by ``AtmospherePanel._format_mode_status``
     # when the panel is toggled to Auto mode. Dropping it here caused a KeyError
-    # inside the GUI callback the first time the user clicked the Sun mode
-    # button on ``run_stage4.py``.
+    # inside the GUI callback the first time the Sun mode button was clicked
+    # on ``scripts/phase1/main.py``.
     atmosphere_dict: Dict[str, Any] = {
         "tau": tau,
         "sun_mode": "auto" if dyn.enabled else "manual",
@@ -449,7 +443,7 @@ def run_main_loop(ctx: LoopContext) -> int:
     Args:
         ctx: Pre-initialized :class:`LoopContext` assembled by the CLI
             wrapper (``scripts/run_marslab.py``) or
-            :mod:`scripts.phase1.run_stage4` after Isaac Sim boot and
+            :mod:`scripts.phase1.main` after Isaac Sim boot and
             ``world.reset()``.
 
     Returns:
@@ -534,7 +528,7 @@ def run_main_loop(ctx: LoopContext) -> int:
             ctl.step_count += 1
             ctx.world.step(render=True)
     except KeyboardInterrupt:
-        print("[run_main_loop] KeyboardInterrupt -- shutting down.", flush=True)
+        logger.info("KeyboardInterrupt -- shutting down.")
 
     return 0
 
@@ -548,7 +542,7 @@ def _debug_log_step(
     steer_angles: np.ndarray,
     ramped_vels: np.ndarray,
 ) -> None:
-    """Emit per-stride diagnostic lines, mirroring the Oracle output."""
+    """Emit per-stride diagnostic lines."""
     try:
         actual_pos = ctx.articulation.get_joint_positions()
         actual_vel = ctx.articulation.get_joint_velocities()
@@ -559,11 +553,16 @@ def _debug_log_step(
             d_vel = (
                 actual_vel[0, drive_idx_arr] if actual_vel.ndim == 2 else actual_vel[drive_idx_arr]
             )
-            print(
-                f"[DIAG {ctx.control.step_count}] twist=({v:.3f},{w:.3f}) "
-                f"steer_cmd={steer_angles} steer_act={s_pos} "
-                f"drive_cmd={ramped_vels} drive_act={d_vel}",
-                flush=True,
+            logger.debug(
+                "[DIAG %d] twist=(%.3f,%.3f) steer_cmd=%s steer_act=%s "
+                "drive_cmd=%s drive_act=%s",
+                ctx.control.step_count,
+                v,
+                w,
+                steer_angles,
+                s_pos,
+                ramped_vels,
+                d_vel,
             )
     except Exception as exc:  # noqa: BLE001
         _log_once(logger, exc, "articulation_probe_failed", ctx.control.step_count)
@@ -571,10 +570,12 @@ def _debug_log_step(
         imu_frame = ctx.imu.get_current_frame()
         if imu_frame is not None and "lin_acc" in imu_frame:
             la = imu_frame["lin_acc"]
-            print(
-                f"[DIAG {ctx.control.step_count}] imu_acc="
-                f"({la[0]:.4f},{la[1]:.4f},{la[2]:.4f})",
-                flush=True,
+            logger.debug(
+                "[DIAG %d] imu_acc=(%.4f,%.4f,%.4f)",
+                ctx.control.step_count,
+                la[0],
+                la[1],
+                la[2],
             )
     except Exception as exc:  # noqa: BLE001
         _log_once(logger, exc, "imu_frame_fetch_failed", ctx.control.step_count)
@@ -583,14 +584,13 @@ def _debug_log_step(
 def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
     """Delegate odometry publish to the canonical ``publish_odometry``.
 
-    2026-04-28 (Reviewer 2 B-2 refactor): the prior inline implementation
-    duplicated :func:`marslab.ros2_bridge.odometry_publisher.publish_odometry`
-    and silently bypassed the S3 ``tf_broadcaster is None`` gate, raising
+    The previous inline implementation duplicated
+    :func:`marslab.ros2_bridge.odometry_publisher.publish_odometry` and
+    silently bypassed the ``tf_broadcaster is None`` gate, raising
     ``AttributeError("'NoneType' object has no attribute 'sendTransform'")``
-    on every step after S3 turned the rclpy odom TF off by default.
-    Routing through the publisher makes that gate the single source of
-    truth and keeps the math (``compute_odom_delta`` /
-    ``world_twist_to_body``) in one place.
+    every step once the rclpy odom TF defaulted off. Routing through the
+    publisher makes that gate the single source of truth and keeps the
+    math (``compute_odom_delta`` / ``world_twist_to_body``) in one place.
 
     Velocity-fetch failure is preserved as the ``velocity_query_failed``
     grace-window log; the outer ``odom_publish_failed`` category covers
@@ -602,7 +602,7 @@ def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
         return
 
     # Function-local import keeps the offline-importable property of
-    # ``main_loop`` (P3): ``odometry_publisher`` itself defers
+    # ``main_loop``: ``odometry_publisher`` itself defers
     # ``rclpy``/``tf2_ros``/``nav_msgs`` to its own function bodies, but
     # importing it at module scope would still drag in the typing-only
     # references at unit-test time on a host without ROS 2.
@@ -611,6 +611,12 @@ def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
     try:
         rover_poses_odom = ctx.articulation.get_world_poses()
         if rover_poses_odom is None:
+            _log_once(
+                logger,
+                RuntimeError("get_world_poses returned None"),
+                "world_pose_query_failed",
+                step_count,
+            )
             return
         _rp, _rq = rover_poses_odom
         cur_pos = _rp[0] if _rp.ndim == 2 else _rp
@@ -659,9 +665,9 @@ def _update_atmosphere(ctx: LoopContext) -> None:
         state["time_of_sol"] = t
         if ctx.compute_sol_sun_fn is not None:
             # ``mode="linear"`` preserves the SunSweepConfig envelope
-            # semantics used by the live simulation. Upgrading this
-            # path to the Reviewer-2 #8 spherical default requires
-            # plumbing latitude_deg/ls_deg through SunSweepConfig first.
+            # semantics used by the live simulation. Upgrading to the
+            # spherical default requires plumbing ``latitude_deg`` /
+            # ``ls_deg`` through SunSweepConfig first.
             dyn_sun_pos = ctx.compute_sol_sun_fn(
                 time_of_sol_fraction=t,
                 start_azimuth_deg=atmo.sweep_start_az,

@@ -1,6 +1,6 @@
 """USD helpers that pin TF frame names via ``isaac:nameOverride``.
 
-S3 release-blocker fix (2026-04-27).  Two responsibilities:
+Two responsibilities:
 
 1. :func:`apply_nameoverride` -- write ``isaac:nameOverride="<frame>"``
    on an existing prim so :class:`isaacsim.ros2.bridge.ROS2PublishTransformTree`
@@ -36,20 +36,19 @@ Design notes:
   whose ``GetPrimAtPath`` / ``DefinePrim`` return mocks, mirroring the
   pattern in ``marslab/robots/rover.py``.
 * Missing-prim handling matches ``find_rigid_body_path`` in
-  ``marslab/robots/rover.py`` -- print a single warning to stderr and
-  return ``False`` so a typo in the prim path does not abort the whole
-  spawn.
+  ``marslab/robots/rover.py`` -- log a single warning and return
+  ``False`` so a typo in the prim path does not abort the whole spawn.
 """
 
 from __future__ import annotations
 
-import sys
+import logging
 from typing import Tuple
 
 # Canonical USD path of the stationary ``odom`` anchor prim created by
 # :func:`create_odom_anchor`.  Both :func:`marslab.robots.rover.spawn_rover`
-# and ``scripts/phase1/run_stage4.py`` reference this path; keeping the
-# string in one place removes the drift risk flagged by Reviewer 2 #1.
+# and ``scripts/phase1/main.py`` reference this path; keeping the
+# string in one place removes the drift risk of a duplicated literal.
 DEFAULT_ODOM_ANCHOR_PATH = "/World/odom_anchor"
 
 __all__ = [
@@ -57,6 +56,8 @@ __all__ = [
     "apply_nameoverride",
     "create_odom_anchor",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 def apply_nameoverride(stage: object, prim_path: str, frame_name: str) -> bool:
@@ -77,9 +78,8 @@ def apply_nameoverride(stage: object, prim_path: str, frame_name: str) -> bool:
 
     Returns:
         ``True`` when the attribute landed on a valid prim; ``False``
-        when the prim was missing (a single warning is printed to
-        stderr in that case so a typo never silently swallows the
-        S3 wiring).
+        when the prim was missing (a single warning is logged in that
+        case so a typo never silently swallows the wiring).
 
     Notes:
         ``isaac:nameOverride`` is declared at
@@ -90,14 +90,16 @@ def apply_nameoverride(stage: object, prim_path: str, frame_name: str) -> bool:
     """
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
-        print(
-            f"[tf_nameoverrides] WARNING: prim missing at {prim_path}; "
-            f"isaac:nameOverride={frame_name!r} skipped.",
-            file=sys.stderr,
+        logger.warning(
+            "[tf_nameoverrides] prim missing at %s; isaac:nameOverride=%r skipped.",
+            prim_path,
+            frame_name,
         )
         return False
 
-    from pxr import Sdf  # noqa: PLC0415  (deferred Isaac Sim import)
+    from pxr import (
+        Sdf,
+    )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
     attr = prim.CreateAttribute("isaac:nameOverride", Sdf.ValueTypeNames.String, True)
     attr.Set(str(frame_name))
@@ -143,7 +145,11 @@ def create_odom_anchor(
         applied via :func:`apply_nameoverride` so both helpers share
         a single attribute-creation code path.
     """
-    from pxr import Gf, Sdf, UsdGeom  # noqa: PLC0415  (deferred Isaac Sim import)
+    from pxr import (
+        Gf,
+        Sdf,
+        UsdGeom,
+    )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
     xform = UsdGeom.Xform.Define(stage, anchor_path)
     prim = xform.GetPrim()

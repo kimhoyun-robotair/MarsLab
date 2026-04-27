@@ -1,26 +1,26 @@
-"""Unit tests for Day 2 Task B (2026-04-26): M2020 ballpark physics inject.
+"""Unit tests for the M2020 ballpark physics inject.
 
 Three layers of evidence:
 
 1. **YAML -> pydantic propagation.** ``configs/robots/rover_m2020.yaml``
-   parses cleanly into the new ``ChassisConfig`` / ``WheelsConfig`` /
-   ``SuspensionConfig`` models declared in ``marslab.config.schema.robot``.
-   Field-by-field equality check.
-2. **Inertia bbox derivation.** The YAML-declared chassis inertia tensor
-   matches a fresh first-principles bounding-box recomputation to within
-   1 % — guards against silent edits that desync the documented formula
-   from the actual numbers PhysX consumes.
-3. **Runtime injection callable.** A mocked USD ``stage`` exposing only
-   ``GetPrimAtPath`` records every prim path the rover spawn pipeline
-   touches; the test asserts ``apply_chassis_physics`` /
-   ``apply_wheel_physics`` /  ``apply_suspension_damping_split`` reach
-   the expected prims with the YAML-declared values.  No Isaac Sim
+   parses cleanly into the ``ChassisConfig`` / ``WheelsConfig`` /
+   ``SuspensionConfig`` models declared in
+   ``marslab.config.schema.robot``. Field-by-field equality check.
+2. **Inertia bbox derivation.** The YAML-declared chassis inertia
+   tensor matches a fresh first-principles bounding-box recomputation
+   to within 1 percent -- guards against silent edits that desync the
+   documented formula from the actual numbers PhysX consumes.
+3. **Runtime injection callable.** A mocked USD ``stage`` exposing
+   only ``GetPrimAtPath`` records every prim path the rover spawn
+   pipeline touches; the test asserts ``apply_chassis_physics`` /
+   ``apply_wheel_physics`` / ``apply_suspension_damping_split`` reach
+   the expected prims with the YAML-declared values. No Isaac Sim
    import.
 
-Reviewer 2 mode: every numeric assertion is sourced from
+Every numeric assertion is sourced from
 ``configs/robots/rover_m2020.yaml`` ``chassis:`` / ``wheels:`` /
-``suspension:`` blocks (see lines 42-95) — the test is data-driven, not
-hardcoded.  A YAML edit auto-flows into the assertions.
+``suspension:`` blocks -- the test is data-driven, not hardcoded.
+A YAML edit auto-flows into the assertions.
 """
 
 from __future__ import annotations
@@ -142,8 +142,8 @@ def _cylinder_inertia(mass: float, radius: float, height: float) -> Tuple[float,
 def test_chassis_inertia_matches_bbox(rover_yaml: Dict[str, Any]) -> None:
     """YAML chassis inertia entries match the bounding-box formula to 1 %.
 
-    Reviewer 2 evidence: prevents a silent YAML edit from desyncing the
-    documented derivation from the numbers PhysX actually consumes.
+    Prevents a silent YAML edit from desyncing the documented
+    derivation from the numbers PhysX actually consumes.
     """
     chassis = ChassisConfig(**rover_yaml["chassis"])
     length, width, height = chassis.bbox_lwh
@@ -338,20 +338,166 @@ def test_apply_suspension_damping_split_writes_both_buckets(
         assert results[n] is True
 
 
-# --- Layer 4: Reviewer 2 — schema rename verified --------------------------
+# --- Layer 5: articulation physics dispatch helper -------------------------
+
+
+def test_apply_rover_articulation_physics_dispatches_each_block(
+    rover_yaml: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``_apply_rover_articulation_physics`` validates and dispatches each block.
+
+    Each of the three downstream functions (``apply_chassis_physics``,
+    ``apply_wheel_physics``, ``apply_suspension_damping_split``) is
+    monkeypatched to a recorder so the test inspects what arrived after
+    pydantic validation.  A ``ValidationError`` would surface as a test
+    failure rather than a silent skip.
+    """
+    from marslab.robots import rover as rover_module
+
+    chassis_calls: List[Any] = []
+    wheel_calls: List[Any] = []
+    suspension_calls: List[Any] = []
+
+    monkeypatch.setattr(
+        rover_module,
+        "apply_chassis_physics",
+        lambda stage, rb_path, cfg: chassis_calls.append((rb_path, cfg)) or True,
+    )
+    monkeypatch.setattr(
+        rover_module,
+        "apply_wheel_physics",
+        lambda stage, chassis_path, names, cfg: wheel_calls.append(
+            (chassis_path, list(names), cfg)
+        ),
+    )
+    monkeypatch.setattr(
+        rover_module,
+        "apply_suspension_damping_split",
+        lambda stage, chassis_path, cfg: suspension_calls.append((chassis_path, cfg)),
+    )
+
+    rover_cfg = {
+        "prim_path": "/World/Rover",
+        "chassis": rover_yaml["chassis"],
+        "wheels": rover_yaml["wheels"],
+        "suspension": rover_yaml["suspension"],
+        "control": {"drive_joint_names": rover_yaml["control"]["drive_joint_names"]},
+    }
+    rigid_body_path = "/World/Rover/Body_Chassis/Body_Chassis"
+    rover_module._apply_rover_articulation_physics(MagicMock(), rigid_body_path, rover_cfg)
+
+    # Chassis physics: receives rigid-body path + validated chassis dict.
+    assert len(chassis_calls) == 1
+    assert chassis_calls[0][0] == rigid_body_path
+    assert chassis_calls[0][1]["mass"] == pytest.approx(rover_yaml["chassis"]["mass"])
+
+    # Wheel physics: receives the chassis path and the joint-name list.
+    assert len(wheel_calls) == 1
+    chassis_path, names, _wcfg = wheel_calls[0]
+    assert chassis_path == "/World/Rover/Body_Chassis"
+    assert names == list(rover_yaml["control"]["drive_joint_names"])
+
+    # Suspension physics: receives the chassis path + validated dict.
+    assert len(suspension_calls) == 1
+    assert suspension_calls[0][0] == "/World/Rover/Body_Chassis"
+    assert suspension_calls[0][1]["rocker_damping"] == pytest.approx(
+        rover_yaml["suspension"]["rocker_damping"]
+    )
+
+
+def test_apply_rover_articulation_physics_skips_missing_blocks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing optional blocks bypass their downstream call entirely."""
+    from marslab.robots import rover as rover_module
+
+    chassis_calls: List[Any] = []
+    wheel_calls: List[Any] = []
+    suspension_calls: List[Any] = []
+
+    monkeypatch.setattr(
+        rover_module,
+        "apply_chassis_physics",
+        lambda *a, **k: chassis_calls.append(a) or True,
+    )
+    monkeypatch.setattr(rover_module, "apply_wheel_physics", lambda *a, **k: wheel_calls.append(a))
+    monkeypatch.setattr(
+        rover_module,
+        "apply_suspension_damping_split",
+        lambda *a, **k: suspension_calls.append(a),
+    )
+
+    rover_cfg: Dict[str, Any] = {"prim_path": "/World/Rover"}
+    rover_module._apply_rover_articulation_physics(
+        MagicMock(), "/World/Rover/Body_Chassis/Body_Chassis", rover_cfg
+    )
+    assert chassis_calls == []
+    assert wheel_calls == []
+    assert suspension_calls == []
+
+
+def test_apply_rover_articulation_physics_skips_wheels_without_joint_names(
+    rover_yaml: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``wheels:`` block with no ``control.drive_joint_names`` skips wheels."""
+    from marslab.robots import rover as rover_module
+
+    wheel_calls: List[Any] = []
+    monkeypatch.setattr(rover_module, "apply_wheel_physics", lambda *a, **k: wheel_calls.append(a))
+    monkeypatch.setattr(rover_module, "apply_chassis_physics", lambda *a, **k: True)
+    monkeypatch.setattr(rover_module, "apply_suspension_damping_split", lambda *a, **k: None)
+
+    rover_cfg = {
+        "prim_path": "/World/Rover",
+        "wheels": rover_yaml["wheels"],
+        # No ``control`` key -- wheel link list resolves to []
+    }
+    rover_module._apply_rover_articulation_physics(
+        MagicMock(), "/World/Rover/Body_Chassis/Body_Chassis", rover_cfg
+    )
+    assert wheel_calls == []
+
+
+def test_apply_rover_articulation_physics_validates_chassis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bogus chassis config raises ``ValidationError`` before USD touches.
+
+    Guards the ``model_validate`` gate -- a typo / negative mass MUST
+    surface as a pydantic error at spawn rather than reaching PhysX.
+    """
+    from pydantic import ValidationError
+
+    from marslab.robots import rover as rover_module
+
+    # Downstream helpers must NOT be reached.
+    monkeypatch.setattr(
+        rover_module,
+        "apply_chassis_physics",
+        lambda *a, **k: pytest.fail("apply_chassis_physics reached past validation"),
+    )
+
+    rover_cfg = {"prim_path": "/World/Rover", "chassis": {"unknown_key": 42}}
+    with pytest.raises(ValidationError):
+        rover_module._apply_rover_articulation_physics(
+            MagicMock(), "/World/Rover/Body_Chassis/Body_Chassis", rover_cfg
+        )
+
+
+# --- Layer 4: schema rename verified --------------------------
 
 
 def test_skid_steer_velocity_field_rename() -> None:
     """``SkidSteerDriveConfig`` exposes the new ``max_linear_velocity``
     / ``max_angular_velocity`` fields and rejects the legacy names.
 
-    Schema bypass finding (``~/MarsLab/tmp/schema_bypass_finding.md``)
-    showed the legacy ``max_linear_vel`` / ``max_angular_vel`` field
-    names did NOT match the YAML keys ``max_linear_velocity`` /
-    ``max_angular_velocity``.  Day 2 Task B folds the rename so a future
+    A previous schema-bypass investigation showed the legacy
+    ``max_linear_vel`` / ``max_angular_vel`` field names did NOT
+    match the YAML keys ``max_linear_velocity`` /
+    ``max_angular_velocity``. The schema folds the rename so
     ``SkidSteerDriveConfig.model_validate(control_cfg)`` no longer
-    silently drops the speed clamps.  ``extra="forbid"`` ensures the old
-    names raise instead of being absorbed.
+    silently drops the speed clamps. ``extra="forbid"`` ensures the
+    old names raise instead of being absorbed.
     """
     from pydantic import ValidationError
 

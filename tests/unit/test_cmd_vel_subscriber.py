@@ -1,4 +1,4 @@
-"""Unit tests for marslab.ros2_bridge.cmd_vel_subscriber (R8-5). Twist -> wheel state."""
+"""Unit tests for marslab.ros2_bridge.cmd_vel_subscriber. Twist -> wheel state."""
 
 from __future__ import annotations
 
@@ -68,8 +68,8 @@ class TestTwistToWheelState:
         assert captured["topic"] == "/my_ns/cmd_vel"
 
     def test_queue_size_has_no_python_default(self, fake_twist_module: None) -> None:
-        """R4-5 removed the ``queue_size=10`` Python default. Omitting the
-        kwarg must raise ``TypeError`` — no silent fallback."""
+        """``queue_size`` has no Python default. Omitting the kwarg
+        must raise ``TypeError`` -- no silent fallback."""
         from marslab.ros2_bridge.cmd_vel_subscriber import create_cmd_vel_subscriber
 
         node, _ = _make_node_capture_callback()

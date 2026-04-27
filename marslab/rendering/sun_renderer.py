@@ -11,6 +11,17 @@ from marslab.config.schema import RenderingConfig
 from marslab.environment.sun_position import SunPosition
 
 
+def _clamp_diffuse_fraction(diffuse_fraction: float) -> float:
+    """Clamp diffuse fraction defensively into the [0, 1] range.
+
+    By construction ``compute_diffuse_fraction`` (COMIMART, Vicente-Retortillo
+    et al. 2015) returns a value in ``[0, 1]``. The clamp here exists to keep
+    the energy partition well-formed even if a caller passes a slightly
+    out-of-range value due to floating-point drift or external override.
+    """
+    return max(0.0, min(1.0, diffuse_fraction))
+
+
 def configure_sun_light(
     stage,
     sun_pos: SunPosition,
@@ -20,7 +31,14 @@ def configure_sun_light(
 ) -> None:
     """Configure a directional light representing the Mars sun.
 
-    All scaling factors and colors are read from rendering_config (G5).
+    All scaling factors and colors are read from rendering_config.
+
+    The ``diffuse_fraction`` (from COMIMART) is applied here as
+    ``intensity_direct = intensity * (1 - diffuse_fraction)``. The matching
+    diffuse term ``intensity * diffuse_fraction`` is applied in
+    :func:`marslab.rendering.sky_renderer.configure_sky_dome` so the total
+    emitted energy budget matches Beer's law and avoids double-counting the
+    direct + diffuse partition.
 
     Args:
         stage: USD stage.
@@ -37,7 +55,8 @@ def configure_sun_light(
 
     sun = UsdLux.DistantLight.Define(stage, sun_path)
 
-    sun.GetIntensityAttr().Set(intensity * rendering_config.sun_intensity_scale)
+    df = _clamp_diffuse_fraction(diffuse_fraction)
+    sun.GetIntensityAttr().Set(intensity * (1.0 - df) * rendering_config.sun_intensity_scale)
 
     r, g, b = rendering_config.sun_color
     sun.GetColorAttr().Set(Gf.Vec3f(r, g, b))
@@ -66,6 +85,13 @@ def update_sun_light(
 
     Falls back to configure_sun_light() if the prim does not exist.
 
+    The ``diffuse_fraction`` (from COMIMART) is applied here as
+    ``intensity_direct = intensity * (1 - diffuse_fraction)``. The matching
+    diffuse term ``intensity * diffuse_fraction`` is applied in
+    :func:`marslab.rendering.sky_renderer.configure_sky_dome` so the total
+    emitted energy budget matches Beer's law and avoids double-counting the
+    direct + diffuse partition.
+
     Args:
         stage: USD stage.
         sun_pos: Updated sun position.
@@ -81,7 +107,8 @@ def update_sun_light(
         return
 
     sun = UsdLux.DistantLight(prim)
-    sun.GetIntensityAttr().Set(intensity * rendering_config.sun_intensity_scale)
+    df = _clamp_diffuse_fraction(diffuse_fraction)
+    sun.GetIntensityAttr().Set(intensity * (1.0 - df) * rendering_config.sun_intensity_scale)
 
     r, g, b = rendering_config.sun_color
     sun.GetColorAttr().Set(Gf.Vec3f(r, g, b))

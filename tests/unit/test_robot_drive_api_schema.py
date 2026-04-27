@@ -1,4 +1,4 @@
-"""Schema tests for R2-4a drive-API required fields on SkidSteerDriveConfig."""
+"""Schema tests for the drive-API required fields on SkidSteerDriveConfig."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def _baseline_kwargs(**overrides) -> dict:
 
 
 class TestRequiredness:
-    """Every new R2-4a field is required — no Python default fallback."""
+    """Every drive-API field is required -- no Python default fallback."""
 
     @pytest.mark.parametrize(
         "missing_key",
@@ -98,8 +98,8 @@ class TestDriveApiSetupDictContract:
 
     The test reads the source rather than invoking the function (Isaac
     Sim would be required). Any future regression that re-introduces a
-    ``.get(key, <literal>)`` fallback for one of the four R2-4a keys
-    fails this test.
+    ``.get(key, <literal>)`` fallback for one of the four drive-API
+    keys fails this test.
     """
 
     def test_no_fallback_for_required_keys(self) -> None:
@@ -119,8 +119,8 @@ class TestDriveApiSetupDictContract:
             "steer_damping",
         ):
             assert f'control_cfg.get("{key}"' not in source, (
-                f"drive_api_setup.py must not use .get({key!r}, <literal>) — "
-                "R2-4a promoted these to required SkidSteerDriveConfig fields."
+                f"drive_api_setup.py must not use .get({key!r}, <literal>) -- "
+                "these are required SkidSteerDriveConfig fields."
             )
             assert f'control_cfg["{key}"]' in source, (
                 f"drive_api_setup.py must read {key!r} via control_cfg[{key!r}] "

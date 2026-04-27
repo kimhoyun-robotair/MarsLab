@@ -1,4 +1,4 @@
-"""Unit tests for marslab.robots.drive_api_setup (R4-3). pxr stubbed."""
+"""Unit tests for marslab.robots.drive_api_setup. pxr stubbed."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ class _FakeDriveAPI:
     def GetTypeAttr(self) -> _FakeDriveTypeAttr | None:  # noqa: N802
         # Returns an attr sentinel regardless; original behaviour lets the
         # caller fall back to CreateTypeAttr if falsy.  We always return a
-        # truthy attr for the happy path (mirrors run_stage3 inline code).
+        # truthy attr for the happy path (mirrors the production runtime code).
         return _FakeDriveTypeAttr(self._prim)
 
     def CreateTypeAttr(self) -> _FakeDriveTypeAttr:  # noqa: N802

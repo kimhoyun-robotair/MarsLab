@@ -72,8 +72,8 @@ def test_marslab_config_full():
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("gravity", 2.0),
-        ("gravity", 5.0),
+        ("gravity", 3.0),
+        ("gravity", 4.0),
         ("dust_optical_depth", -1.0),
     ],
     ids=["gravity_too_low", "gravity_too_high", "dust_optical_depth_too_low"],
@@ -148,34 +148,23 @@ def test_hirise_with_both_paths():
 
 def test_gravity_at_boundaries():
     """Boundary values (ge/le inclusive) are valid."""
-    c_low = MarsEnvConfig(gravity=3.0)
-    c_high = MarsEnvConfig(gravity=4.0)
-    assert c_low.gravity == 3.0
-    assert c_high.gravity == 4.0
+    c_low = MarsEnvConfig(gravity=3.6)
+    c_high = MarsEnvConfig(gravity=3.85)
+    assert c_low.gravity == 3.6
+    assert c_high.gravity == 3.85
 
 
-# --- R3 (2026-04-22) G5: literal-to-YAML migration ---
+# --- Literal-to-YAML migration: rendering sub-configs ---
 
 
-def test_rendering_config_r3_new_fields_defaults():
-    """R3 added 12 RenderingConfig fields; R2-A1 (2026-04-22) regrouped
-    them into four nested sub-configs. Defaults still mirror the pre-R3
-    Python literals."""
+def test_rendering_config_extended_fields_defaults():
+    """RenderingConfig defaults are grouped into four nested sub-configs
+    (ray_tracing / path_tracing / fog / sky_dome). Values still mirror the
+    documented Isaac Sim render-settings defaults."""
     c = RenderingConfig()
     assert c.sun_prim_path == "/World/SunLight"
     assert c.dome_prim_path == "/World/DomeLight"
-    # R2-A1: fields moved to ray_tracing / path_tracing / fog sub-configs.
-    # Legacy flat accesses retained as comments:
-    #   assert c.antialiasing_op == 3
-    #   assert c.dlss_exec_mode == 1
-    #   assert c.denoiser_indirect_diffuse is True
-    #   assert c.denoiser_reflections is True
-    #   assert c.denoiser_optix_pathtracing is True
-    #   assert c.fog_enabled is True
-    #   assert c.fog_color_amount == 1.0
-    #   assert c.fog_start_height == 0.0
-    #   assert c.fog_height_falloff == 0.01
-    #   assert c.fog_height_density_ratio == 0.5
+    # Fields are grouped under ray_tracing / path_tracing / fog sub-configs.
     assert c.ray_tracing.antialiasing_op == 3
     assert c.ray_tracing.dlss_exec_mode == 1
     assert c.ray_tracing.denoiser_indirect_diffuse is True
@@ -188,8 +177,8 @@ def test_rendering_config_r3_new_fields_defaults():
     assert c.fog.height_density_ratio == 0.5
 
 
-def test_rendering_config_r3_range_violation():
-    """Out-of-range R3 fields raise ValidationError."""
+def test_rendering_config_extended_range_violation():
+    """Out-of-range fields on the rendering sub-configs raise ValidationError."""
     with pytest.raises(ValidationError):
         RenderingConfig(antialiasing_op=99)
     with pytest.raises(ValidationError):
@@ -199,12 +188,11 @@ def test_rendering_config_r3_range_violation():
 
 
 def test_skid_steer_odom_publisher_default():
-    """R3 OdomPublisherConfig submodel defaults match the ROS2 frame convention.
+    """OdomPublisherConfig submodel defaults match the ROS2 frame convention.
 
-    R2-A3 (2026-04-22) promoted drive_damping / steer_stiffness /
-    steer_damping to required fields (no Python defaults). R2-4a
-    (2026-04-23) added the same treatment for drive_max_force /
-    steer_max_force / suspension_damping / drive_type. Values mirror
+    drive_damping / steer_stiffness / steer_damping / drive_max_force /
+    steer_max_force / suspension_damping / drive_type are required
+    fields (no Python defaults). Values mirror
     ``configs/robots/rover_m2020.yaml`` so the test does not drift from
     the runtime rover tuning.
     """
@@ -222,11 +210,11 @@ def test_skid_steer_odom_publisher_default():
     assert c.odom_publisher.queue_size == 10
 
 
-# --- R2-A1 (2026-04-22) Rendering nested sub-configs ------------------
+# --- Rendering nested sub-configs ------------------
 
 
 def test_fog_config_defaults():
-    """FogConfig defaults mirror the pre-R2-A1 flat ``fog_*`` literals."""
+    """FogConfig defaults mirror the canonical flat ``fog_*`` literals."""
     c = FogConfig()
     assert c.enabled is True
     assert c.color_amount == 1.0
@@ -341,7 +329,7 @@ def test_rendering_nested_structure_access():
 
 def test_backward_compat_old_yaml_flat_fog():
     """Legacy flat ``fog_*`` keys migrate into ``FogConfig`` via
-    ``model_validator(mode='before')``. Simulates a pre-R2-A1 YAML."""
+    ``model_validator(mode='before')``. Simulates a legacy flat YAML."""
     legacy = {
         "fog_enabled": False,
         "fog_color_amount": 0.5,
@@ -400,7 +388,7 @@ def test_backward_compat_nested_precedence_over_flat():
     assert c.path_tracing.spp == 64
 
 
-# --- R2-A2 (2026-04-22) DynamicAtmosphere config tree ----------------
+# --- DynamicAtmosphere config tree ----------------
 
 
 def test_dynamic_atmosphere_config_defaults():

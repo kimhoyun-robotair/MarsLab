@@ -1,4 +1,4 @@
-"""Module-focused tests for marslab.config.schema.terrain (offline, P3, R8-5)."""
+"""Module-focused tests for marslab.config.schema.terrain (offline)."""
 
 from __future__ import annotations
 
@@ -92,13 +92,14 @@ class TestCaveGeometryDefaultFactory:
     """``CaveConfig.geometry`` uses ``default_factory`` to stay backward-compat."""
 
     def test_cave_config_default_is_valid(self) -> None:
-        """Reviewer 2 #5 (2026-04-24): ``CaveConfig()`` with zero arguments
-        must construct without raising.
+        """``CaveConfig()`` with zero arguments must construct without raising.
 
-        Pre-fix: ``skylight_depth_m=90.0`` < ``tube_width_m*tube_height_ratio``
-        (200*0.5 = 100m) with default ``skylight_count=10`` tripped
+        Earlier defaults had ``skylight_depth_m=90.0`` <
+        ``tube_width_m*tube_height_ratio`` (200*0.5 = 100m) with
+        default ``skylight_count=10`` which tripped
         ``check_cave_ranges``. Raising the default to 110m (still in
-        Cushing 2007 68-178m range) restores the ergonomic default.
+        the Cushing 2007 68-178m range) restores the ergonomic
+        default.
         """
         c = CaveConfig()
         assert c.tube_width_m * c.tube_height_ratio == 100.0
@@ -123,15 +124,16 @@ class TestCaveGeometryDefaultFactory:
             CaveGeometryConfig(cross_section_smooth_sigma=(3.0, -1.0))
 
     def test_cave_skylight_depth_reaches_ceiling(self) -> None:
-        """With default 200 m width * 0.5 ratio = 100 m tube height — a
+        """With default 200 m width * 0.5 ratio = 100 m tube height -- a
         50 m skylight depth cannot reach the tube and must raise."""
         with pytest.raises(ValidationError):
             CaveConfig(skylight_count=5, skylight_depth_m=50.0)
 
     def test_cave_config_skylight_depth_validation(self) -> None:
-        """Reviewer 2 #5 (2026-04-24): raising the default must NOT disable
-        the cross-field rule. Invalid user overrides still raise, and the
-        boundary (depth == tube_height) is accepted by ``>=``.
+        """Raising the default must NOT disable the cross-field rule.
+
+        Invalid user overrides still raise, and the boundary
+        (depth == tube_height) is accepted by ``>=``.
         """
         # Explicit underflow with non-zero skylights still raises.
         with pytest.raises(ValidationError):

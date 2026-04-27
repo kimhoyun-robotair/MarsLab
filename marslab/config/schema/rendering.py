@@ -1,25 +1,22 @@
 """Rendering schema: RTX mode, resolution, sun/dome/fog parameters.
 
-Split from marslab.config.schema (R2, 2026-04-22). Leaf model — no
-cross-domain references.
+Leaf model -- no cross-domain references.
 
-R3 (2026-04-22) absorbed 12 hardcoded literals from the ``rendering/``
-consumers so G5 ("Zero hardcoded constants in Python source") holds:
+The rendering literals previously hardcoded in the ``rendering/``
+consumers are surfaced here so all configurable parameters live in
+YAML:
 
-- ``sun_prim_path`` / ``dome_prim_path`` — prim path literals from
-  ``sun_renderer.py:32`` and ``sky_renderer.py:34``.
-- ``antialiasing_op`` / ``dlss_exec_mode`` / ``denoiser_*`` — RTX
-  post-processing knobs from ``render_settings.py:45-46``.
-- ``fog_*`` — five fog literals from ``atmosphere_fog.py:37,43,45-47``.
+- ``sun_prim_path`` / ``dome_prim_path`` -- prim path literals from
+  ``sun_renderer.py`` and ``sky_renderer.py``.
+- ``antialiasing_op`` / ``dlss_exec_mode`` / ``denoiser_*`` -- RTX
+  post-processing knobs from ``render_settings.py``.
+- ``fog_*`` -- five fog literals from ``atmosphere_fog.py``.
 
-R2-A1 (2026-04-22): the 12 flat R3 fields (fog_*, antialiasing_op,
-dlss_exec_mode, spp, total_spp, max_bounces, denoiser_*) are now
-re-grouped into four nested sub-configs: ``FogConfig``,
-``RayTracingConfig``, ``PathTracingConfig``, and ``SkyDomeConfig``.
-The pre-R2-A1 flat fields are preserved as commented definitions and
-their literals migrate into the nested defaults. A pre-validator
-(``_migrate_flat_to_nested``) still accepts the flat keys in existing
-YAML so no scenario file has to change.
+These flat fields are re-grouped into four nested sub-configs:
+``FogConfig``, ``RayTracingConfig``, ``PathTracingConfig``, and
+``SkyDomeConfig``.  A pre-validator (``_migrate_flat_to_nested``)
+accepts the legacy flat keys so existing YAML files do not have to
+change.
 """
 
 from typing import Any, Literal, Tuple
@@ -35,11 +32,11 @@ __all__ = [
 ]
 
 
-# Reviewer 2 #12 (2026-04-24): every BaseModel in this module declares
-# ``extra="forbid"`` so unknown keys in ``rendering:`` YAML blocks fail
-# loudly instead of being silently dropped.  See the sibling note in
+# Every BaseModel in this module declares ``extra="forbid"`` so unknown
+# keys in ``rendering:`` YAML blocks fail loudly instead of being
+# silently dropped.  See the sibling note in
 # ``marslab/config/schema/mars_env.py`` for the full rationale.
-# ``RenderingConfig`` keeps its legacy flat→nested migrator
+# ``RenderingConfig`` keeps its legacy flat-to-nested migrator
 # (``_migrate_flat_to_nested``) which pops flat keys from the input dict
 # BEFORE forbid-validation runs, so legacy YAMLs keep loading.
 
@@ -47,7 +44,7 @@ __all__ = [
 class FogConfig(BaseModel):
     """RTX atmosphere-fog knobs consumed by ``atmosphere_fog.py``.
 
-    R2-A1 (2026-04-22): migrated from the flat ``fog_*`` fields on
+    Migrated from the flat ``fog_*`` fields previously declared on
     ``RenderingConfig``.
     """
 
@@ -83,22 +80,14 @@ class FogConfig(BaseModel):
             "``/rtx/fog/fogHeightDensity`` (ratio of height to distance density)."
         ),
     )
-    color: Tuple[float, float, float] = Field(
-        default=(0.83, 0.47, 0.28),
-        description=(
-            "Reserved. Live fog color is still driven by ``RenderingConfig.fog_color`` "
-            "(top-level) because that field participates in the butterscotch R>G>B invariant "
-            "tests. ``FogConfig.color`` stays for future scenario overrides."
-        ),
-    )
 
 
 class RayTracingConfig(BaseModel):
     """RTX ray-tracing / post-processing knobs consumed by ``render_settings.py``.
 
-    R2-A1 (2026-04-22): migrated from the flat ``antialiasing_op``,
-    ``dlss_exec_mode``, ``denoiser_indirect_diffuse`` and
-    ``denoiser_reflections`` fields on ``RenderingConfig``.
+    Migrated from the flat ``antialiasing_op``, ``dlss_exec_mode``,
+    ``denoiser_indirect_diffuse`` and ``denoiser_reflections`` fields
+    previously declared on ``RenderingConfig``.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -126,8 +115,8 @@ class RayTracingConfig(BaseModel):
 class PathTracingConfig(BaseModel):
     """Path-tracing knobs consumed by ``render_settings.py``.
 
-    R2-A1 (2026-04-22): migrated from the flat ``spp``, ``total_spp``,
-    ``max_bounces`` and ``denoiser_optix_pathtracing`` fields on
+    Migrated from the flat ``spp``, ``total_spp``, ``max_bounces`` and
+    ``denoiser_optix_pathtracing`` fields previously declared on
     ``RenderingConfig``.
     """
 
@@ -145,10 +134,10 @@ class PathTracingConfig(BaseModel):
 class SkyDomeConfig(BaseModel):
     """Sky-dome color / brightness ramp consumed by ``environment/sky_dome.py``.
 
-    R2-A1 (2026-04-22): migrated the four hardcoded literals
-    (``_CLEAR_SKY_RGB``, ``_DUSTY_SKY_RGB``, brightness floor 0.1,
-    brightness decay 0.3) out of ``marslab/environment/sky_dome.py``
-    and into YAML per G5.
+    Migrates the four previously hardcoded literals (``_CLEAR_SKY_RGB``,
+    ``_DUSTY_SKY_RGB``, brightness floor 0.1, brightness decay 0.3) out
+    of ``marslab/environment/sky_dome.py`` into YAML so all configurable
+    parameters live in YAML.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -215,7 +204,7 @@ class RenderingConfig(BaseModel):
         description="Mars dust haze fog RGB [0-1]",
     )
 
-    # R3 (2026-04-22) additions — prim path overrides.
+    # Prim path overrides for the sun and dome lights.
     sun_prim_path: str = Field(
         default="/World/SunLight",
         description=(
@@ -231,7 +220,7 @@ class RenderingConfig(BaseModel):
         ),
     )
 
-    # R2-A1 (2026-04-22) nested sub-configs replace the flat R3 fields.
+    # Nested sub-configs replace the historical flat fields.
     fog: FogConfig = Field(default_factory=FogConfig)
     ray_tracing: RayTracingConfig = Field(default_factory=RayTracingConfig)
     path_tracing: PathTracingConfig = Field(default_factory=PathTracingConfig)
@@ -240,10 +229,10 @@ class RenderingConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _migrate_flat_to_nested(cls, data: Any) -> Any:
-        """Accept the pre-R2-A1 flat YAML keys and fold them into the
-        nested sub-configs. Scenario YAMLs that still use flat keys keep
-        loading without edits. Any explicit nested value wins over the
-        flat shim (i.e. nested takes precedence)."""
+        """Accept the legacy flat YAML keys and fold them into the nested
+        sub-configs. Scenario YAMLs that still use flat keys keep loading
+        without edits. Any explicit nested value wins over the flat shim
+        (i.e. nested takes precedence)."""
         if not isinstance(data, dict):
             return data
 

@@ -1,11 +1,9 @@
 """Centerline, cross-section, tangent frame math for cave generation.
 
-Pure numpy + scipy. No Isaac Sim, no trimesh. Extracted from the
-pre-R5 monolithic ``cave_generator.py`` in R5 (2026-04-23); the
-orchestrator now lives at :mod:`marslab.terrain.cave.orchestrator`.
+Pure numpy + scipy. No Isaac Sim, no trimesh. The orchestrator entry
+point lives at :mod:`marslab.terrain.cave.orchestrator`.
 
-Consumption order of the shared ``rng`` must be preserved bit-exactly
-with the pre-split module:
+Consumption order of the shared ``rng`` is fixed:
 
     1. :func:`build_centerline` draws two uniform phases.
     2. :func:`build_cross_sections` draws one ``standard_normal``
@@ -82,13 +80,13 @@ def build_centerline(
     # Sinusoidal perturbation perpendicular to path
     freq1 = 2.0 * np.pi / path_len
     freq2 = freq1 * freq_ratio_secondary
-    phase1 = rng.uniform(0, 2 * np.pi)
-    phase2 = rng.uniform(0, 2 * np.pi)
+    phase_primary = rng.uniform(0, 2 * np.pi)
+    phase_secondary = rng.uniform(0, 2 * np.pi)
     amplitude = curvature * min(height_m, width_m) * amp_domain_ratio
 
-    perturb = amplitude * np.sin(freq1 * along + phase1) + amplitude * secondary_amp_ratio * np.sin(
-        freq2 * along + phase2
-    )
+    perturb = amplitude * np.sin(
+        freq1 * along + phase_primary
+    ) + amplitude * secondary_amp_ratio * np.sin(freq2 * along + phase_secondary)
 
     perp_x = np.cos(dir_rad)
     perp_y = -np.sin(dir_rad)

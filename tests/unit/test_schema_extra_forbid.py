@@ -1,26 +1,27 @@
-"""Reviewer 2 #12 (2026-04-24): regression tests for ``extra="forbid"``.
+"""Regression tests for ``extra="forbid"`` across the schema package.
 
-Pydantic v2 defaults to ``extra="ignore"`` on ``BaseModel``.  For a
+Pydantic v2 defaults to ``extra="ignore"`` on ``BaseModel``. For a
 YAML-first project like MarsLab that silent-drop semantics is a bug:
 a typo in a scenario YAML (``gravty`` instead of ``gravity``, or a
 whole unexpected block like ``canyon_depth`` at the terrain level)
 survives ``pydantic.ValidationError`` and whatever Python literal
 happens to be in the runtime fallback path ships to PhysX / OmniGraph
-/ rendering.  Item #12 flips every schema model to ``extra="forbid"``.
+/ rendering. The schema package therefore flips every model to
+``extra="forbid"``.
 
 This module locks that choice in with three test families:
 
 1. ``test_<model>_rejects_unknown_field``: one per schema BaseModel,
    constructs with a clearly-bogus key and asserts a ValidationError.
-   Any future schema refactor that drops ``extra="forbid"`` on a model
-   immediately fails this suite.
-2. ``test_procedural_canyon_config_*``: pins the new nested
+   Any future schema refactor that drops ``extra="forbid"`` on a
+   model immediately fails this suite.
+2. ``test_procedural_canyon_config_*``: pins the nested
    :class:`ProceduralCanyonConfig` surface -- field names, the legacy
    flat-key migrator on :class:`TerrainConfig`, and the
    ``procedural_preset='canyon'`` conditional requirement.
 3. ``test_all_scenario_yamls_pass_validation`` and
    ``test_config_schema_has_forbid_everywhere`` -- full-repo regression
-   gates.  The first loads every ``configs/scenarios/*.yaml`` through
+   gates. The first loads every ``configs/scenarios/*.yaml`` through
    ``load_and_validate`` and asserts the result; the second greps the
    schema source files for the forbid opt-in and fails the moment
    someone adds a new BaseModel without it.
@@ -138,15 +139,16 @@ _BASE_PAYLOADS: dict[type, dict] = {
 def test_schema_model_rejects_unknown_field(model_cls: type) -> None:
     """Every exported schema BaseModel rejects a bogus key via ``extra='forbid'``.
 
-    Reviewer 2 #12 (2026-04-24).  The bogus key is deliberately named
-    ``__reviewer2_forbid_probe__`` so it cannot collide with any future
-    legitimate field.  The test does NOT care whether the base payload
-    is semantically valid -- pydantic runs the extra-key check before
-    required-field validation, so as long as ``extra='forbid'`` is on
-    the bogus key triggers the expected ValidationError.
+    The bogus key is deliberately named
+    ``__forbid_probe_unknown_field__`` so it cannot collide with any
+    future legitimate field. The test does NOT care whether the base
+    payload is semantically valid -- pydantic runs the extra-key
+    check before required-field validation, so as long as
+    ``extra='forbid'`` is on, the bogus key triggers the expected
+    ValidationError.
     """
     payload = dict(_BASE_PAYLOADS.get(model_cls, {}))
-    payload["__reviewer2_forbid_probe__"] = 42
+    payload["__forbid_probe_unknown_field__"] = 42
     with pytest.raises(ValidationError) as excinfo:
         model_cls(**payload)
     # Pydantic v2 labels forbid violations as ``extra_forbidden``.  Pin
@@ -157,7 +159,7 @@ def test_schema_model_rejects_unknown_field(model_cls: type) -> None:
 
 # ------------------------------------------------------------------ SkidSteer
 # The SkidSteerDriveConfig required-field set is large (seven PhysX
-# tunables from R2-A3 / R2-4a) so it needs its own tailored test --
+# tunables) so it needs its own tailored test --
 # constructing it with ``__bogus__`` alone would miss those required
 # fields and the bogus-key assertion would fire inside a chain of
 # other validation errors, hiding intent.
@@ -214,9 +216,9 @@ def test_procedural_canyon_config_total_must_exceed_floor() -> None:
 def test_terrain_config_migrates_legacy_flat_canyon_keys() -> None:
     """Legacy flat ``canyon_*`` keys are folded into ``terrain.canyon``.
 
-    The pre-validator on ``TerrainConfig`` mirrors the RenderingConfig
-    R2-A1 flat→nested migration: keeps pre-item-#12 scenario YAMLs
-    loading without edits.
+    The pre-validator on ``TerrainConfig`` mirrors the
+    ``RenderingConfig`` flat-to-nested migration: keeps legacy
+    scenario YAMLs loading without edits.
     """
     t = TerrainConfig(
         source="procedural",
@@ -261,9 +263,10 @@ def test_terrain_config_explicit_canyon_dict_wins_over_flat() -> None:
 def test_marslab_config_accepts_rover_opaque_block() -> None:
     """Scenario YAMLs put rover tuning under ``rover:`` (opaque dict).
 
-    Reviewer 2 #12 accepts ``rover`` as a typed ``dict[str, Any] | None``
-    rather than a strict schema -- promoting it is tracked under item
-    #17.  Verify the dict survives construction without losing keys.
+    The schema accepts ``rover`` as a typed ``dict[str, Any] | None``
+    rather than a strict schema. Promoting it to a strict pydantic
+    submodel is tracked as future work. Verify the dict survives
+    construction without losing keys.
     """
     c = MarsLabConfig(
         terrain=TerrainConfig(source="procedural", procedural_preset="flat"),
@@ -303,15 +306,15 @@ def test_marslab_config_rejects_unknown_root_key() -> None:
 
 
 _SCENARIO_DIR = REPO_ROOT / "configs" / "scenarios"
-# Reviewer 2 #17 (2026-04-24): YAMLs prefixed with ``_`` (e.g. ``_base.yaml``)
-# are shared include fragments, not complete scenarios — they declare only
-# the common ``mars_env`` + ``rendering`` blocks and are pulled in by every
-# real scenario via the root-level ``base_config`` mechanism. Exclude them
-# from the full-validation sweep so the sweep stays focused on "does every
-# runnable scenario round-trip through pydantic cleanly?".
-# 2026-04-25: template_*.yaml are self-contained UX templates (Items 1+2);
-# they validate via load_and_validate but live outside the ship-with set.
-# Their dedicated tests live in ``tests/unit/test_scenario_templates.py``.
+# YAMLs prefixed with ``_`` (e.g. ``_base.yaml``) are shared include
+# fragments, not complete scenarios -- they declare only the common
+# ``mars_env`` + ``rendering`` blocks and are pulled in by every real
+# scenario via the root-level ``base_config`` mechanism. Exclude them
+# from the full-validation sweep so the sweep stays focused on "does
+# every runnable scenario round-trip through pydantic cleanly?".
+# template_*.yaml are self-contained UX templates; they validate via
+# load_and_validate but live outside the ship-with set. Their
+# dedicated tests live in ``tests/unit/test_scenario_templates.py``.
 _SCENARIO_YAMLS = sorted(
     p
     for p in _SCENARIO_DIR.glob("*.yaml")
@@ -323,9 +326,9 @@ _SCENARIO_YAMLS = sorted(
 def test_all_scenario_yamls_pass_validation(yaml_path: Path) -> None:
     """Every ``configs/scenarios/*.yaml`` loads through ``load_and_validate``.
 
-    Reviewer 2 #12 (2026-04-24).  If a new scenario adds a typo or a
-    legitimately new field not yet in the schema, this test fails
-    immediately rather than silently shipping the drop.
+    If a new scenario adds a typo or a legitimately new field not yet
+    in the schema, this test fails immediately rather than silently
+    shipping the drop.
     """
     config = load_and_validate(str(yaml_path))
     assert isinstance(config, MarsLabConfig)
@@ -335,8 +338,8 @@ def test_all_scenario_yamls_pass_validation(yaml_path: Path) -> None:
 def test_procedural_canyon_yaml_populates_canyon_block() -> None:
     """Specifically: procedural_canyon.yaml promotes its flat keys.
 
-    This is the reveal case that motivated item #12.  Before forbid
-    was on, the seven ``canyon_*`` keys were silently dropped and the
+    This is the reveal case that motivated the forbid policy. Without
+    forbid, the seven ``canyon_*`` keys were silently dropped and the
     resulting ``TerrainConfig`` had ``canyon is None`` -- the only
     reason the scenario rendered was the runtime read the raw YAML
     dict, bypassing pydantic.
@@ -418,10 +421,10 @@ def _has_extra_forbid(source: str, class_name: str) -> bool:
 def test_config_schema_has_forbid_everywhere() -> None:
     """Every ``class X(BaseModel):`` under ``marslab/config/schema`` pins forbid.
 
-    Reviewer 2 #12 (2026-04-24).  A future refactor that introduces a
-    new BaseModel without ``ConfigDict(extra='forbid')`` fails this
-    test immediately, preventing silent-drop regressions from
-    reappearing as the schema grows.
+    A future refactor that introduces a new BaseModel without
+    ``ConfigDict(extra='forbid')`` fails this test immediately,
+    preventing silent-drop regressions from reappearing as the schema
+    grows.
     """
     missing: list[str] = []
     for path in _schema_files():
@@ -437,12 +440,12 @@ def test_config_schema_has_forbid_everywhere() -> None:
 def test_scenario_yaml_roundtrip_drops_no_keys_from_terrain() -> None:
     """Load every scenario through pydantic and re-dump; assert no terrain field vanished.
 
-    Sentinel for the silent-drop class of bug that Reviewer 2 #12
-    targets.  Terrain is the densest block (and the one where
-    item #12 revealed the ``canyon_*`` drop), so it is the
-    highest-signal subject.  The assertion is "every key that was in
+    Sentinel for the silent-drop class of bug the forbid policy
+    targets. Terrain is the densest block (and the one where the
+    ``canyon_*`` drop was first observed), so it is the
+    highest-signal subject. The assertion is "every key that was in
     the scenario's ``terrain:`` block ends up in the pydantic model
-    (either directly or via a known migrator)".  Legacy flat
+    (either directly or via a known migrator)". Legacy flat
     ``canyon_*`` keys map to ``terrain.canyon.canyon_*``; all other
     keys map to themselves.
     """

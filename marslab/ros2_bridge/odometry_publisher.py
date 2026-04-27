@@ -3,7 +3,7 @@
 Pure quaternion math lives in :mod:`marslab.ros2_bridge.odometry_math`;
 this module owns the ROS2 side (publisher + TransformBroadcaster + the
 ``publish_odometry`` step-loop callback).  Keeping the ROS2-dependent
-surface small lets us unit-test every non-trivial formula offline (P3).
+surface small lets every non-trivial formula be unit-tested offline.
 """
 
 from __future__ import annotations
@@ -42,8 +42,8 @@ class OdometryPublisherContext:
     the initial position / orientation travel alongside the publisher
     instead of being recomputed every tick.
 
-    ``tf_broadcaster`` may be ``None`` after S3 (2026-04-27) when the
-    caller opts out of rclpy-side TF publishing -- the OG
+    ``tf_broadcaster`` may be ``None`` when the caller opts out of
+    rclpy-side TF publishing -- the OmniGraph
     ``ROS2PublishTransformTree`` becomes the sole TF authority for
     ``odom -> base_link``.  ``publish_tf`` records the choice so
     :func:`publish_odometry` does not need to inspect the broadcaster
@@ -90,7 +90,7 @@ def create_odometry_publisher(
         odom_qos: Optional ``rclpy.qos.QoSProfile`` for the
             ``nav_msgs/Odometry`` publisher.  When ``None`` the
             publisher is created with the integer ``queue_size``
-            overload (rclpy default profile).  Reviewer 2 #04 (2026-04-24).
+            overload (rclpy default profile).
         tf_qos: Optional ``rclpy.qos.QoSProfile`` forwarded to the
             ``tf2_ros.TransformBroadcaster``.  Ignored when
             ``publish_tf=False``.
@@ -100,12 +100,14 @@ def create_odometry_publisher(
             on ``/tf``.  When ``False`` the broadcaster is **not**
             constructed, ``ctx.tf_broadcaster`` stays ``None``, and
             :func:`publish_odometry` skips ``sendTransform`` -- this is
-            the post-S3 mode where the OG
+            the mode where the OmniGraph
             ``ROS2PublishTransformTree`` becomes the sole TF authority
-            for ``odom -> base_link`` (memory:
-            feedback_no_tf_consolidation).  ``tf2_ros`` is imported
-            lazily inside the ``True`` branch so a node without
-            ``tf2_ros`` on PYTHONPATH still works in the ``False`` mode.
+            for ``odom -> base_link``.  Never run this ``True`` while a
+            ``ros2 run topic_tools relay /tf_raw /tf`` external relay is
+            active: that yields two parents for ``base_link`` in the TF
+            tree.  ``tf2_ros`` is imported lazily inside the ``True``
+            branch so a node without ``tf2_ros`` on PYTHONPATH still
+            works in the ``False`` mode.
 
     Returns:
         :class:`OdometryPublisherContext` to be reused by
@@ -120,9 +122,11 @@ def create_odometry_publisher(
 
     tf_broadcaster: Optional[Any] = None
     if publish_tf:
-        # Local import keeps callers that opt out (S3 default) on
-        # systems without tf2_ros installed working.
-        from tf2_ros import TransformBroadcaster
+        # Local import keeps callers that opt out (the default mode)
+        # on systems without tf2_ros installed working.
+        from tf2_ros import (
+            TransformBroadcaster,
+        )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
         if tf_qos is not None:
             # TransformBroadcaster added the ``qos`` keyword in

@@ -1,11 +1,11 @@
-# Scenario 5: Mars Cave (Lava Tube) with Skylight Entry
-# Procedural lava tube: half-ellipse cross-section, skylight entry, breakdown debris
-# Based on MARS-LT-B variant (Sauro 2020, Blair 2017, Cushing 2007/2012, Blank 2024)
-# Tube width 200m, ceiling 50m, 1 skylight, 25% breakdown coverage
-# Purpose: cave exploration, SLAM in GPS-denied enclosed environment, autonomous nav
+# Mars Cave (Lava Tube) with Skylight Entry
+# Procedural lava tube: half-ellipse cross-section, skylight entries, breakdown debris.
+# Based on MARS-LT-B variant (Sauro 2020, Blair 2017, Cushing 2007/2012, Blank 2024).
+# Tube width 200m, ceiling 50m, 10 skylights, 25% breakdown coverage.
+# Purpose: cave exploration, SLAM in GPS-denied enclosed environment, autonomous nav.
 #
-# Reviewer 2 #17 (2026-04-24): mars_env + rendering defaults come from
-# ``_base.yaml`` via the root-level ``base_config`` include.
+# mars_env + rendering defaults come from ``_base.yaml`` via the root-level
+# ``base_config`` include.
 
 base_config: _base.yaml
 
@@ -15,7 +15,7 @@ mars_env:
 
 terrain:
   source: "procedural"
-  scenario_name: "mars_cave_skylight"
+  scenario_name: "cave_lava_tube"
   procedural_preset: "cave"
   terrain_size: [400, 400]
   terrain_resolution: 1.0
@@ -26,15 +26,12 @@ terrain:
     cross_section_noise: 0.20
     tube_direction_deg: 45.0
     tube_curvature: 0.15
+    # ceiling_thickness_m: rock thickness above the tube crown; constrained
+    # by ``skylight_depth_m >= tube_height_m``.
     ceiling_thickness_m: 50.0
     skylight_count: 10
     skylight_diameter_m: 20.0
-    # R2-A4 (2026-04-22): bumped from 90.0 -> 110.0 to satisfy CaveConfig
-    # validator (skylight_depth_m must be >= tube_height = tube_width_m *
-    # tube_height_ratio = 200 * 0.5 = 100m). Pre-R2 the validator was not
-    # wired in the loader path so the violation slipped through. See
-    # marslab/config/schema/terrain.py:154-168 for the rule. Cushing 2007
-    # cites 68-178m for Mars skylight shaft depths, so 110m is in range.
+    # skylight_depth_m must be >= tube_height (= tube_width_m * tube_height_ratio = 200 * 0.5 = 100m).
     skylight_depth_m: 110.0
     skylight_overhang_deg: 5.0
     debris_cone_present: true
@@ -60,19 +57,18 @@ terrain:
 rover:
   enabled: true
   base_config: "configs/robots/rover_m2020.yaml"
-  # Cave frame (R5 post-split, marslab/terrain/cave/orchestrator.py:135):
-  # tube floor normalized to z=0, surface cap at z=150. Centerline passes
-  # through the domain center (200, 200) along tube_direction_deg=45°.
-  # For seed=42 skylight #4 lands at (181.2, 190.5) — spawn directly beneath
-  # so natural light reaches the rover. If ``terrain.seed`` changes, the
-  # skylight layout shifts; recompute via generate_cave_mesh(...).
-  # ``skylight_positions`` and update xy below. z=0.5 is wheel clearance
-  # above the floor.
+  # Cave frame: tube floor normalized to z=0, surface cap at z=150.
+  # Centerline passes through the domain center (200, 200) along
+  # tube_direction_deg=45 degrees. For seed=42 skylight #4 lands at
+  # (181.2, 190.5) so spawning directly beneath it lets natural light
+  # reach the rover. If ``terrain.seed`` changes the skylight layout
+  # shifts; recompute via ``generate_cave_mesh(...).skylight_positions``
+  # and update ``xy`` below. ``z=0.5`` is wheel clearance above the floor.
   spawn:
     mode: "absolute"
     xy: [181.2, 190.5]
     z: 0.5
-    orientation_rpy: [3.14159, 0.0, 0.785398]  # face +X+Y along tube axis (45° bearing)
+    orientation_rpy: [3.14159, 0.0, 0.785398]  # face +X+Y along tube axis (45 deg bearing)
   sensors:
     # Increase depth clip range so RGB camera captures distant tube wall.
     camera:

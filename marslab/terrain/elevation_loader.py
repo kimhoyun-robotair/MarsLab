@@ -1,9 +1,9 @@
-"""Terrain elevation loader — procedural, cave, or HiRISE DEM sources.
+"""Terrain elevation loader -- procedural, cave, or HiRISE DEM sources.
 
-Extracted from ``scripts/phase1/run_stage2.py`` so that Stage 3 and the
-scenario tooling can reuse the same offline elevation-loading path.
-No Isaac Sim dependency; imports are kept lazy so that cave/procedural
-paths do not pull heavy geometry libraries unless used.
+Used by the Stage-2 / Stage-3 runtime and the scenario tooling so they
+share a single offline elevation-loading path. No Isaac Sim dependency;
+imports are kept lazy so that cave/procedural paths do not pull heavy
+geometry libraries unless used.
 """
 
 from __future__ import annotations
@@ -40,9 +40,12 @@ def load_terrain_elevation(
         Tuple of ``(elevation, metadata, resolution_m)``:
             * ``elevation`` is shape ``(H, W)`` float32 in metres.
             * ``metadata`` is an arbitrary dict describing the source.
-              For cave the loader also sets ``terrain_cfg["_cave_data"]``
-              with the full generator payload for the downstream mesh
-              builder.
+              For cave the metadata dict carries the full generator
+              payload under ``metadata["_cave_data"]`` so downstream
+              scene builders pick it up without a second generation
+              pass. The legacy ``terrain_cfg["_cave_data"]`` mirror is
+              also written for backward compatibility with consumers
+              that still read from the input config dict.
             * ``resolution_m`` is metres per grid cell.
 
     Raises:
@@ -57,7 +60,13 @@ def load_terrain_elevation(
     if source == "procedural":
         preset = terrain_cfg.get("procedural_preset", "flat")
         if preset == "cave":
-            return _load_cave(terrain_cfg, resolution)
+            elevation, metadata, res, cave_data = _load_cave(terrain_cfg, resolution)
+            # Canonical location is ``metadata["_cave_data"]``. The
+            # legacy mirror in ``terrain_cfg`` is preserved so existing
+            # consumers (``marslab.runtime.stage2_scene``) keep working.
+            metadata["_cave_data"] = cave_data
+            terrain_cfg["_cave_data"] = cave_data
+            return elevation, metadata, res
         return _load_procedural(terrain_cfg, preset, resolution)
 
     if source == "hirise":
@@ -68,29 +77,30 @@ def load_terrain_elevation(
 
 def _load_cave(
     terrain_cfg: Dict[str, Any], resolution: float
-) -> Tuple[np.ndarray, Dict[str, Any], float]:
-    """Generate a cave elevation grid and stash the full generator payload."""
+) -> Tuple[np.ndarray, Dict[str, Any], float, Dict[str, Any]]:
+    """Generate a cave elevation grid.
+
+    Returns the standard ``(elevation, metadata, resolution)`` triple
+    plus the full ``cave_data`` payload as a fourth element. The caller
+    decides where to attach ``cave_data`` (``metadata`` is the canonical
+    target so that the loader does not mutate its input dict).
+    """
+    from marslab.config.schema.terrain import CaveConfig
     from marslab.terrain.cave.orchestrator import generate_cave_mesh
 
     size = tuple(terrain_cfg.get("terrain_size", [256, 256]))
     seed = int(terrain_cfg.get("seed", 42))
-    cave_cfg = terrain_cfg.get("cave", {})
-    # ``wall_albedo_range`` is consumed by the material applicator,
-    # ``geometry`` (R5) is a nested block used by future generator
-    # tuning -- neither is a kwarg of ``generate_cave_mesh``.
-    _cave_exclude = {"wall_albedo_range", "geometry"}
-    geom_cfg = {k: v for k, v in cave_cfg.items() if k not in _cave_exclude}
-    cave_data = generate_cave_mesh(
-        domain_size=size,
-        resolution=resolution,
-        seed=seed,
-        **geom_cfg,
-    )
+    cave_cfg = dict(terrain_cfg.get("cave", {}))
+    # ``terrain_size`` and ``terrain_resolution`` live at the terrain
+    # block level; inject them into the cave block so ``CaveConfig``
+    # carries the full set of generator inputs.
+    cave_cfg.setdefault("domain_size", tuple(size))
+    cave_cfg.setdefault("resolution", float(resolution))
+    cfg = CaveConfig.model_validate(cave_cfg)
+    cave_data = generate_cave_mesh(seed, cfg)
     elevation = cave_data["surface_elevation"]
     metadata = cave_data["metadata"]
-    # Stash so scene builder can pick it up without a second generation pass.
-    terrain_cfg["_cave_data"] = cave_data
-    return elevation, metadata, resolution
+    return elevation, metadata, resolution, cave_data
 
 
 def _load_procedural(
@@ -101,6 +111,9 @@ def _load_procedural(
 
     size = tuple(terrain_cfg.get("terrain_size", [256, 256]))
     seed = int(terrain_cfg.get("seed", 42))
+    # Currently only ``canyon_*`` keys are supported as procedural-preset
+    # overrides; future presets should follow the same prefix scheme so
+    # the dispatch stays a single per-preset prefix filter.
     preset_params = {k: v for k, v in terrain_cfg.items() if k.startswith("canyon_")}
     elevation, metadata = generate_terrain(
         preset,

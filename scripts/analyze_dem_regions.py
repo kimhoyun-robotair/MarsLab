@@ -8,8 +8,10 @@ Outputs a combined overview image showing both candidate types on the full DEM.
 
 Usage:
     python3 scripts/analyze_dem_regions.py
+    python3 scripts/analyze_dem_regions.py --dem-dir path/to/converted_dem/
 """
 
+import argparse
 import os
 import sys
 
@@ -27,7 +29,7 @@ from marslab.terrain.dem_loader import load_converted_dem  # noqa: E402
 # Configuration
 # ---------------------------------------------------------------------------
 
-DEM_DIR = os.path.join(REPO_ROOT, "assets", "terrain", "dem", "jezero_crater_converted")
+DEFAULT_DEM_DIR = os.path.join(REPO_ROOT, "assets", "terrain", "dem", "jezero_crater_converted")
 OUTPUT_DIR = os.path.join(REPO_ROOT, "work_log", "scene_generation")
 OUTPUT_PNG = os.path.join(OUTPUT_DIR, "dem_regions_overview.png")
 
@@ -170,7 +172,7 @@ def plot_overview(
             ax.text(
                 x0 + 3,
                 y0 + 12 if text_dy_top else y0 + sz - 5,
-                f"{tag} #{i + 1}: dz={w['dz']:.1f}m, slope={w['mean_slope']:.1f}\u00b0",
+                f"{tag} #{i + 1}: dz={w['dz']:.1f}m, slope={w['mean_slope']:.1f}deg",
                 color=color,
                 fontsize=7,
                 fontweight="bold",
@@ -198,8 +200,16 @@ def plot_overview(
 
 
 def main() -> None:
-    print("[analyze_dem] Loading DEM...", flush=True)
-    elevation, metadata = load_converted_dem(DEM_DIR)
+    parser = argparse.ArgumentParser(description="Analyze HiRISE DEM regions")
+    parser.add_argument(
+        "--dem-dir",
+        default=DEFAULT_DEM_DIR,
+        help="Directory containing the converted DEM (elevation.npy + metadata.json)",
+    )
+    args = parser.parse_args()
+
+    print(f"[analyze_dem] Loading DEM: {args.dem_dir}", flush=True)
+    elevation, metadata = load_converted_dem(args.dem_dir)
     resolution = float(metadata.get("resolution_x", 1.0))
     print(
         f"[analyze_dem] DEM: {elevation.shape}, {resolution} m/px, "

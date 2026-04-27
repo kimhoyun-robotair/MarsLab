@@ -1,8 +1,7 @@
 """Spawn pose resolution from declarative spawn specs + DEM elevation grid.
 
-Split from marslab.config.scenario_loader (R2, 2026-04-22). Sibling
-marslab.config.yaml_loader holds the YAML I/O + deep_merge logic.
-Zero Isaac Sim imports; offline-testable (P3).
+The sibling module ``marslab.config.yaml_loader`` holds the YAML I/O +
+``deep_merge`` logic. Zero Isaac Sim imports; offline-testable (P3).
 
 The three spawn modes:
 

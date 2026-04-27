@@ -1,4 +1,4 @@
-# Mars Base (Crewed Outpost) Scenario (Scenario 7)
+# Mars Base (Crewed Outpost) Scenario
 # ---------------------------------------------------------------
 # Reuses the Jezero flat terrain (same DEM as jezero_flat.yaml) and
 # dresses it with a crewed-outpost configuration: central habitat
@@ -6,22 +6,21 @@
 # ISRU plant.  The rover spawns 40 m from the base, simulating a
 # returning traverse -- ideal for Nav2 goal-pose evaluation.
 #
-# Placeholder asset paths — the USD assets under
+# Placeholder asset paths -- the USD assets under
 # ``assets/structures/base/`` are user-authored (Apache-2.0) with some
 # geometry adapted from NASA Mars Design Reference Architecture 5.0
 # concepts.  See ``assets/structures/LICENSES.md``.  Missing files
 # trigger FileNotFoundError in ``marslab.scene.structure_loader``; the
 # YAML still validates offline without the bytes in place.
 #
-# Reviewer 2 #17 (2026-04-24): mars_env + rendering defaults come from
-# ``_base.yaml`` via the root-level ``base_config`` include; only the
-# sun elevation override lives here.
+# mars_env + rendering defaults come from ``_base.yaml`` via the root-level
+# ``base_config`` include; only the sun elevation override lives here.
 # ---------------------------------------------------------------
 
 base_config: _base.yaml
 
 mars_env:
-  sun_elevation_deg: 50  # +5° vs default for base photography framing
+  sun_elevation_deg: 50  # +5 deg vs default for base photography framing
   dynamic_atmosphere:
     enabled: true
 

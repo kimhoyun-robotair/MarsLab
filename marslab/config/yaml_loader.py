@@ -1,7 +1,7 @@
 """YAML loading + deep merge + base_config include for scenario configs.
 
-Split from marslab.config.scenario_loader (R2, 2026-04-22). The sibling
-module marslab.config.spawn_resolver holds the spawn-coordinate math.
+The sibling module ``marslab.config.spawn_resolver`` holds the
+spawn-coordinate math.
 
 Public surface:
     ``read_yaml(path) -> dict``
@@ -102,12 +102,11 @@ def load_scenario_config(scenario_path: str) -> Dict[str, Any]:
 
     Two independent ``base_config`` mechanisms run in order:
 
-    1. **Root-level** ``base_config`` (Reviewer 2 #17, 2026-04-24):
-       points at a sibling YAML (typically ``_base.yaml``) holding the
-       shared ``mars_env`` + ``rendering`` defaults so scenario files
-       only keep their real overrides.  The scenario dict is
-       deep-merged ON TOP of the base dict (scenario wins, lists are
-       replaced).
+    1. **Root-level** ``base_config``: points at a sibling YAML
+       (typically ``_base.yaml``) holding the shared ``mars_env`` +
+       ``rendering`` defaults so scenario files only keep their real
+       overrides.  The scenario dict is deep-merged ON TOP of the base
+       dict (scenario wins, lists are replaced).
     2. **Rover-level** ``rover.base_config``: pre-existing mechanism
        that merges ``configs/robots/rover_m2020.yaml`` into the
        scenario's ``rover:`` subtree.  Runs after the root merge so the
@@ -147,12 +146,11 @@ def load_scenario_config(scenario_path: str) -> Dict[str, Any]:
     scenario_cfg = read_yaml(resolved)
     scenario_dir = os.path.dirname(resolved)
 
-    # Reviewer 2 #17 (2026-04-24): fold a root-level ``base_config`` into
-    # the scenario dict before anything else. Pointed at
-    # ``configs/scenarios/_base.yaml`` so ~35 lines of mars_env/rendering
-    # boilerplate do not repeat across nine scenario files.  Scenario
-    # overrides win over the base; non-dict collisions replace outright
-    # (see ``deep_merge``).
+    # Fold a root-level ``base_config`` into the scenario dict before
+    # anything else. Pointed at ``configs/scenarios/_base.yaml`` so the
+    # shared mars_env/rendering boilerplate does not repeat across
+    # scenario files.  Scenario overrides win over the base; non-dict
+    # collisions replace outright (see ``deep_merge``).
     if "base_config" in scenario_cfg:
         root_base_ref = scenario_cfg.pop("base_config")
         root_base_full = _resolve_path(str(root_base_ref), scenario_dir)
@@ -164,7 +162,7 @@ def load_scenario_config(scenario_path: str) -> Dict[str, Any]:
 
     rover_override = scenario_cfg.get("rover")
     if not isinstance(rover_override, dict):
-        # No rover block — scenario-only (run_stage2 style).
+        # No rover block -- scenario-only (terrain / structure only).
         return scenario_cfg
 
     base_path = rover_override.get("base_config")

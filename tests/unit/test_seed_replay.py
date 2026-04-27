@@ -1,8 +1,9 @@
 """Bit-exact seed replay tests for every randomized callable in MarsLab.
 
-Project Guideline G7 ("unit tests for everything") and the Module
-Dependency Rule "every randomized function accepts a seed parameter"
-imply that *the same seed must produce the same output, every byte*.
+The project's testing rules ("unit tests for everything") and the
+Module Dependency Rule ("every randomized function accepts a seed
+parameter") imply that *the same seed must produce the same output,
+every byte*.
 
 This test runs each randomized public callable twice with the same
 seed and asserts ``np.testing.assert_array_equal`` (bit-exact, not

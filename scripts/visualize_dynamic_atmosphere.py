@@ -35,8 +35,8 @@ HDRI_DIR = os.path.join(REPO_ROOT, "assets", "sky", "hdri")
 
 
 def main() -> None:
-    # G5: solar constant and sol length come from YAML so the figure stays
-    # consistent with the simulation config (the prior literal ``24.66``
+    # Solar constant and sol length come from the YAML config so the figure
+    # stays consistent with the simulation (the prior literal ``24.66``
     # differed from ``sol_duration_seconds / 3600 = 24.6228`` by ~0.04 h).
     cfg = load_and_validate(os.path.join(REPO_ROOT, "configs/mars_env.yaml"))
     solar_constant = cfg.mars_env.solar_constant_mean

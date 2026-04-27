@@ -21,19 +21,19 @@ MARS_ENV_YAML = REPO_ROOT / "configs" / "mars_env.yaml"
 def _find_scenario_without_cave() -> Path:
     """Return a scenario YAML whose terrain pipeline is not cave.
 
-    Reviewer 2 #17 (2026-04-24): skip ``_``-prefixed YAMLs (e.g.
-    ``_base.yaml``) — they are shared include fragments and do not
-    carry a complete ``terrain`` block, so feeding them into
-    ``run_stage2_boot`` would fail the required-section check.
+    Skip ``_``-prefixed YAMLs (e.g. ``_base.yaml``) -- they are
+    shared include fragments and do not carry a complete ``terrain``
+    block, so feeding them into ``run_stage2_boot`` would fail the
+    required-section check.
     """
     scenarios_dir = REPO_ROOT / "configs" / "scenarios"
     for candidate in sorted(scenarios_dir.glob("*.yaml")):
         if candidate.name.startswith("_"):
             continue
-        # 2026-04-25: skip ``template_*.yaml`` self-contained templates so
-        # the scan stays on ship-with scenarios (alphabetical order picks
-        # cerberus_canyon.yaml first anyway, but the explicit guard makes
-        # the intent obvious to future readers).
+        # Skip ``template_*.yaml`` self-contained templates so the scan
+        # stays on ship-with scenarios (alphabetical order picks
+        # cerberus_canyon.yaml first anyway, but the explicit guard
+        # makes the intent obvious to future readers).
         if candidate.name.startswith("template_"):
             continue
         name = candidate.name.lower()

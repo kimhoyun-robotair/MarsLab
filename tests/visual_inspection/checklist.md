@@ -1,6 +1,9 @@
 # Visual Inspection Checklist
 
-Results logged in work_log/LOG.md after each inspection.
+Use this checklist when verifying renderings, sensors, or robotics
+behaviour that cannot be covered by automated unit tests. Each item
+is a manual sanity check intended for an operator with Isaac Sim
+running locally.
 
 ## V1: Sky Color
 - [ ] Sky is butterscotch (yellowish-brown), NOT blue or black
@@ -81,15 +84,16 @@ Results logged in work_log/LOG.md after each inspection.
   - Expected PASS line: `[wk1-imu] PASS: |z| = <value> m/s^2 in [3.67, 3.77]`.
   - Revert the entire probe block from `scripts/run_scene.py` after the run;
     permanent publisher is Wk2 #7 scope under `marslab/ros2_bridge/`.
-  - Full procedure (Steps 1-5) lives in `_workspace/wk1_robotics_handoff.md`
-    "THE critical test" section; old v1 snippet preserved as HTML comment
+  - Full procedure (Steps 1-5) is mirrored by the integration test
+    `tests/integration/test_imu_gravity_actual.py`; old v1 snippet
+    preserved as HTML comment
     `DISABLED (wk1_imu_probe_v1): replaced 2026-04-14`.
 - IMU probe v5 procedure (post TaskList #10 + #11, 2026-04-14):
   - **Status:** v5 is the live probe, sentinel-delimited at
     `scripts/run_scene.py:374-627` by `# === Wk1 acceptance probe v5:
     dual-sink logging (TEMPORARY) ===` / `# === end Wk1 acceptance probe
-    v5 ===`. Historical versions v1-v4 preserved as HTML comments in
-    `_workspace/wk1_robotics_handoff.md` at lines 250, 277, 347, 415.
+    v5 ===`. Historical versions v1-v4 are no longer kept in-tree;
+    consult VCS history if needed.
   - **Physics now runs** (task #10, 2026-04-14): `marslab/robots/rover.py`
     applies `PhysxSchema.PhysxSceneAPI.Apply(scene_prim)` idempotently;
     `scripts/run_scene.py` instantiates `isaacsim.core.api.World(
@@ -109,8 +113,9 @@ Results logged in work_log/LOG.md after each inspection.
        `|lin_acc[z]|` in Mars band [3.67, 3.77]
   - **Dual-sink logging (task #11):** every probe line is emitted via
     a `_wk1_log(msg)` helper that writes to THREE sinks:
-    - `_workspace/wk1_imu_probe_result.json` (structured, atomic
-      tmp+rename via `os.replace`, schema_version=1, source of truth)
+    - `wk1_imu_probe_result.json` next to the runtime script
+      (structured, atomic tmp+rename via `os.replace`,
+      schema_version=1, source of truth)
     - `carb.log_warn(line)` / `carb.log_error(line)` for
       level="error" — lands in Kit stderr so `2> run.log` captures it
     - `print(line, flush=True)` for interactive runs
@@ -122,8 +127,8 @@ Results logged in work_log/LOG.md after each inspection.
   - **Recommended invocation** (so stdout is captured even without
     task #11's carb mirror):
     `cd ~/MarsLab && ~/isaacsim/python.sh scripts/run_scene.py --config configs/mars_env.yaml 2>&1 | tee /tmp/run_scene.log`
-    The authoritative source of truth is always
-    `_workspace/wk1_imu_probe_result.json` regardless of log capture.
+    The authoritative source of truth is always the
+    `wk1_imu_probe_result.json` file regardless of log capture.
   - **Fail-mode table (ordered by likelihood, for user triage):**
     1. `rover not settled: |v|=<large>` -- terrain collider may not be
        picked up by PhysX. If `|v| > 0.5`: ping scenario-terrain-architect
@@ -142,17 +147,17 @@ Results logged in work_log/LOG.md after each inspection.
     sentinels from `scripts/run_scene.py`. Permanent IMU publisher is
     Wk2 #7 scope under `marslab/ros2_bridge/`.
 
-## V10: ROS2 Bridge — cmd_vel / TF / Odometry Live (Wk2)
+## V10a: ROS2 Bridge -- cmd_vel / TF / Odometry Live (plan)
 
-**Precondition:** This checklist is meaningful only AFTER slam-nav-integrator
-lands Wk2 #7 (sensor ROS2 re-enable). Until then the three new modules
-(`marslab/ros2_bridge/cmd_vel_subscriber.py`,
-`marslab/ros2_bridge/tf_broadcaster.py`, `marslab/ros2_bridge/odometry.py`)
-are offline-verified but not wired into `scripts/run_scene.py`. The user run
-described below assumes task #7 has landed an `rclpy.init()` + single-threaded
-executor + `rclpy.shutdown()` lifecycle block in `main()` that instantiates
-`CmdVelSubscriber`, `TfBroadcaster`, and `OdometryPublisher` against the
-spawned `SingleArticulation`.
+**Precondition:** This checklist is meaningful only after the
+ROS2 bridge modules (`marslab/ros2_bridge/cmd_vel_subscriber.py`,
+`marslab/ros2_bridge/tf_broadcaster.py`,
+`marslab/ros2_bridge/odometry.py`) are wired into the runtime entry
+point. The user run described below assumes the runtime has an
+`rclpy.init()` + single-threaded executor + `rclpy.shutdown()`
+lifecycle block in `main()` that instantiates `CmdVelSubscriber`,
+`TfBroadcaster`, and `OdometryPublisher` against the spawned
+`SingleArticulation`.
 
 - [ ] `/rover/cmd_vel` subscriber moves the rover
   - Method: in a second terminal (ROS2 Jazzy sourced), run
@@ -185,7 +190,7 @@ spawned `SingleArticulation`.
   - Expected: wheels spin at `1.0 / 0.15 ≈ 6.667 rad/s`, not 66.67. The
     drive-layer clamp is silent (no error), matching Nav2's "planner
     produces over-eager velocity, drive layer caps it" expectation.
-- [ ] `/tf` chain matches `_workspace/ros2_topic_spec.md` diagram
+- [ ] `/tf` chain matches the documented topic spec
   - Method: `ros2 run tf2_tools view_frames` → produces `frames.pdf`.
   - Expected tree:
     ```
@@ -202,7 +207,7 @@ spawned `SingleArticulation`.
 - [ ] `/rover/odom` publishes at 50 Hz (±10%)
   - Method: `ros2 topic hz /rover/odom` for ~10 s.
   - Expected: average rate between 45 Hz and 55 Hz, per the
-    `_workspace/ros2_topic_spec.md` ±10% tolerance budget.
+    documented topic spec +/-10% tolerance budget.
 - [ ] `/rover/odom` twist matches the commanded Twist at steady state
   - Method: publish `linear.x: 0.25, angular.z: 0.1` for 3 s, then stop
     publishing (the watchdog will zero the wheels after 0.5 s).
@@ -243,7 +248,7 @@ spawned `SingleArticulation`.
    should be reverted in the same Wk2 #7 edit that wires the ROS2
    modules in — the handoff doc flags this explicitly.
 
-## V10: Wk2 ROS2 Bridge Live Topic Plumbing (Wk2 #7 acceptance)
+## V10b: ROS2 Bridge Live Topic Plumbing (acceptance)
 
 Wk2 #7 landed 2026-04-14 (TaskList #7 completed). `scripts/run_scene.py`
 now wires the full ROS2 bridge lifecycle: `rclpy.init()` →

@@ -1,4 +1,4 @@
-"""Unit tests for marslab.ros2_bridge.sensor_graph orchestrator invariants (R8-5)."""
+"""Unit tests for marslab.ros2_bridge.sensor_graph orchestrator invariants."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class TestGraphSpecDict:
         assert GRAPH_PATH == "/World/Stage3ROS2Graph"
 
     def test_sensor_graph_reexports_builder_helpers(self) -> None:
-        """R4-5 moved the list-builders into ``sensor_graph_builder``;
+        """The list-builders live in ``sensor_graph_builder``;
         ``sensor_graph`` re-exports them for backward compat."""
         assert sensor_graph._build_create_nodes is _build_create_nodes
         assert sensor_graph._build_connections is _build_connections

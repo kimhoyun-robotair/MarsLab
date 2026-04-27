@@ -3,14 +3,15 @@
 Loads the scenario config, resolves DEM paths, and pre-computes every
 atmospheric parameter (sun position, direct intensity, diffuse fraction,
 sky dome params) before Isaac Sim is launched. Pure Python so the unit
-test suite can exercise it without a GPU (P3). Returns a frozen
+test suite can exercise it without a GPU. Returns a frozen
 :class:`StageTwoBootResult` consumed downstream by the scene + loop stages.
 """
 
 from __future__ import annotations
 
+import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -20,6 +21,8 @@ from marslab.config.loader import propagate_seeds_in_dict
 from marslab.config.schema import DynamicAtmosphereConfig, MarsEnvConfig
 from marslab.runtime.config_loader import load_runtime_config_dict
 from marslab.terrain.terrain_loader import load_scenario_terrain, resolve_dem_paths
+
+_LOG = logging.getLogger(__name__)
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -58,7 +61,7 @@ class StageTwoAtmosphereInit:
     physics_dt: float
     direct_intensity: float
     diffuse_fraction: float
-    sky_params: Any  # SkyDomeParams (avoid import at module scope for P3)
+    sky_params: Any  # SkyDomeParams (avoid import at module scope to keep offline-first)
     sun_pos: Any  # SunPosition
     hdri_dir: str
     dynamic: DynamicAtmosphereConfig
@@ -96,11 +99,9 @@ class StageTwoBootResult:
     elevation: np.ndarray
     metadata: Dict[str, Any]
     resolution: float
-    dem_paths: Dict[str, Path] = field(default_factory=dict)
-    atmosphere_init: StageTwoAtmosphereInit = field(
-        default_factory=lambda: None  # type: ignore[arg-type]
-    )
-    repo_root: str = REPO_ROOT
+    dem_paths: Dict[str, Path]
+    atmosphere_init: StageTwoAtmosphereInit
+    repo_root: str
 
 
 def run_stage2_boot(config_path: str, repo_root: str = REPO_ROOT) -> StageTwoBootResult:
@@ -129,14 +130,14 @@ def run_stage2_boot(config_path: str, repo_root: str = REPO_ROOT) -> StageTwoBoo
 
     abs_config_path = os.path.abspath(config_path)
     cfg = load_runtime_config_dict(abs_config_path)
-    # G7 (2026-04-24): enforce ``terrain.seed == mars_env.seed + 1`` on the
-    # raw dict path so Stage 2/3 callers share a single seed-propagation
-    # site.  Pydantic's ``propagate_seeds`` already covers the typed path.
+    # Enforce ``terrain.seed == mars_env.seed + 1`` on the raw dict path so
+    # Stage 2/3 callers share a single seed-propagation site. Pydantic's
+    # ``propagate_seeds`` already covers the typed path.
     cfg = propagate_seeds_in_dict(cfg)
     for key in _REQUIRED_SECTIONS:
         if key not in cfg:
             raise ValueError(f"Config missing required section: '{key}'")
-    print(f"[run_stage2] Loaded config: {abs_config_path}", flush=True)
+    _LOG.info("Loaded config: %s", abs_config_path)
 
     mars_cfg = cfg["mars_env"]
     terrain_cfg = cfg["terrain"]
@@ -144,15 +145,17 @@ def run_stage2_boot(config_path: str, repo_root: str = REPO_ROOT) -> StageTwoBoo
 
     elevation, metadata, resolution = load_scenario_terrain(terrain_cfg, repo_root=repo_root)
     dem_paths = resolve_dem_paths(terrain_cfg, repo_root=repo_root)
-    print(
-        f"[run_stage2] Terrain: {elevation.shape} @ {resolution} m/px, "
-        f"z=[{elevation.min():.1f}, {elevation.max():.1f}] m",
-        flush=True,
+    _LOG.info(
+        "Terrain: %s @ %s m/px, z=[%.1f, %.1f] m",
+        elevation.shape,
+        resolution,
+        elevation.min(),
+        elevation.max(),
     )
 
-    # P6 G5 (2026-04-23): route every scalar through pydantic so defaults
-    # live exactly once in :class:`MarsEnvConfig` rather than being
-    # duplicated as ``.get(..., literal)`` fallbacks here.
+    # Route every scalar through pydantic so defaults live exactly once in
+    # :class:`MarsEnvConfig` rather than being duplicated as
+    # ``.get(..., literal)`` fallbacks here.
     mars_env_model = MarsEnvConfig(**mars_cfg)
 
     sun_pos = compute_sun_position(
@@ -160,15 +163,16 @@ def run_stage2_boot(config_path: str, repo_root: str = REPO_ROOT) -> StageTwoBoo
         elevation_deg=mars_env_model.sun_elevation_deg,
     )
     tau = mars_env_model.dust_optical_depth
-    solar_constant = mars_env_model.solar_constant_mean
+    solar_constant = mars_env_model.solar_constant
     direct_intensity = compute_direct_intensity(solar_constant, tau, sun_pos.zenith_angle_rad)
     diffuse_frac = compute_diffuse_fraction(tau)
     hdri_dir = os.path.join(repo_root, rendering_cfg.get("sky_dome_hdri_dir", "assets/sky/hdri/"))
     sky_params = compute_sky_dome_params(tau, hdri_dir)
-    print(
-        f"[run_stage2] Atmosphere: tau={tau}, direct={direct_intensity:.1f} W/m2, "
-        f"diffuse_frac={diffuse_frac:.2f}",
-        flush=True,
+    _LOG.info(
+        "Atmosphere: tau=%s, direct=%.1f W/m2, diffuse_frac=%.2f",
+        tau,
+        direct_intensity,
+        diffuse_frac,
     )
 
     dynamic = mars_env_model.dynamic_atmosphere

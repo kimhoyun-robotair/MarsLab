@@ -1,11 +1,11 @@
 # Cerberus Fossae Canyon Scenario (Easy)
-# HiRISE DEM crop: southern approach with crater feature
-# dz=110m, mean_slope=11.5 deg, traversable(<15 deg)=82%, impassable(>30 deg)=8%
-# Mostly navigable terrain with some steep obstacles and a central crater
-# Purpose: basic autonomous navigation, obstacle avoidance, SLAM baseline
+# HiRISE DEM crop: southern approach with crater feature.
+# dz=110m, mean_slope=11.5 deg, traversable(<15 deg)=82%, impassable(>30 deg)=8%.
+# Mostly navigable terrain with some steep obstacles and a central crater.
+# Purpose: basic autonomous navigation, obstacle avoidance, SLAM baseline.
 #
-# Reviewer 2 #17 (2026-04-24): mars_env + rendering defaults come from
-# ``_base.yaml`` via the root-level ``base_config`` include.
+# mars_env + rendering defaults come from ``_base.yaml`` via the root-level
+# ``base_config`` include.
 
 base_config: _base.yaml
 

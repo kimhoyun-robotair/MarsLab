@@ -1,4 +1,4 @@
-"""Unit tests for marslab.config.schema.ros2_bridge.Ros2BridgeConfig (R4-5)."""
+"""Unit tests for marslab.config.schema.ros2_bridge.Ros2BridgeConfig."""
 
 from __future__ import annotations
 

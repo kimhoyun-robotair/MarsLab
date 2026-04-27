@@ -1,7 +1,7 @@
-"""Argparse contract for ``scripts/run_marslab.py`` (R6-2).
+"""Argparse contract for ``scripts/run_marslab.py``.
 
-Offline (P3): exercises the argparse layer only — the module is loaded by
-path so importing it does not bootstrap Isaac Sim.
+Offline: exercises the argparse layer only -- the module is loaded
+by path so importing it does not bootstrap Isaac Sim.
 """
 
 from __future__ import annotations
@@ -84,12 +84,12 @@ def test_help_text_contains_all_flags() -> None:
 def test_module_is_thin_wrapper() -> None:
     """The entry point stays a thin wrapper (LOC budget sanity check).
 
-    The R6 plan targeted ~68-72 LOC; we allow a reasonable margin for
-    docstrings but guard against accidental code duplication from the twin.
+    The wrapper targets ~68-72 LOC; we allow a reasonable margin for
+    docstrings but guard against accidental code duplication.
     """
     source = RUN_MARSLAB.read_text(encoding="utf-8")
     lines = source.splitlines()
-    assert len(lines) < 200, f"run_marslab.py grew to {len(lines)} LOC — extract further"
+    assert len(lines) < 200, f"run_marslab.py grew to {len(lines)} LOC -- extract further"
 
 
 def test_module_import_does_not_boot_isaac_sim() -> None:

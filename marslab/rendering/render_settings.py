@@ -1,7 +1,7 @@
 """RTX render mode configuration for Isaac Sim.
 
 Switches between path-tracing (data generation) and ray-tracing (interactive).
-All parameters read from config (G5).
+All parameters are read from configuration; no values are hardcoded.
 Requires Isaac Sim runtime.
 """
 

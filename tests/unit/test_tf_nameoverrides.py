@@ -1,12 +1,11 @@
 """Offline-testable cover for ``marslab.ros2_bridge.tf_nameoverrides``.
 
-S3 release-blocker fix (2026-04-27).  The functions touch ``pxr.*``
-inside the body, so the unit tests inject a duck-typed stage / prim
-mock and assert that the ``isaac:nameOverride`` attribute creation
-flows through unchanged.  ``pxr`` itself is not importable in CI, so
-:func:`apply_nameoverride` and :func:`create_odom_anchor` must be
-exercised through the deferred-import path with ``pxr`` faked in
-``sys.modules``.
+The functions touch ``pxr.*`` inside the body, so the unit tests inject
+a duck-typed stage / prim mock and assert that the
+``isaac:nameOverride`` attribute creation flows through unchanged.
+``pxr`` itself is not importable in CI, so :func:`apply_nameoverride`
+and :func:`create_odom_anchor` must be exercised through the
+deferred-import path with ``pxr`` faked in ``sys.modules``.
 """
 
 from __future__ import annotations
@@ -76,8 +75,12 @@ class TestApplyNameOverride:
         attr.Set.assert_called_once_with("base_link")
 
     def test_skips_missing_prim_with_warning(
-        self, fake_pxr: types.SimpleNamespace, capsys: pytest.CaptureFixture[str]
+        self,
+        fake_pxr: types.SimpleNamespace,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
+        import logging
+
         from marslab.ros2_bridge.tf_nameoverrides import apply_nameoverride
 
         prim = MagicMock()
@@ -85,13 +88,20 @@ class TestApplyNameOverride:
         stage = MagicMock()
         stage.GetPrimAtPath.return_value = prim
 
-        ok = apply_nameoverride(stage, "/World/Bogus", "base_link")
+        # Ensure the module logger forwards to caplog's root handler.
+        target_logger = logging.getLogger("marslab.ros2_bridge.tf_nameoverrides")
+        prev_propagate = target_logger.propagate
+        target_logger.propagate = True
+        try:
+            with caplog.at_level(logging.WARNING, logger="marslab.ros2_bridge.tf_nameoverrides"):
+                ok = apply_nameoverride(stage, "/World/Bogus", "base_link")
+        finally:
+            target_logger.propagate = prev_propagate
 
         assert ok is False
         prim.CreateAttribute.assert_not_called()
-        captured = capsys.readouterr()
-        assert "WARNING" in captured.err
-        assert "/World/Bogus" in captured.err
+        assert any(rec.levelno == logging.WARNING for rec in caplog.records)
+        assert any("/World/Bogus" in rec.getMessage() for rec in caplog.records)
 
 
 class TestCreateOdomAnchor:
@@ -115,7 +125,7 @@ class TestCreateOdomAnchor:
         from marslab.ros2_bridge.tf_nameoverrides import DEFAULT_ODOM_ANCHOR_PATH
 
         # The anchor path is referenced from both ``rover.py`` and
-        # ``run_stage4.py``; pin it so a rename in one place breaks the
+        # ``main.py``; pin it so a rename in one place breaks the
         # test instead of silently creating two anchors at different
         # paths.
         assert DEFAULT_ODOM_ANCHOR_PATH == "/World/odom_anchor"
