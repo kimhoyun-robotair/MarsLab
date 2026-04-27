@@ -93,14 +93,15 @@ class TestBuildConnectionsCameraInfo:
             "CamInfo.inputs:renderProductPath",
         ) in edges
 
-    def test_camera_info_uses_rgb_render_product_not_depth(self) -> None:
-        """``CamInfo`` is wired off ``RPCamera`` (RGB), not ``RPDepth``.
+    def test_camera_info_uses_shared_rpcamera_render_product(self) -> None:
+        """``CamInfo`` is wired off the shared ``RPCamera`` render product.
 
-        The OmniGraph Camera Info Helper extracts intrinsics from the
-        underlying USD ``Camera`` prim; both render products point at
-        the same prim, but reusing RPCamera keeps the intrinsics
-        timestamp-aligned with ``rgb/image_raw`` (which downstream
-        ``image_proc`` rectify nodes assume).
+        The OmniGraph CameraInfo Helper extracts intrinsics from the
+        underlying USD ``Camera`` prim every tick.  Reusing the single
+        shared ``RPCamera`` render product (Path 1 collapse) keeps the
+        intrinsics timestamp-aligned with ``rgb/image_raw`` and depth,
+        which downstream ``image_proc`` / ``depth_image_proc`` /
+        RTAB-Map rectify nodes assume.
         """
         edges = set(_build_connections(include_camera_info=True))
         feeders = {(s, d) for (s, d) in edges if d == "CamInfo.inputs:renderProductPath"}

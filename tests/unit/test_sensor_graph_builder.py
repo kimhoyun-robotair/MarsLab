@@ -76,6 +76,32 @@ class TestBuildSetValues:
         assert sets["RPCamera.inputs:height"] == 480
         assert isinstance(sets["RPCamera.inputs:height"], int)
 
+    def test_camera_resolution_only_set_on_rpcamera(self, topics: dict) -> None:
+        """Single shared render product: width/height live on ``RPCamera`` only.
+
+        After the Path 1 collapse there is no ``RPDepth`` node and no
+        secondary render product.  This test guards against a regression
+        where someone reintroduces dual-render-product wiring (which
+        previously caused RGB/depth timestamp skew breaking RTAB-Map).
+        """
+        from marslab.ros2_bridge.sensor_graph_builder import _build_set_values
+
+        sets = dict(
+            _build_set_values(
+                ns="rover",
+                topics=topics,
+                imu_prim_path="/W/imu",
+                camera_prim_path="/W/cam",
+                camera_resolution=(640, 480),
+                lidar_3d_prim_path="/W/lidar3d",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
+            )
+        )
+        assert "RPDepth.inputs:width" not in sets
+        assert "RPDepth.inputs:height" not in sets
+        assert "RPDepth.inputs:cameraPrim" not in sets
+
     def test_joint_tf_goes_to_tf_raw(self, topics: dict) -> None:
         """Articulation TF publishes on the dedicated ``/tf_raw`` topic.
 

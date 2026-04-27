@@ -162,11 +162,27 @@ sensors:
   # single canonical frame rotation.
   camera:
     parent_link: "Body_Chassis"
-    local_translation: [0.3, 0.0, -2.1]
+    local_translation: [1.2, 0.0, -1.0]
     local_orientation_rpy_deg: [180.0, 0.0, 0.0]
     resolution: [640, 480]
     focal_length: 24.0
     clipping_range: [0.1, 1000.0]
+    # Optional stereo-disparity depth simulation
+    # (OmniSensorDepthSensorSingleViewAPI schema).  ``enabled: false`` keeps
+    # the v0.7 / v1.0 behaviour where depth comes from the renderer's
+    # noiseless ``DistanceToImagePlane`` AOV.  Flip ``enabled`` to ``true``
+    # for RealSense-style simulated depth with disparity noise, occlusion
+    # holes, and a confidence map.  Defaults are RealSense D455 ballpark;
+    # adjust ``baseline_mm`` per scenario (M2020 Navcam baseline ~ 420 mm).
+    depth_sensor:
+      enabled: false
+      baseline_mm: 55.0
+      min_distance_m: 0.3
+      max_distance_m: 10.0
+      noise_mean: 0.0
+      noise_sigma: 0.005
+      confidence_threshold: 0.95
+      max_disparity_pixel: 110.0
 
   # 3D rotary RTX LiDAR.  Every numeric parameter that used to hide inside
   # Isaac Sim's ``Example_Rotary.json`` profile is declared here so the YAML
@@ -175,9 +191,9 @@ sensors:
   # 0.4 deg horizontal step, 10 Hz rotation, 0.5-100 m range.
   lidar_3d:
     parent_link: "Body_Chassis"
-    local_translation: [0.3, 0.0, -0.5]
+    local_translation: [1.7, 0.0, -2.4]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
-    range_min: 0.5
+    range_min: 5.0
     range_max: 100.0
     horizontal_fov_deg: 360.0
     vertical_fov_deg: 30.0
@@ -197,7 +213,7 @@ sensors:
   # elevation, 360 deg horizontal, 0.25 deg step, 30 Hz rotation).
   lidar_2d:
     parent_link: "Body_Chassis"
-    local_translation: [0.3, 0.0, -0.25]
+    local_translation: [1.1, 0.0, -0.3]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     range_min: 0.5
     range_max: 50.0
@@ -219,8 +235,8 @@ control:
   wheelbase: 2.26
   track_steer: 2.125
   track_middle: 2.369
-  max_linear_velocity: 0.5
-  max_angular_velocity: 0.5
+  max_linear_velocity: 4.0
+  max_angular_velocity: 0.7
 
   drive_joint_names:
     - "LF_DRIVE"
@@ -273,4 +289,9 @@ control:
   # Empirically iterate by editing this dict and re-running Isaac Sim;
   # verify via ``ros2 run tf2_ros tf2_echo odom base_link`` that the
   # lateral drift shrinks.
-  initial_joint_positions: {}
+#  initial_joint_positions:                                                                                                                  
+#    JOINT1_ENC: 0.0          # base yaw 중앙                                                                                                
+#    JOINT2_ENC: -1.5708      # 90° pitch up (arm 을 위로 접음)
+#    JOINT3_ENC: -2.0944      # 120° pitch back                                                                                              
+#    JOINT4_ENC: 0.0                                                                                                                         
+#    JOINT5_ENC: 0.0       

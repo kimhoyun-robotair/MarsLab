@@ -99,6 +99,7 @@ def build_sensor_graph(
     articulation_root_prim_path: str,
     parent_anchor_prim_path: str,
     lidar_2d_prim_path: Optional[str] = None,
+    depth_sensor_cfg: Optional[Dict[str, Any]] = None,
 ) -> SensorGraphHandle:
     """Build the Stage-3 ROS2 OmniGraph.
 
@@ -130,6 +131,19 @@ def build_sensor_graph(
             When provided and ``topics["scan"]`` is set in ``ros2_cfg``,
             a ``RPLidar2D``/``Lidar2DHelper`` pair is added with
             ``type="laser_scan"``.
+        depth_sensor_cfg: Optional ``rover.sensors.camera.depth_sensor``
+            block.  When ``enabled=True`` the orchestrator applies the
+            ``OmniSensorDepthSensorSingleViewAPI`` schema to the camera
+            render product so the depth output simulates a stereo
+            disparity camera (RealSense-style noise + occlusion holes +
+            confidence map) instead of the renderer's noiseless
+            ``DistanceToImagePlane`` AOV.  See
+            ``isaacsim/exts/isaacsim.sensors.camera/isaacsim/sensors/
+            camera/single_view_depth_sensor.py:46-503`` for the schema
+            attribute names (``omni:rtx:post:depthSensor:<field>``).
+            When the schema or the extension is unavailable at runtime
+            the apply step is a no-op and the graph falls back to the
+            renderer's raw depth (Path-1-only behaviour).
 
     Returns:
         :class:`SensorGraphHandle`.
@@ -176,7 +190,100 @@ def build_sensor_graph(
             ),
         },
     )
+
+    # Optional Path 2: apply the depth-sensor schema to the shared
+    # camera render product.  Wrapped in try/except so a missing
+    # extension or an older Isaac Sim release falls back gracefully to
+    # the renderer's raw ``DistanceToImagePlane`` depth (Path-1-only
+    # behaviour).  ``depth_sensor_cfg`` is the YAML block validated
+    # earlier as :class:`marslab.config.schema.robot.DepthSensorConfig`.
+    if depth_sensor_cfg is not None and bool(depth_sensor_cfg.get("enabled")):
+        try:
+            _apply_depth_sensor_schema(graph_path, depth_sensor_cfg)
+        except Exception as exc:  # pragma: no cover - runtime-only fallback
+            import logging  # noqa: PLC0415  -- defer until needed
+
+            logging.getLogger(__name__).warning(
+                "Depth-sensor schema apply skipped: %s.  Falling back to "
+                "the renderer's raw DistanceToImagePlane AOV (Path-1-only "
+                "behaviour).",
+                exc,
+            )
+
     return SensorGraphHandle(graph_path=graph_path, graph=graph_handle)
+
+
+# ``omni:rtx:post:depthSensor:<field>`` USD attribute names for the
+# ``OmniSensorDepthSensorSingleViewAPI`` schema.  Pinned in one place so
+# YAML field renames don't silently desync from the schema.  Source:
+# ``isaacsim/extscache/omni.usd.schema.omni_sensors-0.0.0+69cbf6ad/
+# usd_plugins/generatedSchema.usda`` (OmniSensorDepthSensorSingleViewAPI).
+_DEPTH_SENSOR_SCHEMA_ATTRS: Dict[str, str] = {
+    "baseline_mm": "omni:rtx:post:depthSensor:baselineMM",
+    "min_distance_m": "omni:rtx:post:depthSensor:minDistance",
+    "max_distance_m": "omni:rtx:post:depthSensor:maxDistance",
+    "noise_mean": "omni:rtx:post:depthSensor:noiseMean",
+    "noise_sigma": "omni:rtx:post:depthSensor:noiseSigma",
+    "confidence_threshold": "omni:rtx:post:depthSensor:confidenceThreshold",
+    "max_disparity_pixel": "omni:rtx:post:depthSensor:maxDisparityPixel",
+}
+
+
+def _apply_depth_sensor_schema(graph_path: str, depth_sensor_cfg: Dict[str, Any]) -> None:
+    """Apply ``OmniSensorDepthSensorSingleViewAPI`` to the shared render product.
+
+    Reads the actual render product prim path from the ``RPCamera``
+    node's ``outputs:renderProductPath`` attribute (resolved by the
+    OmniGraph during :func:`og.Controller.edit`), then applies the
+    depth-sensor schema and writes every YAML-driven attribute through
+    the canonical ``omni:rtx:post:depthSensor:*`` names.
+
+    Args:
+        graph_path: USD path of the Stage-3 action graph (``RPCamera``
+            lives at ``{graph_path}/RPCamera``).
+        depth_sensor_cfg: ``rover.sensors.camera.depth_sensor`` block
+            (validated upstream as
+            :class:`marslab.config.schema.robot.DepthSensorConfig`).
+
+    The function is intentionally tolerant of older Isaac Sim builds
+    that do not bundle the schema -- the caller wraps it in
+    try/except so a missing API surfaces as a warning, not a runtime
+    crash.
+    """
+    import omni.graph.core as og  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
+    from isaacsim.core.utils.prims import (
+        get_prim_at_path,
+    )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
+
+    rp_path_attr = og.Controller.attribute(f"{graph_path}/RPCamera.outputs:renderProductPath")
+    rp_prim_path = rp_path_attr.get()
+    if not rp_prim_path:
+        raise RuntimeError(
+            f"RPCamera.outputs:renderProductPath at {graph_path}/RPCamera resolved "
+            "to an empty value; cannot apply OmniSensorDepthSensorSingleViewAPI"
+        )
+
+    rp_prim = get_prim_at_path(str(rp_prim_path))
+    if rp_prim is None or not rp_prim.IsValid():
+        raise RuntimeError(
+            f"Render product prim at {rp_prim_path!r} is invalid; cannot apply "
+            "OmniSensorDepthSensorSingleViewAPI"
+        )
+
+    rp_prim.ApplyAPI("OmniSensorDepthSensorSingleViewAPI")
+    # Always enable the depth sensor when the YAML enabled it -- the
+    # schema's default is False which would silently do nothing.
+    enabled_attr = rp_prim.GetAttribute("omni:rtx:post:depthSensor:enabled")
+    if enabled_attr:
+        enabled_attr.Set(True)
+
+    for yaml_field, attr_name in _DEPTH_SENSOR_SCHEMA_ATTRS.items():
+        if yaml_field not in depth_sensor_cfg:
+            continue
+        value = depth_sensor_cfg[yaml_field]
+        attr = rp_prim.GetAttribute(attr_name)
+        if attr:
+            attr.Set(float(value))
 
 
 def _build_qos_presets(options: Any) -> Tuple[str, str]:

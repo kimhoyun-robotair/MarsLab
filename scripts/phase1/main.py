@@ -229,6 +229,7 @@ def main() -> int:
         camera_resolution=tuple(camera_cfg["resolution"]),
         lidar_3d_prim_path=handles.lidar_3d_prim_path,
         imu_prim_path=handles.imu_prim_path,
+        depth_sensor_cfg=camera_cfg.get("depth_sensor"),
         # Pass the prim that actually carries ``PhysxArticulationRootAPI``.
         # USD inspection shows the import produces a nested layout:
         #   /World/Rover                    (Xform spawn container)

@@ -312,6 +312,12 @@ Documented in `tests/visual_inspection/checklist.md`. Logged in
    rollback is `git log -p` (memory: feedback_no_delete_comment, R4 Option C).
 10. **Do NOT speculate when uncertain.** Implement a verified workaround or run
     a diagnostic first (memory: feedback_no_speculative_fixes).
+11. **Do NOT extend scope beyond the user's explicit instruction.** Execute *only*
+    what was requested. Do not add toggles, flags, helper scripts, override keys,
+    "future-proofing" abstractions, or unit tests that were not asked for. Do not
+    invent feature patterns ("make it reusable", "add a config option") on top of
+    a one-shot request. If a one-line edit answers the request, that is the entire
+    deliverable. When unsure whether a follow-up is in scope, ask — do not assume.
 
 ---
 

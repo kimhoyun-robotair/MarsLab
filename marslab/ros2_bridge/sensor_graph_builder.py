@@ -7,6 +7,17 @@ list-building logic can be unit-tested without Isaac Sim.
 These helpers return simple Python data structures (lists of tuples)
 that the orchestrator then feeds into
 ``og.Controller.edit(..., {CREATE_NODES, CONNECT, SET_VALUES})``.
+
+Single render-product wiring (Path 1).  The historical layout used two
+``IsaacCreateRenderProduct`` nodes for the same camera prim
+(``RPCamera`` for RGB, ``RPDepth`` for depth) which produced two
+separate SDG pipelines and yielded RGB/depth timestamp skew that broke
+RTAB-Map / depth_image_proc fusion.  NVIDIA's canonical pattern (see
+``isaacsim/exts/isaacsim.ros2.bridge/isaacsim/ros2/bridge/impl/
+og_shortcuts/og_rtx_sensors.py:75-227``) fans a single render product
+out to every camera helper (RGB, Depth, PointCloud2, CameraInfo) so
+they share one render pass and one timestamp.  This module follows
+that pattern.
 """
 
 from __future__ import annotations
@@ -48,18 +59,20 @@ def _build_create_nodes(
             ``sensor_msgs/LaserScan``.
         include_pointcloud2: When True, appends a second
             ``isaacsim.ros2.bridge.ROS2CameraHelper`` node (``CamPCL``)
-            wired off the existing depth render product (``RPDepth``)
-            with ``inputs:type='depth_pcl'`` so the RGB-D camera publishes
-            a ``sensor_msgs/PointCloud2`` topic at the depth-camera rate.
-            Source: ``isaacsim/exts/isaacsim.ros2.bridge/isaacsim/ros2/
-            bridge/ogn/python/nodes/OgnROS2CameraHelper.py:141-155`` --
-            the ``depth_pcl`` token routes through ``ROS2PublishPointCloud``
+            wired off the single shared camera render product
+            (``RPCamera``) with ``inputs:type='depth_pcl'`` so the RGB-D
+            camera publishes a ``sensor_msgs/PointCloud2`` topic at the
+            depth-camera rate.  Source:
+            ``isaacsim/exts/isaacsim.ros2.bridge/isaacsim/ros2/bridge/
+            ogn/python/nodes/OgnROS2CameraHelper.py:141-155`` -- the
+            ``depth_pcl`` token routes through ``ROS2PublishPointCloud``
             with ``DistanceToImagePlane`` as the source render variable.
         include_camera_info: When True, appends a
-            ``isaacsim.ros2.bridge.ROS2CameraInfoHelper`` node (``CamInfo``)
-            fed off the RGB render product (``RPCamera``) so the camera
-            publishes ``sensor_msgs/CameraInfo`` (intrinsics K / P / R /
-            D, width, height) alongside ``rgb/image_raw``.  Source:
+            ``isaacsim.ros2.bridge.ROS2CameraInfoHelper`` node
+            (``CamInfo``) fed off the same shared ``RPCamera`` render
+            product so the camera publishes ``sensor_msgs/CameraInfo``
+            (intrinsics K / P / R / D, width, height) alongside
+            ``rgb/image_raw``.  Source:
             ``isaacsim/exts/isaacsim.ros2.bridge/docs/ogn/
             OgnROS2CameraInfoHelper.rst:21`` -- the helper auto-derives
             the projection matrices from the USD ``Camera`` prim's focal
@@ -79,22 +92,26 @@ def _build_create_nodes(
         ("PubTF", "isaacsim.ros2.bridge.ROS2PublishTransformTree"),
         ("ReadIMU", "isaacsim.sensors.physics.IsaacReadIMU"),
         ("PubIMU", "isaacsim.ros2.bridge.ROS2PublishImu"),
+        # Single shared camera render product: RGB, Depth, PointCloud2,
+        # and CameraInfo all consume ``RPCamera`` so the render pass
+        # runs once per tick and every helper sees the same timestamp.
+        # See module docstring for the prior dual-render-product
+        # rationale and why it was retired.
         ("RPCamera", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
         ("CamRGB", "isaacsim.ros2.bridge.ROS2CameraHelper"),
-        ("RPDepth", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
         ("CamDepth", "isaacsim.ros2.bridge.ROS2CameraHelper"),
         ("RPLidar3D", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
         ("Lidar3DHelper", "isaacsim.ros2.bridge.ROS2RtxLidarHelper"),
     ]
     if include_pointcloud2:
-        # Re-uses the RPDepth render product, no new IsaacCreateRenderProduct.
-        # The helper consumes depth + camera intrinsics internally so only
-        # a second ROS2CameraHelper sibling to ``CamDepth`` is needed.
+        # ``CamPCL`` reuses the shared ``RPCamera`` render product, no
+        # new ``IsaacCreateRenderProduct``.  The OmniGraph allows
+        # multiple ``ROS2CameraHelper`` consumers per render product.
         nodes.append(("CamPCL", "isaacsim.ros2.bridge.ROS2CameraHelper"))
     if include_camera_info:
-        # Re-uses the RPCamera render product (RGB) -- no extra
-        # IsaacCreateRenderProduct.  The helper extracts intrinsics from
-        # the underlying USD camera prim every tick.
+        # ``CamInfo`` reuses the shared ``RPCamera`` render product --
+        # no extra ``IsaacCreateRenderProduct``.  The helper extracts
+        # intrinsics from the underlying USD camera prim every tick.
         nodes.append(("CamInfo", "isaacsim.ros2.bridge.ROS2CameraInfoHelper"))
     if include_lidar_2d:
         nodes += [
@@ -111,15 +128,22 @@ def _build_connections(
 ) -> List[Tuple[str, str]]:
     """List of ``(src_attr, dst_attr)`` pairs describing graph edges.
 
+    All four camera helpers (RGB, Depth, optional PointCloud2, optional
+    CameraInfo) consume the single shared ``RPCamera`` render product.
+    The OmniGraph triggers each helper off ``RPCamera.outputs:execOut``
+    (when applicable) so the helpers fan out from one render pass.
+    See the module docstring for the rationale (NVIDIA canonical
+    single-render-product pattern; eliminates RGB/depth timestamp skew).
+
     Args:
         include_lidar_2d: Append 2-D LiDAR edges when the
             ``Lidar2DHelper`` pair is present.
         include_pointcloud2: Append the ``CamPCL`` edges so the
-            depth-derived PointCloud2 helper triggers off ``OnTick`` and
-            shares the existing ``RPDepth`` render product.
+            depth-derived PointCloud2 helper triggers off the shared
+            ``RPCamera`` render product.
         include_camera_info: Append the ``CamInfo`` edges so the
             CameraInfo helper triggers off ``OnTick`` and shares the
-            existing ``RPCamera`` (RGB) render product.
+            same ``RPCamera`` (RGB) render product.
     """
     edges: List[Tuple[str, str]] = [
         ("OnTick.outputs:tick", "PubClock.inputs:execIn"),
@@ -132,26 +156,26 @@ def _build_connections(
         ("ReadIMU.outputs:linAcc", "PubIMU.inputs:linearAcceleration"),
         ("ReadIMU.outputs:orientation", "PubIMU.inputs:orientation"),
         ("ReadSimTime.outputs:simulationTime", "PubIMU.inputs:timeStamp"),
+        # Single shared camera render product: ``RPCamera`` triggers
+        # both RGB and Depth helpers off the same execOut pulse so they
+        # publish in lock-step on the same render pass.
         ("OnTick.outputs:tick", "RPCamera.inputs:execIn"),
         ("RPCamera.outputs:execOut", "CamRGB.inputs:execIn"),
         ("RPCamera.outputs:renderProductPath", "CamRGB.inputs:renderProductPath"),
-        ("OnTick.outputs:tick", "RPDepth.inputs:execIn"),
-        ("RPDepth.outputs:execOut", "CamDepth.inputs:execIn"),
-        ("RPDepth.outputs:renderProductPath", "CamDepth.inputs:renderProductPath"),
+        ("RPCamera.outputs:execOut", "CamDepth.inputs:execIn"),
+        ("RPCamera.outputs:renderProductPath", "CamDepth.inputs:renderProductPath"),
         ("OnTick.outputs:tick", "RPLidar3D.inputs:execIn"),
         ("RPLidar3D.outputs:execOut", "Lidar3DHelper.inputs:execIn"),
         ("RPLidar3D.outputs:renderProductPath", "Lidar3DHelper.inputs:renderProductPath"),
     ]
     if include_pointcloud2:
-        # Trigger ``CamPCL`` off the same ``OnTick`` pulse so the depth
-        # helper and the PointCloud2 helper run in lock-step on the same
-        # render product.  Re-using ``RPDepth.outputs:renderProductPath``
-        # avoids a second ``IsaacCreateRenderProduct`` (which would double
-        # the rendering cost) -- the OmniGraph allows multiple
+        # Trigger ``CamPCL`` off ``OnTick`` and reuse the shared
+        # ``RPCamera`` render product so RGB / Depth / PointCloud2 stay
+        # frame-locked.  The OmniGraph allows multiple
         # ``ROS2CameraHelper`` consumers per render product.
         edges += [
             ("OnTick.outputs:tick", "CamPCL.inputs:execIn"),
-            ("RPDepth.outputs:renderProductPath", "CamPCL.inputs:renderProductPath"),
+            ("RPCamera.outputs:renderProductPath", "CamPCL.inputs:renderProductPath"),
         ]
     if include_camera_info:
         # Trigger ``CamInfo`` off the same ``OnTick`` pulse and reuse
@@ -250,14 +274,9 @@ def _build_set_values(
         include_pointcloud2: When True **and** ``topics["points"]`` is
             present, append the ``CamPCL`` value bindings
             (``inputs:type='depth_pcl'``, topic name from
-            ``topics["points"]``, ``frameId='camera_link'`` to share the
-            existing depth helper TF, and the same sensor QoS preset as
-            the other camera helpers).  ``frameId`` deliberately reuses
-            ``camera_link`` rather than introducing a separate
-            ``camera_optical_frame`` so the PointCloud2 publisher joins
-            the existing static TF tree broadcast by
-            ``publish_static_sensor_tfs`` without requiring a new TF
-            link.
+            ``topics["points"]``, ``frameId='camera_optical_frame'`` to
+            share the existing depth helper TF, and the same sensor QoS
+            preset as the other camera helpers).
         include_camera_info: When True **and** ``topics["camera_info"]``
             is present, append the ``CamInfo`` value bindings
             (topic name from ``topics["camera_info"]``,
@@ -306,15 +325,39 @@ def _build_set_values(
         ("PubIMU.inputs:topicName", _ns_topic(ns, topics["imu"])),
         ("PubIMU.inputs:frameId", "imu_link"),
         ("PubIMU.inputs:qosProfile", sensor_qos_preset),
+        # Single shared camera render product.  Width / height are
+        # bound once on ``RPCamera`` and inherited by every helper
+        # consumer (RGB, Depth, PointCloud2, CameraInfo).  This is the
+        # NVIDIA canonical pattern (see module docstring) and prevents
+        # the RGB/depth timestamp skew the dual-render-product layout
+        # exhibited.
         ("RPCamera.inputs:cameraPrim", [camera_prim_path]),
         ("RPCamera.inputs:width", int(camera_resolution[0])),
         ("RPCamera.inputs:height", int(camera_resolution[1])),
+        # ``resetSimulationTimeOnStop`` lives on the *helper* nodes, not
+        # on ``IsaacCreateRenderProduct``.  Verified against the OGN
+        # spec at ``isaacsim/exts/isaacsim.core.nodes/.../
+        # OgnIsaacCreateRenderProduct.ogn:12-37`` (only ``execIn /
+        # width / height / cameraPrim / enabled`` are declared) and the
+        # canonical wiring at ``isaacsim/exts/isaacsim.ros2.bridge/.../
+        # og_shortcuts/og_rtx_sensors.py:87,160,189,217`` which sets
+        # the flag on ``CameraInfoPublish`` / ``RGBPublish`` /
+        # ``DepthPublish`` / ``DepthPclPublish`` (helper nodes).
+        # Schema docs: ``OgnROS2CameraHelper.rst:48``,
+        # ``OgnROS2CameraInfoHelper.rst:49``,
+        # ``OgnROS2RtxLidarHelper.rst:48``.  Setting the flag on every
+        # consumer keeps the original intent (timestamps reset on Stop)
+        # without violating the OGN attribute lookup that crashed Kit
+        # in the dual-RP layout.
+        ("CamRGB.inputs:resetSimulationTimeOnStop", True),
+        ("CamDepth.inputs:resetSimulationTimeOnStop", True),
+        ("Lidar3DHelper.inputs:resetSimulationTimeOnStop", True),
         # Camera RGB / Depth / PointCloud2 messages carry coordinates
         # in the **optical frame convention** (Z forward, X right, Y
         # down -- REP-105) because Isaac Sim's ``ROS2CameraHelper``
         # outputs in that convention regardless of the camera prim's
         # mount orientation.  The static TF
-        # ``camera_link → camera_optical_frame`` is published by
+        # ``camera_link -> camera_optical_frame`` is published by
         # ``marslab.ros2_bridge.tf_broadcaster.publish_static_sensor_tfs``;
         # frame_id here references that child frame so RViz /
         # image_pipeline / depth_image_proc see correct geometry.
@@ -322,9 +365,6 @@ def _build_set_values(
         ("CamRGB.inputs:topicName", _ns_topic(ns, topics["rgb"])),
         ("CamRGB.inputs:frameId", "camera_optical_frame"),
         ("CamRGB.inputs:qosProfile", sensor_qos_preset),
-        ("RPDepth.inputs:cameraPrim", [camera_prim_path]),
-        ("RPDepth.inputs:width", int(camera_resolution[0])),
-        ("RPDepth.inputs:height", int(camera_resolution[1])),
         ("CamDepth.inputs:type", "depth"),
         ("CamDepth.inputs:topicName", _ns_topic(ns, topics["depth"])),
         ("CamDepth.inputs:frameId", "camera_optical_frame"),
@@ -346,6 +386,7 @@ def _build_set_values(
             # ``tf_broadcaster.publish_static_sensor_tfs``.
             ("CamPCL.inputs:frameId", "camera_optical_frame"),
             ("CamPCL.inputs:qosProfile", sensor_qos_preset),
+            ("CamPCL.inputs:resetSimulationTimeOnStop", True),
         ]
     if include_camera_info and "camera_info" in topics:
         # ``ROS2CameraInfoHelper`` only exposes topicName / frameId /
@@ -359,6 +400,7 @@ def _build_set_values(
             ("CamInfo.inputs:topicName", _ns_topic(ns, topics["camera_info"])),
             ("CamInfo.inputs:frameId", "camera_optical_frame"),
             ("CamInfo.inputs:qosProfile", sensor_qos_preset),
+            ("CamInfo.inputs:resetSimulationTimeOnStop", True),
         ]
     if lidar_2d_prim_path is not None and "scan" in topics:
         values += [
@@ -367,6 +409,7 @@ def _build_set_values(
             ("Lidar2DHelper.inputs:frameId", "scan_frame"),
             ("Lidar2DHelper.inputs:type", "laser_scan"),
             ("Lidar2DHelper.inputs:qosProfile", sensor_qos_preset),
+            ("Lidar2DHelper.inputs:resetSimulationTimeOnStop", True),
         ]
     return values
 

@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 __all__ = [
     "CameraConfig",
     "ChassisConfig",
+    "DepthSensorConfig",
     "IMUConfig",
     "Lidar2DConfig",
     "Lidar3DConfig",
@@ -522,6 +523,125 @@ class SkidSteerDriveConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class DepthSensorConfig(BaseModel):
+    """Optional realistic depth simulation parameters.
+
+    When present on the camera config and ``enabled=True``, the runtime
+    applies the ``OmniSensorDepthSensorSingleViewAPI`` schema to the
+    camera's render product, simulating a stereo pair from a single
+    camera view (depth reprojected to the LEFT imager position).  This
+    provides RealSense-style RGB-D alignment with realistic disparity
+    noise, occlusion holes, and a confidence map that masks
+    low-confidence pixels.  When absent or ``enabled=False``, the
+    runtime falls back to the renderer's raw ``DistanceToImagePlane``
+    AOV, which is noiseless and bypasses the stereo simulation.
+
+    Schema source: ``isaacsim/extscache/
+    omni.usd.schema.omni_sensors-0.0.0+69cbf6ad/usd_plugins/
+    generatedSchema.usda`` (``OmniSensorDepthSensorSingleViewAPI``).
+    The Python wrapper that documents each attribute is at
+    ``isaacsim/exts/isaacsim.sensors.camera/isaacsim/sensors/camera/
+    single_view_depth_sensor.py:46-503``.
+
+    Default values mirror Intel RealSense D455 ballpark parameters
+    (baseline 55 mm, max disparity 110 px) so a freshly-enabled config
+    behaves like a stock RealSense without requiring per-rover tuning.
+    For larger stereo rigs (M2020 Navcam baseline = 420 mm) override
+    ``baseline_mm`` per scenario.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = Field(
+        default=False,
+        description=(
+            "Master switch.  ``False`` (default) preserves the v0.7 / v1.0 "
+            "Path-1-only behaviour where depth comes from the renderer's "
+            "noiseless ``DistanceToImagePlane`` AOV.  Set to ``True`` to "
+            "enable the stereo-disparity simulation -- the runtime then "
+            "applies the ``OmniSensorDepthSensorSingleViewAPI`` schema to "
+            "the camera render product."
+        ),
+    )
+    baseline_mm: float = Field(
+        default=55.0,
+        ge=1.0,
+        le=500.0,
+        description=(
+            "Stereo baseline in millimetres.  RealSense D455 baseline = 55 "
+            "mm; M2020 Navcam baseline ~ 420 mm.  Maps to USD attribute "
+            "``omni:rtx:post:depthSensor:baselineMM``."
+        ),
+    )
+    min_distance_m: float = Field(
+        default=0.3,
+        ge=0.0,
+        description=(
+            "Minimum reliable depth range in metres (samples below this "
+            "are clamped to invalid).  Maps to ``omni:rtx:post:depthSensor:"
+            "minDistance``."
+        ),
+    )
+    max_distance_m: float = Field(
+        default=10.0,
+        gt=0.0,
+        description=(
+            "Maximum reliable depth range in metres (samples above this "
+            "are clamped to invalid).  Maps to ``omni:rtx:post:depthSensor:"
+            "maxDistance``."
+        ),
+    )
+    noise_mean: float = Field(
+        default=0.0,
+        description=(
+            "Gaussian noise mean (depth-relative) added to the simulated "
+            "disparity.  Maps to ``omni:rtx:post:depthSensor:noiseMean``."
+        ),
+    )
+    noise_sigma: float = Field(
+        default=0.005,
+        ge=0.0,
+        description=(
+            "Gaussian noise sigma (depth-relative).  RealSense literature "
+            "places D435/D455 depth noise std-dev around 0.5 percent of "
+            "range at typical distances, so 0.005 is a reasonable starting "
+            "point.  Maps to ``omni:rtx:post:depthSensor:noiseSigma``."
+        ),
+    )
+    confidence_threshold: float = Field(
+        default=0.95,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Confidence threshold in [0, 1] for hole rejection -- samples "
+            "with disparity confidence below this are dropped (NaN in the "
+            "depth output).  Higher values yield sparser but cleaner "
+            "depth.  Maps to ``omni:rtx:post:depthSensor:"
+            "confidenceThreshold``."
+        ),
+    )
+    max_disparity_pixel: float = Field(
+        default=110.0,
+        gt=0.0,
+        description=(
+            "Maximum disparity in pixels.  Caps the stereo search range so "
+            "the simulator does not produce non-physical near-field depth.  "
+            "RealSense D455 default = 110.  Maps to ``omni:rtx:post:"
+            "depthSensor:maxDisparityPixel``."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def check_distance_range(self) -> "DepthSensorConfig":
+        """``max_distance_m`` must exceed ``min_distance_m``."""
+        if self.max_distance_m <= self.min_distance_m:
+            raise ValueError(
+                f"max_distance_m ({self.max_distance_m}) must exceed "
+                f"min_distance_m ({self.min_distance_m})"
+            )
+        return self
+
+
 class CameraConfig(BaseModel):
     """RGB-D camera mount + RTX optics parameters.
 
@@ -533,6 +653,9 @@ class CameraConfig(BaseModel):
     :func:`marslab.sensors.sensor_spawner.spawn_sensors` without schema
     validation; promoting them here lets ``extra="forbid"`` reject typos and
     out-of-range values at load time.
+
+    Optional ``depth_sensor`` block toggles realistic stereo-disparity
+    depth simulation via :class:`DepthSensorConfig`.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -557,7 +680,7 @@ class CameraConfig(BaseModel):
         max_length=3,
         description=(
             "[roll, pitch, yaw] in degrees (ZYX intrinsic).  Applied via a "
-            "parent Xform — placing xformOps on the Camera prim itself "
+            "parent Xform -- placing xformOps on the Camera prim itself "
             "corrupts the RTX depth pipeline (see "
             "``marslab/sensors/sensor_spawner.py`` docstring)."
         ),
@@ -582,6 +705,19 @@ class CameraConfig(BaseModel):
         min_length=2,
         max_length=2,
         description="[near, far] camera clip planes in meters.",
+    )
+    depth_sensor: Optional[DepthSensorConfig] = Field(
+        default=None,
+        description=(
+            "Optional stereo-disparity depth simulation block.  When "
+            "present and ``enabled=True``, the runtime applies the "
+            "``OmniSensorDepthSensorSingleViewAPI`` schema to the camera "
+            "render product so depth output simulates a stereo pair "
+            "(RealSense-style noise + occlusion holes + confidence map) "
+            "instead of the renderer's noiseless ``DistanceToImagePlane`` "
+            "AOV.  Defaults to ``None`` so existing scenarios preserve "
+            "v0.7 / v1.0 behaviour without edits."
+        ),
     )
 
     @model_validator(mode="after")

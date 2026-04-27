@@ -60,7 +60,7 @@ class TestBuildCreateNodesPointCloud2:
         assert nodes["CamPCL"] == "isaacsim.ros2.bridge.ROS2CameraHelper"
 
     def test_pointcloud2_does_not_add_render_product(self) -> None:
-        """``CamPCL`` reuses ``RPDepth`` -- no extra IsaacCreateRenderProduct."""
+        """``CamPCL`` reuses the shared ``RPCamera`` -- no extra IsaacCreateRenderProduct."""
         nodes_off = [n for n, _ in _build_create_nodes(include_pointcloud2=False)]
         nodes_on = [n for n, _ in _build_create_nodes(include_pointcloud2=True)]
         # Exactly one node is added (CamPCL) and it is not a RenderProduct.
@@ -76,7 +76,7 @@ class TestBuildCreateNodesPointCloud2:
 
 
 class TestBuildConnectionsPointCloud2:
-    """Edges for the ``CamPCL`` helper trigger off OnTick + share RPDepth."""
+    """Edges for the ``CamPCL`` helper trigger off OnTick + share ``RPCamera``."""
 
     def test_pointcloud2_edges_absent_by_default(self) -> None:
         edges = set(_build_connections())
@@ -85,19 +85,22 @@ class TestBuildConnectionsPointCloud2:
     def test_pointcloud2_edges_present_when_flag_true(self) -> None:
         edges = set(_build_connections(include_pointcloud2=True))
         assert ("OnTick.outputs:tick", "CamPCL.inputs:execIn") in edges
+        # Path 1 collapse: ``CamPCL`` consumes the single shared
+        # ``RPCamera`` render product so RGB / Depth / PointCloud2
+        # stay frame-locked on one render pass.
         assert (
-            "RPDepth.outputs:renderProductPath",
+            "RPCamera.outputs:renderProductPath",
             "CamPCL.inputs:renderProductPath",
         ) in edges
 
     def test_no_dedicated_pointcloud_render_product(self) -> None:
-        """``CamPCL`` is wired off ``RPDepth``, not a new render product."""
+        """``CamPCL`` is wired off the shared ``RPCamera``, not a new render product."""
         edges = set(_build_connections(include_pointcloud2=True))
         bad = {(s, d) for (s, d) in edges if d == "CamPCL.inputs:renderProductPath"}
-        # Only one feed and it must come from RPDepth.
+        # Only one feed and it must come from the shared RPCamera.
         assert len(bad) == 1
         src, _ = bad.pop()
-        assert src == "RPDepth.outputs:renderProductPath"
+        assert src == "RPCamera.outputs:renderProductPath"
 
     def test_every_endpoint_refers_to_declared_node(self) -> None:
         declared = {n for n, _ in _build_create_nodes(include_pointcloud2=True)}
@@ -359,8 +362,9 @@ class TestBuildSensorGraphCallableInvocation:
 
         assert "CamPCL" in node_names
         assert ("OnTick.outputs:tick", "CamPCL.inputs:execIn") in edges
+        # Path 1 collapse: shared ``RPCamera`` render product.
         assert (
-            "RPDepth.outputs:renderProductPath",
+            "RPCamera.outputs:renderProductPath",
             "CamPCL.inputs:renderProductPath",
         ) in edges
         assert values["CamPCL.inputs:type"] == "depth_pcl"
