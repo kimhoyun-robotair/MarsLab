@@ -39,6 +39,7 @@ prim_path: "/World/Rover"
 # rotation across the whole chain.  See ``docs/frame_conventions.md`` for
 # the full convention.
 spawn_position: [0.0, 0.0, 0.0]
+#spawn_orientation_rpy: [0.0, 0.0, 0.0]
 spawn_orientation_rpy: [3.14159, 0.0, 0.0]
 
 # Default scenario spawn spec.  Scenarios override mode / xy / z_offset
@@ -227,7 +228,7 @@ sensors:
   imu:
     parent_link: "Body_Chassis"
     local_translation: [0.0, 0.0, 0.0]
-    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+    local_orientation_rpy_deg: [180.0, 0.0, 0.0]
 
 control:
   # Geometry derived from URDF kinematic chain (m2020.urdf).

@@ -87,3 +87,6 @@ tmp/
 .claude/logs/
 _workspace/
 _workspace_*/
+
+# 개발때만 임시로 gitinore
+assets/structures/spacecraft/*.usdz

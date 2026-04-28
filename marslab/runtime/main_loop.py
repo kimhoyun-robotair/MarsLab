@@ -441,8 +441,7 @@ def run_main_loop(ctx: LoopContext) -> int:
     """Drive the Stage 3 monolithic runtime until the sim stops.
 
     Args:
-        ctx: Pre-initialized :class:`LoopContext` assembled by the CLI
-            wrapper (``scripts/run_marslab.py``) or
+        ctx: Pre-initialized :class:`LoopContext` assembled by the
             :mod:`scripts.phase1.main` after Isaac Sim boot and
             ``world.reset()``.
 

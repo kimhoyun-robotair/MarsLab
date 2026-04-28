@@ -34,10 +34,10 @@ terrain:
   scenario_name: "spacecraft_landing"
   converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"
   dem_crop:
-    row: 180
+    row: 0
     col: 0
-    height: 200
-    width: 200
+    height: 500
+    width: 500
   rock_sfd_k: 0
   rock_diameter_range: [0.20, 3.0]
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
@@ -49,53 +49,32 @@ terrain:
   uv_scale: 1.0
   seed: 42
 
-# Scene structures — landing debris field -----------------------------------
-# Geometry logic (Mars-2020 / InSight analogue):
-#   * Lander sits at (0, 0, 0) — DEM centre, the "landing ellipse centroid".
-#   * Heat shield is jettisoned early in EDL and lands closest to the
-#     lander (~12 m south-east) because it separates before backshell +
-#     parachute.  Flipped upside-down (roll=180) -- convex side up.
-#   * Backshell + parachute descend together but separate during sky-crane
-#     manoeuvre; they impact ~35 m west of the lander still tethered.
-#   * Parachute canopy lies a few metres downstream of the backshell,
-#     crumpled on the surface (roll=90 + scale reduction to look slumped).
-#   * Inspection cone + nav beacon are small reference props the rover
-#     visits during the SLAM / Nav2 trial.
+# Scene structures — SpaceX Starship + Superheavy on the landing site -------
+# Frame note: structures.spawn_xyz is the *absolute* world coordinate in the
+# terrain mesh frame whose corner sits at world origin.  For this 500×500
+# crop at 1 m/pixel the footprint is X∈[0,499], Y∈[0,499] and the mesh
+# centre is (249.5, 249.5).  The rover uses dem_relative offsets, so the
+# two YAML blocks live in the same world frame but use different reference
+# points — pick structure positions in absolute coords here.
+#
+# Placement rationale (preserves the visual offset accepted under the prior
+# 200×200 crop; only the crop changed, the relative geometry is preserved
+# by translating both spawns by the mesh-centre delta of (+150, +150)):
+#   * (x=220, y=249.5): ~39.5 m west of the rover spawn (259.5, 249.5),
+#     directly in the rover's -X facing line of sight, well inside the
+#     mesh footprint.
+#   * z=9.90: ground normalized z at (220, 249.5) ≈ 9.592 m (measured
+#     against the full elevation.npy; 500×500 normalized z range is
+#     [0, 15.456] m).  +0.30 m clearance reproduces the offset (2.05 −
+#     1.747 = 0.303 m) that was visually verified under the 200×200 crop.
+#     Lower if the model floats, raise if it sinks.
 scene:
   structures:
-    - name: "insight_lander"
-      asset_path: "assets/structures/spacecraft/insight_lander.usd"
-      spawn_xyz: [0.0, 0.0, 0.0]
+    - name: "spacex_starship"
+      asset_path: "assets/structures/spacecraft/SpaceX_Starship_-_Spaceship.usdz"
+      spawn_xyz: [220.0, 249.5, 9.90]
       spawn_rpy_deg: [0.0, 0.0, 0.0]
-      scale: [1.0, 1.0, 1.0]
-      static: true
-      collision: true
-    - name: "heat_shield"
-      asset_path: "assets/structures/spacecraft/heat_shield.usd"
-      spawn_xyz: [9.0, -8.0, 0.0]
-      spawn_rpy_deg: [180.0, 0.0, 45.0]
-      scale: [1.0, 1.0, 1.0]
-      static: true
-      collision: true
-    - name: "backshell"
-      asset_path: "assets/structures/spacecraft/backshell.usd"
-      spawn_xyz: [-32.0, 12.0, 0.0]
-      spawn_rpy_deg: [25.0, 0.0, 120.0]
-      scale: [1.0, 1.0, 1.0]
-      static: true
-      collision: true
-    - name: "parachute"
-      asset_path: "assets/structures/spacecraft/parachute.usd"
-      spawn_xyz: [-38.0, 6.0, 0.0]
-      spawn_rpy_deg: [90.0, 0.0, 45.0]
-      scale: [1.2, 1.2, 0.3]
-      static: true
-      collision: false   # canopy is soft-body reference only; Nav2 should plan through
-    - name: "inspection_beacon"
-      asset_path: "assets/structures/spacecraft/inspection_beacon.usd"
-      spawn_xyz: [4.0, 2.5, 0.0]
-      spawn_rpy_deg: [0.0, 0.0, 0.0]
-      scale: [1.0, 1.0, 1.0]
+      scale: [1,1,1]
       static: true
       collision: true
 
@@ -106,7 +85,7 @@ rover:
   # goal points straight at the lander.  Orientation RPY=(pi, 0, pi)
   # gives the rover its correct "upright facing -X" pose on Mars Z-up.
   spawn:
-    mode: "xy_with_terrain_z"
+    mode: "dem_relative"
     xy: [10.0, 0.0]
     z_offset: 0.5
     orientation_rpy: [3.14159, 0.0, 3.14159]
