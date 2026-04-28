@@ -173,6 +173,105 @@ def _resolve_lidar_profile(lidar_cfg: Dict[str, Any]) -> str:
     )
 
 
+def _apply_lidar_runtime_overrides(
+    stage: Any,
+    prim_path: str,
+    lidar_cfg: Dict[str, Any],
+) -> None:
+    """Override ``OmniSensorGenericLidarCoreAPI`` attributes from the YAML.
+
+    Isaac Sim 5.1's RTX LiDAR loads its bundled JSON profile through
+    ``LidarRtx(config_file_name=...)``, which only accepts a profile
+    *name* (no filesystem path).  However the resulting OmniLidar
+    USD prim carries the full ``OmniSensorGenericLidarCoreAPI`` schema,
+    so range / rate / FOV are individually addressable as USD
+    attributes after the prim exists.  This helper writes the YAML
+    values directly onto those attributes so the bundled profile
+    behaves as the YAML intends without monkey-patching
+    ``SUPPORTED_LIDAR_CONFIGS`` or shipping a custom JSON.
+
+    YAML -> USD attribute mapping:
+
+    * ``range_min`` -> ``omni:sensor:Core:nearRangeM``
+    * ``range_max`` -> ``omni:sensor:Core:farRangeM``
+    * ``rotation_rate_hz`` -> ``omni:sensor:Core:scanRateBaseHz``
+      (cast to ``uint``)
+    * ``horizontal_fov_deg`` -> ``omni:sensor:Core:validStartAzimuthDeg``
+      and ``validEndAzimuthDeg``.  ``360`` writes the full
+      ``[0, 360]`` range; values < 360 produce a front-centered
+      partial sweep ``[360 - fov/2, fov/2]`` so the rover's +X heading
+      sits at the centre of the scan window.
+    * ``vertical_fov_deg`` -> linear remap of
+      ``omni:sensor:Core:emitterState:s001:elevationDeg`` around its
+      current centre, preserving the bundled profile's emitter count
+      while compressing or expanding the vertical span uniformly.
+
+    Args:
+        stage: USD stage (``pxr.Usd.Stage``) the LiDAR prim lives on.
+        prim_path: Absolute USD path of the OmniLidar prim.
+        lidar_cfg: Validated YAML dict for the lidar block.
+
+    Raises:
+        RuntimeError: If the prim is missing or invalid.  The schema
+            attributes themselves are populated by Isaac Sim during
+            profile load, so a missing attribute would point at a
+            schema-version mismatch and is propagated by the
+            underlying ``GetAttribute().Set()`` call.
+    """
+    # Offline-test bypass: ``test_sensor_spawner.py`` passes ``stage=object()``
+    # to exercise the spawn pipeline without USD; fall through silently when
+    # the stage object is not a real USD ``Stage``.  Real Isaac Sim runtime
+    # always supplies a ``Stage`` carrying ``GetPrimAtPath`` so production
+    # never hits this branch.
+    if not hasattr(stage, "GetPrimAtPath"):
+        return
+
+    prim = stage.GetPrimAtPath(prim_path)
+    if prim is None or not prim.IsValid():
+        raise RuntimeError(f"OmniLidar prim not found at {prim_path!r}")
+    # Same offline-test bypass for stub prims that lack the USD attribute API
+    # (e.g. ``test_imu_gravity_assertion.py``'s ``_StubPrim``).
+    if not hasattr(prim, "GetAttribute"):
+        return
+
+    prim.GetAttribute("omni:sensor:Core:nearRangeM").Set(float(lidar_cfg["range_min"]))
+    prim.GetAttribute("omni:sensor:Core:farRangeM").Set(float(lidar_cfg["range_max"]))
+    prim.GetAttribute("omni:sensor:Core:scanRateBaseHz").Set(int(lidar_cfg["rotation_rate_hz"]))
+
+    h_fov = float(lidar_cfg["horizontal_fov_deg"])
+    if h_fov >= 360.0:
+        prim.GetAttribute("omni:sensor:Core:validStartAzimuthDeg").Set(0.0)
+        prim.GetAttribute("omni:sensor:Core:validEndAzimuthDeg").Set(360.0)
+    else:
+        half = h_fov / 2.0
+        prim.GetAttribute("omni:sensor:Core:validStartAzimuthDeg").Set(360.0 - half)
+        prim.GetAttribute("omni:sensor:Core:validEndAzimuthDeg").Set(half)
+
+    # Vertical FOV: linear remap of the existing per-emitter elevation
+    # array around its current centre.  The bundled profile's array
+    # length encodes the channel count (e.g. 16 for VLP-16, 128 for
+    # VLS-128) and must not change here -- only the elevation values
+    # scale.  When the YAML key is absent (lidar_2d's planar scan)
+    # this branch is a no-op; ``Lidar2DConfig`` does not declare
+    # ``vertical_fov_deg`` so the dict lookup returns None.
+    v_fov_raw = lidar_cfg.get("vertical_fov_deg")
+    if v_fov_raw is None:
+        return
+    elev_attr = prim.GetAttribute("omni:sensor:Core:emitterState:s001:elevationDeg")
+    existing = list(elev_attr.Get() or [])
+    if not existing:
+        return
+    cur_min = min(existing)
+    cur_max = max(existing)
+    cur_span = cur_max - cur_min
+    if cur_span <= 1e-6:
+        return
+    cur_center = (cur_min + cur_max) / 2.0
+    scale = float(v_fov_raw) / cur_span
+    new_array = [(e - cur_center) * scale for e in existing]
+    elev_attr.Set(new_array)
+
+
 def _rpy_deg_to_quat_wxyz(rpy_deg: Optional[Iterable[float]]) -> tuple:
     """Convert ``[roll, pitch, yaw]`` in degrees (ZYX intrinsic) to ``(w, x, y, z)``.
 
@@ -423,16 +522,13 @@ def spawn_sensors(
     # ``None`` and ``LidarRtx`` falls back to its own asset path
     # resolution keyed off ``config_file_name``.
     #
-    # Isaac Sim 5.1 ``LidarRtx.config_file_name`` only accepts a bundled
-    # profile *name* (resolved via ``omni.sensors.nv.common`` and
-    # ``isaacsim.sensors.rtx`` data dirs) -- it does NOT accept absolute
-    # filesystem paths.  Passing an absolute path yields the runtime
-    # warning ``Config '<path>' not found for OmniLidar`` and the LiDAR
-    # prim is never created.  Therefore the YAML overrides ``range_min``
-    # / ``range_max`` / ``rotation_rate_hz`` are NOT applied at runtime
-    # in v1.0; only ``profile_name`` and ``profile_json_path`` (escape
-    # hatch) flow to Isaac Sim.  Custom search-path injection or an
-    # upstream PR is the v1.5 follow-up.
+    # ``LidarRtx.config_file_name`` accepts only bundled profile *names*
+    # (no filesystem paths), so the YAML range / rate / FOV scalars
+    # cannot reach Isaac Sim through that channel.  However the
+    # resulting OmniLidar prim exposes the full
+    # ``OmniSensorGenericLidarCoreAPI`` schema, so we override the
+    # bundled values per-prim via :func:`_apply_lidar_runtime_overrides`
+    # immediately after construction.
     lidar_3d_profile = _resolve_lidar_profile(lidar_cfg)
     lidar_3d_kwargs: Dict[str, Any] = {
         "prim_path": lidar_prim_path,
@@ -445,6 +541,7 @@ def spawn_sensors(
         # so unrelated runtimes do not regress on the default.
         lidar_3d_kwargs["name"] = str(lidar_cfg["usd_profile"])
     lidar_3d = LidarRtx(**lidar_3d_kwargs)
+    _apply_lidar_runtime_overrides(stage, lidar_prim_path, lidar_cfg)
     lidar_3d.initialize()
 
     # 2D LiDAR (LaserScan) -- optional, mirrors the 3D LiDAR pipeline.
@@ -455,8 +552,10 @@ def spawn_sensors(
     lidar_2d_prim_path: Optional[str] = None
     if lidar_2d_cfg is not None:
         lidar_2d_prim_path = f"{rigid_body_path}/{_SENSOR_PRIM_NAMES['lidar_2d']}"
-        # Same Isaac Sim API limitation as 3D LiDAR -- runtime override
-        # of range / rate is disabled in v1.0 (see comment above).
+        # Same OmniSensorGenericLidarCoreAPI override pattern as the 3D
+        # LiDAR -- the planar scanner has no ``vertical_fov_deg`` field,
+        # so ``_apply_lidar_runtime_overrides`` skips the elevation
+        # remap branch automatically.
         lidar_2d_profile = _resolve_lidar_profile(lidar_2d_cfg)
         lidar_2d_kwargs: Dict[str, Any] = {
             "prim_path": lidar_2d_prim_path,
@@ -466,6 +565,7 @@ def spawn_sensors(
         if lidar_2d_cfg.get("usd_profile"):
             lidar_2d_kwargs["name"] = str(lidar_2d_cfg["usd_profile"])
         lidar_2d = LidarRtx(**lidar_2d_kwargs)
+        _apply_lidar_runtime_overrides(stage, lidar_2d_prim_path, lidar_2d_cfg)
         lidar_2d.initialize()
         _LOG.info(
             "2D LiDAR attached at %s profile=%r",

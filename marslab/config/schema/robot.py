@@ -740,26 +740,29 @@ class _LidarBaseConfig(BaseModel):
     lives on the subclasses so each one logs an unambiguous source
     class name when it fires.
 
-    Field semantics: all seven numeric YAML fields below
+    Field semantics: the five core YAML fields below
     (``range_min``, ``range_max``, ``horizontal_fov_deg``,
-    ``vertical_fov_deg``, ``horizontal_resolution_deg``,
-    ``vertical_resolution_deg``, ``rotation_rate_hz``) are **descriptive
-    only** in MarsLab v1.0.  They validate via pydantic and document the
-    intent of the chosen bundled profile, but they do NOT reach Isaac
-    Sim at runtime -- ``LidarRtx.config_file_name`` accepts only profile
-    *names* that match ``isaacsim.sensors.rtx.SUPPORTED_LIDAR_CONFIGS``
-    (a hardcoded Python dict; see
-    ``isaacsim/sensors/rtx/impl/supported_lidar_configs.py``).  The
-    bundled JSON encodes per-emitter azimuth / elevation tables, range /
-    rate constants, and intensity-mapping coefficients all together.
+    ``vertical_fov_deg``, ``rotation_rate_hz``) are
+    **runtime-applied** via Isaac Sim 5.1's
+    ``OmniSensorGenericLidarCoreAPI`` schema -- after the bundled
+    profile JSON loads through ``LidarRtx(config_file_name=...)``,
+    :func:`marslab.sensors.sensor_spawner._apply_lidar_runtime_overrides`
+    writes the YAML values directly onto the OmniLidar prim's USD
+    attributes (``omni:sensor:Core:nearRangeM`` / ``farRangeM`` /
+    ``scanRateBaseHz`` / ``validStartAzimuthDeg`` /
+    ``validEndAzimuthDeg`` / ``emitterState:s001:elevationDeg``).
+    The two resolution fields (``horizontal_resolution_deg``,
+    ``vertical_resolution_deg``) remain documentation-only because the
+    underlying schema derives them from ``reportRateBaseHz`` and the
+    emitter table layout; per-emitter regeneration from a single
+    angular-spacing scalar is left as a v1.5+ follow-up.
 
-    To actually change LiDAR behaviour at runtime, swap ``profile_name``
-    to a different bundled profile (e.g. ``Example_Rotary`` ->
-    ``Velodyne_VLS128`` for higher channel count) or supply a fully
-    authored custom JSON via ``profile_json_path`` (escape hatch).
-    Truly fine-grained YAML control of the per-emitter tables would
-    require USD asset injection plus a monkey-patch on
-    ``SUPPORTED_LIDAR_CONFIGS`` and is a future-version follow-up.
+    Centering policy is fixed: ``horizontal_fov_deg`` < 360 yields a
+    front-centered partial sweep (azimuth ``[360 - fov/2, fov/2]``);
+    ``vertical_fov_deg`` linearly remaps the existing emitter
+    elevation array around its current centre, so a 16-beam Velodyne
+    bundled profile keeps its 16 channels but compresses or expands
+    the vertical span uniformly.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -785,18 +788,19 @@ class _LidarBaseConfig(BaseModel):
         gt=0.0,
         description=(
             "Minimum reportable range in meters (returns < this are dropped). "
-            "**Descriptive only** in v1.0 (see class docstring): documents the "
-            "bundled profile's ``profile.nearRangeM`` but does NOT override "
-            "it at runtime."
+            "**Runtime-applied** via OmniSensorGenericLidarCoreAPI schema: "
+            "written to ``omni:sensor:Core:nearRangeM`` on the OmniLidar prim "
+            "after the bundled profile loads.  Must satisfy "
+            "``range_min < range_max``."
         ),
     )
     range_max: float = Field(
         ...,
         gt=0.0,
         description=(
-            "Maximum reportable range in meters.  **Descriptive only** in v1.0 "
-            "(see class docstring): documents ``profile.farRangeM``, no runtime "
-            "override."
+            "Maximum reportable range in meters.  **Runtime-applied** via "
+            "OmniSensorGenericLidarCoreAPI schema: written to "
+            "``omni:sensor:Core:farRangeM`` on the OmniLidar prim."
         ),
     )
     horizontal_fov_deg: float = Field(
@@ -805,12 +809,11 @@ class _LidarBaseConfig(BaseModel):
         le=360.0,
         description=(
             "Horizontal field of view in degrees.  360 = full rotary scan; "
-            "values < 360 model a forward-facing fan.  **Descriptive only** — "
-            "this YAML field documents the bundled profile's coverage but is "
-            "NOT injected into Isaac Sim at runtime.  The bundled JSON "
-            "encodes per-emitter azimuth tables that cannot be regenerated "
-            "from this scalar; to actually change horizontal FOV swap to a "
-            "different ``profile_name`` or supply a custom ``profile_json_path``."
+            "values < 360 yield a front-centered partial sweep (azimuth "
+            "``[360 - fov/2, fov/2]``).  **Runtime-applied** via "
+            "OmniSensorGenericLidarCoreAPI schema: written to "
+            "``omni:sensor:Core:validStartAzimuthDeg`` and "
+            "``validEndAzimuthDeg`` on the OmniLidar prim."
         ),
     )
     horizontal_resolution_deg: float = Field(
@@ -818,21 +821,20 @@ class _LidarBaseConfig(BaseModel):
         gt=0.0,
         description=(
             "Angular spacing between horizontal samples in degrees.  "
-            "**Descriptive only** — see ``horizontal_fov_deg`` note above; "
-            "auto-generation of per-emitter tables is v1.5 follow-up."
+            "**Descriptive only** — Isaac Sim derives the actual sample "
+            "spacing from ``reportRateBaseHz`` and the bundled profile's "
+            "per-emitter tables; per-emitter regeneration from this "
+            "scalar is a v1.5+ follow-up."
         ),
     )
     rotation_rate_hz: float = Field(
         ...,
         gt=0.0,
         description=(
-            "Sensor rotation rate in Hz (also referred to as ``scanRateBaseHz`` "
-            "in Isaac Sim's bundled JSON profiles).  Documents the bundled "
-            "profile's scan rate but is **descriptive only** in v1.0 (see "
-            "class docstring): ``LidarRtx.config_file_name`` consumes only "
-            "profile names, so this scalar is not injected into Isaac Sim "
-            "at runtime.  To actually change the rotation rate, swap to a "
-            "different ``profile_name`` or supply a custom ``profile_json_path``."
+            "Sensor rotation rate in Hz.  **Runtime-applied** via "
+            "OmniSensorGenericLidarCoreAPI schema: cast to ``uint`` and "
+            "written to ``omni:sensor:Core:scanRateBaseHz`` on the "
+            "OmniLidar prim."
         ),
     )
     profile_name: Optional[str] = Field(
@@ -917,8 +919,8 @@ class Lidar3DConfig(_LidarBaseConfig):
     vertical FOV, 1.875 deg vertical step) so migrating from name-only
     to fully-declared YAML is behaviour-preserving.
 
-    See :class:`_LidarBaseConfig` for the descriptive-only nature of
-    every numeric field on this model.
+    See :class:`_LidarBaseConfig` for the runtime-application policy
+    of every numeric field on this model.
     """
 
     vertical_fov_deg: float = Field(
@@ -926,10 +928,12 @@ class Lidar3DConfig(_LidarBaseConfig):
         gt=0.0,
         le=180.0,
         description=(
-            "Vertical field of view in degrees.  **Descriptive only** — "
-            "the bundled JSON encodes per-emitter elevation tables; to "
-            "actually change vertical FOV swap to a different "
-            "``profile_name`` or supply a custom ``profile_json_path``."
+            "Vertical field of view in degrees.  **Runtime-applied** via "
+            "OmniSensorGenericLidarCoreAPI schema: linearly remaps the "
+            "existing ``omni:sensor:Core:emitterState:s001:elevationDeg`` "
+            "array around its current centre so the bundled profile's "
+            "channel count is preserved while the vertical span "
+            "expands or compresses to match this value."
         ),
     )
     vertical_resolution_deg: float = Field(
@@ -937,7 +941,10 @@ class Lidar3DConfig(_LidarBaseConfig):
         gt=0.0,
         description=(
             "Angular spacing between vertical beams in degrees.  "
-            "**Descriptive only** — see ``vertical_fov_deg`` note above."
+            "**Descriptive only** — derived implicitly from "
+            "``vertical_fov_deg`` and the bundled profile's emitter "
+            "count; explicit per-emitter regeneration is a v1.5+ "
+            "follow-up."
         ),
     )
 

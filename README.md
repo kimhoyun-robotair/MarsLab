@@ -63,6 +63,17 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
     --ros-args -r __ns:=/rover
 ```
 
+**Required** companion (a third terminal): `robot_state_publisher` reads
+the latched `/rover/robot_description` URDF + the OmniGraph-published
+`/rover/joint_states` and emits the full articulation TF chain on `/tf`.
+Without it, `/joint_states` is the only TF-related topic alive and
+RViz `RobotModel`, SLAM, and Nav2 all fail to resolve `Body_Wheel*` /
+sensor frames.
+
+```bash
+ros2 launch ~/MarsLab/launch/rover_state_publisher.launch.py
+```
+
 Watch it in RViz:
 
 ```bash
@@ -408,6 +419,79 @@ For Nav2 smoke testing, set goals interactively in RViz with the
 **"2D Goal Pose"** tool. (We deliberately do not ship a waypoint-runner
 script — RViz is the canonical Nav2 driver and reproducibility comes
 from logging `/tf` + `/rosout`, not from re-running a Python script.)
+
+### 7c. 3D LiDAR odometry (kinematic-icp / RTAB-Map)
+
+3D LiDAR-based odometry has been validated against two open-source
+stacks.  Each stack interprets the relationship between PointCloud
+data axis and `frame_id` differently, so
+`configs/robots/rover_m2020.yaml`'s
+`sensors.lidar_3d.local_orientation_rpy_deg` must be flipped per
+stack.  The other LiDAR runtime parameters (`range_min` / `range_max`
+/ `horizontal_fov_deg` / `vertical_fov_deg` / `rotation_rate_hz`) are
+applied through the OmniSensorGenericLidarCoreAPI override path and
+work the same way in both stacks.
+
+**Common prerequisite**: Stage-3 + the
+`robot_state_publisher` launch file from
+[Section 1](#1-quick-start-60-seconds) must already be running.
+
+#### kinematic-icp (KISS-ICP)
+
+YAML:
+
+```yaml
+sensors:
+  lidar_3d:
+    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+```
+
+Launch:
+
+```bash
+ros2 launch kinematic_icp online_node.launch.py \
+    lidar_topic:=/rover/lidar/points \
+    base_frame:=base_link \
+    use_sim_time:=True \
+    use_2d_lidar:=false \
+    tf_timeout:=0.5 \
+    visualize:=true
+```
+
+Param breakdown: `lidar_topic` is the Stage-3 PointCloud2;
+`base_frame` is the X-roll wrapper frame from
+`rover_state_publisher.launch.py`; `use_sim_time` aligns kinematic-icp
+to Isaac Sim's `/clock`; `use_2d_lidar:=false` selects the 3-D
+PointCloud path; `tf_timeout` is the TF lookup grace; `visualize`
+launches kinematic-icp's own RViz config.
+
+Why identity rpy: kinematic-icp assumes the PointCloud raw data axis
+matches the ROS axis of `frame_id=lidar_link`.  Isaac Sim's RTX LiDAR
+publishes data in the USD prim's local frame, and our spawner leaves
+the LiDAR prim orient at identity, so the broadcast must also be
+identity for the two axes to coincide.
+
+#### RTAB-Map (3D LiDAR mode)
+
+YAML:
+
+```yaml
+sensors:
+  lidar_3d:
+    local_orientation_rpy_deg: [180.0, 0.0, 0.0]
+```
+
+RTAB-Map's 3-D LiDAR mode lifts the PointCloud through
+`lidar_link → base_link → odom → map` and accumulates in the map
+frame.  Empirically the X-rolled `lidar_link` broadcast cancels with
+the rest of the chain to produce a consistent map; identity rpy
+(the kinematic-icp setting) leaves the map skewed.
+
+The exact reason the two stacks demand different `lidar_link` axes
+remains open and is tracked in `work_log/Version1.5.md` (alongside
+the proper fix: extending `marslab/sensors/sensor_spawner.py` to
+apply `AddOrientOp` on the LiDAR prim itself, mirroring the camera /
+IMU spawn pattern, so the same yaml setting works for both stacks).
 
 ---
 
