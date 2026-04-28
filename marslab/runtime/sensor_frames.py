@@ -101,14 +101,28 @@ def build_sensor_frames(
 
 def sensor_frames_to_tuples(
     frames: Sequence[Dict[str, Any]],
-) -> List[Tuple[str, List[float]]]:
+) -> List[Tuple[str, List[float], List[float]]]:
     """Adapt :func:`build_sensor_frames` output to the broadcaster API.
 
     :func:`marslab.ros2_bridge.tf_broadcaster.publish_static_sensor_tfs`
-    consumes ``(child_frame, xyz)`` tuples; this helper performs the
-    one-line conversion so callers do not duplicate the loop.
+    consumes ``(child_frame, xyz, rpy_deg)`` tuples (T3+ shape) so the
+    ROS broadcast quaternion matches the USD prim orient set by
+    ``marslab.sensors.sensor_spawner`` (camera/IMU YAML
+    ``local_orientation_rpy_deg = [180, 0, 0]``).  The 3-tuple shape
+    is required for the camera_link -> camera_optical_frame chain to
+    land RGB-D PointCloud2 in the correct REP-103 axis -- a 2-tuple
+    (identity rotation) leaves camera_link inheriting the
+    Body_Chassis graphics-style axis and the depth_pcl frame ends up
+    pointing at the sky in RViz.
     """
-    return [(str(frame["child_frame"]), list(frame["local_translation"])) for frame in frames]
+    return [
+        (
+            str(frame["child_frame"]),
+            list(frame["local_translation"]),
+            list(frame.get("local_orientation_rpy_deg", [0.0, 0.0, 0.0])),
+        )
+        for frame in frames
+    ]
 
 
 __all__ = ["build_sensor_frames", "sensor_frames_to_tuples"]

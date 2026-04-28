@@ -110,6 +110,68 @@ class TestQuatNormalization:
         assert msg.transform.translation.z == pytest.approx(3.0)
 
 
+class TestSensorRpyApplied:
+    """T3+ 3-tuple form applies the YAML ``local_orientation_rpy_deg``.
+
+    The camera/IMU YAML pins ``local_orientation_rpy_deg = [180, 0, 0]``
+    so the USD prim orient is X-rolled (REP-103 alignment); the same
+    rotation must reach the ROS broadcast quaternion or the
+    camera_link -> camera_optical_frame chain swings the depth_pcl
+    PointCloud2 to point at the sky in RViz (NVIDIA Forum: "Incorrect
+    orientation of data from depth_pcl", "Adjust camera orientation in
+    Isaac Sim for correct view of pointcloud in rviz").
+    """
+
+    def test_x_roll_180_yields_x_axis_quat(self, fake_ros2_tf_modules: None) -> None:
+        """yaml [180, 0, 0] -> quat (w=0, x=1, y=0, z=0) (180-deg X rotation)."""
+        from marslab.ros2_bridge.tf_broadcaster import build_static_sensor_transforms
+
+        (msg,) = build_static_sensor_transforms(
+            [("camera_link", [0.0, 0.0, 0.0], [180.0, 0.0, 0.0])]
+        )
+        q = msg.transform.rotation
+        # Pure X-axis quat: (w, x, y, z) = (0, 1, 0, 0).  cos(pi/2)=0,
+        # sin(pi/2)=1 in rpy_to_quat ZYX convention.
+        assert q.w == pytest.approx(0.0, abs=1e-9)
+        assert q.x == pytest.approx(1.0, abs=1e-9)
+        assert q.y == pytest.approx(0.0, abs=1e-9)
+        assert q.z == pytest.approx(0.0, abs=1e-9)
+
+    def test_zero_rpy_yields_identity_quat(self, fake_ros2_tf_modules: None) -> None:
+        """yaml [0, 0, 0] (lidar/scan default) preserves identity broadcast."""
+        from marslab.ros2_bridge.tf_broadcaster import build_static_sensor_transforms
+
+        (msg,) = build_static_sensor_transforms([("lidar_link", [1.7, 0.0, -2.4], [0.0, 0.0, 0.0])])
+        q = msg.transform.rotation
+        assert (q.w, q.x, q.y, q.z) == pytest.approx((1.0, 0.0, 0.0, 0.0), abs=1e-9)
+
+    def test_2tuple_legacy_form_preserves_identity(self, fake_ros2_tf_modules: None) -> None:
+        """Backwards-compat: 2-tuple call sites continue to broadcast identity."""
+        from marslab.ros2_bridge.tf_broadcaster import build_static_sensor_transforms
+
+        (msg,) = build_static_sensor_transforms([("imu_link", [0.0, 0.0, 0.0])])
+        q = msg.transform.rotation
+        assert (q.w, q.x, q.y, q.z) == pytest.approx((1.0, 0.0, 0.0, 0.0), abs=1e-9)
+
+    def test_quat_is_unit_norm_for_arbitrary_rpy(self, fake_ros2_tf_modules: None) -> None:
+        """rpy_to_quat output must be unit-norm for any input."""
+        from marslab.ros2_bridge.tf_broadcaster import build_static_sensor_transforms
+
+        (msg,) = build_static_sensor_transforms(
+            [("camera_link", [0.0, 0.0, 0.0], [37.0, 12.0, -88.0])]
+        )
+        q = msg.transform.rotation
+        norm_sq = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z
+        assert norm_sq == pytest.approx(1.0, abs=1e-9)
+
+    def test_rejects_wrong_rpy_length(self, fake_ros2_tf_modules: None) -> None:
+        """3-tuple shape with a 2-element rpy must raise."""
+        from marslab.ros2_bridge.tf_broadcaster import build_static_sensor_transforms
+
+        with pytest.raises(ValueError):
+            build_static_sensor_transforms([("camera_link", [0.0, 0.0, 0.0], [180.0, 0.0])])
+
+
 class TestSeedDeterminism:
     """Calling the builder repeatedly with the same input list must yield
     bitwise-identical output -- no implicit randomness anywhere."""

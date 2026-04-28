@@ -101,12 +101,35 @@ def test_build_sensor_frames_skips_block_without_translation() -> None:
 
 
 def test_sensor_frames_to_tuples_round_trip() -> None:
-    """The adapter outputs ``(child_frame, xyz)`` tuples ready for tf2_ros."""
+    """T3+: adapter outputs ``(child_frame, xyz, rpy_deg)`` tuples.
+
+    ``tf_broadcaster.build_static_sensor_transforms`` consumes the
+    3-tuple shape so the YAML ``local_orientation_rpy_deg`` reaches
+    the broadcast quaternion -- a 2-tuple (identity rotation) leaves
+    camera_link inheriting the Body_Chassis graphics-style axis and
+    the depth_pcl PointCloud2 surfaces in RViz pointing at the sky
+    (NVIDIA Forum: "Incorrect orientation of data from depth_pcl").
+    """
     frames = build_sensor_frames({}, _full_sensors_cfg())
     tuples = sensor_frames_to_tuples(frames)
     assert tuples == [
-        ("camera_link", [0.30, 0.10, -0.40]),
-        ("lidar_link", [0.20, 0.00, -0.55]),
-        ("scan_frame", [0.50, 0.00, -0.30]),
-        ("imu_link", [0.00, 0.00, -0.10]),
+        ("camera_link", [0.30, 0.10, -0.40], [0.0, 15.0, 0.0]),
+        ("lidar_link", [0.20, 0.00, -0.55], [0.0, 0.0, 0.0]),
+        ("scan_frame", [0.50, 0.00, -0.30], [0.0, 0.0, 90.0]),
+        ("imu_link", [0.00, 0.00, -0.10], [0.0, 0.0, 0.0]),
     ]
+
+
+def test_sensor_frames_to_tuples_default_rpy_when_missing() -> None:
+    """Adapter falls back to [0,0,0] when local_orientation_rpy_deg absent.
+
+    ``build_sensor_frames`` already injects [0,0,0] into the dict when
+    the YAML key omits the field, but the adapter's ``.get`` default
+    is the canonical safety net for hand-built dicts feeding the
+    static broadcaster directly.
+    """
+    frames = [
+        {"child_frame": "camera_link", "local_translation": [1.0, 2.0, 3.0]},
+    ]
+    tuples = sensor_frames_to_tuples(frames)
+    assert tuples == [("camera_link", [1.0, 2.0, 3.0], [0.0, 0.0, 0.0])]
