@@ -180,22 +180,91 @@ Default rover namespace is `/rover/` (override via
 | `/rover/lidar/points`          | `sensor_msgs/PointCloud2`     | BEST_EFFORT/depth=5          | `Ros2BridgeConfig.sensor_qos`      |
 | `/rover/scan`                  | `sensor_msgs/LaserScan`       | BEST_EFFORT/depth=5          | `Ros2BridgeConfig.sensor_qos`      |
 | `/clock`                       | `rosgraph_msgs/Clock`         | (Isaac Sim default)          | OmniGraph node                     |
+| `/rover/joint_states`          | `sensor_msgs/JointState`      | RELIABLE + TRANSIENT_LOCAL/100 | `Ros2BridgeConfig.tf_qos`        |
 | `/tf`                          | `tf2_msgs/TFMessage`          | RELIABLE + TRANSIENT_LOCAL/100 | `Ros2BridgeConfig.tf_qos`        |
 | `/tf_static`                   | `tf2_msgs/TFMessage`          | RELIABLE + TRANSIENT_LOCAL/100 | `Ros2BridgeConfig.tf_qos`        |
 
 `/rover/depth/points` carries `frame_id: camera_optical_frame` (REP-103
 optical convention). `/rover/lidar/points` and `/rover/scan` use
-`camera_link`-style sensor frames published on `/tf_static` at boot.
+`<sensor_parent_frame_id>`-style sensor frames published on
+`/tf_static` at boot.
 
-`/tf` has **two authorities** by REP-105 design:
+### TF authority
 
-* The Isaac Sim OmniGraph publishes the articulation chain
-  (`base_link → wheels`, `base_link → camera_link`, etc.).
-* `marslab.ros2_bridge.odometry_publisher` publishes `odom → base_link`
-  every physics step.
+MarsLab uses the **ROS-standard `robot_state_publisher` pattern**
+(default since C2):
 
-This is canonical multi-publisher TF — all of RViz, Nav2, and
-`slam_toolbox` subscribe to `/tf` and merge the trees automatically.
+* **Isaac Sim** publishes `sensor_msgs/JointState` on `/rover/joint_states`
+  every tick.
+* **ROS** runs `robot_state_publisher` consuming `/joint_states` + the
+  latched `/rover/robot_description` (URDF) and emits the full link
+  tree TF (`Body_Chassis → Body_Wheel*`, etc.) on `/tf`.
+* **rclpy** publishes static sensor offsets on `/tf_static` and -- when
+  `publish_odom_tf=True` -- `odom → Body_Chassis` on `/tf`.
+
+Single TF authority -- no `topic_tools relay` required.  Launch the
+companion `robot_state_publisher` with the bundled launch file:
+
+```bash
+ros2 launch ~/MarsLab/launch/rover_state_publisher.launch.py
+```
+
+The launch file reads
+`assets/m2020-urdf-models/rover/m2020.urdf`, rewrites the relative
+mesh paths to absolute `file://` URIs, and feeds the URDF as the
+`robot_description` **parameter** on the `robot_state_publisher`
+node (NOT a topic remap -- `robot_description` is a ROS parameter,
+even though late-joining tools like RViz also accept the URDF on a
+latched topic of the same name).  Override the URDF path or the
+namespace via launch args:
+
+```bash
+ros2 launch ~/MarsLab/launch/rover_state_publisher.launch.py \
+    urdf_path:=/path/to/m2020.urdf namespace:=rover2
+```
+
+SLAM/Nav2 launch parameters accept any `base_frame` -- pin to
+`base_link` (REP-103) or to the URDF root link name (`Body_Chassis`)
+depending on the upstream stack.
+
+**`odom -> base_link` authority** (Phase 2, 2026-04-29 default):
+`marslab.ros2_bridge.odometry_publisher` broadcasts the rover's
+PhysX-derived ground-truth pose on `/tf` so external visual SLAM
+(RTAB-Map `rgbd_odometry`, ORB-SLAM3, ...) is no longer required for
+the odom transform.  `init_quat_world` is pinned to identity in
+`scripts/phase1/main.py` so the published `odom` frame equals the
+world REP-103 frame.  Set `ros2.publish_odom_tf: false` in the
+rover YAML to delegate the transform back to a visual SLAM stack;
+never run both -- two publishers on the same transform produce
+jitter that breaks downstream consumers.
+
+### RViz Fixed Frame guidance
+
+Pick the Fixed Frame based on what you are debugging:
+
+| Fixed Frame | Use case | Rover orientation |
+|---|---|---|
+| `odom` (default) | `marslab.ros2_bridge.odometry_publisher` ground-truth, Nav2 local planning | Correct (chassis up, wheels down) |
+| `map` | RTAB-Map / slam_toolbox global localisation | Correct |
+| `base_link` | Frame chain debugging (sensor mounts, wrapper transform) | Inverted (graphics-style URDF link frame) |
+| `Body_Chassis` | Raw URDF link inspection | Inverted |
+
+The JPL m2020 URDF authors link frames in a graphics-style (Z-down)
+convention inherited from the JPL RSVP visualisation tool, not REP-103.
+The Stage-3 spawn applies a 180-deg X-roll on the rover prim
+(`spawn_orientation_rpy = [pi, 0, 0]` in
+`configs/robots/rover_m2020.yaml`) so the rover renders correctly
+inside Isaac Sim.  The same X-roll surfaces on `odom -> base_link`
+when `publish_odom_tf: true`, and the URDF chain inside
+`Body_Chassis` cancels it back out under the `odom` and `map`
+frames -- which is why those Fixed Frames render correctly while
+`base_link` and `Body_Chassis` themselves do not.  See
+`docs/frame_conventions.md` for the full derivation.
+
+The legacy `PubTF`-on-`/tf_raw` + `topic_tools relay /tf_raw /tf`
+workflow is reachable via `ros2.publish_joint_states: false` +
+`enable_isaac_nameoverride: true` for v0.7 scenarios that depend on
+it.
 
 ### QoS preset reasoning
 

@@ -240,6 +240,7 @@ def publish_robot_description(
     *,
     topic: str = "/robot_description",
     qos: Optional[Any] = None,
+    rename_root_to_base_link: bool = True,
 ) -> RobotDescriptionContext:
     """Read the URDF, rewrite mesh paths, publish once on a latched topic.
 
@@ -255,6 +256,13 @@ def publish_robot_description(
             function builds the canonical RViz profile
             (``RELIABLE`` + ``TRANSIENT_LOCAL`` + ``KEEP_LAST(1)``) so a
             late-joining RViz subscriber still latches the URDF.
+        rename_root_to_base_link: When ``True`` (default for backwards
+            compatibility with the OmniGraph PubTF + nameOverride
+            workflow) the URDF root link ``Body_Chassis`` is rewritten
+            to ``base_link``.  Pass ``False`` to keep the URDF link
+            names verbatim so the published URDF matches the OmniGraph
+            ``ROS2PublishJointState`` joint owners (single source of
+            truth for ``robot_state_publisher`` consumption).
 
     Returns:
         :class:`RobotDescriptionContext` so the caller can keep the
@@ -281,14 +289,15 @@ def publish_robot_description(
         raw_urdf = fh.read()
 
     urdf_dir = os.path.dirname(abs_urdf_path)
-    # Rename the URDF root link to ``base_link`` FIRST so the URDF
-    # matches the OmniGraph-published frame_id (the rover articulation
-    # root carries ``isaac:nameOverride="base_link"``).  Without this,
-    # RViz ``RobotModel`` reports "no transform from [Body_Chassis] to
-    # [odom]" and renders nothing.  The two passes are commutative on
-    # the m2020 URDF (mesh filenames never contain ``Body_Chassis``);
-    # ordering chosen for debuggability.
-    urdf_text = rewrite_urdf_root_to_base_link(raw_urdf)
+    # Optional rewrite of the URDF root link from ``Body_Chassis`` to
+    # ``base_link``.  Required for the legacy OmniGraph PubTF +
+    # ``isaac:nameOverride='base_link'`` workflow because the
+    # OmniGraph-published frame_id had to agree with the URDF root.
+    # The robot_state_publisher workflow does not require renaming --
+    # SLAM/Nav2 ``base_frame`` accepts any frame name via launch param
+    # -- so callers passing ``rename_root_to_base_link=False`` get the
+    # URDF verbatim, which is the single-source-of-truth path.
+    urdf_text = rewrite_urdf_root_to_base_link(raw_urdf) if rename_root_to_base_link else raw_urdf
     urdf_text = rewrite_mesh_paths_to_file_uri(urdf_text, urdf_dir)
 
     resolved_qos = qos if qos is not None else _build_default_qos()

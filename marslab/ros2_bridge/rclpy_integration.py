@@ -115,9 +115,17 @@ def init_rclpy_side(
         qos=qos_bundle["cmd_vel"],
     )
 
+    # ``sensor_parent_frame_id`` is a schema field
+    # (``Ros2BridgeConfig.sensor_parent_frame_id``); C1 default is
+    # ``"base_link"`` for backwards compatibility with the legacy
+    # nameOverride-paired chain.  Override via the rover YAML when the
+    # downstream consumer expects a different parent (e.g.
+    # ``Body_Chassis`` after C3 disables the URDF rewrite).
+    sensor_parent_frame_id = str(validated_bridge.sensor_parent_frame_id)
     static_broadcaster = publish_static_sensor_tfs(
         node,
         sensor_frames,
+        parent_frame_id=sensor_parent_frame_id,
         qos=qos_bundle["tf"],
     )
 
@@ -136,7 +144,18 @@ def init_rclpy_side(
                 "refuses to fall back to a Python default."
             )
         rd_topic = _ns_topic(ns, topics["robot_description"])
-        robot_description_ctx = publish_robot_description(node, urdf_path, topic=rd_topic)
+        # ``rename_root_to_base_link`` is a schema field
+        # (``Ros2BridgeConfig.rename_root_to_base_link``); C1 default
+        # ``True`` preserves the legacy nameOverride-paired rewrite.
+        # C3 flips the default to ``False`` so the URDF link names
+        # match the OG-published joint owners verbatim.
+        rename_root = bool(validated_bridge.rename_root_to_base_link)
+        robot_description_ctx = publish_robot_description(
+            node,
+            urdf_path,
+            topic=rd_topic,
+            rename_root_to_base_link=rename_root,
+        )
 
     odom_topic = _ns_topic(ns, topics["odom"])
     # Pull frame_id / child_frame_id / queue_size from YAML when the

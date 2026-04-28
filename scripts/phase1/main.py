@@ -178,13 +178,20 @@ def main() -> int:
     rigid_body_path = spawned.rigid_body_path
     print(f"[main] Rover prim: {prim_path}, rigid body: {rigid_body_path}", flush=True)
 
-    # Post-spawn: apply nameOverrides + create the odom anchor prim.  These
-    # were previously folded into ``spawn_rover`` but the contract has moved
-    # to "caller is responsible" so the rover module stays free of TF
-    # frame-naming details.  The sensor graph below references the odom
-    # anchor, so these calls must happen before ``build_sensor_graph``.
-    apply_nameoverride(stage, rigid_body_path, "base_link")
-    create_odom_anchor(stage, DEFAULT_ODOM_ANCHOR_PATH, spawn_xyz, frame_name="odom")
+    # Post-spawn: optional ``isaac:nameOverride`` apply + ``odom`` anchor
+    # creation.  These are gated by the schema flag
+    # ``Ros2BridgeConfig.enable_isaac_nameoverride`` (C3 default
+    # ``False``) because the C2+ ``robot_state_publisher`` workflow
+    # reads frame names directly from the URDF link declarations and
+    # never consults ``isaac:nameOverride``.  Set the flag ``True``
+    # only when running the legacy ``PubTF``-on-``/tf_raw`` workflow
+    # (``publish_joint_states=False``); the sensor graph in that mode
+    # references the odom anchor, so these calls must happen before
+    # ``build_sensor_graph``.
+    ros2_cfg_for_flags = rover_cfg.get("ros2", {}) if isinstance(rover_cfg, dict) else {}
+    if bool(ros2_cfg_for_flags.get("enable_isaac_nameoverride", False)):
+        apply_nameoverride(stage, rigid_body_path, "base_link")
+        create_odom_anchor(stage, DEFAULT_ODOM_ANCHOR_PATH, spawn_xyz, frame_name="odom")
 
     # --- Optional scene structures ------------------------------------------
     scene_cfg = cfg.get("scene") or {}
@@ -321,14 +328,32 @@ def main() -> int:
             _LOG.error("[main] GUI panel unavailable (%s).", exc)
 
     # --- Capture initial pose for manual odometry ----------------------------
+    # ``init_pos_world`` is the rover's PhysX-reported spawn position
+    # in the world frame -- used as the origin of the published
+    # ``odom`` frame so ``odom -> base_link`` translation starts at
+    # zero.
+    #
+    # ``init_quat_world`` is intentionally pinned to identity (1,0,0,0)
+    # rather than the PhysX-reported spawn quaternion.  The
+    # ``spawn_orientation_rpy = [pi, 0, 0]`` X-roll in the rover YAML
+    # makes the articulation root (``Body_Chassis``) USD prim X-rolled
+    # in world to compensate for the JPL m2020 URDF's graphics-style
+    # link-frame author convention (Z-down).  Feeding that X-rolled
+    # spawn quat to ``compute_odom_delta`` would make the published
+    # ``odom`` frame itself X-rolled (Z-down), violating REP-103.
+    # Identity ``init_quat_world`` keeps ``odom`` aligned with the
+    # world Z-up frame; the X-roll then naturally appears on
+    # ``odom -> Body_Chassis`` and is cancelled by the static
+    # ``base_link -> Body_Chassis`` X-roll wrapper published from
+    # ``launch/rover_state_publisher.launch.py``, leaving
+    # ``odom -> base_link`` as a pure REP-103 (yaw-only) transform.
     init_poses = articulation.get_world_poses()
     if init_poses is not None:
-        _ip, _iq = init_poses
+        _ip, _ = init_poses
         odom_init_pos = (_ip[0] if _ip.ndim == 2 else _ip).copy()
-        odom_init_quat = (_iq[0] if _iq.ndim == 2 else _iq).copy()
     else:
         odom_init_pos = np.zeros(3, dtype=np.float32)
-        odom_init_quat = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    odom_init_quat = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
 
     # --- rclpy bridge (cmd_vel + static TF + manual odom) --------------------
     bridge = None

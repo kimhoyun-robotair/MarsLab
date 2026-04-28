@@ -50,6 +50,7 @@ def _build_create_nodes(
     include_lidar_2d: bool = False,
     include_pointcloud2: bool = False,
     include_camera_info: bool = False,
+    publish_joint_states: bool = True,
 ) -> List[Tuple[str, str]]:
     """List of ``(node_name, node_type)`` tuples for the Stage-3 graph.
 
@@ -78,18 +79,40 @@ def _build_create_nodes(
             the projection matrices from the USD ``Camera`` prim's focal
             length / aperture / clipping range, so YAML never duplicates
             them.
+        publish_joint_states: When True (default for C2+), wire
+            ``isaacsim.ros2.bridge.ROS2PublishJointState`` (``PubJointState``)
+            so the rover articulation publishes
+            ``sensor_msgs/JointState`` on ``<ns>/joint_states``.  A
+            ROS-side ``robot_state_publisher`` consuming this topic and
+            the latched ``/robot_description`` produces the full link
+            tree TF on the canonical ``/tf`` topic, replacing the
+            ``ROS2PublishTransformTree`` (``PubTF``) +
+            ``topic_tools relay`` workflow.  Set False to restore the
+            legacy ``PubTF``-on-``/tf_raw`` wiring (e.g. for a v0.7
+            scenario that still expects ``/tf_raw``).  The two nodes
+            are mutually exclusive -- running both would yield two
+            authorities for the same kinematic chain.  Citations:
+            ``OgnROS2PublishJointState.rst:43`` (targetPrim relationship),
+            ``isaacsim/.../tests/test_joint_state.py:61-72`` (canonical
+            OnTick / ReadSimTime / articulation_root wiring).
     """
     nodes: List[Tuple[str, str]] = [
         ("OnTick", "omni.graph.action.OnPlaybackTick"),
         ("ReadSimTime", "isaacsim.core.nodes.IsaacReadSimulationTime"),
         ("PubClock", "isaacsim.ros2.bridge.ROS2PublishClock"),
-        # The *non-Raw* publisher auto-enumerates the rover articulation
-        # chain when the articulation root prim is wired via
-        # ``inputs:targetPrims``.  The Raw variant only emits a single
-        # user-supplied transform per tick (its design, not a misuse).
+    ]
+    if publish_joint_states:
+        # ROS-standard pattern: Isaac Sim publishes joint state, ROS
+        # ``robot_state_publisher`` reads URDF + joint_state and emits
+        # the full /tf tree.  Single TF authority -- no relay required.
+        nodes.append(("PubJointState", "isaacsim.ros2.bridge.ROS2PublishJointState"))
+    else:
+        # Legacy PubTF wiring kept available for backwards compatibility.
+        # Auto-enumerates articulation chain via ``inputs:targetPrims``.
         # Citations: ``OgnROS2PublishTransformTree.rst:21,45``; canonical
         # wiring at ``isaacsim/.../tests/test_pose_tree.py:72``.
-        ("PubTF", "isaacsim.ros2.bridge.ROS2PublishTransformTree"),
+        nodes.append(("PubTF", "isaacsim.ros2.bridge.ROS2PublishTransformTree"))
+    nodes += [
         ("ReadIMU", "isaacsim.sensors.physics.IsaacReadIMU"),
         ("PubIMU", "isaacsim.ros2.bridge.ROS2PublishImu"),
         # Single shared camera render product: RGB, Depth, PointCloud2,
@@ -125,6 +148,7 @@ def _build_connections(
     include_lidar_2d: bool = False,
     include_pointcloud2: bool = False,
     include_camera_info: bool = False,
+    publish_joint_states: bool = True,
 ) -> List[Tuple[str, str]]:
     """List of ``(src_attr, dst_attr)`` pairs describing graph edges.
 
@@ -144,12 +168,24 @@ def _build_connections(
         include_camera_info: Append the ``CamInfo`` edges so the
             CameraInfo helper triggers off ``OnTick`` and shares the
             same ``RPCamera`` (RGB) render product.
+        publish_joint_states: Mirrors the same flag on
+            :func:`_build_create_nodes`.  When True, wire
+            ``PubJointState.inputs:execIn`` from ``OnTick`` and
+            ``PubJointState.inputs:timeStamp`` from ``ReadSimTime``
+            (canonical pattern from
+            ``isaacsim/.../tests/test_joint_state.py:71-72``).  When
+            False, restore the legacy ``PubTF`` edges.
     """
     edges: List[Tuple[str, str]] = [
         ("OnTick.outputs:tick", "PubClock.inputs:execIn"),
         ("ReadSimTime.outputs:simulationTime", "PubClock.inputs:timeStamp"),
-        ("OnTick.outputs:tick", "PubTF.inputs:execIn"),
-        ("ReadSimTime.outputs:simulationTime", "PubTF.inputs:timeStamp"),
+    ]
+    pub_node = "PubJointState" if publish_joint_states else "PubTF"
+    edges += [
+        ("OnTick.outputs:tick", f"{pub_node}.inputs:execIn"),
+        ("ReadSimTime.outputs:simulationTime", f"{pub_node}.inputs:timeStamp"),
+    ]
+    edges += [
         ("OnTick.outputs:tick", "ReadIMU.inputs:execIn"),
         ("ReadIMU.outputs:execOut", "PubIMU.inputs:execIn"),
         ("ReadIMU.outputs:angVel", "PubIMU.inputs:angularVelocity"),
@@ -211,6 +247,7 @@ def _build_set_values(
     tf_qos_preset: str = "SystemDefault",
     include_pointcloud2: bool = False,
     include_camera_info: bool = False,
+    publish_joint_states: bool = True,
 ) -> List[Tuple[str, Any]]:
     """List of ``(attr, value)`` pairs applied via SET_VALUES.
 
@@ -300,27 +337,47 @@ def _build_set_values(
 
     values: List[Tuple[str, Any]] = [
         ("PubClock.inputs:topicName", "/clock"),
-        # Articulation joint chain on a dedicated ``/tf_raw`` topic so it
-        # does not collide with the rclpy ``odom -> base_link``
-        # broadcaster on ``/tf``.  Sharing one topic was tried and
-        # produced duplicated/out-of-phase frames in RViz and Nav2.
-        # See ``_build_set_values`` docstring.
-        ("PubTF.inputs:topicName", "/tf_raw"),
-        ("PubTF.inputs:qosProfile", tf_qos_preset),
-        # ``targetPrims`` is a ``target`` list input
-        # (``OgnROS2PublishTransformTree.rst:45-46``).  Wrapping with
-        # ``usdrt.Sdf.Path`` matches the canonical sample at
-        # ``test_pose_tree.py:77-84``.  Passing the articulation root
-        # prim makes the node auto-enumerate the joint chain.
-        ("PubTF.inputs:targetPrims", [usdrt.Sdf.Path(articulation_root_prim_path)]),
-        # ``parentPrim`` is a single-prim ``target`` relationship
-        # (``OgnROS2PublishTransformTree.rst:41``).  Wiring it to a
-        # stationary ``odom`` anchor with
-        # ``isaac:nameOverride="odom"`` makes the published chain read
-        # ``odom -> base_link -> ...`` (REP-105 canonical) instead of
-        # the default ``world -> base_link -> ...``.  Override
-        # propagation pinned by ``test_pose_tree.py:154-156, :215-229``.
-        ("PubTF.inputs:parentPrim", [usdrt.Sdf.Path(parent_anchor_prim_path)]),
+    ]
+    if publish_joint_states:
+        # ``ROS2PublishJointState.inputs:targetPrim`` is a single-prim
+        # ``target`` relationship pointing at the articulation root --
+        # the node auto-enumerates the articulation joints, queries
+        # PhysX for position / velocity / effort each tick, and emits
+        # one ``sensor_msgs/JointState`` per tick.  Source:
+        # ``OgnROS2PublishJointState.rst:43`` (Target Prim, target rel)
+        # + canonical wiring at ``isaacsim/.../tests/test_joint_state.py:66``.
+        # Topic name comes from ``rover.ros2.topics.joint_states``
+        # (default ``joint_states``).  ROS-side ``robot_state_publisher``
+        # consumes this + the latched URDF and emits the full link-tree
+        # TF on the canonical ``/tf`` topic, replacing the legacy
+        # ``PubTF``-on-``/tf_raw`` + ``topic_tools relay`` workflow.
+        joint_state_topic = topics.get("joint_states", "joint_states")
+        values += [
+            ("PubJointState.inputs:topicName", _ns_topic(ns, joint_state_topic)),
+            ("PubJointState.inputs:qosProfile", tf_qos_preset),
+            ("PubJointState.inputs:targetPrim", [usdrt.Sdf.Path(articulation_root_prim_path)]),
+        ]
+    else:
+        # Legacy PubTF wiring (publishes the articulation chain on
+        # ``/tf_raw`` with ``odom -> base_link -> ...`` framing).  Kept
+        # available for backwards compatibility with v0.7 scenarios that
+        # rely on ``topic_tools relay /tf_raw /tf``.
+        values += [
+            ("PubTF.inputs:topicName", "/tf_raw"),
+            ("PubTF.inputs:qosProfile", tf_qos_preset),
+            # ``targetPrims`` is a ``target`` list input
+            # (``OgnROS2PublishTransformTree.rst:45-46``).  Wrapping with
+            # ``usdrt.Sdf.Path`` matches the canonical sample at
+            # ``test_pose_tree.py:77-84``.
+            ("PubTF.inputs:targetPrims", [usdrt.Sdf.Path(articulation_root_prim_path)]),
+            # ``parentPrim`` is a single-prim ``target`` relationship
+            # (``OgnROS2PublishTransformTree.rst:41``).  Wiring it to a
+            # stationary ``odom`` anchor with
+            # ``isaac:nameOverride="odom"`` makes the published chain
+            # read ``odom -> base_link -> ...`` (REP-105 canonical).
+            ("PubTF.inputs:parentPrim", [usdrt.Sdf.Path(parent_anchor_prim_path)]),
+        ]
+    values += [
         ("ReadIMU.inputs:imuPrim", [imu_prim_path]),
         ("PubIMU.inputs:topicName", _ns_topic(ns, topics["imu"])),
         ("PubIMU.inputs:frameId", "imu_link"),

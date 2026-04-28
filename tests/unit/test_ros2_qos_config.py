@@ -128,6 +128,68 @@ class TestRos2BridgeConfigQoSFields:
         assert cfg.tf_qos.depth == 100
 
 
+class TestRos2BridgePublisherFlags:
+    """C1: new publisher-toggle fields on ``Ros2BridgeConfig``.
+
+    These fields gate the C2/C3 transition from the OmniGraph
+    ``ROS2PublishTransformTree`` (``PubTF``) workflow to the
+    ROS-standard ``robot_state_publisher`` workflow.  C1 defaults
+    preserve the legacy behaviour so a single ``git revert`` of C2 or
+    C3 fully restores the prior runtime without dangling yaml fields.
+    """
+
+    def test_publish_joint_states_default_true(self) -> None:
+        """C2+ default: robot_state_publisher pattern is canonical."""
+        cfg = Ros2BridgeConfig()
+        assert cfg.publish_joint_states is True
+
+    def test_publish_joint_states_can_override_false(self) -> None:
+        """Legacy PubTF wiring still reachable via explicit override."""
+        cfg = Ros2BridgeConfig.model_validate({"publish_joint_states": False})
+        assert cfg.publish_joint_states is False
+
+    def test_enable_isaac_nameoverride_default_false(self) -> None:
+        """C3+ default: robot_state_publisher reads URDF, not nameOverride."""
+        cfg = Ros2BridgeConfig()
+        assert cfg.enable_isaac_nameoverride is False
+
+    def test_rename_root_to_base_link_default_false(self) -> None:
+        """C3+ default: URDF link names verbatim (Body_Chassis source-of-truth)."""
+        cfg = Ros2BridgeConfig()
+        assert cfg.rename_root_to_base_link is False
+
+    def test_sensor_parent_frame_id_default_body_chassis(self) -> None:
+        """C3+ default: matches URDF root link so sensor TFs attach to /tf chain."""
+        cfg = Ros2BridgeConfig()
+        assert cfg.sensor_parent_frame_id == "Body_Chassis"
+
+    def test_sensor_parent_frame_id_can_override_to_base_link(self) -> None:
+        """Legacy rewrite path still reachable via explicit override."""
+        cfg = Ros2BridgeConfig.model_validate({"sensor_parent_frame_id": "base_link"})
+        assert cfg.sensor_parent_frame_id == "base_link"
+
+    def test_sensor_parent_frame_id_empty_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            Ros2BridgeConfig.model_validate({"sensor_parent_frame_id": ""})
+
+    def test_publish_joint_states_can_override_true(self) -> None:
+        cfg = Ros2BridgeConfig.model_validate({"publish_joint_states": True})
+        assert cfg.publish_joint_states is True
+
+    def test_enable_isaac_nameoverride_can_override_false(self) -> None:
+        cfg = Ros2BridgeConfig.model_validate({"enable_isaac_nameoverride": False})
+        assert cfg.enable_isaac_nameoverride is False
+
+    def test_rename_root_to_base_link_can_override_false(self) -> None:
+        cfg = Ros2BridgeConfig.model_validate({"rename_root_to_base_link": False})
+        assert cfg.rename_root_to_base_link is False
+
+    def test_unknown_publisher_flag_rejected(self) -> None:
+        """``extra='forbid'`` prevents a typo from silently no-op'ing."""
+        with pytest.raises(ValidationError):
+            Ros2BridgeConfig.model_validate({"publish_joint_state": True})
+
+
 class TestOmniGraphPresetMapping:
     """``to_omnigraph_qos_json`` returns a JSON-encoded QoS dict.
 
@@ -260,21 +322,41 @@ class TestOmniGraphSetValuesIncludeQoS:
         sets = self._default_sets()
         assert sets["Lidar3DHelper.inputs:qosProfile"] == "SensorData"
 
-    def test_pubtf_has_system_default_by_default(self) -> None:
+    def test_pub_joint_state_has_system_default_by_default(self) -> None:
+        """C2+: PubJointState replaces PubTF; the tf_qos_preset still threads through."""
         sets = self._default_sets()
-        assert sets["PubTF.inputs:qosProfile"] == "SystemDefault"
+        assert sets["PubJointState.inputs:qosProfile"] == "SystemDefault"
 
-    def test_pubtf_topic_is_tf_raw(self) -> None:
-        """Articulation joint TF publishes on ``/tf_raw`` (split from ``/tf``).
+    def test_pub_joint_state_topic_namespaced(self) -> None:
+        """C2+: ``ROS2PublishJointState`` publishes ``<ns>/joint_states``.
 
-        Sharing one ``/tf`` between the OmniGraph ``PubTF`` and the
-        rclpy ``TransformBroadcaster`` was tried (Apr-25 final fix-up)
-        and rolled back: the two backends produced duplicated /
-        out-of-phase frames that broke RViz and Nav2.  See memory
-        ``feedback_no_tf_consolidation`` for the user-facing rule.
+        ROS-side ``robot_state_publisher`` consuming the topic + the
+        latched ``/robot_description`` produces the full link tree TF
+        on the canonical ``/tf`` topic.  Single TF authority -- no
+        ``topic_tools relay`` required.  See plan
+        ``1-imu-yaml-transient-quiche.md``.
         """
-        sets = self._default_sets()
-        assert sets["PubTF.inputs:topicName"] == "/tf_raw"
+        from marslab.ros2_bridge.sensor_graph_builder import _build_set_values
+
+        sets = dict(
+            _build_set_values(
+                ns="rover",
+                topics={
+                    "imu": "imu",
+                    "rgb": "rgb/image_raw",
+                    "depth": "depth/image_raw",
+                    "lidar": "lidar/points",
+                    "joint_states": "joint_states",
+                },
+                imu_prim_path="/World/Rover/imu",
+                camera_prim_path="/World/Rover/camera",
+                camera_resolution=(640, 480),
+                lidar_3d_prim_path="/World/Rover/lidar3d",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
+            )
+        )
+        assert sets["PubJointState.inputs:topicName"] == "/rover/joint_states"
 
     def test_lidar2d_qos_applied_when_included(self) -> None:
         from marslab.ros2_bridge.sensor_graph_builder import _build_set_values
@@ -308,7 +390,8 @@ class TestOmniGraphSetValuesIncludeQoS:
         assert sets["PubIMU.inputs:qosProfile"] == "SystemDefault"
         assert sets["CamRGB.inputs:qosProfile"] == "SystemDefault"
         assert sets["Lidar3DHelper.inputs:qosProfile"] == "SystemDefault"
-        assert sets["PubTF.inputs:qosProfile"] == "ParameterEvents"
+        # C2+: tf_qos_preset still threads through, now to PubJointState.
+        assert sets["PubJointState.inputs:qosProfile"] == "ParameterEvents"
 
 
 class TestResolveQosPresets:

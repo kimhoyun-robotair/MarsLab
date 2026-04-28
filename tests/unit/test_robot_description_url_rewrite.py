@@ -203,3 +203,97 @@ class TestRewriteOnRealUrdf:
         once = rewrite_urdf_root_to_base_link(real_urdf_text)
         twice = rewrite_urdf_root_to_base_link(once)
         assert once == twice
+
+
+# ---------------------------------------------------------------------------
+# publish_robot_description rename flag (C1)
+# ---------------------------------------------------------------------------
+
+
+class _StubPublisher:
+    """Minimal stand-in for ``rclpy.publisher.Publisher``."""
+
+    def __init__(self) -> None:
+        self.published: list[object] = []
+
+    def publish(self, msg: object) -> None:
+        self.published.append(msg)
+
+
+class _StubNode:
+    """Minimal stand-in for ``rclpy.node.Node``.
+
+    ``publish_robot_description`` only consults ``create_publisher``;
+    nothing else on ``Node`` is invoked.  Keeping the stub tiny so the
+    test does not silently hide a future regression where the function
+    starts depending on additional ``Node`` methods.
+    """
+
+    def __init__(self) -> None:
+        self.last_args: tuple = ()
+
+    def create_publisher(self, msg_type: object, topic: str, qos: object) -> _StubPublisher:
+        self.last_args = (msg_type, topic, qos)
+        return _StubPublisher()
+
+
+@pytest.fixture
+def fake_std_msgs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Inject a fake ``std_msgs.msg.String`` so the import succeeds offline."""
+    import sys
+    import types
+
+    class _String:
+        def __init__(self) -> None:
+            self.data: str = ""
+
+    std_msgs_msg = types.ModuleType("std_msgs.msg")
+    std_msgs_msg.String = _String  # type: ignore[attr-defined]
+    std_msgs = types.ModuleType("std_msgs")
+    std_msgs.msg = std_msgs_msg  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "std_msgs", std_msgs)
+    monkeypatch.setitem(sys.modules, "std_msgs.msg", std_msgs_msg)
+
+
+class TestPublishRobotDescriptionRenameFlag:
+    """C1: ``publish_robot_description`` honours ``rename_root_to_base_link``.
+
+    Default ``True`` preserves the legacy nameOverride-paired rewrite;
+    ``False`` keeps the URDF link names verbatim so the URDF and the
+    OmniGraph-published joint owners share a single source of truth
+    (the C3 default).
+    """
+
+    def test_rename_default_true_rewrites_root_to_base_link(
+        self, fake_std_msgs: None, tmp_path: Path
+    ) -> None:
+        from marslab.ros2_bridge.robot_description_publisher import publish_robot_description
+
+        urdf_path = tmp_path / "rover.urdf"
+        urdf_path.write_text(_SYNTHETIC_URDF)
+        node = _StubNode()
+        ctx = publish_robot_description(node, str(urdf_path), qos=object())
+
+        assert '<link name="base_link"' in ctx.urdf_text
+        assert '<link name="Body_Chassis"' not in ctx.urdf_text
+        assert "JointRoot" not in ctx.urdf_text
+
+    def test_rename_false_keeps_body_chassis(self, fake_std_msgs: None, tmp_path: Path) -> None:
+        from marslab.ros2_bridge.robot_description_publisher import publish_robot_description
+
+        urdf_path = tmp_path / "rover.urdf"
+        urdf_path.write_text(_SYNTHETIC_URDF)
+        node = _StubNode()
+        ctx = publish_robot_description(
+            node,
+            str(urdf_path),
+            qos=object(),
+            rename_root_to_base_link=False,
+        )
+
+        assert '<link name="Body_Chassis"' in ctx.urdf_text
+        assert '<link name="base_link"' not in ctx.urdf_text
+        # Mesh-path rewrite is independent of the rename flag.
+        # ``_SYNTHETIC_URDF`` does not declare meshes so we just
+        # confirm the urdf_text round-trips through the rewriter.
+        assert ctx.urdf_text != ""

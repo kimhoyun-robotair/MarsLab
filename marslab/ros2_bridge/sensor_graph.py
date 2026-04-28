@@ -158,6 +158,7 @@ def build_sensor_graph(
     include_2d = lidar_2d_prim_path is not None and "scan" in topics
     include_pcl = options.publish_pointcloud2 and "points" in topics
     include_caminfo = options.publish_camera_info and "camera_info" in topics
+    publish_joint_states = bool(options.publish_joint_states)
 
     keys = og.Controller.Keys
     graph_handle, _, _, _ = og.Controller.edit(
@@ -167,11 +168,13 @@ def build_sensor_graph(
                 include_lidar_2d=include_2d,
                 include_pointcloud2=include_pcl,
                 include_camera_info=include_caminfo,
+                publish_joint_states=publish_joint_states,
             ),
             keys.CONNECT: _build_connections(
                 include_lidar_2d=include_2d,
                 include_pointcloud2=include_pcl,
                 include_camera_info=include_caminfo,
+                publish_joint_states=publish_joint_states,
             ),
             keys.SET_VALUES: _build_set_values(
                 ns=ns,
@@ -187,6 +190,7 @@ def build_sensor_graph(
                 tf_qos_preset=tf_preset,
                 include_pointcloud2=include_pcl,
                 include_camera_info=include_caminfo,
+                publish_joint_states=publish_joint_states,
             ),
         },
     )
@@ -351,6 +355,27 @@ def _resolve_publish_pointcloud2(ros2_cfg: Dict[str, Any]) -> bool:
     return bool(_resolve_ros2_bridge_options(ros2_cfg).publish_pointcloud2)
 
 
+def _resolve_publish_joint_states(ros2_cfg: Dict[str, Any]) -> bool:
+    """Return whether to wire ``ROS2PublishJointState`` instead of ``PubTF``.
+
+    Reads ``ros2_cfg["publish_joint_states"]`` when present (validated
+    via :class:`Ros2BridgeConfig`) and falls back to the schema default
+    (C2+: ``True`` -- robot_state_publisher pattern; legacy: ``False``
+    -- ``/tf_raw`` PubTF + ``topic_tools relay`` pattern).  Mirrors
+    :func:`_resolve_publish_camera_info` so the orchestrator reaches
+    every publisher knob through one validation source.
+
+    Args:
+        ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
+            compatibility).
+
+    Returns:
+        ``True`` to wire the ``PubJointState`` node, ``False`` to wire
+        the legacy ``PubTF`` node.
+    """
+    return bool(_resolve_ros2_bridge_options(ros2_cfg).publish_joint_states)
+
+
 def _resolve_graph_path(ros2_cfg: Dict[str, Any]) -> str:
     """Return the action-graph prim path for the Stage-3 bridge.
 
@@ -382,4 +407,5 @@ __all__ = [
     "_resolve_graph_path",
     "_resolve_publish_pointcloud2",
     "_resolve_publish_camera_info",
+    "_resolve_publish_joint_states",
 ]

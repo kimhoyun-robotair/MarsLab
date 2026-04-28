@@ -110,6 +110,53 @@ class TestComputeOdomDelta:
         # World displacement (+1,0,0) → odom (0, -1, 0).
         np.testing.assert_array_almost_equal(dp, [0.0, -1.0, 0.0], decimal=5)
 
+    def test_identity_init_quat_with_x_rolled_current(self) -> None:
+        """Phase 2 entry-point contract: identity init_quat + X-rolled current.
+
+        The Stage-3 entry point (``scripts/phase1/main.py``) pins
+        ``init_quat_world`` to identity even when the PhysX-reported
+        spawn quaternion is X-rolled (``spawn_orientation_rpy =
+        [pi, 0, 0]``).  This test pins the resulting odom-frame
+        quaternion equality so a future regression in the entry
+        point cannot silently drop the X-roll cancellation chain
+        (``odom -> Body_Chassis`` carries the X-roll, the static
+        ``base_link -> Body_Chassis`` wrapper cancels it, leaving
+        ``odom -> base_link`` REP-103 yaw-only).
+        """
+        # pi about world X-axis, scalar-first quat = (cos(pi/2), sin(pi/2), 0, 0)
+        # = (0, 1, 0, 0)
+        x_rolled = np.array([0.0, 1.0, 0.0, 0.0], dtype=np.float32)
+        init_pos = np.zeros(3, dtype=np.float32)
+        cur_pos = np.array([2.0, 0.0, 0.0], dtype=np.float32)
+
+        dp, dq = compute_odom_delta(cur_pos, x_rolled, init_pos, IDENTITY)
+
+        # Identity init means the world delta passes through unchanged.
+        np.testing.assert_array_almost_equal(dp, cur_pos, decimal=5)
+        # Identity ⊗ X-roll = X-roll.  The X-roll surfaces on
+        # odom -> Body_Chassis exactly as expected.
+        np.testing.assert_array_almost_equal(dq, x_rolled, decimal=5)
+
+    def test_identity_init_quat_passes_yaw_through_unchanged(self) -> None:
+        """Identity init_quat: current yaw appears verbatim in odom delta.
+
+        With ``init_quat_world = identity``, ``compute_odom_delta``
+        reduces to ``delta_quat = identity^-1 ⊗ current = current``.
+        Pinning this equality so the entry-point change in
+        ``scripts/phase1/main.py`` (force identity init_quat) keeps
+        delivering ROS-conventional yaw-bearing odom messages.
+        """
+        init_pos = np.zeros(3, dtype=np.float32)
+        cur_pos = np.array([0.5, 0.5, 0.0], dtype=np.float32)
+        cur_q = _quat_yaw(0.7)
+
+        dp, dq = compute_odom_delta(cur_pos, cur_q, init_pos, IDENTITY)
+
+        # World-frame translation passes through unchanged because
+        # the rotation by identity^-1 is a no-op.
+        np.testing.assert_array_almost_equal(dp, cur_pos, decimal=5)
+        np.testing.assert_array_almost_equal(dq, cur_q, decimal=5)
+
 
 class TestWorldTwistToBody:
     def test_identity_orientation_passthrough(self) -> None:

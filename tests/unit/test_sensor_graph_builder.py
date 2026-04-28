@@ -7,16 +7,27 @@ import pytest
 
 class TestBuildCreateNodes:
     def test_returns_expected_node_type_mapping(self) -> None:
+        """C2+ default: PubJointState replaces PubTF."""
         from marslab.ros2_bridge.sensor_graph_builder import _build_create_nodes
 
         nodes = dict(_build_create_nodes())
         assert nodes["OnTick"] == "omni.graph.action.OnPlaybackTick"
         assert nodes["ReadSimTime"] == "isaacsim.core.nodes.IsaacReadSimulationTime"
-        # Switched to the non-Raw publisher so the node auto-walks the
-        # rover articulation chain. See
-        # ``OgnROS2PublishTransformTree.rst``.
-        assert nodes["PubTF"] == "isaacsim.ros2.bridge.ROS2PublishTransformTree"
+        # ROS-standard pattern: Isaac Sim publishes joint state, ROS
+        # ``robot_state_publisher`` reads URDF + joint_state and emits
+        # the full /tf tree.  Replaces the legacy ``PubTF``-on-
+        # ``/tf_raw`` workflow that required ``topic_tools relay``.
+        assert nodes["PubJointState"] == "isaacsim.ros2.bridge.ROS2PublishJointState"
+        assert "PubTF" not in nodes
         assert nodes["Lidar3DHelper"] == "isaacsim.ros2.bridge.ROS2RtxLidarHelper"
+
+    def test_legacy_pubtf_still_buildable(self) -> None:
+        """``publish_joint_states=False`` restores the legacy PubTF wiring."""
+        from marslab.ros2_bridge.sensor_graph_builder import _build_create_nodes
+
+        nodes = dict(_build_create_nodes(publish_joint_states=False))
+        assert nodes["PubTF"] == "isaacsim.ros2.bridge.ROS2PublishTransformTree"
+        assert "PubJointState" not in nodes
 
     def test_node_list_has_no_duplicates(self) -> None:
         from marslab.ros2_bridge.sensor_graph_builder import _build_create_nodes
@@ -102,14 +113,43 @@ class TestBuildSetValues:
         assert "RPDepth.inputs:height" not in sets
         assert "RPDepth.inputs:cameraPrim" not in sets
 
-    def test_joint_tf_goes_to_tf_raw(self, topics: dict) -> None:
-        """Articulation TF publishes on the dedicated ``/tf_raw`` topic.
+    def test_joint_state_publishes_on_canonical_topic(self, topics: dict) -> None:
+        """C2+ default: ``ROS2PublishJointState`` replaces ``PubTF``.
 
-        The OmniGraph ``PubTF`` node is intentionally split from the
-        rclpy ``odom -> base_link`` broadcaster on ``/tf``: sharing one
-        ``/tf`` was tried (Apr-25 final fix-up) and rolled back because
-        the two backends produced duplicated / out-of-phase frames in
-        RViz and Nav2.  See memory ``feedback_no_tf_consolidation``.
+        ROS-side ``robot_state_publisher`` consuming ``/joint_states`` +
+        the latched ``/robot_description`` produces the full link-tree
+        TF on the canonical ``/tf`` topic.  Single TF authority -- no
+        ``topic_tools relay`` required.  Topic name is namespaced and
+        comes from ``ros2.topics.joint_states``.
+        """
+        from marslab.ros2_bridge.sensor_graph_builder import _build_set_values
+
+        topics_with_js = dict(topics)
+        topics_with_js["joint_states"] = "joint_states"
+        sets = dict(
+            _build_set_values(
+                ns="rover",
+                topics=topics_with_js,
+                imu_prim_path="/W/imu",
+                camera_prim_path="/W/cam",
+                camera_resolution=(640, 480),
+                lidar_3d_prim_path="/W/lidar3d",
+                articulation_root_prim_path="/World/Rover",
+                parent_anchor_prim_path="/World/odom_anchor",
+            )
+        )
+        assert sets["PubJointState.inputs:topicName"] == "/rover/joint_states"
+        # Legacy PubTF must not coexist; running both would yield two
+        # authorities for the kinematic chain.
+        assert "PubTF.inputs:topicName" not in sets
+
+    def test_legacy_pubtf_topic_when_publish_joint_states_false(self, topics: dict) -> None:
+        """``publish_joint_states=False`` restores ``PubTF.inputs:topicName='/tf_raw'``.
+
+        Backwards-compat path for v0.7 scenarios that rely on
+        ``topic_tools relay /tf_raw /tf``.  Pinning the topic name
+        guards against a regression that would silently swap the
+        relay-driven workflow.
         """
         from marslab.ros2_bridge.sensor_graph_builder import _build_set_values
 
@@ -123,9 +163,11 @@ class TestBuildSetValues:
                 lidar_3d_prim_path="/W/lidar3d",
                 articulation_root_prim_path="/World/Rover",
                 parent_anchor_prim_path="/World/odom_anchor",
+                publish_joint_states=False,
             )
         )
         assert sets["PubTF.inputs:topicName"] == "/tf_raw"
+        assert "PubJointState.inputs:topicName" not in sets
 
     def test_topic_names_namespaced(self, topics: dict) -> None:
         from marslab.ros2_bridge.sensor_graph_builder import _build_set_values

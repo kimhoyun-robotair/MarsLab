@@ -38,11 +38,13 @@ class TestSensorGraphOfflineHelpers:
         from marslab.ros2_bridge.sensor_graph import _build_create_nodes
 
         nodes = [n for n, _ in _build_create_nodes()]
+        # C2+: ``PubJointState`` replaced ``PubTF`` as the canonical TF
+        # authority (ROS-standard ``robot_state_publisher`` workflow).
         for required in (
             "OnTick",
             "ReadSimTime",
             "PubClock",
-            "PubTF",
+            "PubJointState",
             "ReadIMU",
             "PubIMU",
             "CamRGB",
@@ -64,13 +66,14 @@ class TestSensorGraphOfflineHelpers:
             assert src_node in declared, f"undeclared source node: {src_node}"
             assert dst_node in declared, f"undeclared dest node: {dst_node}"
 
-    def test_set_values_publishes_articulation_tf_on_tf_raw(self) -> None:
-        """Articulation TF publishes on ``/tf_raw`` (split from ``/tf``).
+    def test_set_values_publishes_joint_states(self) -> None:
+        """C2+: ``ROS2PublishJointState`` publishes on ``<ns>/joint_states``.
 
-        Sharing one ``/tf`` between the OmniGraph ``PubTF`` and the
-        rclpy ``TransformBroadcaster`` was tried and rolled back: the
-        two backends produced duplicated / out-of-phase frames in
-        RViz and Nav2. The two topics stay separate by design.
+        ROS-side ``robot_state_publisher`` reads ``/joint_states`` +
+        the latched ``/robot_description`` and emits the full link
+        tree TF on the canonical ``/tf`` topic.  Single TF authority
+        replaces the legacy ``PubTF``-on-``/tf_raw`` +
+        ``topic_tools relay`` workflow.
         """
         from marslab.ros2_bridge.sensor_graph import _build_set_values
 
@@ -81,6 +84,7 @@ class TestSensorGraphOfflineHelpers:
                 "rgb": "rgb/image_raw",
                 "depth": "depth/image_raw",
                 "lidar": "lidar/points",
+                "joint_states": "joint_states",
             },
             imu_prim_path="/World/Rover/imu",
             camera_prim_path="/World/Rover/camera",
@@ -90,7 +94,8 @@ class TestSensorGraphOfflineHelpers:
             parent_anchor_prim_path="/World/odom_anchor",
         )
         as_dict = dict(sets)
-        assert as_dict["PubTF.inputs:topicName"] == "/tf_raw"
+        assert as_dict["PubJointState.inputs:topicName"] == "/rover/joint_states"
+        assert "PubTF.inputs:topicName" not in as_dict
 
     def test_set_values_namespaces_imu_and_rgb(self) -> None:
         from marslab.ros2_bridge.sensor_graph import _build_set_values

@@ -126,12 +126,19 @@ Use `spawn_orientation_rpy` only.
   `tf_broadcaster.build_camera_optical_frame_transform`.  Use this
   frame_id in image / depth / pointcloud messages, not
   `camera_link`.
-* **`/tf_raw` vs `/tf`:**  the OmniGraph `ROS2PublishTransformTree`
-  publishes the kinematic chain on `/tf_raw`; the rclpy
-  `TransformBroadcaster` (when enabled) publishes
-  `odom → base_link` on `/tf`.  These two streams are kept separate
-  by design -- never merge them in code.  Users wanting a single `/tf`
-  topic can run `ros2 run topic_tools relay /tf_raw /tf` externally.
+* **TF authority (`robot_state_publisher` workflow):**  Isaac Sim
+  publishes `sensor_msgs/JointState` on `/joint_states` via the
+  OmniGraph `ROS2PublishJointState` node.  ROS-side
+  `robot_state_publisher` reads `/joint_states` + the latched
+  `/robot_description` (URDF) and emits the full link-tree TF on the
+  canonical `/tf` topic.  rclpy publishes static sensor offsets
+  (`<sensor_parent_frame_id> → camera_link / lidar_link / scan_frame
+  / imu_link` + `camera_link → camera_optical_frame`) on
+  `/tf_static`, and -- when `publish_odom_tf=True` -- broadcasts
+  `odom → base_link` on `/tf`.  This is single-authority TF: no
+  `topic_tools relay` required.  The legacy `PubTF`-on-`/tf_raw`
+  workflow (set `publish_joint_states=False` to restore) is preserved
+  for v0.7 scenarios that depend on the relay pattern.
 
 ---
 

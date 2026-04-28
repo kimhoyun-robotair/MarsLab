@@ -273,22 +273,93 @@ class Ros2BridgeConfig(BaseModel):
     publish_odom_tf: bool = Field(
         default=False,
         description=(
-            "When ``False`` (default) the rclpy-side odometry publisher "
-            "does NOT broadcast ``odom -> base_link`` on ``/tf``.  The "
-            "OmniGraph ``ROS2PublishTransformTree`` becomes the sole TF "
-            "authority for the kinematic chain (``/tf_raw``); an external "
-            "``ros2 run topic_tools relay /tf_raw /tf`` merges the chain "
-            "into the canonical ``/tf`` topic.  Set ``True`` to restore "
-            "the dual-publisher behaviour for debugging or smoke tests "
-            "that do not run the relay.  Never run both ``True`` and the "
-            "relay simultaneously -- that yields two parents for "
-            "``base_link``.  NOTE: the Stage-3 entry point currently "
-            "passes the raw YAML dict ``rover.ros2`` straight to "
-            "``init_rclpy_side`` without a Pydantic round-trip, so this "
-            "field is documentation plus future validation rather than a "
-            "runtime gate.  The runtime default is enforced by "
-            "``rclpy_integration.py``'s ``.get(..., False)``."
+            "When ``True`` the rclpy-side odometry publisher broadcasts "
+            "``odom -> <base_frame>`` on ``/tf``.  Default ``False`` "
+            "leaves ``odom -> <base_frame>`` to a downstream visual SLAM "
+            "stack (RTAB-Map ``rgbd_odometry``, ORB-SLAM3, etc.) so the "
+            "rover's PhysX ground-truth pose does not collide with the "
+            "SLAM stack's pose estimate on the same transform.  Flip to "
+            "``True`` for wheel-only configurations (no visual SLAM) or "
+            "for debugging where ground-truth odom is desired.  Running "
+            "two publishers on ``odom -> <base_frame>`` yields jitter "
+            "that breaks downstream consumers; pick exactly one."
         ),
+    )
+    # NOTE: defaults below preserve current (pre-fix) behaviour.  C1
+    # introduces the fields; C2 flips ``publish_joint_states`` to True
+    # and removes the OG PubTF node; C3 flips both nameOverride /
+    # rename defaults to False (URDF source-of-truth + Body_Chassis
+    # frame).  Splitting the rollout this way makes a single ``git
+    # revert`` of C2 or C3 fully restore the prior runtime behaviour
+    # without leaving stale yaml fields behind.
+    publish_joint_states: bool = Field(
+        default=True,
+        description=(
+            "When ``True`` (C2+ default) the Stage-3 OmniGraph wires "
+            "``isaacsim.ros2.bridge.ROS2PublishJointState`` so the rover "
+            "articulation publishes ``sensor_msgs/JointState`` on "
+            "``<ns>/joint_states``.  A ROS-side ``robot_state_publisher`` "
+            "consuming this topic + the latched ``/robot_description`` "
+            "produces the full link-tree TF on the canonical ``/tf`` "
+            "topic, replacing the prior ``ROS2PublishTransformTree`` "
+            "(``PubTF``) + ``topic_tools relay`` workflow.  Set "
+            "``False`` to restore the legacy ``/tf_raw`` PubTF wiring "
+            "(e.g. for a v0.7 scenario that relies on the relay).  "
+            "Topic name comes from ``rover.ros2.topics.joint_states`` "
+            "(default ``joint_states``)."
+        ),
+    )
+    enable_isaac_nameoverride: bool = Field(
+        default=False,
+        description=(
+            "When ``True`` the runtime applies "
+            "``isaac:nameOverride='base_link'`` to the rover articulation "
+            "root prim and creates an ``odom`` anchor prim with "
+            "``isaac:nameOverride='odom'``.  Required ONLY when the "
+            "OmniGraph ``ROS2PublishTransformTree`` (``PubTF``) is the "
+            "TF authority (``publish_joint_states=False``) -- in that "
+            "mode PubTF reads the override to produce ``odom -> "
+            "base_link`` frames.  C3+ default ``False`` because the "
+            "C2 ``robot_state_publisher`` workflow reads frame names "
+            "directly from the URDF link declarations and never "
+            "consults ``isaac:nameOverride``.  SLAM/Nav2's "
+            "``base_frame`` parameter accepts any frame name "
+            "(``Body_Chassis``, ``base_link``, etc.) so frame-name "
+            "aliasing is handled at the SLAM/Nav2 launch layer, not "
+            "in USD."
+        ),
+    )
+    rename_root_to_base_link: bool = Field(
+        default=False,
+        description=(
+            "When ``True`` the URDF published on ``/robot_description`` "
+            "is rewritten so the root link name becomes ``base_link`` "
+            "(the JPL m2020 URDF root is ``Body_Chassis``).  C3+ "
+            "default ``False`` keeps the URDF link names verbatim so "
+            "the URDF and the OmniGraph-published joint names share a "
+            "single source of truth.  Downstream stacks (SLAM, Nav2, "
+            "RTAB-Map) accept any base frame name via launch parameter "
+            "(``base_frame: Body_Chassis``), so renaming is no longer "
+            "necessary.  Set ``True`` when integrating a third-party "
+            "ROS package that hardcodes the ``base_link`` literal."
+        ),
+    )
+    sensor_parent_frame_id: str = Field(
+        default="Body_Chassis",
+        description=(
+            "Parent frame_id used when broadcasting the static sensor "
+            "TFs (camera_link / lidar_link / scan_frame / imu_link).  "
+            "C3+ default ``Body_Chassis`` matches the URDF root link "
+            "name so the rclpy-published sensor offsets attach to the "
+            "``robot_state_publisher``-published articulation chain "
+            "(``Body_Chassis -> Body_Wheel*``).  Override to "
+            "``base_link`` when running the legacy "
+            "``rename_root_to_base_link=True`` rewrite path or any "
+            "third-party stack that hardcodes the ``base_link`` "
+            "literal.  SLAM/Nav2 launch params (``base_frame``) must "
+            "agree with the value chosen here."
+        ),
+        min_length=1,
     )
     cmd_vel_qos: QoSProfileConfig = Field(
         default_factory=_cmd_vel_qos_default,

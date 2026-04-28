@@ -136,6 +136,7 @@ ros2:
     camera_info: "rgb/camera_info"  # CameraInfo (intrinsics K/P/R/D)
     lidar: "lidar/points"
     scan: "scan"                 # 2D LaserScan for slam_toolbox / Nav2
+    joint_states: "joint_states" # sensor_msgs/JointState for robot_state_publisher
   rates:
     imu: 100
     odom: 50
@@ -145,13 +146,38 @@ ros2:
     camera_info: 30              # CameraInfo published in lock-step with rgb/depth
     lidar: 10
     scan: 30                     # Example_Rotary_2D scanRateBaseHz = 30 Hz
+    joint_states: 50             # OG ROS2PublishJointState tick rate (matches odom)
   # Frame names threaded through ``create_odometry_publisher`` so the
-  # slam_toolbox and Nav2 YAMLs share one source of truth.  Absent ->
-  # fall back to the function defaults.
+  # slam_toolbox and Nav2 YAMLs share one source of truth.
+  # ``child_frame_id`` is set to ``base_link`` (the X-roll wrapper
+  # frame published by ``launch/rover_state_publisher.launch.py`` as a
+  # static_transform_publisher) so the odom -> base_link chain uses
+  # the REP-103 frame, while base_link -> Body_Chassis (X-roll, static)
+  # connects into the URDF root.  SLAM/Nav2 launch params should set
+  # ``base_frame: base_link`` to match.
   odom_publisher:
     frame_id: "odom"
     child_frame_id: "base_link"
     queue_size: 10
+  # Parent frame for the static sensor TFs broadcast by
+  # ``marslab.ros2_bridge.tf_broadcaster.publish_static_sensor_tfs``.
+  # Default ``Body_Chassis`` matches the URDF root link name so the
+  # rclpy-published sensor offsets attach to the
+  # robot_state_publisher-published articulation chain.  Override
+  # to ``base_link`` if running the legacy ``rename_root_to_base_link=True``
+  # rewrite path (or any third-party stack that hardcodes ``base_link``).
+  sensor_parent_frame_id: "Body_Chassis"
+  # Phase 2: enable rclpy-side TF broadcast of ``odom -> base_link``
+  # using the PhysX articulation root pose as ground-truth odometry.
+  # Replaces the dependency on an external visual SLAM stack
+  # (RTAB-Map ``rgbd_odometry``, ORB-SLAM3, etc.) for the odom
+  # transform.  The init_quat_world is forced to identity in the
+  # runtime entry point (scripts/phase1/main.py) so the odom frame
+  # equals world REP-103, even though spawn_orientation_rpy applies
+  # an X-roll to the articulation root prim.  Set ``false`` to
+  # delegate ``odom -> base_link`` to a downstream visual SLAM stack;
+  # never run two publishers on the same transform.
+  publish_odom_tf: true
 
 sensors:
   # Sensor frames are authored in the X-rolled body frame matched by

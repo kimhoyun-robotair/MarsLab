@@ -115,19 +115,19 @@ class TestRgbDepthImuBranches:
         assert sv["Lidar3DHelper.inputs:topicName"] == "/rover/lidar/points"
         assert sv["Lidar3DHelper.inputs:type"] == "point_cloud"
 
-    def test_articulation_tf_uses_tf_raw_topic(self, topics: dict) -> None:
-        """Articulation TF publishes on ``/tf_raw``, kept separate from ``/tf``.
+    def test_joint_state_publisher_is_default(self, topics: dict) -> None:
+        """C2+: Isaac Sim publishes /joint_states, robot_state_publisher emits /tf.
 
-        The OmniGraph ``PubTF`` and the rclpy ``TransformBroadcaster``
-        intentionally do NOT share one ``/tf`` topic: empirically the
-        two backends emit duplicated / out-of-phase frames when they
-        co-publish, which jitters Nav2's TF buffer and breaks RViz.
-        See memory ``feedback_no_tf_consolidation``.
+        Single TF authority replaces the legacy ``PubTF``-on-``/tf_raw``
+        + ``topic_tools relay`` workflow.  See plan
+        ``1-imu-yaml-transient-quiche.md``.
         """
+        topics_with_js = dict(topics)
+        topics_with_js["joint_states"] = "joint_states"
         sv = dict(
             _build_set_values(
                 ns="rover",
-                topics=topics,
+                topics=topics_with_js,
                 imu_prim_path="/W/Imu",
                 camera_prim_path="/W/Cam",
                 camera_resolution=(640, 480),
@@ -136,7 +136,8 @@ class TestRgbDepthImuBranches:
                 parent_anchor_prim_path="/World/odom_anchor",
             )
         )
-        assert sv["PubTF.inputs:topicName"] == "/tf_raw"
+        assert sv["PubJointState.inputs:topicName"] == "/rover/joint_states"
+        assert "PubTF.inputs:topicName" not in sv
 
 
 class TestSeedDeterminism:
