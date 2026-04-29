@@ -8,7 +8,7 @@ dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
     "numpy>=1.24",
-    "GDAL>=3.8",
+    "GDAL>=3.8,<3.9",
     "scipy>=1.10",
     "trimesh>=4.0",
 ]
