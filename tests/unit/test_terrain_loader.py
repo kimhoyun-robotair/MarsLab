@@ -144,10 +144,10 @@ def test_resolve_dem_paths_hirise_relative_is_resolved_against_repo_root(
     repo_root = tmp_path  # tmp_path is already absolute and exists.
     cfg = {
         "source": "hirise",
-        "converted_dem_dir": "assets/terrain/dem/foo",
+        "converted_dem_dir": "assets/mars_assets/DEM/foo",
     }
     paths = resolve_dem_paths(cfg, repo_root=str(repo_root))
-    expected = (repo_root / "assets/terrain/dem/foo").resolve()
+    expected = (repo_root / "assets/mars_assets/DEM/foo").resolve()
     assert paths["converted_dir"] == expected
     assert paths["elevation_npy"] == expected / "elevation.npy"
     assert paths["metadata_json"] == expected / "metadata.json"

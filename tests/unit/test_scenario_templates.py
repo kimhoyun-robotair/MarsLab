@@ -87,7 +87,7 @@ def test_template_hirise_validates_without_dem_files() -> None:
     assert cfg.terrain.dem_crop.height == 200
     assert cfg.terrain.dem_crop.width == 200
     # converted_dem_dir survived deep-merge:
-    assert cfg.terrain.converted_dem_dir == "assets/terrain/dem/jezero_crater_converted"
+    assert cfg.terrain.converted_dem_dir == "assets/mars_assets/DEM/jezero_crater"
 
 
 @pytest.mark.parametrize(
@@ -147,8 +147,8 @@ def test_dem_conversion_sample_validates_and_exposes_required_fields() -> None:
     cfg = load_and_validate(str(DEM_CONVERSION_SAMPLE))
     assert isinstance(cfg, MarsLabConfig)
     assert cfg.terrain.source == "hirise"
-    assert cfg.terrain.dem_path == "assets/terrain/dem/jezero_crater.tif"
-    assert cfg.terrain.converted_dem_dir == "assets/terrain/dem/jezero_crater_converted"
+    assert cfg.terrain.dem_path == "<your_local_download_path>/jezero_crater.tif"
+    assert cfg.terrain.converted_dem_dir == "assets/mars_assets/DEM/jezero_crater"
 
 
 def test_dem_conversion_and_hirise_template_share_converted_dir() -> None:

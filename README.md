@@ -120,8 +120,8 @@ case.
 
 ```bash
 # Step 1: convert a HiRISE GeoTIFF to numpy + metadata.
-#         Uses GDAL on the host CPU. Output is cached under
-#         assets/dem/processed/<name>.npy + .yaml.
+#         Uses GDAL on the host CPU. Output is written to
+#         assets/mars_assets/DEM/<region>/{elevation.npy,metadata.json}.
 scripts/isaac_python.sh scripts/convert_dem.py \
     --config configs/dem_conversion/sample_jezero.yaml
 
@@ -140,7 +140,7 @@ exaggeration in that one file.
 
 ## 3. Available Scenarios
 
-Nine reference scenarios ship with v1.0:
+Eight reference scenarios ship with v1.0:
 
 | Scenario                  | Source                    | One-line description                                                  |
 |---------------------------|---------------------------|-----------------------------------------------------------------------|

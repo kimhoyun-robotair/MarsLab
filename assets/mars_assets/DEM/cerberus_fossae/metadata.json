@@ -1,0 +1,12 @@
+{
+  "resolution_x": 1.0113871724719,
+  "resolution_y": 1.0113871724719,
+  "origin_x": -2929.988638651094,
+  "origin_y": 538746.7304195041,
+  "width": 6301,
+  "height": 13955,
+  "crs_wkt": "PROJCS[\"EQUIRECTANGULAR MARS\",GEOGCS[\"GCS_MARS\",DATUM[\"D_MARS\",SPHEROID[\"MARS_localRadius\",3396036.8126024,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Equirectangular\"],PARAMETER[\"standard_parallel_1\",5],PARAMETER[\"central_meridian\",162.84],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+  "nodata": -3.4028226550889045e+38,
+  "elevation_min": -3334.302978515625,
+  "elevation_max": -1761.638671875
+}

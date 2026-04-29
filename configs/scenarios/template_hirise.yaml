@@ -14,7 +14,7 @@
 #         --config configs/dem_conversion/sample_jezero.yaml
 #
 #   Output: ``elevation.npy`` + ``metadata.json`` written under
-#           ``assets/terrain/dem/jezero_crater_converted/``.
+#           ``assets/mars_assets/DEM/jezero_crater/``.
 #
 # Step 2) Run the simulation (Isaac Sim runtime, GDAL-free loading):
 #
@@ -83,7 +83,7 @@ mars_env:
 terrain:
   source: "hirise"                 # never changed: stay on hirise for HiRISE inputs
   scenario_name: "template_hirise"
-  converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"
+  converted_dem_dir: "assets/mars_assets/DEM/jezero_crater"
   dem_crop:                        # frequently tuned: 200x200 px window
     row: 180                       # starting row in the DEM (px)
     col: 0                         # starting column in the DEM (px)

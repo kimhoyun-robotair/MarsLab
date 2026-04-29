@@ -157,7 +157,7 @@ def test_load_invalid_file(tmp_path):
 
 # --- Optional: real HiRISE DEM test ---
 
-REAL_DEM_PATH = "assets/terrain/dem/jezero_crater.tif"
+REAL_DEM_PATH = "assets/mars_assets/DEM/jezero_crater.tif"
 
 
 @pytest.mark.skipif(

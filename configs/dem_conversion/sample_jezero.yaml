@@ -11,7 +11,7 @@
 #
 # Output:
 #   ``elevation.npy`` (float32) + ``metadata.json`` written under
-#   ``assets/terrain/dem/jezero_crater_converted/``.
+#   ``assets/mars_assets/DEM/jezero_crater/``.
 #   The Isaac Sim runtime reads this directory without GDAL.
 #
 # Schema notes:
@@ -31,8 +31,8 @@
 # consistency (matches configs/scenarios/jezero_flat.yaml::terrain.dem_crop).
 terrain:
   source: "hirise"                                                  # never changed
-  dem_path: "assets/terrain/dem/jezero_crater.tif"                  # HiRISE GeoTIFF path
-  converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"   # output directory
+  dem_path: "<your_local_download_path>/jezero_crater.tif"          # HiRISE GeoTIFF path (download from NASA HiRISE / USGS Astrogeology)
+  converted_dem_dir: "assets/mars_assets/DEM/jezero_crater"   # output directory
   # dem_crop is not used by the conversion step (the entire DEM is converted).
   # Pick a region in the scenario YAML's dem_crop instead -- e.g.
   # configs/scenarios/jezero_flat.yaml -> row=180, col=0, 200x200.

@@ -127,8 +127,8 @@ def test_hirise_without_any_path():
 
 def test_hirise_with_converted_dir_only():
     """HiRISE source is valid with only converted_dem_dir (no dem_path)."""
-    tc = TerrainConfig(source="hirise", converted_dem_dir="assets/terrain/dem/converted")
-    assert tc.converted_dem_dir == "assets/terrain/dem/converted"
+    tc = TerrainConfig(source="hirise", converted_dem_dir="assets/mars_assets/DEM/converted")
+    assert tc.converted_dem_dir == "assets/mars_assets/DEM/converted"
     assert tc.dem_path is None
 
 

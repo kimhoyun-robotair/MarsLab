@@ -44,13 +44,6 @@ __pycache__/
 *~
 *.txt
 .coverage
-.aux.xml
-
-# Large terrain data files (downloaded, not committed)
-assets/terrain/dem/*.tif
-assets/terrain/dem/*.npy
-assets/terrain/dem/*.IMG
-assets/terrain/dem/*_converted/
 
 # Development
 .claude/

@@ -16,7 +16,7 @@ mars_env:
 terrain:
   source: "hirise"
   scenario_name: "cerberus_canyon"
-  converted_dem_dir: "assets/terrain/dem/cerberus_fossae_converted"
+  converted_dem_dir: "assets/mars_assets/DEM/cerberus_fossae"
   dem_crop:
     row: 8000
     col: 2800

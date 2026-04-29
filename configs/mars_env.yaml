@@ -38,8 +38,8 @@ mars_env:
 
 terrain:
   # source: "hirise"
-  # dem_path: "assets/terrain/dem/jezero_crater.tif"
-  # converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"
+  # dem_path: "assets/mars_assets/DEM/jezero_crater.tif"
+  # converted_dem_dir: "assets/mars_assets/DEM/jezero_crater"
   source: "procedural"
   procedural_preset: "crater"
   terrain_size: [256, 256]

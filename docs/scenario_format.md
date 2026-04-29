@@ -71,7 +71,7 @@ mars_env:
 terrain:
   source: "hirise"
   scenario_name: "jezero_flat"
-  converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"
+  converted_dem_dir: "assets/mars_assets/DEM/jezero_crater"
   dem_crop:
     row: 180
     col: 0
@@ -352,7 +352,7 @@ mars_env:
 terrain:
   source: "hirise"
   scenario_name: "jezero_delta"
-  converted_dem_dir: "assets/terrain/dem/jezero_crater_converted"
+  converted_dem_dir: "assets/mars_assets/DEM/jezero_crater"
   dem_crop:
     row: 240
     col: 64
