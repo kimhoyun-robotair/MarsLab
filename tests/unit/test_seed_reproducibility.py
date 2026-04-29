@@ -49,7 +49,9 @@ def _run_pipeline(master_seed: int) -> dict:
         sun.zenith_angle_rad,
     )
     diffuse = compute_diffuse_fraction(config.mars_env.dust_optical_depth)
-    sky = compute_sky_dome_params(config.mars_env.dust_optical_depth, "assets/sky/hdri/")
+    sky = compute_sky_dome_params(
+        config.mars_env.dust_optical_depth, "assets/mars_assets/mars_sky/"
+    )
 
     return {
         "elevation": elevation,

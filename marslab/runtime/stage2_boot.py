@@ -166,7 +166,9 @@ def run_stage2_boot(config_path: str, repo_root: str = REPO_ROOT) -> StageTwoBoo
     solar_constant = mars_env_model.solar_constant
     direct_intensity = compute_direct_intensity(solar_constant, tau, sun_pos.zenith_angle_rad)
     diffuse_frac = compute_diffuse_fraction(tau)
-    hdri_dir = os.path.join(repo_root, rendering_cfg.get("sky_dome_hdri_dir", "assets/sky/hdri/"))
+    hdri_dir = os.path.join(
+        repo_root, rendering_cfg.get("sky_dome_hdri_dir", "assets/mars_assets/mars_sky/")
+    )
     sky_params = compute_sky_dome_params(tau, hdri_dir)
     _LOG.info(
         "Atmosphere: tau=%s, direct=%.1f W/m2, diffuse_frac=%.2f",

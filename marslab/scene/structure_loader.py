@@ -115,14 +115,14 @@ def _validate_asset(asset_path: str) -> str:
     Raises:
         FileNotFoundError: With a diagnostic message including the
             absolute path.  The hint points users at
-            ``assets/structures/`` + ``LICENSES.md`` since the actual
+            ``assets/mars_assets/`` + ``LICENSES.md`` since the actual
             Blender / NASA assets are produced out-of-band.
     """
     abs_path = os.path.abspath(asset_path)
     if not os.path.isfile(abs_path):
         raise FileNotFoundError(
             f"Structure USD asset not found: {abs_path}. "
-            "Populate assets/structures/ per LICENSES.md and rebuild."
+            "Populate assets/mars_assets/ per LICENSES.md and rebuild."
         )
     return abs_path
 

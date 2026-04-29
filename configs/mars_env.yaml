@@ -47,17 +47,17 @@ terrain:
   rock_sfd_k: 0.012                  # CFA ~1.2% (dev: 844 rocks. production: 0.05 = 15K)
   rock_diameter_range: [0.20, 3.0]   # meters (< 20cm treated as texture)
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
-  texture_dir: "assets/materials/mars_hirise"  # HiRISE Jezero ortho → PBR (4K, NASA)
+  texture_dir: "assets/mars_assets/mars_terrain_texture"  # HiRISE Jezero ortho → PBR (4K, NASA)
   rock_color: [0.42, 0.28, 0.20]              # Mars rock reddish-brown
   rock_roughness: 0.92
-  rock_mesh_dir: "assets/rocks"                # Blender OBJ meshes (null = Sphere)
-  rock_texture_dir: "assets/materials/mars_rock" # Rock PBR textures (null = color only)
+  rock_mesh_dir: "assets/mars_assets/mars_rocks/meshes"                # Blender OBJ meshes (null = Sphere)
+  rock_texture_dir: "assets/mars_assets/mars_rocks/textures" # Rock PBR textures (null = color only)
   uv_scale: 1.0                                # 1:1 mapping, no tiling (HiRISE ortho matched)
   seed: 42
 
 rendering:
   mode: "ray_tracing"
-  sky_dome_hdri_dir: "assets/sky/hdri/"
+  sky_dome_hdri_dir: "assets/mars_assets/mars_sky/"
   resolution: [1920, 1080]
   sun_intensity_scale: 30.0          # W/m^2 -> Isaac Sim path-tracing units (calibrated)
   sun_color: [1.0, 0.95, 0.85]      # warm Mars sunlight

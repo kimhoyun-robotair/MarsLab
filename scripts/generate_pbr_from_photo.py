@@ -125,7 +125,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-dir",
-        default="assets/materials/mars_hirise",
+        default="assets/mars_assets/mars_terrain_texture",
         help="Output PBR texture directory",
     )
     parser.add_argument("--size", type=int, default=4096)

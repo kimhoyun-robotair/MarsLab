@@ -3,5 +3,5 @@
 
 rendering:
   mode: "path_tracing"
-  sky_dome_hdri_dir: "assets/sky/hdri/"
+  sky_dome_hdri_dir: "assets/mars_assets/mars_sky/"
   resolution: [1280, 720]

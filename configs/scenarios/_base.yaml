@@ -1,8 +1,8 @@
 # Scenario base block: shared mars_env + rendering defaults.
 # ---------------------------------------------------------------
 # Holds the defaults shared by every runnable scenario so each
-# scenario YAML only needs its real overrides (e.g. ``sun_elevation_deg``
-# for ``mars_base``, ``sun_azimuth_deg`` for ``spacecraft_landing``,
+# scenario YAML only needs its real overrides (e.g.
+# ``sun_azimuth_deg`` / ``sun_elevation_deg`` for ``spacecraft_landing``,
 # ``dynamic_atmosphere.enabled: true`` for any scenario that wants the
 # sun sweep running).
 #
@@ -53,7 +53,7 @@ scene:
 
 rendering:
   mode: "ray_tracing"
-  sky_dome_hdri_dir: "assets/sky/hdri/"
+  sky_dome_hdri_dir: "assets/mars_assets/mars_sky/"
   resolution: [1920, 1080]
   sun_intensity_scale: 30.0
   sun_color: [1.0, 0.95, 0.85]

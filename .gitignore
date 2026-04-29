@@ -33,6 +33,9 @@ log/
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # Ignore other common files
 *.swp
@@ -41,6 +44,7 @@ __pycache__/
 *~
 *.txt
 .coverage
+.aux.xml
 
 # Large terrain data files (downloaded, not committed)
 assets/terrain/dem/*.tif
@@ -48,37 +52,10 @@ assets/terrain/dem/*.npy
 assets/terrain/dem/*.IMG
 assets/terrain/dem/*_converted/
 
-# Personal notes / external papers (not committed)
-reference_paper/
-
-# my own skills for development (root-level only, do NOT match .claude/skills/)
-/skills/
-
-# Instruction (personal study notes)
-Instruction.md
-instruction/
-
 # Development
-dev/
-plan/
-work_record/
-codebase-analyzer-workspace/
-내가궁금해서정리하는.md
-marslab.egg-info/
-.pytest_cache/
-.ruff_cache/
-삭제대상/
-work_log/
 .claude/
 tmp/
-.mypy_cache/
-
-# Reviewer 2 #15 (2026-04-24): integration suite reinstated.
-# tests/integration/ is VCS-tracked; use scripts/run_integration_test.py
-# (wraps scripts/isaac_python.sh) to execute against Isaac Sim.  The
-# default pytest run skips the `integration` marker, so unit CI stays
-# GPU-free.  Do NOT re-exclude tests/integration/ or any test_*.py
-# underneath it without pairing with a CI change.
+work_log/
 
 # Claude Code harness — share .claude/agents and .claude/skills,
 # hide personal state and workspace
@@ -89,4 +66,4 @@ _workspace/
 _workspace_*/
 
 # 개발때만 임시로 gitinore
-assets/structures/spacecraft/*.usdz
+assets/mars_assets/space_assets/*.usdz

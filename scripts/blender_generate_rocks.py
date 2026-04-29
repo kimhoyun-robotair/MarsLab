@@ -6,7 +6,7 @@ Much higher quality than trimesh icosphere deformation.
 
 Run: blender --background --python scripts/blender_generate_rocks.py
 
-Output: assets/rocks/rock_blender_{0-7}.obj
+Output: assets/mars_assets/mars_rocks/meshes/rock_blender_{0-7}.obj
 """
 
 import os

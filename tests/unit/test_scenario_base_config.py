@@ -18,7 +18,7 @@ These tests lock down three guarantees:
 1. The shared defaults from ``_base.yaml`` actually land in the merged
    result for every scenario (inheritance works end-to-end).
 2. Scenario-local overrides still win (``spacecraft_landing`` keeps
-   its 135/40 sun, ``mars_base`` keeps 50-deg sun elevation).
+   its 135/40 sun azimuth/elevation override).
 3. No scenario re-declares a ``mars_env`` common key -- i.e. the dedup
    actually happened and cannot silently regress via a future
    copy-paste.
@@ -110,16 +110,6 @@ def test_scenario_override_wins_over_base_sun_azimuth() -> None:
     assert cfg.mars_env.sun_elevation_deg == pytest.approx(40.0)
 
 
-def test_scenario_override_wins_over_base_sun_elevation() -> None:
-    """``mars_base`` overrides sun elevation only; azimuth inherits from base."""
-    path = SCENARIO_DIR / "mars_base.yaml"
-    cfg = load_and_validate(str(path))
-    # Scenario override wins:
-    assert cfg.mars_env.sun_elevation_deg == pytest.approx(50.0)
-    # Base default wins where scenario stays silent:
-    assert cfg.mars_env.sun_azimuth_deg == pytest.approx(180.0)
-
-
 def test_dynamic_atmosphere_enabled_scenario_flip() -> None:
     """Scenarios flip ``dynamic_atmosphere.enabled`` from false to true.
 
@@ -156,8 +146,7 @@ def test_no_scenario_duplicates_mars_env_common_block(yaml_path: Path) -> None:
 
     Permitted keys:
     * ``sun_azimuth_deg`` / ``sun_elevation_deg`` -- scenario-specific
-      solar geometry overrides (documented cases: mars_base,
-      spacecraft_landing).
+      solar geometry overrides (documented case: spacecraft_landing).
     * ``dynamic_atmosphere`` -- scenarios flip ``enabled`` to true.
     * ``seed`` -- allowed per-scenario seed override for experiments.
     """

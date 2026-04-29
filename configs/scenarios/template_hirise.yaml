@@ -92,11 +92,11 @@ terrain:
   rock_sfd_k: 0.05                 # frequently tuned: Golombek CFA 0.0~0.15
   rock_diameter_range: [0.20, 3.0]
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
-  texture_dir: "assets/materials/mars_hirise"
+  texture_dir: "assets/mars_assets/mars_terrain_texture"
   rock_color: [0.42, 0.28, 0.20]
   rock_roughness: 0.92
-  rock_mesh_dir: "assets/rocks"
-  rock_texture_dir: "assets/materials/mars_rock"
+  rock_mesh_dir: "assets/mars_assets/mars_rocks/meshes"
+  rock_texture_dir: "assets/mars_assets/mars_rocks/textures"
   uv_scale: 1.0
   seed: 42
 
@@ -105,7 +105,7 @@ terrain:
 # ============================================================================
 rendering:
   mode: "ray_tracing"              # frequently tuned: use path_tracing for dataset generation
-  sky_dome_hdri_dir: "assets/sky/hdri/"
+  sky_dome_hdri_dir: "assets/mars_assets/mars_sky/"
   resolution: [1920, 1080]
   sun_intensity_scale: 30.0
   sun_color: [1.0, 0.95, 0.85]

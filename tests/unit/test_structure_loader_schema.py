@@ -71,7 +71,7 @@ def test_schema_to_dataclass_parity():
     """Round-tripping through to_dataclass yields identical field values."""
     s = StructureConfigSchema(
         name="lander",
-        asset_path="assets/structures/spacecraft/insight_lander.usd",
+        asset_path="assets/mars_assets/space_assets/insight_lander.usd",
         spawn_xyz=[1.5, 2.5, 0.0],
         spawn_rpy_deg=[10.0, 20.0, 30.0],
         scale=[1.2, 1.2, 0.3],
@@ -141,7 +141,7 @@ def test_marslab_config_scene_block_parses():
             "structures": [
                 {
                     "name": "habitat",
-                    "asset_path": "assets/structures/base/habitat_module.usd",
+                    "asset_path": "assets/mars_assets/space_assets/habitat_module.usd",
                     "spawn_xyz": [0.0, 0.0, 0.0],
                 }
             ]
@@ -157,8 +157,7 @@ def test_marslab_config_scene_block_parses():
 @pytest.mark.parametrize(
     "scenario_file,expected_structure_count,rover_xy",
     [
-        ("spacecraft_landing.yaml", 5, [10.0, 0.0]),
-        ("mars_base.yaml", 6, [40.0, 0.0]),
+        ("spacecraft_landing.yaml", 1, [10.0, 0.0]),
     ],
 )
 def test_scenario_yaml_roundtrip(scenario_file, expected_structure_count, rover_xy):
@@ -179,7 +178,7 @@ def test_scenario_yaml_roundtrip(scenario_file, expected_structure_count, rover_
     # invalid names / missing required fields at import time).
     for raw in data["scene"]["structures"]:
         s = StructureConfigSchema(**raw)
-        assert s.asset_path.startswith("assets/structures/")
+        assert s.asset_path.startswith("assets/mars_assets/")
         assert s.to_dataclass().resolved_prim_path().startswith("/World/Structures/")
 
     # Rover spawn XY sanity check — aligns with the plan (10 m / 40 m).
@@ -190,7 +189,7 @@ def test_scenario_yaml_names_unique_within_scene():
     """Structure names must be unique within a scenario so the default
     prim paths do not collide.
     """
-    for scenario_file in ("spacecraft_landing.yaml", "mars_base.yaml"):
+    for scenario_file in ("spacecraft_landing.yaml",):
         path = SCENARIO_DIR / scenario_file
         with open(path, "r") as f:
             data = yaml.safe_load(f)
@@ -209,9 +208,8 @@ def test_structure_asset_dirs_exist():
     that agents downstream can drop USD files in without re-creating
     the folder tree.
     """
-    assert (REPO_ROOT / "assets" / "structures" / "spacecraft").is_dir()
-    assert (REPO_ROOT / "assets" / "structures" / "base").is_dir()
-    assert (REPO_ROOT / "assets" / "structures" / "LICENSES.md").is_file()
+    assert (REPO_ROOT / "assets" / "mars_assets" / "space_assets").is_dir()
+    assert (REPO_ROOT / "assets" / "mars_assets" / "LICENSES.md").is_file()
 
 
 # --- Offline-safety smoke ----------------------------------------------------

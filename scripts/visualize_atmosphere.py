@@ -74,7 +74,7 @@ def main() -> None:
     ax3 = axes[1, 0]
     swatch_taus = [0.1, 0.3, 0.5, 1.0, 1.5, 2.0, 3.0]
     for i, t in enumerate(swatch_taus):
-        sky = compute_sky_dome_params(t, "assets/sky/hdri/")
+        sky = compute_sky_dome_params(t, "assets/mars_assets/mars_sky/")
         color = sky.base_color_rgb
         ax3.barh(i, 1, color=color, edgecolor="black", linewidth=0.5)
         ax3.text(

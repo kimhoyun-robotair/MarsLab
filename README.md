@@ -150,7 +150,6 @@ Nine reference scenarios ship with v1.0:
 | `cerberus_canyon_easy`    | HiRISE Cerberus Fossae S  | 82% traversable. Approach-with-crater nav baseline.                   |
 | `cerberus_canyon`         | HiRISE Cerberus Fossae    | 28% impassable, mean slope 25°. Path-planning stress test.           |
 | `cave_lava_tube`          | Procedural (MARS-LT-B)    | 200 m wide lava tube, 1 skylight. GPS-denied SLAM.                   |
-| `mars_base`               | HiRISE Jezero + structures| Crewed-outpost layout, 40 m goal-pose for Nav2 evaluation.            |
 | `spacecraft_landing`      | HiRISE Jezero + structures| InSight-style lander + heat shield + parachute debris field.          |
 | `procedural_canyon`       | Procedural                | Synthetic canyon corridor, 30 m floor, 40 m walls. Confined nav.      |
 
@@ -388,10 +387,8 @@ Both `.obj` and `.stl` flow through the same `marslab.scene.structure_loader`
 code path — pick whichever exporter your modelling tool supports. The path
 is resolved relative to the MarsLab repo root.
 
-For richer scenes, see `configs/scenarios/mars_base.yaml` (habitat + solar
-arrays + airlock + comm dish + ISRU plant) and
-`configs/scenarios/spacecraft_landing.yaml` (lander + heat shield +
-parachute debris field).
+For richer scenes, see `configs/scenarios/spacecraft_landing.yaml`
+(lander + heat shield + parachute debris field).
 
 ---
 

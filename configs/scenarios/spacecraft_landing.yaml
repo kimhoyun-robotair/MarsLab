@@ -7,10 +7,10 @@
 # 10 m east of the lander so it can drive up to the inspection zone.
 #
 # Placeholder asset paths -- the actual USD assets under
-# ``assets/structures/spacecraft/`` are produced out-of-band by the
+# ``assets/mars_assets/space_assets/`` are produced out-of-band by the
 # artist team (InSight lander is NASA public domain; heat shield /
 # backshell / parachute are Apache-2.0 user-made).  See
-# ``assets/structures/LICENSES.md`` for the full source list.  The
+# ``assets/mars_assets/LICENSES.md`` for the full source list.  The
 # structure_loader raises FileNotFoundError with a clear pointer when
 # the .usd file is missing, so this YAML validates offline even before
 # the assets land.
@@ -41,11 +41,11 @@ terrain:
   rock_sfd_k: 0
   rock_diameter_range: [0.20, 3.0]
   semantic_classes: ["soil", "bedrock", "sand", "big_rock"]
-  texture_dir: "assets/materials/mars_hirise"
+  texture_dir: "assets/mars_assets/mars_terrain_texture"
   rock_color: [0.42, 0.28, 0.20]
   rock_roughness: 0.92
-  rock_mesh_dir: "assets/rocks"
-  rock_texture_dir: "assets/materials/mars_rock"
+  rock_mesh_dir: "assets/mars_assets/mars_rocks/meshes"
+  rock_texture_dir: "assets/mars_assets/mars_rocks/textures"
   uv_scale: 1.0
   seed: 42
 
@@ -71,7 +71,7 @@ terrain:
 scene:
   structures:
     - name: "spacex_starship"
-      asset_path: "assets/structures/spacecraft/SpaceX_Starship_-_Spaceship.usdz"
+      asset_path: "assets/mars_assets/space_assets/SpaceX_Starship_-_Spaceship.usdz"
       spawn_xyz: [220.0, 249.5, 9.90]
       spawn_rpy_deg: [0.0, 0.0, 0.0]
       scale: [1,1,1]

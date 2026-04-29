@@ -1,0 +1,35 @@
+name: Security
+
+# Reviewer 2 #18 (2026-04-24): dependency vulnerability scan via pip-audit.
+# Runs on push/PR plus a weekly schedule so newly disclosed CVEs surface
+# even when the tree is idle.
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays 06:00 UTC
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system GDAL libraries
+        run: sudo apt-get update && sudo apt-get install -y libgdal-dev gdal-bin
+
+      - name: Install MarsLab + dev deps
+        run: pip install -e ".[dev]"
+
+      - name: Run pip-audit
+        # ``--strict`` fails the job on any known vulnerability.  When a
+        # transitive dep can't be patched immediately add ``--ignore-vuln
+        # GHSA-xxxx`` with a comment pointing at the tracking issue.
+        run: pip-audit --strict

@@ -39,6 +39,7 @@ apply to every development task regardless of phase or scope.
   code/feature scope freezes 2026-04-30.
 - **iSpaRo 2026 paper submission: 2026-06-15.**
 - v0.7 baseline: 2026-04-24 (Isaac Sim 5.1 base + large refactor + bugfix).
+- v0.9 Codebase: 2026-04-28 (Full Pipeline Integration : DEM Loader + URDFtoUSD + Sensor + Scene Rendering + 3D SLAM Package)
 
 ### OP-4: Rollback ready
 - Every task lands as a git commit unit so a single `git revert` recovers the
@@ -60,43 +61,14 @@ apply to every development task regardless of phase or scope.
 | Version | Date | Status | Scope |
 |---------|------|--------|-------|
 | v0.7 | 2026-04-24 | ✓ Complete | Isaac Sim 5.1 base, terrain/atmosphere/sensors/ROS2/SLAM stack, 893 unit + 3 integration tests, large refactor + bugfix |
-| **v1.0 sprint** | **2026-04-25 ~ 04-30** | **In progress** | Engineering enhancements (rover physics, sensor YAML externalization, RGB-D PointCloud2, structure_assets drop-in, ideas.md polish). Plan: `~/.claude/plans/marslab_v1_0_sprint_2026-04-25.md` |
-| v1.0 release | post-sprint, user-led | Pending | Dockerize (Isaac Sim 5.1 layer) + Wiki (mkdocs-material recommended). User reviews codebase first. |
-| v1.5 | post-paper, hobby | Future | Engineering follow-ons: GUI .obj loader, non-ROS2 dataset export, scenario DSL, multi-rover, fault injection |
-| v2.0 | post-paper, hobby | Future | Photorealism: Hapke optics (#13), dust dynamics (#14), CARLA2Real-style sim2real |
-| v3.0 | future | Deferred | Terramechanics (Bekker/Janosi), RL environments, multi-robot coordination |
+| v0.9 | 2026-04-25 ~ 04-28 | ✓ Complete | Full Pipeline Integration : HiRISE DEM Loader, Scene/Robot/Rover Integration in One Rendering, ROS2 and  3D Mapping (Kinematic-ICP) |
+| **v1.0 sprint** | **2026-04-28 ~** | **In progress** | Dockerize (Isaac Sim 5.1 layer) + Codebase Wikie + User's Code Review + Code Refactoring + Bug Fix + Additional Function Dev |
+| v1.0 release | post-sprint | Pending | Based on Github (Local Code and Dockerfile) |
+| v1.5 | post-paper | Future | Engineering & Maintanance : Easier GUI for .obj loader, non-ROS2 dataset export, scenario DSL, multi-robot (maybe rover), fault injection, Rocker-Bogie Controller, Hapke optics (#13), dust dynamics (#14), CARLA2Real-style sim2real  |
+| v2.0 | 2026.06.15 ~ 11.15 | Future | Towards Sim2Real : Photorealistic Based on Generative AI |
+| v3.0 | TBD | Deferred | Terramechanics (Bekker/Janosi), RL environments, multi-robot coordination |
 
-**Reference for v1.5/v2.0 candidate features:** `planetary_rover_simulator_ideas.md`.
-
----
-
-## v1.0 Sprint Scope (current sprint, 2026-04-25 ~ 04-30)
-
-| ID | Task | Day | Owner |
-|----|------|-----|-------|
-| A | CLAUDE.md + CLAUDE_kor.md rewrite + schema-bypass triage | Day 1 | main thread |
-| B | Rover M2020 ballpark physics + YAML inject (mass 1025 kg, friction/damping/inertia) | Day 2 | robotics-mobility-lead |
-| D | Sensor params YAML externalization (lidar JSON included) | Day 2 | atmosphere-rendering-specialist |
-| E | Lidar USD import + fixed mount + YAML swap | Day 2 | atmosphere-rendering-specialist (with D) |
-| F | RGB-D depth → PointCloud2 publish (RealSense-style) | Day 2 | slam-nav-integrator |
-| G | TF tree + extrinsic verification (unit + integration) | Day 2 | qa-validator |
-| H | .obj/.stl YAML drop-in (no GUI) | Day 2-4 | scenario-terrain-architect |
-| I | ideas #1, #3, #6 (M2020 only), #7 sensor preset, #16 YAML scenario doc, #17 bit-exact replay | Day 4-5 | atmosphere-rendering-specialist + qa-validator |
-
-**Rocker-bogie controller, Hapke optics, dust dynamics, GUI, multi-rover are
-explicitly out of this sprint.**
-
-### v1.0 Roadmap (post-sprint, user-led)
-
-The following items complete v1.0 release readiness and are performed by the user
-(not the assistant) after reviewing the codebase first:
-
-- **Dockerize.** Recommendation: `nvcr.io/nvidia/isaac-sim:5.1.0` base + MarsLab
-  layer. Headless-only image first; full GUI image deferred to v1.5.
-- **Wiki.** Recommendation: mkdocs-material on GitHub Pages (auto-deploy from
-  `docs/`).
-
-Completion of both = MarsLab v1.0 public release.
+**Reference for v1.5/v2.0 candidate features:** `planetary_rover_simulator_ideas.md`. But, Can be Changed.
 
 ---
 
@@ -121,7 +93,8 @@ module, and task must trace back to one or more of these guidelines.
    are date-keyed 3-line summaries with artifact links.
 9. **G9: User Review Gate.** User reviews and may request revisions; sprint
    plans live in `~/.claude/plans/`.
-10. **G10: Ultrathink Throughout.** Deep reasoning at every design decision.
+10. **G10: Higher Throughout.** Deep reasoning at every design decision using xhigh or max effort.
+11. **G11. Temporary Files.** If you need to create temporary files, do not use `/tmp`; use `~/MarsLab/tmp` instead.
 
 > **Retired:** former G9 (PLAN.md = architecture; PLAN.md was deleted 2026-04-24),
 > former G12 (13-agent adversarial debate; replaced by OP-1 parallel subagents),
