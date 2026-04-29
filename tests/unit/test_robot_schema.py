@@ -118,8 +118,8 @@ class TestBroaderRobotFields:
         assert len(cov.pose_diag) == 6
         assert len(cov.twist_diag) == 6
 
-    def test_odom_publisher_defaults_match_slam_nav_convention(self) -> None:
-        """Frame IDs must match ``configs/slam/*.yaml`` and Nav2 defaults."""
+    def test_odom_publisher_defaults_match_slam_convention(self) -> None:
+        """Frame IDs must match the SLAM stack's defaults."""
         p = OdomPublisherConfig()
         assert p.frame_id == "odom"
         assert p.child_frame_id == "base_link"

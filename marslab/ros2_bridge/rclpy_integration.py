@@ -106,7 +106,7 @@ def init_rclpy_side(
     # scenarios keep loading unchanged.
     cmd_vel_queue_size = int(ros2_cfg.get("cmd_vel_queue_size", 10))
     # Pass the resolved QoSProfile so the subscription reliability
-    # matches Nav2 controller_server expectations.
+    # matches the upstream controller's expectations.
     cmd_vel_sub = create_cmd_vel_subscriber(
         node,
         cmd_vel_topic,
@@ -161,7 +161,7 @@ def init_rclpy_side(
     # Pull frame_id / child_frame_id / queue_size from YAML when the
     # rover block declares an ``odom_publisher`` sub-map. The sub-map
     # mirrors ``OdomPublisherConfig``
-    # (marslab/config/schema/robot.py) so slam_toolbox and Nav2 frame
+    # (marslab/config/schema/robot.py) so the SLAM stack frame
     # names stay aligned with a single YAML source. Falls back to the
     # historical function defaults when the key is absent so existing
     # scenario YAMLs keep loading unchanged.
@@ -169,7 +169,7 @@ def init_rclpy_side(
     # Default OFF so the OmniGraph ``ROS2PublishTransformTree`` is the
     # sole TF authority for ``odom -> base_link``.  An external
     # ``ros2 run topic_tools relay /tf_raw /tf`` then merges the
-    # OmniGraph chain into the canonical ``/tf`` topic for RViz / Nav2.
+    # OmniGraph chain into the canonical ``/tf`` topic for RViz / SLAM.
     # Setting this ``True`` while the relay runs would give tf2 two
     # parents for ``base_link``.  The schema field
     # ``Ros2BridgeConfig.publish_odom_tf`` is the validated source of

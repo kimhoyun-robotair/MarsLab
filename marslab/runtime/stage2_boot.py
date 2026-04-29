@@ -34,9 +34,10 @@ class StageTwoAtmosphereInit:
     """Frozen static atmosphere snapshot produced at boot time.
 
     Consumed by :mod:`marslab.runtime.stage2_scene` to build the initial
-    sun/sky/fog configuration, and by :mod:`marslab.runtime.stage2_loop`
-    to seed the mutable per-frame ``atmosphere_state`` dict. Ownership
-    of the mutable state lives in the loop module only.
+    sun/sky/fog configuration, and by :mod:`marslab.runtime.main_loop`
+    (via :func:`build_atmosphere_loop_state`) to seed the mutable
+    per-frame ``atmosphere_dict``. Ownership of the mutable state lives
+    in the loop module only.
 
     Attributes:
         tau: Dust optical depth used for the initial render.

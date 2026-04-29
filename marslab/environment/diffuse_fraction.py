@@ -111,8 +111,7 @@ def compute_diffuse_fraction(tau: float) -> float:
     """Deprecated alias for :func:`compute_diffuse_fraction_1d_approx`.
 
     Kept for backward compatibility with existing call sites
-    (``runtime.stage2_boot``, ``runtime.stage2_loop``,
-    ``scripts/visualize_atmosphere.py``, etc.). New code should call
+    (``runtime.stage2_boot``, etc.). New code should call
     :func:`compute_diffuse_fraction_1d_approx` directly and, when the
     v2.0 2-D model lands, pass ``zenith_rad`` as well.
 

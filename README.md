@@ -7,7 +7,7 @@ MarsLab gives planetary-robotics researchers a single, scriptable, ROS2-native
 testbed for repeatable Mars experiments. Nine reference scenarios — from a
 flat Jezero plain to a 200 m wide lava tube — ship as YAML configs that load
 the same M2020 Perseverance rover and the same Mars-calibrated atmosphere,
-so a SLAM or Nav2 result on one scenario is directly comparable to results on
+so a SLAM or autonomy result on one scenario is directly comparable to results on
 the others.
 
 * **Reproducible by design** — every randomized process accepts a `seed`; one
@@ -19,8 +19,6 @@ the others.
   cloud, 3D + 2D LiDAR, full TF tree.
 * **Drop-in `.obj` / `.stl` assets** — add a boulder, a lander, a habitat
   module by pointing one YAML field at a file path.
-* **SLAM + Nav2 wired** — `slam_toolbox` and `nav2_bringup` configs ship in
-  `configs/slam/` and `configs/nav2/`.
 * **Pydantic-validated** — every YAML field is type-checked at load time;
   typos fail loudly before Isaac Sim boots.
 
@@ -47,7 +45,7 @@ pip install -e ".[dev]" --break-system-packages
 
 # 3. Run a fully self-contained procedural scenario.
 #    No external DEM, no external assets, no other YAMLs to read.
-scripts/isaac_python.sh scripts/phase1/run_stage4.py \
+scripts/isaac_python.sh scripts/phase1/main.py \
     --config configs/scenarios/template_single_file.yaml
 ```
 
@@ -67,7 +65,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 the latched `/rover/robot_description` URDF + the OmniGraph-published
 `/rover/joint_states` and emits the full articulation TF chain on `/tf`.
 Without it, `/joint_states` is the only TF-related topic alive and
-RViz `RobotModel`, SLAM, and Nav2 all fail to resolve `Body_Wheel*` /
+RViz `RobotModel` and SLAM all fail to resolve `Body_Wheel*` /
 sensor frames.
 
 ```bash
@@ -77,9 +75,7 @@ ros2 launch ~/MarsLab/launch/rover_state_publisher.launch.py
 Watch it in RViz:
 
 ```bash
-ros2 launch slam_toolbox online_async_launch.py \
-    params_file:=$(pwd)/configs/slam/slam_toolbox_async.yaml
-rviz2  # add /rover/scan, /rover/depth/points, /rover/lidar/points, /map
+rviz2  # add /rover/scan, /rover/depth/points, /rover/lidar/points
 ```
 
 ---
@@ -115,8 +111,8 @@ elevation are entirely different but bit-exact reproducible the next time.
 ### 2b. HiRISE DEM (real Mars topography)
 
 Two-step workflow. **Step 1 is offline preprocessing** (no Isaac Sim, no
-GPU); step 2 is the same `run_stage4.py` invocation as the procedural
-case.
+GPU); step 2 is the same `scripts/phase1/main.py` invocation as the
+procedural case.
 
 ```bash
 # Step 1: convert a HiRISE GeoTIFF to numpy + metadata.
@@ -127,7 +123,7 @@ scripts/isaac_python.sh scripts/convert_dem.py \
 
 # Step 2: run the simulator with a scenario that points at the
 #         processed DEM via terrain.dem_path.
-scripts/isaac_python.sh scripts/phase1/run_stage4.py \
+scripts/isaac_python.sh scripts/phase1/main.py \
     --config configs/scenarios/template_hirise.yaml
 ```
 
@@ -233,7 +229,7 @@ ros2 launch ~/MarsLab/launch/rover_state_publisher.launch.py \
     urdf_path:=/path/to/m2020.urdf namespace:=rover2
 ```
 
-SLAM/Nav2 launch parameters accept any `base_frame` -- pin to
+SLAM launch parameters accept any `base_frame` -- pin to
 `base_link` (REP-103) or to the URDF root link name (`Body_Chassis`)
 depending on the upstream stack.
 
@@ -254,8 +250,8 @@ Pick the Fixed Frame based on what you are debugging:
 
 | Fixed Frame | Use case | Rover orientation |
 |---|---|---|
-| `odom` (default) | `marslab.ros2_bridge.odometry_publisher` ground-truth, Nav2 local planning | Correct (chassis up, wheels down) |
-| `map` | RTAB-Map / slam_toolbox global localisation | Correct |
+| `odom` (default) | `marslab.ros2_bridge.odometry_publisher` ground-truth, local planning | Correct (chassis up, wheels down) |
+| `map` | RTAB-Map global localisation | Correct |
 | `base_link` | Frame chain debugging (sensor mounts, wrapper transform) | Inverted (graphics-style URDF link frame) |
 | `Body_Chassis` | Raw URDF link inspection | Inverted |
 
@@ -280,17 +276,16 @@ it.
 
 The four QoS profiles map to ROS2 conventions:
 
-* **`cmd_vel_qos`** → RELIABLE/depth=10. Matches Nav2 `controller_server`
-  output (REP-2003 SystemDefault). Flip to `best_effort` if driving with
-  `teleop_twist_keyboard`.
+* **`cmd_vel_qos`** → RELIABLE/depth=10. Matches REP-2003 SystemDefault.
+  Flip to `best_effort` if driving with `teleop_twist_keyboard`.
 * **`odom_qos`** → RELIABLE/depth=10. `nav_msgs/Odometry` REP-2003
   SystemDefault.
 * **`sensor_qos`** → BEST_EFFORT/depth=5. The ROS2 `sensor_data`
-  convention. **Required** for `slam_toolbox` LaserScan subscribers,
-  which default to BEST_EFFORT.
+  convention. **Required** for LaserScan subscribers that default to
+  BEST_EFFORT.
 * **`tf_qos`** → RELIABLE + TRANSIENT_LOCAL/depth=100. Matches `tf2_ros`
   defaults. TRANSIENT_LOCAL on `/tf_static` lets a late-joining
-  `slam_toolbox` still latch the static sensor frames.
+  subscriber still latch the static sensor frames.
 
 Override any of them in `rover.ros2` of your scenario YAML — see
 `marslab/config/schema/ros2_bridge.py::Ros2BridgeConfig` for the full
@@ -392,32 +387,7 @@ For richer scenes, see `configs/scenarios/spacecraft_landing.yaml`
 
 ---
 
-## 7. SLAM + Nav2 Integration
-
-SLAM and Nav2 configs ship under `configs/slam/` and `configs/nav2/`. They
-are vanilla `slam_toolbox` and `nav2_bringup` parameter files — no MarsLab
-fork — so any tutorial that targets stock ROS2 Jazzy applies directly.
-
-```bash
-# 2D SLAM with slam_toolbox.
-ros2 launch slam_toolbox online_async_launch.py \
-    params_file:=$(pwd)/configs/slam/slam_toolbox_async.yaml
-
-# Autonomous navigation with Nav2.
-ros2 launch nav2_bringup navigation_launch.py \
-    params_file:=$(pwd)/configs/nav2/nav2_params.yaml
-```
-
-`slam_toolbox` requires BEST_EFFORT QoS on `/rover/scan`. MarsLab's default
-already satisfies this — `Ros2BridgeConfig.sensor_qos.reliability =
-"best_effort"` ships out of the box, so no QoS overrides are needed.
-
-For Nav2 smoke testing, set goals interactively in RViz with the
-**"2D Goal Pose"** tool. (We deliberately do not ship a waypoint-runner
-script — RViz is the canonical Nav2 driver and reproducibility comes
-from logging `/tf` + `/rosout`, not from re-running a Python script.)
-
-### 7c. 3D LiDAR odometry (kinematic-icp / RTAB-Map)
+## 7. 3D LiDAR odometry (kinematic-icp / RTAB-Map)
 
 3D LiDAR-based odometry has been validated against two open-source
 stacks.  Each stack interprets the relationship between PointCloud
@@ -561,7 +531,7 @@ Ingenuity teams; URDF conversion by JPL RSVP team. See
 ### Roadmap
 
 * **v1.0 (current, iSpaRo 2026 submission):** engineering quality. Nine
-  scenarios, single M2020 rover, ROS2 bridge, SLAM + Nav2, dynamic
+  scenarios, single M2020 rover, ROS2 bridge, SLAM, dynamic
   atmosphere, pydantic-validated YAML throughout.
 * **v1.5 (post-iSpaRo, engineering follow-ons):**
     * GUI `.obj` / `.stl` loader (no YAML edit needed).
@@ -609,8 +579,8 @@ Isaac Sim integration tests (manual; user-driven per project convention):
 scripts/isaac_python.sh scripts/run_integration_test.py
 ```
 
-See `tests/integration/` for the IMU-gravity, ROS2-topic, and
-slam_toolbox integration gates.
+See `tests/integration/` for the IMU-gravity and ROS2-topic
+integration gates.
 
 ---
 

@@ -7,7 +7,7 @@ Composes a single action graph that drives:
   separate from the rclpy ``odom -> base_link`` broadcaster on ``/tf``
   in :mod:`marslab.ros2_bridge.odometry_publisher`.  Sharing one
   ``/tf`` was tried and rolled back because the two publishers
-  produced duplicated / out-of-phase frames in RViz and Nav2.  The
+  produced duplicated / out-of-phase frames in RViz and SLAM.  The
   split is enforced by user policy: never merge OmniGraph PubTF and
   rclpy TransformBroadcaster onto the same ``/tf`` topic.
 * IMU (``sensor_msgs/Imu``).

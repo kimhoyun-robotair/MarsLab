@@ -13,9 +13,9 @@ Context
 Without explicit QoS, every publisher and subscriber in
 ``marslab/ros2_bridge/`` would use the rclpy default QoS
 (``RELIABLE`` + ``VOLATILE`` + ``KEEP_LAST`` depth=10), which causes
-silent message drop against slam_toolbox (``BEST_EFFORT``) and
+silent message drop against LaserScan subscribers (``BEST_EFFORT``) and
 teleop_twist_keyboard (``BEST_EFFORT``). The schema fields here pin
-the four topic families to SLAM/Nav2-friendly defaults while leaving
+the four topic families to SLAM-friendly defaults while leaving
 them overridable per-scenario.
 """
 
@@ -92,7 +92,7 @@ class TestRos2BridgeConfigQoSFields:
         assert isinstance(cfg.tf_qos, QoSProfileConfig)
 
     def test_cmd_vel_default_reliable(self) -> None:
-        """Matches Nav2 controller_server SystemDefault (RELIABLE)."""
+        """Matches REP-2003 SystemDefault (RELIABLE)."""
         cfg = Ros2BridgeConfig()
         assert cfg.cmd_vel_qos.reliability == "reliable"
         assert cfg.cmd_vel_qos.depth == 10
@@ -104,11 +104,11 @@ class TestRos2BridgeConfigQoSFields:
         assert cfg.odom_qos.depth == 10
 
     def test_sensor_default_is_best_effort(self) -> None:
-        """Hard pin: slam_toolbox compatibility.
+        """Hard pin: LaserScan subscriber compatibility.
 
-        slam_toolbox subscribes to ``sensor_msgs/LaserScan`` with
-        BEST_EFFORT.  Shipping RELIABLE on our side yields 0 messages
-        received — this test prevents a silent flip back to reliable.
+        LaserScan subscribers default to BEST_EFFORT.  Shipping
+        RELIABLE on our side yields 0 messages received — this test
+        prevents a silent flip back to reliable.
         """
         cfg = Ros2BridgeConfig()
         assert cfg.sensor_qos.reliability == "best_effort"
@@ -119,8 +119,8 @@ class TestRos2BridgeConfigQoSFields:
         """Hard pin: late-joining subscriber compatibility.
 
         ``/tf_static`` must be TRANSIENT_LOCAL for late-joiners
-        (slam_toolbox that boots after the bridge) to latch the sensor
-        transforms.  This test prevents a silent flip to volatile.
+        that boot after the bridge to latch the sensor transforms.
+        This test prevents a silent flip to volatile.
         """
         cfg = Ros2BridgeConfig()
         assert cfg.tf_qos.reliability == "reliable"

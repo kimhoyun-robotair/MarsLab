@@ -228,7 +228,7 @@ class MarsEnvConfig(BaseModel):
     # size -- but grouped here so every environmental scalar flows
     # through a single pydantic model rather than duplicated ``1.0/60.0``
     # literals in :mod:`marslab.runtime.stage2_scene` and
-    # :mod:`marslab.runtime.stage2_loop`.
+    # :mod:`marslab.runtime.main_loop`.
     physics_dt: float = Field(
         default=1.0 / 60.0,
         gt=0.0,

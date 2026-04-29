@@ -256,9 +256,9 @@ def _build_set_values(
     The two topics are deliberately kept separate: empirically, sharing
     one ``/tf`` between an OmniGraph ``PubTF`` and an rclpy
     ``TransformBroadcaster`` produces duplicated frames in RViz and
-    Nav2's TF buffer (the two backends serialise identical frames out
-    of phase, and downstream consumers see ``/tf`` jitter that breaks
-    SLAM / localisation).  The split mirrors the historical Stage-1
+    consumers' TF buffers (the two backends serialise identical frames
+    out of phase, and downstream consumers see ``/tf`` jitter that
+    breaks SLAM / localisation).  The split mirrors the historical Stage-1
     layout; do not propose merging them again unless the user
     explicitly asks.
 

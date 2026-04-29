@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import yaml
 
 from marslab.config.schema import DynamicAtmosphereConfig
 from marslab.runtime.stage2_boot import (
@@ -15,7 +16,35 @@ from marslab.runtime.stage2_boot import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MARS_ENV_YAML = REPO_ROOT / "configs" / "mars_env.yaml"
+
+
+@pytest.fixture(scope="module")
+def flat_yaml(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Module-scope minimal flat YAML (no ``base_config`` include).
+
+    ``run_stage2_boot`` consumes any of the three top-level sections
+    (``mars_env`` / ``terrain`` / ``rendering``) so this fixture keeps
+    every leaf at schema default while still satisfying the conditional
+    requirements (``terrain.source`` must pair with either
+    ``dem_path`` / ``converted_dem_dir`` for hirise or
+    ``procedural_preset`` for procedural).
+    """
+    flat = tmp_path_factory.mktemp("stage2_boot") / "minimal_flat.yaml"
+    flat.write_text(
+        yaml.safe_dump(
+            {
+                "mars_env": {"seed": 42},
+                "terrain": {
+                    "source": "procedural",
+                    "procedural_preset": "crater",
+                    "terrain_size": [256, 256],
+                    "terrain_resolution": 1.0,
+                },
+                "rendering": {"mode": "ray_tracing"},
+            }
+        )
+    )
+    return flat
 
 
 def _find_scenario_without_cave() -> Path:
@@ -44,12 +73,12 @@ def _find_scenario_without_cave() -> Path:
 
 
 class TestRunStage2Boot:
-    def test_returns_stage_two_boot_result(self) -> None:
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+    def test_returns_stage_two_boot_result(self, flat_yaml: Path) -> None:
+        boot = run_stage2_boot(str(flat_yaml))
         assert isinstance(boot, StageTwoBootResult)
 
-    def test_config_sections_present(self) -> None:
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+    def test_config_sections_present(self, flat_yaml: Path) -> None:
+        boot = run_stage2_boot(str(flat_yaml))
         for key in ("mars_env", "terrain", "rendering"):
             assert key in boot.config
         assert boot.mars_cfg is boot.config["mars_env"]
@@ -69,67 +98,65 @@ class TestRunStage2Boot:
         with pytest.raises(FileNotFoundError):
             run_stage2_boot("/does/not/exist.yaml")
 
-    def test_config_path_is_absolute(self, tmp_path: Path, monkeypatch) -> None:
+    def test_config_path_is_absolute(self, flat_yaml: Path, tmp_path: Path, monkeypatch) -> None:
         monkeypatch.chdir(tmp_path)
-        rel = Path("configs/mars_env.yaml")
         # Use absolute fallback path -- we just assert absolutisation works
         # regardless of the cwd used to invoke the helper.
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+        boot = run_stage2_boot(str(flat_yaml))
         assert Path(boot.config_path).is_absolute()
-        del rel  # silence linter re: unused
 
 
 class TestTerrainPreload:
-    def test_elevation_shape_matches_metadata(self) -> None:
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+    def test_elevation_shape_matches_metadata(self, flat_yaml: Path) -> None:
+        boot = run_stage2_boot(str(flat_yaml))
         assert isinstance(boot.elevation, np.ndarray)
         assert boot.elevation.ndim == 2
         assert boot.resolution > 0.0
 
-    def test_dem_paths_are_absolute(self) -> None:
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+    def test_dem_paths_are_absolute(self, flat_yaml: Path) -> None:
+        boot = run_stage2_boot(str(flat_yaml))
         for path in boot.dem_paths.values():
             assert path.is_absolute()
 
 
 class TestAtmosphereInit:
-    def test_init_is_frozen_snapshot(self) -> None:
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+    def test_init_is_frozen_snapshot(self, flat_yaml: Path) -> None:
+        boot = run_stage2_boot(str(flat_yaml))
         atmo = boot.atmosphere_init
         assert isinstance(atmo, StageTwoAtmosphereInit)
         # Frozen dataclass: attribute assignment must raise.
         with pytest.raises(Exception):  # noqa: BLE001, B017 - FrozenInstanceError
             atmo.tau = 999.0  # type: ignore[misc]
 
-    def test_beer_law_intensity_positive_finite(self) -> None:
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+    def test_beer_law_intensity_positive_finite(self, flat_yaml: Path) -> None:
+        boot = run_stage2_boot(str(flat_yaml))
         atmo = boot.atmosphere_init
         assert atmo.direct_intensity > 0.0
         assert np.isfinite(atmo.direct_intensity)
         # Beer's law: direct <= solar_constant (no amplification).
         assert atmo.direct_intensity <= atmo.solar_constant
 
-    def test_diffuse_fraction_in_unit_range(self) -> None:
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+    def test_diffuse_fraction_in_unit_range(self, flat_yaml: Path) -> None:
+        boot = run_stage2_boot(str(flat_yaml))
         atmo = boot.atmosphere_init
         assert 0.0 <= atmo.diffuse_fraction <= 1.0
 
-    def test_dynamic_atmosphere_parsed(self) -> None:
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+    def test_dynamic_atmosphere_parsed(self, flat_yaml: Path) -> None:
+        boot = run_stage2_boot(str(flat_yaml))
         atmo = boot.atmosphere_init
         assert isinstance(atmo.dynamic, DynamicAtmosphereConfig)
-        # Defaults from mars_env.yaml: dynamic atmosphere disabled by default.
+        # Schema default: dynamic atmosphere disabled by default.
         assert atmo.dynamic.enabled in (True, False)
         assert atmo.dynamic.sun_sweep.start_azimuth_deg >= 0.0
         assert atmo.dynamic.sun_sweep.end_azimuth_deg <= 360.0
         assert atmo.dynamic.update_interval_frames >= 1
 
-    def test_hdri_dir_resolves_under_repo_root(self) -> None:
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+    def test_hdri_dir_resolves_under_repo_root(self, flat_yaml: Path) -> None:
+        boot = run_stage2_boot(str(flat_yaml))
         assert boot.atmosphere_init.hdri_dir.startswith(boot.repo_root)
 
-    def test_sun_position_matches_config(self) -> None:
-        boot = run_stage2_boot(str(MARS_ENV_YAML))
+    def test_sun_position_matches_config(self, flat_yaml: Path) -> None:
+        boot = run_stage2_boot(str(flat_yaml))
         atmo = boot.atmosphere_init
         mars_cfg = boot.mars_cfg
         expected_az = float(mars_cfg.get("sun_azimuth_deg", 180))

@@ -294,7 +294,7 @@ def publish_robot_description(
     # ``isaac:nameOverride='base_link'`` workflow because the
     # OmniGraph-published frame_id had to agree with the URDF root.
     # The robot_state_publisher workflow does not require renaming --
-    # SLAM/Nav2 ``base_frame`` accepts any frame name via launch param
+    # the SLAM stack's ``base_frame`` accepts any frame name via launch param
     # -- so callers passing ``rename_root_to_base_link=False`` get the
     # URDF verbatim, which is the single-source-of-truth path.
     urdf_text = rewrite_urdf_root_to_base_link(raw_urdf) if rename_root_to_base_link else raw_urdf

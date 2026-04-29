@@ -370,7 +370,7 @@ class ProceduralCanyonConfig(BaseModel):
         default=0,
         ge=0,
         description=(
-            "Number of craters to cut into the canyon floor for Nav2 "
+            "Number of craters to cut into the canyon floor for navigation "
             "obstacle tests.  YAML field ``canyon_craters``."
         ),
     )

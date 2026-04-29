@@ -8,12 +8,12 @@ control of Mars atmospheric parameters during simulation:
 - Manual sun position: azimuth (0--360) and elevation (0--90) sliders
 
 The panel reads and writes a shared ``atmosphere_state`` dict. The render
-loop in run_stage2.py checks this dict every N frames and updates the
-renderers accordingly.
+loop in :func:`marslab.runtime.main_loop.run_main_loop` checks this dict
+every N frames and updates the renderers accordingly.
 
 Requires Isaac Sim runtime (omni.ui). Guarded by try/except at import
-time in run_stage2.py so headless or non-GUI environments degrade
-gracefully.
+time in ``scripts/phase1/main.py`` so headless or non-GUI environments
+degrade gracefully.
 """
 
 from __future__ import annotations

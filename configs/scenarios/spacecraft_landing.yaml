@@ -81,8 +81,8 @@ scene:
 rover:
   enabled: true
   base_config: "configs/robots/rover_m2020.yaml"
-  # Rover parks 10 m east of the lander, facing west so the first Nav2
-  # goal points straight at the lander.  Orientation RPY=(pi, 0, pi)
+  # Rover parks 10 m east of the lander, facing west so the first
+  # navigation goal points straight at the lander.  Orientation RPY=(pi, 0, pi)
   # gives the rover its correct "upright facing -X" pose on Mars Z-up.
   spawn:
     mode: "dem_relative"

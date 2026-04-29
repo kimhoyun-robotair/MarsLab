@@ -1,4 +1,4 @@
-"""Structural / schema tests for stage2 scene + loop modules (P3-safe surface)."""
+"""Structural / schema tests for stage2 scene + main_loop (P3-safe surface)."""
 
 from __future__ import annotations
 
@@ -14,14 +14,6 @@ def test_stage2_scene_module_is_offline_importable() -> None:
         assert forbidden not in globs, f"stage2_scene must not import {forbidden} at module scope"
 
 
-def test_stage2_loop_module_is_offline_importable() -> None:
-    """Module import must not trigger any ``omni.*`` / ``isaacsim.*`` load."""
-    mod = importlib.import_module("marslab.runtime.stage2_loop")
-    globs = vars(mod)
-    for forbidden in ("omni", "isaacsim", "pxr"):
-        assert forbidden not in globs, f"stage2_loop must not import {forbidden} at module scope"
-
-
 def test_setup_stage2_scene_signature() -> None:
     """Ensure the public scene constructor still accepts a boot result."""
     from marslab.runtime.stage2_scene import setup_stage2_scene
@@ -31,26 +23,36 @@ def test_setup_stage2_scene_signature() -> None:
     assert params == ["boot"]
 
 
-def test_run_stage2_loop_signature() -> None:
-    """Contract: loop takes (simulation_app, boot, scene, headless=False)."""
-    from marslab.runtime.stage2_loop import run_stage2_loop
+def test_build_atmosphere_loop_state_from_boot(tmp_path) -> None:
+    """``build_atmosphere_loop_state`` must reflect the boot snapshot.
 
-    sig = inspect.signature(run_stage2_loop)
-    params = sig.parameters
-    assert list(params) == ["simulation_app", "boot", "scene", "headless"]
-    assert params["headless"].default is False
+    Inherits the contract previously enforced against the deleted
+    ``stage2_loop.build_atmosphere_state``: the eight-key atmosphere dict
+    is the canonical handoff between the boot stage and the GUI panel.
+    """
+    import yaml
 
-
-def test_build_atmosphere_state_from_boot() -> None:
-    """The loop's seed helper must faithfully reflect the boot snapshot."""
-    from pathlib import Path
-
+    from marslab.runtime.main_loop import build_atmosphere_loop_state
     from marslab.runtime.stage2_boot import run_stage2_boot
-    from marslab.runtime.stage2_loop import build_atmosphere_state
 
-    repo_root = Path(__file__).resolve().parents[2]
-    boot = run_stage2_boot(str(repo_root / "configs" / "mars_env.yaml"))
-    state = build_atmosphere_state(boot.atmosphere_init)
+    flat = tmp_path / "minimal_flat.yaml"
+    flat.write_text(
+        yaml.safe_dump(
+            {
+                "mars_env": {"seed": 42},
+                "terrain": {
+                    "source": "procedural",
+                    "procedural_preset": "crater",
+                    "terrain_size": [256, 256],
+                    "terrain_resolution": 1.0,
+                },
+                "rendering": {"mode": "ray_tracing"},
+            }
+        )
+    )
+    boot = run_stage2_boot(str(flat))
+    loop_state = build_atmosphere_loop_state(boot.atmosphere_init, boot.atmosphere_init.tau)
+    state = loop_state.atmosphere_dict
 
     expected_keys = {
         "tau",

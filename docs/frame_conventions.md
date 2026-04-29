@@ -3,7 +3,7 @@
 **Status:** v1.0 published behaviour.  Future releases may align fully with REP-103 once a USD-level rotation pass replaces the spawn-time X-roll.
 
 This page documents the coordinate-frame conventions every MarsLab user
-needs when authoring sensor extrinsics, integrating SLAM/Nav2, or
+needs when authoring sensor extrinsics, integrating SLAM stacks, or
 attaching new payloads.
 
 ---
@@ -26,8 +26,6 @@ attaching new payloads.
 * RViz `RobotModel` mesh visualisation is **correct** despite the
   X-roll because the URDF kinematic chain is consistent with the
   X-rolled `base_link`.
-* SLAM (slam_toolbox) and Nav2 stacks tested against MarsLab v1.0 work
-  correctly with this convention.
 
 ---
 
@@ -119,8 +117,8 @@ Use `spawn_orientation_rpy` only.
   Downstream consumers that assume strict REP-103 (`+Z_base_link`
   pointing up in the world) need to apply an inverse 180° X-roll
   before consuming `base_link`-anchored data.  The MarsLab v1.0
-  SLAM/Nav2 reference stack does this implicitly via the URDF
-  kinematic chain.
+  SLAM reference stack does this implicitly via the URDF kinematic
+  chain.
 * **`camera_optical_frame`:**  REP-105 optical frame
   (Z forward / X right / Y down) published by
   `tf_broadcaster.build_camera_optical_frame_transform`.  Use this

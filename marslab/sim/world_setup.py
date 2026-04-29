@@ -22,7 +22,7 @@ def create_world(
 
     Args:
         physics_dt: Physics step size in seconds (e.g. ``1/60``). The
-            60 Hz default matches the SLAM / Nav2 runtime main-loop
+            60 Hz default matches the SLAM runtime main-loop
             cadence -- physics and rendering tick at the same rate so
             sensor publishers stay in lockstep with the controller.
         gravity: Mars gravity magnitude in m/s^2 (e.g. ``3.72``).  Sign is

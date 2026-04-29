@@ -10,11 +10,11 @@ def test_mars_albedo_range_valid():
 
 
 def test_mars_albedo_from_config():
-    """Config albedo range matches Mars values."""
-    from marslab.config.loader import load_config
+    """Schema default albedo range matches Mars values."""
+    from marslab.config.schema import MarsEnvConfig
 
-    config = load_config("configs/mars_env.yaml")
-    a_min, a_max = config.mars_env.surface_albedo_range
+    config = MarsEnvConfig()
+    a_min, a_max = config.surface_albedo_range
     assert 0.10 <= a_min <= 0.20
     assert 0.30 <= a_max <= 0.50
     assert a_min < a_max

@@ -62,7 +62,7 @@ class OdometryCovarianceConfig(BaseModel):
             "Diagonal of the 6x6 pose covariance matrix in (x, y, z, "
             "roll, pitch, yaw) order. z / roll / pitch entries are "
             "large (1e6) because a planar skid-steer rover has no "
-            "direct estimate of them -- SLAM/Nav2 should ignore those "
+            "direct estimate of them -- SLAM should ignore those "
             "axes entirely via the inflated variance."
         ),
     )
@@ -96,10 +96,9 @@ class OdomPublisherConfig(BaseModel):
     Without this block the ``frame_id="odom"`` / ``child_frame_id="base_link"``
     / ``queue_size=10`` values would sit as Python defaults inside
     ``marslab.ros2_bridge.odometry_publisher.create_odometry_publisher``.
-    Declaring them here lets the rover's ``drive:`` tree in
-    ``configs/mars_env.yaml`` drive all three publishers from one
-    source, so the frame names stay aligned with the slam_toolbox and
-    Nav2 YAMLs by configuration instead of by convention.
+    Declaring them here lets the rover's ``drive:`` tree drive all
+    three publishers from one source, so the frame names stay aligned
+    with the SLAM stack YAML by configuration instead of by convention.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -108,15 +107,14 @@ class OdomPublisherConfig(BaseModel):
         default="odom",
         description=(
             "TF frame name emitted by the odometry publisher. Must match "
-            "``odom_frame`` in ``configs/slam/slam_toolbox_async.yaml`` "
-            "and the equivalent parameter in ``configs/nav2/nav2_params.yaml``."
+            "the SLAM stack's ``odom_frame`` parameter."
         ),
     )
     child_frame_id: str = Field(
         default="base_link",
         description=(
             "Child TF frame for the nav_msgs/Odometry message. Matches "
-            "``base_frame`` in the SLAM config and the Nav2 costmap root."
+            "the SLAM stack's ``base_frame``."
         ),
     )
     queue_size: int = Field(default=10, ge=1, le=100, description="rclpy publisher QoS depth.")
@@ -383,7 +381,7 @@ class SkidSteerDriveConfig(BaseModel):
             "Safety watchdog timeout in seconds. If no /cmd_vel message has "
             "arrived within this window, the subscriber zeros every wheel "
             "velocity so the rover does not keep cruising at the last "
-            "commanded velocity when the Nav2 controller_server drops."
+            "commanded velocity when the upstream controller drops."
         ),
     )
     left_wheel_joints: list[str] = Field(
@@ -474,7 +472,7 @@ class SkidSteerDriveConfig(BaseModel):
         default_factory=OdomPublisherConfig,
         description=(
             "ROS2 odometry publisher settings (frame_id / child_frame_id / "
-            "queue_size).  Aligns the rover YAML with slam_toolbox / Nav2 "
+            "queue_size).  Aligns the rover YAML with the SLAM stack "
             "frame names instead of relying on Python literal defaults in "
             "``odometry_publisher.py``."
         ),
@@ -1022,13 +1020,13 @@ class SensorsConfig(BaseModel):
         ...,
         description=(
             "3D rotary RTX LiDAR.  Required because every v1.0 scenario uses "
-            "the 3D LiDAR for SLAM/Nav2."
+            "the 3D LiDAR for SLAM."
         ),
     )
     lidar_2d: Optional[Lidar2DConfig] = Field(
         default=None,
         description=(
-            "Optional 2D LaserScan LiDAR for slam_toolbox / Nav2 costmap.  "
+            "Optional 2D LaserScan LiDAR for SLAM / costmap consumers.  "
             "Cave / canyon scenarios that rely on the 2D scan declare it; "
             "scenarios that don't may omit the block."
         ),

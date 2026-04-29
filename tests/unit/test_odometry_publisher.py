@@ -257,8 +257,8 @@ class TestPublishTfFlag:
             linear_vel_world=np.zeros(3),
             angular_vel_world=np.zeros(3),
         )
-        # Odometry message still published unconditionally so SLAM /
-        # Nav2 consumers see motion estimates.
+        # Odometry message still published unconditionally so SLAM
+        # consumers see motion estimates.
         assert ctx.publisher.publish.call_count == 1
         # ``tf_broadcaster`` is None so there is nothing to send to.
 

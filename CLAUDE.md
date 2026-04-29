@@ -8,7 +8,7 @@ Target: iSpaRo 2026 Regular Paper (8 pages), submission deadline **2026-06-15**.
 
 **Repository**: `MarsLab/` (Apache 2.0 license)
 **Engine**: Isaac Sim 5.1 + Isaac Lab
-**Core Stack**: Python 3.10+, ROS2 Jazzy, Isaac Sim Extensions, USD/URDF
+**Core Stack**: Python 3.12+, ROS2 Jazzy, Isaac Sim Extensions, USD/URDF
 
 ---
 
@@ -127,7 +127,7 @@ code is isolated into separate functions/files clearly marked as integration-onl
 ## Coding Standards
 
 ### General
-- Python 3.10+. Type hints on all public functions.
+- Python 3.12+. Type hints on all public functions.
 - Docstrings: Google style. Every public class/function must have one.
 - Line length: 100 chars max.
 - Formatter: `black`. Linter: `ruff` (`E,F,W,I,B,SIM` rule set).
@@ -176,7 +176,7 @@ code is isolated into separate functions/files clearly marked as integration-onl
 
 ### Mars Physics Constants (Reference — put in config, not code)
 ```yaml
-# configs/mars_env.yaml
+# Mars physics constants (validated by marslab.config.schema.MarsEnvConfig)
 mars_env:
   gravity: 3.72             # m/s^2
   atmo_pressure: 610        # Pa
@@ -253,14 +253,13 @@ Run with: `scripts/isaac_python.sh scripts/run_integration_test.py`. Marked
 Current inventory:
 - `tests/integration/test_imu_gravity_actual.py` — Rover IMU z ∈ [3.67, 3.77] m/s²
 - `tests/integration/test_robot_spawn_ros2_topics.py` — `/rover/odom` within 30s
-- `tests/integration/test_slam_toolbox_receives_scan.py` — `/rover/scan` BEST_EFFORT QoS
 
 ### Visual Inspection
 Documented in `tests/visual_inspection/checklist.md`. Logged in
 `work_log/LOG.md` with screenshot links.
 
 ### CI Pipeline
-- `.github/workflows/unit_tests.yaml` — matrix [3.10, 3.12], black + ruff + mypy + pytest
+- `.github/workflows/unit_tests.yaml` — "matrix [3.12]", black + ruff + mypy + pytest
 - `.github/workflows/security.yaml` — `pip-audit`
 - Integration tests: run manually via `scripts/run_integration_test.py` (GPU required)
 

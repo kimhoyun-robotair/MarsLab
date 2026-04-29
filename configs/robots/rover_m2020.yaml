@@ -135,7 +135,7 @@ ros2:
     points: "depth/points"       # RGB-D PointCloud2 (RealSense-style)
     camera_info: "rgb/camera_info"  # CameraInfo (intrinsics K/P/R/D)
     lidar: "lidar/points"
-    scan: "scan"                 # 2D LaserScan for slam_toolbox / Nav2
+    scan: "scan"                 # 2D LaserScan for SLAM
     joint_states: "joint_states" # sensor_msgs/JointState for robot_state_publisher
   rates:
     imu: 100
@@ -148,12 +148,12 @@ ros2:
     scan: 30                     # Example_Rotary_2D scanRateBaseHz = 30 Hz
     joint_states: 50             # OG ROS2PublishJointState tick rate (matches odom)
   # Frame names threaded through ``create_odometry_publisher`` so the
-  # slam_toolbox and Nav2 YAMLs share one source of truth.
+  # SLAM stack YAML shares one source of truth.
   # ``child_frame_id`` is set to ``base_link`` (the X-roll wrapper
   # frame published by ``launch/rover_state_publisher.launch.py`` as a
   # static_transform_publisher) so the odom -> base_link chain uses
   # the REP-103 frame, while base_link -> Body_Chassis (X-roll, static)
-  # connects into the URDF root.  SLAM/Nav2 launch params should set
+  # connects into the URDF root.  SLAM launch params should set
   # ``base_frame: base_link`` to match.
   odom_publisher:
     frame_id: "odom"
@@ -241,7 +241,7 @@ sensors:
     # ``null`` falls back to ``profile_name``.
     usd_profile: null
 
-  # 2D LaserScan sensor for slam_toolbox / Nav2.  Clones the RTX Lidar
+  # 2D LaserScan sensor for SLAM.  Clones the RTX Lidar
   # pipeline used by ``lidar_3d``; only the bundled profile and mount
   # height differ (0.25 m below the 3D lidar).  Numerics mirror the
   # Isaac Sim bundled ``Example_Rotary_2D`` JSON (single beam at -2 deg

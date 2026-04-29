@@ -110,6 +110,12 @@ def build_loop_context(
         latest_twist=twist_state,
     )
 
+    # The six required-positional rover-control scalars below all use
+    # ``.get(..., 0.0)`` so the ``--no-rover`` scene-only path (where
+    # ``articulation is None``) can pass an empty ``control_cfg`` dict
+    # without raising ``KeyError``. The fallbacks are unused in that mode
+    # because ``main_loop`` skips the rover-step block when
+    # ``ctx.articulation is None``.
     return LoopContext(
         simulation_app=simulation_app,
         world=world,
@@ -118,12 +124,12 @@ def build_loop_context(
         imu=imu,
         drive_indices=drive_indices,
         steer_indices=steer_indices,
-        wheelbase=float(control_cfg["wheelbase"]),
-        track_steer=float(control_cfg["track_steer"]),
-        track_middle=float(control_cfg["track_middle"]),
-        wheel_radius=float(control_cfg["wheel_radius"]),
-        v_max=float(control_cfg["max_linear_velocity"]),
-        w_max=float(control_cfg["max_angular_velocity"]),
+        wheelbase=float(control_cfg.get("wheelbase", 0.0)),
+        track_steer=float(control_cfg.get("track_steer", 0.0)),
+        track_middle=float(control_cfg.get("track_middle", 0.0)),
+        wheel_radius=float(control_cfg.get("wheel_radius", 0.0)),
+        v_max=float(control_cfg.get("max_linear_velocity", 0.0)),
+        w_max=float(control_cfg.get("max_angular_velocity", 0.0)),
         physics_dt=physics_dt,
         negate_steer=bool(control_cfg.get("negate_steer", False)),
         debug_logging=bool(control_cfg.get("debug_logging", False)),

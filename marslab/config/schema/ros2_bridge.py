@@ -10,8 +10,8 @@ defaults inside the ROS2 bridge are surfaced here as pydantic fields on
   edit.
 * ``queue_size=10`` previously hardcoded in
   ``marslab/ros2_bridge/cmd_vel_subscriber.create_cmd_vel_subscriber``.
-  The caller (rclpy_integration) never overrode it, so a noisy Nav2
-  controller_server could not back-pressure through YAML.
+  The caller (rclpy_integration) never overrode it, so a noisy
+  upstream controller could not back-pressure through YAML.
 
 Both are declared here.  ``configs/robots/rover_m2020.yaml``
 (``rover.ros2`` block) gains an optional ``graph_path`` +
@@ -28,26 +28,25 @@ QoS profiles for every topic are also surfaced into the schema.
 Without these fields ``marslab/ros2_bridge/*.py`` would not import
 ``rclpy.qos`` at all and every publisher/subscriber would be created
 with the rclpy default profile (``RELIABLE`` + ``VOLATILE`` +
-``KEEP_LAST`` depth=10).  Those defaults mismatch real-world SLAM/Nav2
+``KEEP_LAST`` depth=10).  Those defaults mismatch real-world ROS2
 pipelines and cause silent message drop in mixed RELIABLE /
 BEST_EFFORT environments:
 
 * ``/cmd_vel``: ``teleop_twist_keyboard`` ships ``BEST_EFFORT``; a
   ``RELIABLE`` subscriber drops every keypress.  Default ``reliable``
-  here (Nav2 ``controller_server`` default), surfaced in YAML so a
-  teleop-heavy scenario can flip to ``best_effort``.
+  here (REP-2003 SystemDefault), surfaced in YAML so a teleop-heavy
+  scenario can flip to ``best_effort``.
 * ``/odom``: ``nav_msgs/Odometry`` is REP-2003 SystemDefault =
-  ``RELIABLE``.  Kept reliable.  Depth stays at 10 because Nav2
-  accepts one odom per control cycle.
+  ``RELIABLE``.  Kept reliable.  Depth stays at 10 (one odom per
+  control cycle is sufficient).
 * ``/imu``, ``/camera/*``, ``/lidar/*``: Sensor streams follow the
   ROS 2 ``sensor_data`` convention (``BEST_EFFORT`` + depth 5).
-  slam_toolbox and RViz default LaserScan displays use
-  ``BEST_EFFORT``; shipping ``RELIABLE`` here would silently drop
-  every scan.
+  RViz default LaserScan displays use ``BEST_EFFORT``; shipping
+  ``RELIABLE`` here would silently drop every scan.
 * ``/tf`` + ``/tf_static``: TF broadcasters are ``RELIABLE`` with
-  ``TRANSIENT_LOCAL`` durability so late-joining subscribers (a
-  slam_toolbox that starts after the bridge) still latch the static
-  sensor frames.  Depth 100 matches ``tf2_ros`` defaults.
+  ``TRANSIENT_LOCAL`` durability so late-joining subscribers still
+  latch the static sensor frames.  Depth 100 matches ``tf2_ros``
+  defaults.
 
 The ``QoSProfileConfig`` model is reused by all four fields; values
 are mapped to ``rclpy.qos.QoSProfile`` at runtime via
@@ -73,7 +72,7 @@ __all__ = ["QoSProfileConfig", "Ros2BridgeConfig"]
 class QoSProfileConfig(BaseModel):
     """rclpy QoS profile -- YAML-facing view of ``rclpy.qos.QoSProfile``.
 
-    Mirrors the four fields that matter for SLAM/Nav2 round-tripping:
+    Mirrors the four fields that matter for SLAM round-tripping:
     ``reliability``, ``durability``, ``history``, ``depth``.  Liveliness
     / deadline are intentionally omitted -- v1.0 does not exercise them
     and exposing unused knobs in YAML invites drift.
@@ -93,8 +92,7 @@ class QoSProfileConfig(BaseModel):
             "rclpy ReliabilityPolicy. ``reliable`` = retry until ACK "
             "(matches REP-2003 SystemDefault). ``best_effort`` = fire "
             "and forget (the sensor_data convention; required by "
-            "slam_toolbox LaserScan subscribers that default to "
-            "BEST_EFFORT)."
+            "LaserScan subscribers that default to BEST_EFFORT)."
         ),
     )
     durability: Literal["volatile", "transient_local"] = Field(
@@ -104,7 +102,7 @@ class QoSProfileConfig(BaseModel):
             "samples at shutdown. ``transient_local`` latches the "
             "latest sample for late-joining subscribers and is the "
             "required setting for ``/tf_static``; without it a "
-            "slam_toolbox that boots after the bridge never receives "
+            "subscriber that boots after the bridge never receives "
             "the camera / LiDAR / IMU transforms."
         ),
     )
@@ -131,7 +129,7 @@ class QoSProfileConfig(BaseModel):
 def _cmd_vel_qos_default() -> QoSProfileConfig:
     """``/cmd_vel`` default: RELIABLE + KEEP_LAST(10).
 
-    Matches Nav2 ``controller_server`` output and REP-2003 SystemDefault.
+    Matches REP-2003 SystemDefault.
     Declared as a module-level factory (not an inline lambda) so the
     rationale is attached to the function name and the pydantic
     ``default_factory`` signature stays readable.
@@ -143,8 +141,8 @@ def _odom_qos_default() -> QoSProfileConfig:
     """``/odom`` default: RELIABLE + KEEP_LAST(10).
 
     ``nav_msgs/Odometry`` REP-2003 SystemDefault.  Kept shallow (10)
-    because Nav2 ``amcl`` / costmap layers only consume the latest
-    pose per cycle — deeper queues just add latency on recovery.
+    because consumers only read the latest pose per cycle — deeper
+    queues just add latency on recovery.
     """
     return QoSProfileConfig(reliability="reliable", durability="volatile", depth=10)
 
@@ -153,9 +151,9 @@ def _sensor_qos_default() -> QoSProfileConfig:
     """``/imu``, ``/camera/*``, ``/lidar/*`` default: BEST_EFFORT + KEEP_LAST(5).
 
     ROS 2 ``sensor_data`` convention (``rclpy.qos.qos_profile_sensor_data``).
-    slam_toolbox subscribes to ``sensor_msgs/LaserScan`` with
-    BEST_EFFORT; shipping RELIABLE would mean 0 messages received on
-    any Stage-3 run.  Depth 5 is the rclpy sensor_data default.
+    LaserScan subscribers default to BEST_EFFORT; shipping RELIABLE
+    would mean 0 messages received on any Stage-3 run.  Depth 5 is
+    the rclpy sensor_data default.
     """
     return QoSProfileConfig(reliability="best_effort", durability="volatile", depth=5)
 
@@ -202,8 +200,8 @@ class Ros2BridgeConfig(BaseModel):
         description=(
             "rclpy subscription queue depth for ``/<ns>/cmd_vel``.  Surfaces what would "
             "otherwise be a hardcoded ``queue_size=10`` in "
-            "``marslab/ros2_bridge/cmd_vel_subscriber.py`` so Nav2 tuning that needs a "
-            "deeper buffer (bursty controller_server output) can be expressed in YAML.  "
+            "``marslab/ros2_bridge/cmd_vel_subscriber.py`` so tuning that needs a "
+            "deeper buffer (bursty upstream controller output) can be expressed in YAML.  "
             "Upper bound 1000 prevents misconfigurations that would swamp rclpy with "
             "unbounded queues."
         ),
@@ -322,11 +320,10 @@ class Ros2BridgeConfig(BaseModel):
             "base_link`` frames.  C3+ default ``False`` because the "
             "C2 ``robot_state_publisher`` workflow reads frame names "
             "directly from the URDF link declarations and never "
-            "consults ``isaac:nameOverride``.  SLAM/Nav2's "
+            "consults ``isaac:nameOverride``.  The SLAM stack's "
             "``base_frame`` parameter accepts any frame name "
             "(``Body_Chassis``, ``base_link``, etc.) so frame-name "
-            "aliasing is handled at the SLAM/Nav2 launch layer, not "
-            "in USD."
+            "aliasing is handled at the SLAM launch layer, not in USD."
         ),
     )
     rename_root_to_base_link: bool = Field(
@@ -337,7 +334,7 @@ class Ros2BridgeConfig(BaseModel):
             "(the JPL m2020 URDF root is ``Body_Chassis``).  C3+ "
             "default ``False`` keeps the URDF link names verbatim so "
             "the URDF and the OmniGraph-published joint names share a "
-            "single source of truth.  Downstream stacks (SLAM, Nav2, "
+            "single source of truth.  Downstream stacks (SLAM, "
             "RTAB-Map) accept any base frame name via launch parameter "
             "(``base_frame: Body_Chassis``), so renaming is no longer "
             "necessary.  Set ``True`` when integrating a third-party "
@@ -356,7 +353,7 @@ class Ros2BridgeConfig(BaseModel):
             "``base_link`` when running the legacy "
             "``rename_root_to_base_link=True`` rewrite path or any "
             "third-party stack that hardcodes the ``base_link`` "
-            "literal.  SLAM/Nav2 launch params (``base_frame``) must "
+            "literal.  SLAM launch params (``base_frame``) must "
             "agree with the value chosen here."
         ),
         min_length=1,
@@ -365,9 +362,9 @@ class Ros2BridgeConfig(BaseModel):
         default_factory=_cmd_vel_qos_default,
         description=(
             "QoS profile for the ``/<ns>/cmd_vel`` subscription.  Default matches "
-            "Nav2 ``controller_server`` output (REP-2003 SystemDefault = RELIABLE + "
-            "KEEP_LAST depth=10).  Flip to ``best_effort`` when driving the rover "
-            "primarily with ``teleop_twist_keyboard`` (ships BEST_EFFORT)."
+            "REP-2003 SystemDefault (RELIABLE + KEEP_LAST depth=10).  Flip to "
+            "``best_effort`` when driving the rover primarily with "
+            "``teleop_twist_keyboard`` (ships BEST_EFFORT)."
         ),
     )
     odom_qos: QoSProfileConfig = Field(
@@ -375,7 +372,7 @@ class Ros2BridgeConfig(BaseModel):
         description=(
             "QoS profile for the ``/<ns>/odom`` publisher.  ``nav_msgs/Odometry`` "
             "REP-2003 SystemDefault (RELIABLE + KEEP_LAST depth=10).  Kept shallow "
-            "because Nav2 only reads the latest pose per control cycle."
+            "because consumers only read the latest pose per control cycle."
         ),
     )
     sensor_qos: QoSProfileConfig = Field(
@@ -383,9 +380,9 @@ class Ros2BridgeConfig(BaseModel):
         description=(
             "QoS profile for sensor streams (``/imu``, ``/camera/*``, "
             "``/lidar/*``, ``/scan``).  Matches the ROS 2 ``sensor_data`` "
-            "convention (BEST_EFFORT + KEEP_LAST depth=5).  slam_toolbox "
-            "LaserScan subscribers default to BEST_EFFORT -- shipping "
-            "RELIABLE here would yield 0 messages received."
+            "convention (BEST_EFFORT + KEEP_LAST depth=5).  LaserScan "
+            "subscribers default to BEST_EFFORT -- shipping RELIABLE "
+            "here would yield 0 messages received."
         ),
     )
     tf_qos: QoSProfileConfig = Field(

@@ -83,7 +83,7 @@ def create_odometry_publisher(
             shape ``(4,)`` scalar-first.
         queue_size: rclpy QoS depth.  Ignored when ``odom_qos`` is
             provided (the QoSProfile carries its own depth).
-        frame_id: Odometry parent frame.  Must match the slam_toolbox
+        frame_id: Odometry parent frame.  Must match the SLAM stack's
             ``odom_frame`` param.
         child_frame_id: Odometry child frame.  Must match
             ``base_frame``.

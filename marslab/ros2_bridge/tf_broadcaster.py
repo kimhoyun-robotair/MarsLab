@@ -3,7 +3,7 @@
 The Isaac-Sim OmniGraph ``ROS2PublishTransformTree`` node publishes
 only the articulation joint chain -- sensor prims (camera, LiDAR, IMU)
 are created by MarsLab in Isaac Sim after URDF import, so their frames
-never appear on ``/tf_raw``.  slam_toolbox / Nav2 need these frames.
+never appear on ``/tf_raw``.  SLAM stacks need these frames.
 This module publishes a one-shot ``/tf_static`` batch covering every
 sensor declared in the rover YAML.
 

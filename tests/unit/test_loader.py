@@ -19,10 +19,24 @@ def test_load_and_validate_scenario_with_base_config():
     assert config.mars_env.gravity == pytest.approx(3.72)
 
 
-def test_load_and_validate_flat_yaml():
-    """mars_env.yaml has no base_config; direct load path."""
-    path = REPO_ROOT / "configs" / "mars_env.yaml"
-    config = load_and_validate(str(path))
+def test_load_and_validate_flat_yaml(tmp_path):
+    """A flat YAML with no ``base_config`` loads directly."""
+    flat = tmp_path / "minimal_flat.yaml"
+    flat.write_text(
+        yaml.safe_dump(
+            {
+                "mars_env": {"seed": 42},
+                "terrain": {
+                    "source": "procedural",
+                    "procedural_preset": "crater",
+                    "terrain_size": [256, 256],
+                    "terrain_resolution": 1.0,
+                },
+                "rendering": {"mode": "ray_tracing"},
+            }
+        )
+    )
+    config = load_and_validate(str(flat))
     assert isinstance(config, MarsLabConfig)
 
 

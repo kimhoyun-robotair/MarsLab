@@ -1,8 +1,8 @@
 """Runtime preflight checks — raise early and clearly before Isaac Sim boots.
 
 Pure Python (no Isaac Sim imports) so the checks run identically under unit
-tests and inside the Isaac Sim python context. Error messages are shared
-across all Stage 3 entry points so operators see consistent diagnostics.
+tests and inside the Isaac Sim python context. Error messages live alongside
+``scripts/phase1/main.py`` for consistent diagnostics.
 """
 
 from __future__ import annotations
@@ -34,8 +34,9 @@ def check_rover_usd(usd_abs: str) -> None:
 def check_rover_block(rover_cfg: Optional[Dict[str, Any]]) -> None:
     """Raise ``ValueError`` if the scenario's rover config block is missing.
 
-    Stage 3 requires a rover block; scene-only scenarios should use
-    ``run_stage2.py``.
+    Stage 3 monolithic requires a rover block by default; pass
+    ``--no-rover`` to ``scripts/phase1/main.py`` for scene-only mode
+    (DEM + atmosphere + structures, no rover spawn / sensors / ROS2).
 
     Args:
         rover_cfg: The ``rover`` section from a loaded scenario dict.
@@ -47,7 +48,7 @@ def check_rover_block(rover_cfg: Optional[Dict[str, Any]]) -> None:
     if not rover_cfg:
         raise ValueError(
             "Scenario config missing 'rover' block. "
-            "Stage 3 monolithic requires a rover; use run_stage2.py for scene-only."
+            "Stage 3 requires a 'rover' block (or pass --no-rover for scene-only)."
         )
 
 

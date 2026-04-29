@@ -408,7 +408,6 @@ def build_atmosphere_loop_state(
         a :class:`LoopContext`.
     """
     dyn = atmo_init.dynamic
-    # Parity with ``marslab.runtime.stage2_loop.build_atmosphere_state``:
     # ``sol_duration_seconds`` is required by ``AtmospherePanel._format_mode_status``
     # when the panel is toggled to Auto mode. Dropping it here caused a KeyError
     # inside the GUI callback the first time the Sun mode button was clicked
@@ -471,52 +470,59 @@ def run_main_loop(ctx: LoopContext) -> int:
             if ctx.spin_once is not None:
                 ctx.spin_once()
 
-            v_raw = ctl.latest_twist["v"]
-            w_raw = ctl.latest_twist["w"]
-            v = float(np.clip(v_raw, -ctx.v_max, ctx.v_max))
-            w = float(np.clip(w_raw, -ctx.w_max, ctx.w_max))
+            # Rover-step block. ``ctx.articulation is None`` is the
+            # ``--no-rover`` scene-only path (atmosphere + AtmospherePanel
+            # only); skipping here keeps the joint set / Ackermann math /
+            # debug log all gated behind the same flag.
+            if ctx.articulation is not None:
+                v_raw = ctl.latest_twist["v"]
+                w_raw = ctl.latest_twist["w"]
+                v = float(np.clip(v_raw, -ctx.v_max, ctx.v_max))
+                w = float(np.clip(w_raw, -ctx.w_max, ctx.w_max))
 
-            steer_angles, wheel_vels = ctx.ackermann_fn(
-                v,
-                w,
-                ctx.wheelbase,
-                ctx.track_steer,
-                ctx.track_middle,
-                ctx.wheel_radius,
-            )
-            if ctx.negate_steer:
-                steer_angles = -steer_angles
-
-            steer_angles = np.clip(steer_angles, -ctx.max_steer_angle, ctx.max_steer_angle)
-
-            if steer_ramp_enabled:
-                s_delta = steer_angles - ctl.current_steer_targets
-                s_delta = np.clip(s_delta, -steer_per_step_limit, steer_per_step_limit)
-                ctl.current_steer_targets = ctl.current_steer_targets + s_delta
-                ramped_steer = ctl.current_steer_targets
-            else:
-                ramped_steer = steer_angles
-
-            ramped_vels = _apply_ramp(
-                wheel_vels,
-                ctl.current_drive_targets,
-                per_step_limit,
-                ctx.decel_multiplier,
-                drive_ramp_enabled,
-            )
-
-            try:
-                ctx.articulation.set_joint_position_targets(
-                    ramped_steer, joint_indices=steer_idx_arr
+                steer_angles, wheel_vels = ctx.ackermann_fn(
+                    v,
+                    w,
+                    ctx.wheelbase,
+                    ctx.track_steer,
+                    ctx.track_middle,
+                    ctx.wheel_radius,
                 )
-                ctx.articulation.set_joint_velocity_targets(
-                    ramped_vels, joint_indices=drive_idx_arr
-                )
-            except Exception as exc:  # noqa: BLE001
-                _log_once(logger, exc, "joint_target_set_failed", ctl.step_count)
+                if ctx.negate_steer:
+                    steer_angles = -steer_angles
 
-            if ctx.debug_logging and ctl.step_count % 60 == 0:
-                _debug_log_step(ctx, steer_idx_arr, drive_idx_arr, v, w, steer_angles, ramped_vels)
+                steer_angles = np.clip(steer_angles, -ctx.max_steer_angle, ctx.max_steer_angle)
+
+                if steer_ramp_enabled:
+                    s_delta = steer_angles - ctl.current_steer_targets
+                    s_delta = np.clip(s_delta, -steer_per_step_limit, steer_per_step_limit)
+                    ctl.current_steer_targets = ctl.current_steer_targets + s_delta
+                    ramped_steer = ctl.current_steer_targets
+                else:
+                    ramped_steer = steer_angles
+
+                ramped_vels = _apply_ramp(
+                    wheel_vels,
+                    ctl.current_drive_targets,
+                    per_step_limit,
+                    ctx.decel_multiplier,
+                    drive_ramp_enabled,
+                )
+
+                try:
+                    ctx.articulation.set_joint_position_targets(
+                        ramped_steer, joint_indices=steer_idx_arr
+                    )
+                    ctx.articulation.set_joint_velocity_targets(
+                        ramped_vels, joint_indices=drive_idx_arr
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    _log_once(logger, exc, "joint_target_set_failed", ctl.step_count)
+
+                if ctx.debug_logging and ctl.step_count % 60 == 0:
+                    _debug_log_step(
+                        ctx, steer_idx_arr, drive_idx_arr, v, w, steer_angles, ramped_vels
+                    )
 
             if odom_ctx is not None and odom_ctx.publisher is not None:
                 _publish_odometry(ctx, ctl.step_count)

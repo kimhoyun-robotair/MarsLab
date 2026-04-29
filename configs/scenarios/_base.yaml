@@ -12,8 +12,8 @@
 # NB: this file intentionally omits ``terrain`` — every scenario fully
 # specifies its own terrain block (hirise crop or procedural preset +
 # knobs), so sharing ``terrain`` would just leak the wrong preset into
-# hirise scenarios. ``configs/mars_env.yaml`` keeps the master defaults
-# for the runtime's ``load_and_validate`` on the flat-config path.
+# hirise scenarios. The ``marslab.config.schema.MarsEnvConfig`` pydantic
+# schema holds the master defaults for any field omitted below.
 # ---------------------------------------------------------------
 
 mars_env:
