@@ -285,7 +285,7 @@ class TestParentLinkExistsInUSD:
     def test_usd_file_present(self) -> None:
         assert os.path.isfile(ROVER_USD_PATH), (
             f"Rover USD not found at {ROVER_USD_PATH}. "
-            "Run scripts/phase1/convert_urdf_to_usd.py to regenerate."
+            "Run tools/convert_urdf_to_usd.py to regenerate."
         )
 
     def test_usd_has_articulation_links(self) -> None:

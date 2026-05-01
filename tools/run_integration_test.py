@@ -2,7 +2,7 @@
 """Run integration tests requiring Isaac Sim.
 
 This entry point is intended to be launched via the Isaac Sim Python
-runtime wrapper ``scripts/isaac_python.sh``.  It strips
+runtime wrapper ``marslab/isaac_python.sh``.  It strips
 ``-m 'not integration'`` from the pyproject ``addopts`` and runs
 exactly the ``integration``-marked suite, so the default
 ``pytest tests/unit/`` remains GPU-free.
@@ -10,17 +10,17 @@ exactly the ``integration``-marked suite, so the default
 Usage::
 
     # Run all integration tests
-    scripts/isaac_python.sh scripts/run_integration_test.py
+    marslab/isaac_python.sh tools/run_integration_test.py
 
     # Run a single file
-    scripts/isaac_python.sh scripts/run_integration_test.py \
+    marslab/isaac_python.sh tools/run_integration_test.py \
         tests/integration/test_imu_gravity_actual.py
 
     # Run a single test by nodeid
-    scripts/isaac_python.sh scripts/run_integration_test.py \
+    marslab/isaac_python.sh tools/run_integration_test.py \
         tests/integration/test_imu_gravity_actual.py::test_imu_z_gravity_within_mars_band
 
-If you bypass ``scripts/isaac_python.sh`` and invoke with system Python,
+If you bypass ``marslab/isaac_python.sh`` and invoke with system Python,
 every integration test is reported SKIPPED with a readable reason
 (``pytest.importorskip("isaacsim")`` gate).  That mode is safe but
 useless -- the whole point of these tests is to exercise Isaac Sim.

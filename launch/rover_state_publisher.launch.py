@@ -18,7 +18,7 @@ Usage::
 
     ros2 launch /home/<user>/MarsLab/launch/rover_state_publisher.launch.py
 
-Companion to ``scripts/isaac_python.sh scripts/phase1/main.py`` --
+Companion to ``marslab/isaac_python.sh marslab/main.py`` --
 the Isaac Sim run publishes ``/rover/joint_states`` and
 ``/rover/robot_description``; this launch file feeds the URDF
 (parameter) + ``/joint_states`` (topic) into
@@ -59,7 +59,7 @@ def _sanitize_urdf_for_robot_state_publisher(urdf_text: str) -> str:
       surfacing as ``"No transform from [Body_MHS_DebrisShield] to
       [Body_Chassis]"``.
 
-    The fix is the same one ``scripts/phase1/convert_urdf_to_usd.py``
+    The fix is the same one ``tools/convert_urdf_to_usd.py``
     already applies on the USD side (``_DEBRIS_SHIELD_RE`` at
     ``:66`` flips floating -> fixed; ``sanitize_urdf`` at
     ``:69-146`` strips ``JointRoot`` + ``ground`` outright).  This

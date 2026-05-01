@@ -69,7 +69,7 @@ def build_static_sensor_transforms(
         TransformStamped,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
-    from marslab.math.quaternion import (
+    from marslab.quaternion import (
         rpy_to_quat,
     )  # noqa: PLC0415  -- avoids numpy import at module load for pure-config callers
 

@@ -163,7 +163,7 @@ code is isolated into separate functions/files clearly marked as integration-onl
 - Built-in USD assets (G1, Go2, Valkyrie): load from Isaac Sim asset path, do
   NOT copy into repo.
 - Robot import: URDF → USD via offline conversion script
-  (`scripts/phase1/convert_urdf_to_usd.py`). Runtime URDF import is forbidden
+  (`tools/convert_urdf_to_usd.py`). Runtime URDF import is forbidden
   (memory: reference_rover_usd_source).
 
 ### Configuration
@@ -247,7 +247,7 @@ Coverage areas:
 - Sensor YAML schema, ROS2 QoS profile mapping
 
 ### Integration Tests (Isaac Sim Required)
-Run with: `scripts/isaac_python.sh scripts/run_integration_test.py`. Marked
+Run with: `marslab/isaac_python.sh tools/run_integration_test.py`. Marked
 `@pytest.mark.integration` and gated on `pytest.importorskip("isaacsim")`.
 
 Current inventory:
@@ -261,7 +261,7 @@ Documented in `tests/visual_inspection/checklist.md`. Logged in
 ### CI Pipeline
 - `.github/workflows/unit_tests.yaml` — "matrix [3.12]", black + ruff + mypy + pytest
 - `.github/workflows/security.yaml` — `pip-audit`
-- Integration tests: run manually via `scripts/run_integration_test.py` (GPU required)
+- Integration tests: run manually via `tools/run_integration_test.py` (GPU required)
 
 ---
 

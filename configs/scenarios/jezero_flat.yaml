@@ -1,6 +1,6 @@
 # Jezero Flat Region Scenario
 # HiRISE DEM crop: west side of Jezero crater, minimal elevation variation.
-# Candidate: Flat #1 from analyze_dem_regions.py.
+# Candidate: Flat #1 from dev/analysis/analyze_dem_regions.py.
 # dz=3.00m, mean_slope=1.97 deg, std=0.62m.
 #
 # mars_env + rendering defaults come from ``_base.yaml`` via the root-level

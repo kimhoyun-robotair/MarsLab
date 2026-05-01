@@ -7,7 +7,7 @@ Requirements::
 
 Execution (Isaac Sim required, GPU required)::
 
-    scripts/isaac_python.sh scripts/run_integration_test.py \
+    marslab/isaac_python.sh tools/run_integration_test.py \
         tests/integration/test_imu_gravity_actual.py
 
 The test is marked ``integration`` so ``pytest tests/unit/`` skips it.
@@ -29,12 +29,12 @@ import pytest
 
 # ---------------------------------------------------------------------------
 # Skip guard.  ``isaacsim`` only resolves inside Isaac Sim's bundled Python
-# (launched via ``scripts/isaac_python.sh``).  On system Python the import
+# (launched via ``marslab/isaac_python.sh``).  On system Python the import
 # fails fast and the test is reported SKIPPED with a readable reason.
 # ---------------------------------------------------------------------------
 isaacsim = pytest.importorskip(
     "isaacsim",
-    reason="Isaac Sim not available; run via scripts/isaac_python.sh",
+    reason="Isaac Sim not available; run via marslab/isaac_python.sh",
 )
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -58,7 +58,7 @@ def test_imu_z_gravity_within_mars_band() -> None:
       5. Assert ``abs(imu.lin_acc[2] - 3.72) <= 0.05``.
 
     The test purposefully uses the same spawn helper as
-    ``scripts/phase1/main.py`` so that a regression in the production
+    ``marslab/main.py`` so that a regression in the production
     runtime surfaces here.
     """
     # Deferred imports: available only inside the Isaac Sim Python runtime.

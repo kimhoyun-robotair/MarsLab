@@ -6,13 +6,13 @@ Covers the integration-test requirement::
     ROS2 bridge: topics appear, messages received within 5s
 
 The test spawns the Stage-3 runtime using the same helpers as
-``scripts/phase1/main.py``, subscribes to ``/rover/cmd_vel``,
+``marslab/main.py``, subscribes to ``/rover/cmd_vel``,
 ``/rover/odom``, and ``/rover/imu``, and asserts at least one message
 lands on each topic inside a 30-second budget.
 
 Marked ``integration`` so ``pytest tests/unit/`` skips it; invoke via::
 
-    scripts/isaac_python.sh scripts/run_integration_test.py \
+    marslab/isaac_python.sh tools/run_integration_test.py \
         tests/integration/test_robot_spawn_ros2_topics.py
 """
 
@@ -27,11 +27,11 @@ import pytest
 
 isaacsim = pytest.importorskip(
     "isaacsim",
-    reason="Isaac Sim not available; run via scripts/isaac_python.sh",
+    reason="Isaac Sim not available; run via marslab/isaac_python.sh",
 )
 rclpy_mod = pytest.importorskip(
     "rclpy",
-    reason="Isaac Sim bundled rclpy not importable; run via scripts/isaac_python.sh",
+    reason="Isaac Sim bundled rclpy not importable; run via marslab/isaac_python.sh",
 )
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -51,7 +51,7 @@ def test_rover_ros2_topics_publish_within_budget() -> None:
     We intentionally do NOT assert a Hz rate here -- QoS and rate
     coverage live in the dedicated ROS2 unit tests. This test only
     proves reproducibility: an external user can run
-    ``scripts/isaac_python.sh scripts/run_integration_test.py`` and see
+    ``marslab/isaac_python.sh tools/run_integration_test.py`` and see
     green/red.
     """
     from nav_msgs.msg import Odometry  # noqa: PLC0415

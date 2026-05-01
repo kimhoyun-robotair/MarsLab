@@ -10,23 +10,23 @@
 # -----------------------------------------------------------------------------
 # Step 1) HiRISE GeoTIFF -> elevation.npy + metadata.json (offline, one-shot):
 #
-#     python3 scripts/convert_dem.py \
-#         --config configs/dem_conversion/sample_jezero.yaml
+#     python3 tools/convert_dem.py \
+#         --config tools/dem_conversion/sample_jezero.yaml
 #
 #   Output: ``elevation.npy`` + ``metadata.json`` written under
 #           ``assets/mars_assets/DEM/jezero_crater/``.
 #
 # Step 2) Run the simulation (Isaac Sim runtime, GDAL-free loading):
 #
-#     scripts/isaac_python.sh scripts/phase1/main.py \
+#     marslab/isaac_python.sh marslab/main.py \
 #         --config configs/scenarios/template_hirise.yaml
 #
 # The Step 1 output directory must match the ``terrain.converted_dem_dir``
 # below. Both files validate against the same pydantic schema, so
-# ``configs/dem_conversion/sample_jezero.yaml`` is also a ``MarsLabConfig``
+# ``tools/dem_conversion/sample_jezero.yaml`` is also a ``MarsLabConfig``
 # (``terrain.source: hirise`` required) and ``convert_dem.py`` only reads
 # ``config.terrain.dem_path`` / ``config.terrain.converted_dem_dir``
-# (see scripts/convert_dem.py:51-58).
+# (see tools/convert_dem.py:51-58).
 #
 # How to validate (passes even with an empty DEM directory):
 #   from marslab.config.loader import load_and_validate
@@ -75,9 +75,9 @@ mars_env:
 # ----------------------------------------------------------------------------
 # Prerequisites:
 #   1. Download a HiRISE GeoTIFF (USGS Astrogeology / NASA PDS).
-#   2. Edit ``dem_path`` in ``configs/dem_conversion/sample_jezero.yaml``
+#   2. Edit ``dem_path`` in ``tools/dem_conversion/sample_jezero.yaml``
 #      to point at the downloaded GeoTIFF.
-#   3. Run ``python3 scripts/convert_dem.py --config <that yaml>``.
+#   3. Run ``python3 tools/convert_dem.py --config <that yaml>``.
 #   4. Verify the output directory matches ``converted_dem_dir`` below.
 # ============================================================================
 terrain:

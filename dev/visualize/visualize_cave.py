@@ -4,8 +4,8 @@ Generates a 4-panel matplotlib figure showing the procedurally generated
 cave from multiple views, plus an OBJ export for external viewing.
 
 Usage:
-    python3 scripts/visualize_cave.py [--seed 42] [--width 200]
-                                      [--output work_log/scene_generation/cave_preview.png]
+    python3 dev/visualize/visualize_cave.py [--seed 42] [--width 200]
+                                            [--output work_log/scene_generation/cave_preview.png]
 """
 
 import argparse
@@ -15,7 +15,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 

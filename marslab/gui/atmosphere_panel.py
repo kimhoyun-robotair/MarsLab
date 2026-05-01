@@ -12,7 +12,7 @@ loop in :func:`marslab.runtime.main_loop.run_main_loop` checks this dict
 every N frames and updates the renderers accordingly.
 
 Requires Isaac Sim runtime (omni.ui). Guarded by try/except at import
-time in ``scripts/phase1/main.py`` so headless or non-GUI environments
+time in ``marslab/main.py`` so headless or non-GUI environments
 degrade gracefully.
 """
 

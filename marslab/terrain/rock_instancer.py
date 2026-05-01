@@ -2,7 +2,7 @@
 
 Places rocks as 3D USD primitives on the terrain surface using
 PointInstancer for efficient rendering. Supports OBJ mesh prototypes
-(from ``scripts/blender_generate_rocks.py``) or Sphere fallback. A PBR
+(from ``dev/asset_gen/blender_generate_rocks.py``) or Sphere fallback. A PBR
 material is applied to all prototypes. Requires Isaac Sim runtime --
 do NOT import from offline code.
 """

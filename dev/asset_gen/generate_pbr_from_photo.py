@@ -7,8 +7,8 @@ PBR texture set usable by MarsLab's material pipeline.
 - Roughness: derived from albedo luminance
 
 Usage:
-    python3 scripts/generate_pbr_from_photo.py
-    python3 scripts/generate_pbr_from_photo.py --input photo.jpg --size 4096
+    python3 dev/asset_gen/generate_pbr_from_photo.py
+    python3 dev/asset_gen/generate_pbr_from_photo.py --input photo.jpg --size 4096
 """
 
 import argparse

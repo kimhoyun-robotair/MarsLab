@@ -5,7 +5,7 @@ Public surface
 
 * :func:`init_rclpy_side` -- Create the rclpy node + cmd_vel
   subscriber + static sensor TF + odometry publisher in one call.
-  The only function needed by ``scripts/phase1/main.py``.
+  The only function needed by ``marslab/main.py``.
 * :func:`build_sensor_graph` -- OmniGraph construction (re-exported
   from :mod:`marslab.ros2_bridge.sensor_graph`).
 * Pure math helpers in :mod:`marslab.ros2_bridge.odometry_math`.

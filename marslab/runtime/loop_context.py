@@ -1,11 +1,11 @@
 """Factory for assembling :class:`LoopContext` from spawn outputs.
 
-Extracted from ``scripts/phase1/main.py`` so the construction is a
+Extracted from ``marslab/main.py`` so the construction is a
 single offline-testable function instead of a 35-keyword call inlined
 into the entry script.  The dataclass itself lives in
 :mod:`marslab.runtime.main_loop` -- keeping the factory separate avoids
 a circular import while still presenting a single import-and-call
-surface for callers (``scripts.phase1.main`` and any future entry
+surface for callers (``marslab.main`` and any future entry
 points).
 
 The Isaac Sim handles (``simulation_app``, ``world``, ``stage``,

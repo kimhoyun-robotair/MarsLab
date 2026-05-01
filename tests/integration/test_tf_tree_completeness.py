@@ -31,7 +31,7 @@ without the Isaac Sim Kit app.
 
 Invocation::
 
-    scripts/isaac_python.sh scripts/run_integration_test.py \\
+    marslab/isaac_python.sh tools/run_integration_test.py \\
         tests/integration/test_tf_tree_completeness.py
 """
 
@@ -48,11 +48,11 @@ import pytest
 
 isaacsim = pytest.importorskip(
     "isaacsim",
-    reason="Isaac Sim not available; run via scripts/isaac_python.sh",
+    reason="Isaac Sim not available; run via marslab/isaac_python.sh",
 )
 rclpy_mod = pytest.importorskip(
     "rclpy",
-    reason="Isaac Sim bundled rclpy not importable; run via scripts/isaac_python.sh",
+    reason="Isaac Sim bundled rclpy not importable; run via marslab/isaac_python.sh",
 )
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -222,7 +222,7 @@ def test_tf_tree_contains_all_sensor_frames() -> None:
             f"/tf_static missing sensor edges: {missing}. "
             f"Got: {sorted(received_children)}. "
             f"Check publish_static_sensor_tfs and the sensor_frames list "
-            f"in scripts/phase1/main.py."
+            f"in marslab/main.py."
         )
 
         # --- Assertion 2: /tf_raw received at least one joint-chain message

@@ -33,11 +33,11 @@ the operator can validate DEM crops and HDRI/fog settings without the
 70 kg rover settling on the surface.
 
 Usage:
-    scripts/isaac_python.sh scripts/phase1/main.py \\
+    marslab/isaac_python.sh marslab/main.py \\
         --config configs/scenarios/jezero_flat.yaml
 
     # Scene-only (DEM + atmosphere viewer, no rover, no ROS2):
-    scripts/isaac_python.sh scripts/phase1/main.py \\
+    marslab/isaac_python.sh marslab/main.py \\
         --config configs/scenarios/jezero_flat.yaml --no-rover
 """
 
@@ -51,7 +51,7 @@ import sys
 
 import numpy as np
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 

@@ -113,7 +113,7 @@ class TestComputeOdomDelta:
     def test_identity_init_quat_with_x_rolled_current(self) -> None:
         """Phase 2 entry-point contract: identity init_quat + X-rolled current.
 
-        The Stage-3 entry point (``scripts/phase1/main.py``) pins
+        The Stage-3 entry point (``marslab/main.py``) pins
         ``init_quat_world`` to identity even when the PhysX-reported
         spawn quaternion is X-rolled (``spawn_orientation_rpy =
         [pi, 0, 0]``).  This test pins the resulting odom-frame
@@ -143,7 +143,7 @@ class TestComputeOdomDelta:
         With ``init_quat_world = identity``, ``compute_odom_delta``
         reduces to ``delta_quat = identity^-1 ⊗ current = current``.
         Pinning this equality so the entry-point change in
-        ``scripts/phase1/main.py`` (force identity init_quat) keeps
+        ``marslab/main.py`` (force identity init_quat) keeps
         delivering ROS-conventional yaw-bearing odom messages.
         """
         init_pos = np.zeros(3, dtype=np.float32)

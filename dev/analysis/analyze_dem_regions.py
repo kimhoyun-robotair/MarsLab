@@ -7,8 +7,8 @@ Scans the Jezero crater DEM with sliding windows to find:
 Outputs a combined overview image showing both candidate types on the full DEM.
 
 Usage:
-    python3 scripts/analyze_dem_regions.py
-    python3 scripts/analyze_dem_regions.py --dem-dir path/to/converted_dem/
+    python3 dev/analysis/analyze_dem_regions.py
+    python3 dev/analysis/analyze_dem_regions.py --dem-dir path/to/converted_dem/
 """
 
 import argparse
@@ -19,7 +19,7 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 

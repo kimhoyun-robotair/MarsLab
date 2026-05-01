@@ -1,6 +1,6 @@
 """Articulation post-spawn configuration helpers.
 
-Extracted from ``scripts/phase1/main.py`` so the joint-name resolution
+Extracted from ``marslab/main.py`` so the joint-name resolution
 logic (which is pure Python and therefore offline-testable) lives apart
 from the Isaac Sim side effects.
 
@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Sequence, Tuple
 
 import numpy as np
 
-from marslab.math.quaternion import rpy_to_quat
+from marslab.quaternion import rpy_to_quat
 
 logger = logging.getLogger(__name__)
 

@@ -45,7 +45,7 @@ pip install -e ".[dev]" --break-system-packages
 
 # 3. Run a fully self-contained procedural scenario.
 #    No external DEM, no external assets, no other YAMLs to read.
-scripts/isaac_python.sh scripts/phase1/main.py \
+marslab/isaac_python.sh marslab/main.py \
     --config configs/scenarios/template_single_file.yaml
 ```
 
@@ -111,23 +111,23 @@ elevation are entirely different but bit-exact reproducible the next time.
 ### 2b. HiRISE DEM (real Mars topography)
 
 Two-step workflow. **Step 1 is offline preprocessing** (no Isaac Sim, no
-GPU); step 2 is the same `scripts/phase1/main.py` invocation as the
+GPU); step 2 is the same `marslab/main.py` invocation as the
 procedural case.
 
 ```bash
 # Step 1: convert a HiRISE GeoTIFF to numpy + metadata.
 #         Uses GDAL on the host CPU. Output is written to
 #         assets/mars_assets/DEM/<region>/{elevation.npy,metadata.json}.
-scripts/isaac_python.sh scripts/convert_dem.py \
-    --config configs/dem_conversion/sample_jezero.yaml
+marslab/isaac_python.sh tools/convert_dem.py \
+    --config tools/dem_conversion/sample_jezero.yaml
 
 # Step 2: run the simulator with a scenario that points at the
 #         processed DEM via terrain.dem_path.
-scripts/isaac_python.sh scripts/phase1/main.py \
+marslab/isaac_python.sh marslab/main.py \
     --config configs/scenarios/template_hirise.yaml
 ```
 
-`configs/dem_conversion/sample_jezero.yaml` ships with a Jezero crater
+`tools/dem_conversion/sample_jezero.yaml` ships with a Jezero crater
 crop. To swap regions, edit the GeoTIFF source, the crop window
 (`row_offset`, `col_offset`, `crop_size`), and the optional vertical
 exaggeration in that one file.
@@ -155,10 +155,10 @@ Plus three first-class **templates** — copy these to start a new scenario:
 |---------------------------------------------------|-----------------------------------------------------------------|
 | `configs/scenarios/template_single_file.yaml`     | You want a 240-line self-contained scenario, no `base_config:` includes (best for demos / academic reproducibility). |
 | `configs/scenarios/template_hirise.yaml`          | You're authoring a new HiRISE DEM scenario and want to follow the standard 2-step pipeline. |
-| `configs/dem_conversion/sample_jezero.yaml`       | You're writing the DEM-to-numpy preprocessing config for step 1. |
+| `tools/dem_conversion/sample_jezero.yaml`         | You're writing the DEM-to-numpy preprocessing config for step 1. |
 
 Paper figures for each scenario will be regenerated post-paper via
-`scripts/visualize_scenario.py` and friends; they are not committed to this
+`dev/visualize/visualize_scenario.py` and friends; they are not committed to this
 repo.
 
 ---
@@ -238,7 +238,7 @@ depending on the upstream stack.
 PhysX-derived ground-truth pose on `/tf` so external visual SLAM
 (RTAB-Map `rgbd_odometry`, ORB-SLAM3, ...) is no longer required for
 the odom transform.  `init_quat_world` is pinned to identity in
-`scripts/phase1/main.py` so the published `odom` frame equals the
+`marslab/main.py` so the published `odom` frame equals the
 world REP-103 frame.  Set `ros2.publish_odom_tf: false` in the
 rover YAML to delegate the transform back to a visual SLAM stack;
 never run both -- two publishers on the same transform produce
@@ -576,7 +576,7 @@ ruff check   marslab/ scripts/ tests/
 Isaac Sim integration tests (manual; user-driven per project convention):
 
 ```bash
-scripts/isaac_python.sh scripts/run_integration_test.py
+marslab/isaac_python.sh tools/run_integration_test.py
 ```
 
 See `tests/integration/` for the IMU-gravity and ROS2-topic

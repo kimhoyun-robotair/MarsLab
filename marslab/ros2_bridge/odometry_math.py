@@ -25,11 +25,11 @@ from typing import Tuple
 import numpy as np
 
 # ``quat_inverse`` / ``quat_multiply`` / ``quat_rotate_vec`` live in
-# ``marslab.math.quaternion`` as the single source of truth.  The imports
+# ``marslab.quaternion`` as the single source of truth.  The imports
 # below preserve backward compatibility for every existing call site
 # (``marslab.ros2_bridge.odometry_publisher``, ``tests/unit/test_odometry_math``)
 # that still does ``from marslab.ros2_bridge.odometry_math import quat_*``.
-from marslab.math.quaternion import (  # noqa: F401
+from marslab.quaternion import (  # noqa: F401
     quat_inverse,
     quat_multiply,
     quat_rotate_vec,

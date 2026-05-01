@@ -7,7 +7,7 @@ from dataclasses import fields
 
 import numpy as np
 
-from marslab.math.quaternion import quat_inverse, quat_multiply, quat_rotate_vec
+from marslab.quaternion import quat_inverse, quat_multiply, quat_rotate_vec
 from marslab.runtime import main_loop as ml
 from marslab.runtime.main_loop import (
     AtmosphereLoopState,
@@ -298,7 +298,7 @@ def test_loop_context_legacy_flat_access_still_works() -> None:
 
     The decomposition must not break existing callers that read
     ``ctx.wheel_radius`` / ``ctx.wheelbase`` / ``ctx.v_max`` directly
-    (notably ``scripts/phase1/main.py`` and every byte-identity md5
+    (notably ``marslab/main.py`` and every byte-identity md5
     pin in the test suite).
     """
     ctx = _make_minimal_ctx()

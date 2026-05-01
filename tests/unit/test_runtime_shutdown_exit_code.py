@@ -1,6 +1,6 @@
 """Regression tests for runtime shutdown exit codes.
 
-``os._exit(0)`` was previously used in ``scripts/phase1/main.py``; the
+``os._exit(0)`` was previously used in ``marslab/main.py``; the
 call reports success to the shell when ``simulation_app.close()``
 raises. The fix replaces ``0`` with ``1`` so CI / pytest observe a
 genuine failure. The ``os._exit`` call itself is retained (not
@@ -25,8 +25,8 @@ def _load_source(relative: str) -> str:
 
 
 def test_main_uses_exit_code_1_on_close_failure():
-    """``scripts/phase1/main.py`` must use ``os._exit(1)``."""
-    source = _load_source("scripts/phase1/main.py")
+    """``marslab/main.py`` must use ``os._exit(1)``."""
+    source = _load_source("marslab/main.py")
     assert "simulation_app.close()" in source
     assert "os._exit(1)" in source, (
         "main.py shutdown path must use os._exit(1) -- reverting to "

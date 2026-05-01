@@ -148,12 +148,12 @@ def load_converted_dem(converted_dir: str) -> tuple[np.ndarray, dict]:
     if not os.path.isfile(elev_path):
         raise FileNotFoundError(
             f"Pre-converted elevation not found: {elev_path}. "
-            f"Run 'python scripts/convert_dem.py' first."
+            f"Run 'python tools/convert_dem.py' first."
         )
     if not os.path.isfile(meta_path):
         raise FileNotFoundError(
             f"Pre-converted metadata not found: {meta_path}. "
-            f"Run 'python scripts/convert_dem.py' first."
+            f"Run 'python tools/convert_dem.py' first."
         )
 
     elevation = np.load(elev_path).astype(np.float32)

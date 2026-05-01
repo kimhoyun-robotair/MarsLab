@@ -8,49 +8,27 @@
 # Do NOT put per-scenario tweaks here -- put them in the scenario YAML
 # instead.
 
+# Just For Reference
 usd_path: "assets/robots/rover/m2020.usd"
-# URDF source: NASA JPL m2020-urdf-models, vendored as a git submodule
-# under ``assets/m2020-urdf-models/``.  Forked from
-# github.com/nasa-jpl/m2020-urdf-models to pin a commit and decouple
-# from upstream availability.  See ``THIRD_PARTY_LICENSES.md`` for
-# attribution (NASA/JPL release IDs URS307049, URS309682).  Run
-# ``git submodule update --init`` after cloning MarsLab for the URDF
-# + meshes to appear on disk.
-#
-# This field is documentation only -- the URDF -> USD conversion
-# script ``scripts/phase1/convert_urdf_to_usd.py`` has its own
-# ``DEFAULT_URDF`` constant pointing at the same path and accepts
-# a ``--urdf`` CLI override.  Runtime code does NOT consume this
-# URDF; it loads the converted USD at ``usd_path`` above.  Keep this
-# key in sync with ``DEFAULT_URDF`` if either path changes.
 urdf_source_path: "assets/m2020-urdf-models/rover/m2020.urdf"
 prim_path: "/World/Rover"
 
-# Stage-1 spawn pose is a fallback only; scenario YAMLs override via the
-# ``spawn:`` block below.
-#
-# The 180-deg X-roll spawn is intentional: the NASA JPL m2020 URDF authors
-# link frames in a non-standard convention (link +Z appears as world -Z
-# after a flat ``URDFParseAndImportFile`` import), so the spawn-time roll
-# brings the published TF chain into REP-103 alignment.  Sensor YAML
-# ``local_translation`` Z values are authored in this X-rolled body frame
-# (negative Z = above the chassis).  ``tf_broadcaster.py`` broadcasts these
-# values identity; the X-roll on the spawn root is the single canonical
-# rotation across the whole chain.  See ``docs/frame_conventions.md`` for
-# the full convention.
+# Applying a roll about the x-axis: 
+# The URDF link frame is defined in the FRD coordinate system, so a roll rotation is applied to convert it to the ROS coordinate system.
 spawn_position: [0.0, 0.0, 0.0]
-#spawn_orientation_rpy: [0.0, 0.0, 0.0]
 spawn_orientation_rpy: [3.14159, 0.0, 0.0]
 
-# Default scenario spawn spec.  Scenarios override mode / xy / z_offset
-# to land the rover at a scenario-appropriate starting point.
+# Spawn modes
+# absolute: use xy as-is; z = xy[2]
+# dem_center: spawn at DEM center; z = center elevation + z_offset
+# dem_relative: xy is a local offset from the DEM center
 spawn:
   mode: "dem_center"
   xy: [0.0, 0.0]
   z_offset: 0.5
   orientation_rpy: [3.14159, 0.0, 0.0]
 
-# Chassis mass-bias compensation.
+# Apply chassis CoM offset (m) to compensate for forward-arm mass bias
 com_offset: [0.2, 0.0, 0.0]
 angular_damping: 12.0
 linear_damping: 0.5
@@ -76,12 +54,11 @@ chassis:
   inertia_xx: 1036.1   # kg*m^2  (W=2.7, H=2.2)
   inertia_yy: 1182.2   # kg*m^2  (L=3.0, H=2.2)
   inertia_zz: 1391.4   # kg*m^2  (L=3.0, W=2.7)
-  bbox_lwh: [3.0, 2.7, 2.2]   # documentation only — used by the unit test
-                              #   to recompute inertia from first principles.
+  bbox_lwh: [3.0, 2.7, 2.2] # documentation only — used by the unit test
+                                        #   to recompute inertia from first principles.
 
 wheels:
-  # M2020 wheel diameter is 0.525 m (52.5 cm) — see Heverly et al., 2013
-  # IEEE Aerospace Conference (M2020 actual).  The current ``control.wheel_radius``
+  # The current ``control.wheel_radius``
   # of 0.2667 m corresponds to a 0.5334 m diameter (URDF-derived); we keep
   # that value for kinematic IK consistency and document the 1.6 % gap below.
   radius: 0.2667           # m  — matches ``control.wheel_radius`` exactly.
@@ -117,7 +94,7 @@ suspension:
   bogie_damping: 50.0      # N*m*s/rad  — bogie sub-arms (matches legacy).
 
 # Offline URDF-to-USD converter flags.  Runtime must NOT re-run URDF
-# import; these are consumed only by scripts/phase1/convert_urdf_to_usd.py.
+# import; these are consumed only by tools/convert_urdf_to_usd.py.
 urdf_merge_fixed_joints: false
 urdf_fix_base: false
 urdf_self_collision: false
@@ -142,10 +119,10 @@ ros2:
     odom: 50
     rgb: 30
     depth: 30
-    points: 30                   # depth-derived PointCloud2 matches the depth rate
-    camera_info: 30              # CameraInfo published in lock-step with rgb/depth
-    lidar: 10
-    scan: 30                     # Example_Rotary_2D scanRateBaseHz = 30 Hz
+    points: 30               # depth-derived PointCloud2 matches the depth rate
+    camera_info: 30      # CameraInfo published in lock-step with rgb/depth
+    lidar: 10          # For ROS2 Point Cloud Topic Publishing Rate, Not same as the RTX LiDAR rotation rate (see ``lidar_3d.rotation_rate_hz`` below).
+    scan: 30         # For ROS2 LaserScan Topic Publishing Rate, Not same as the RTX LiDAR rotation rate (see ``lidar_2d.rotation_rate_hz`` below).
     joint_states: 50             # OG ROS2PublishJointState tick rate (matches odom)
   # Frame names threaded through ``create_odometry_publisher`` so the
   # SLAM stack YAML shares one source of truth.
@@ -172,7 +149,7 @@ ros2:
   # Replaces the dependency on an external visual SLAM stack
   # (RTAB-Map ``rgbd_odometry``, ORB-SLAM3, etc.) for the odom
   # transform.  The init_quat_world is forced to identity in the
-  # runtime entry point (scripts/phase1/main.py) so the odom frame
+  # runtime entry point (marslab/main.py) so the odom frame
   # equals world REP-103, even though spawn_orientation_rpy applies
   # an X-roll to the articulation root prim.  Set ``false`` to
   # delegate ``odom -> base_link`` to a downstream visual SLAM stack;
@@ -235,7 +212,7 @@ sensors:
     horizontal_resolution_deg: 0.4
     vertical_resolution_deg: 1.875
     rotation_rate_hz: 30.0
-    profile_name: "Example_Rotary"
+    profile_name: "Example_Rotary" # Isaac Sim Bundeled RTX LiDAR profile (16-beam Velodyne-style)
     profile_json_path: null
     # Swap the LiDAR USD model by changing this key (e.g. ``Velodyne_VLP16``).
     # ``null`` falls back to ``profile_name``.
@@ -258,7 +235,9 @@ sensors:
     horizontal_fov_deg: 360.0
     horizontal_resolution_deg: 0.25
     rotation_rate_hz: 30.0
-    profile_name: "Example_Rotary_2D"
+    profile_name: "Example_Rotary_2D" # Isaac Sim Bundled RTX LiDAR profile (single-beam 2D)
+    # Swap the LiDAR USD model by changing this key (e.g. ``Velodyne_VLP16``).
+    # ``null`` falls back to ``profile_name``.
     profile_json_path: null
     usd_profile: null
 
@@ -309,27 +288,3 @@ control:
   steer_ramp_rate: 2.0
   decel_multiplier: 3.0
   debug_logging: false
-
-  # RA arm initial joint positions for spawn-time stability.  When the
-  # rover spawns with the RA arm in the URDF-default deployed pose
-  # (arm tip ~3 m forward, +X), the 25 kg arm + 45 kg turret cluster
-  # produces a forward pitching moment during the post-reset warmup
-  # loop.  Empirically this drifts the chassis ~1.5 m on +X before
-  # ground contact stabilises it.
-  #
-  # Setting RA joints here at spawn lets the user pick a stowed-like
-  # pose that keeps the arm mass close to the chassis centre of mass.
-  # Joint name keys must match ``articulation.dof_names`` (M2020 USD
-  # exposes ``JOINT1_ENC`` .. ``JOINT5_ENC`` for the 5-DOF arm; the
-  # fixed ``JointRobotArmBase`` is not in dof_names).
-  #
-  # Default = empty dict, keep URDF-default pose (no override).
-  # Empirically iterate by editing this dict and re-running Isaac Sim;
-  # verify via ``ros2 run tf2_ros tf2_echo odom base_link`` that the
-  # lateral drift shrinks.
-#  initial_joint_positions:                                                                                                                  
-#    JOINT1_ENC: 0.0          # base yaw 중앙                                                                                                
-#    JOINT2_ENC: -1.5708      # 90° pitch up (arm 을 위로 접음)
-#    JOINT3_ENC: -2.0944      # 120° pitch back                                                                                              
-#    JOINT4_ENC: 0.0                                                                                                                         
-#    JOINT5_ENC: 0.0       

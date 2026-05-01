@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Iterable, List, Tuple
 
-from marslab.math.quaternion import rpy_to_quat
+from marslab.quaternion import rpy_to_quat
 
 # The OBJ/STL drop-in pathway uses ``omni.kit.asset_converter``,
 # documented at

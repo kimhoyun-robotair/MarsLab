@@ -2,7 +2,7 @@
 
 Pure Python (no Isaac Sim imports) so the checks run identically under unit
 tests and inside the Isaac Sim python context. Error messages live alongside
-``scripts/phase1/main.py`` for consistent diagnostics.
+``marslab/main.py`` for consistent diagnostics.
 """
 
 from __future__ import annotations
@@ -23,11 +23,11 @@ def check_rover_usd(usd_abs: str) -> None:
     Raises:
         FileNotFoundError: If ``usd_abs`` does not resolve to a file. The
             message includes the operator hint to run
-            ``scripts/phase1/convert_urdf_to_usd.py``.
+            ``tools/convert_urdf_to_usd.py``.
     """
     if not os.path.isfile(usd_abs):
         raise FileNotFoundError(
-            f"Rover USD missing: {usd_abs}. " f"Run scripts/phase1/convert_urdf_to_usd.py first."
+            f"Rover USD missing: {usd_abs}. " f"Run tools/convert_urdf_to_usd.py first."
         )
 
 
@@ -35,7 +35,7 @@ def check_rover_block(rover_cfg: Optional[Dict[str, Any]]) -> None:
     """Raise ``ValueError`` if the scenario's rover config block is missing.
 
     Stage 3 monolithic requires a rover block by default; pass
-    ``--no-rover`` to ``scripts/phase1/main.py`` for scene-only mode
+    ``--no-rover`` to ``marslab/main.py`` for scene-only mode
     (DEM + atmosphere + structures, no rover spawn / sensors / ROS2).
 
     Args:
@@ -80,7 +80,7 @@ def check_dem_assets(converted_dir: str) -> None:
 
     Args:
         converted_dir: Directory that should contain ``elevation.npy``
-            and ``metadata.json`` produced by ``scripts/convert_dem.py``.
+            and ``metadata.json`` produced by ``tools/convert_dem.py``.
 
     Raises:
         FileNotFoundError: If either asset is absent. The message lists
@@ -93,5 +93,5 @@ def check_dem_assets(converted_dir: str) -> None:
         raise FileNotFoundError(
             "DEM assets missing: "
             + ", ".join(missing)
-            + ". Run 'python scripts/convert_dem.py' first."
+            + ". Run 'python tools/convert_dem.py' first."
         )

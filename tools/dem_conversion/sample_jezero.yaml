@@ -2,12 +2,12 @@
 # DEM conversion config (offline preprocessing): HiRISE GeoTIFF -> numpy.
 # =============================================================================
 #
-# Companion script: ``scripts/convert_dem.py``.
+# Companion script: ``tools/convert_dem.py``.
 # This file is the input for a one-shot offline conversion run.
 #
 # Run:
-#   python3 scripts/convert_dem.py \
-#       --config configs/dem_conversion/sample_jezero.yaml
+#   python3 tools/convert_dem.py \
+#       --config tools/dem_conversion/sample_jezero.yaml
 #
 # Output:
 #   ``elevation.npy`` (float32) + ``metadata.json`` written under
@@ -19,7 +19,7 @@
 # This file validates against ``MarsLabConfig``
 # (``marslab.config.schema.root.MarsLabConfig``); ``convert_dem.py`` only
 # uses ``terrain.source`` / ``terrain.dem_path`` / ``terrain.converted_dem_dir``
-# (see scripts/convert_dem.py:39, 46, 51-58).  There is no separate
+# (see tools/convert_dem.py:39, 46, 51-58).  There is no separate
 # conversion-only schema -- this file uses a subset of the scenario schema.
 # Therefore ``mars_env`` / ``rendering`` blocks may be left empty and
 # pydantic defaults will satisfy validation.

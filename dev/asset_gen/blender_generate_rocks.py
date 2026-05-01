@@ -4,7 +4,7 @@ Generates angular rock meshes using Blender's Displace modifier
 with cloud noise, then decimates to target poly count.
 Much higher quality than trimesh icosphere deformation.
 
-Run: blender --background --python scripts/blender_generate_rocks.py
+Run: blender --background --python dev/asset_gen/blender_generate_rocks.py
 
 Output: assets/mars_assets/mars_rocks/meshes/rock_blender_{0-7}.obj
 """
@@ -91,7 +91,7 @@ def generate_rock(seed: int, output_path: str, target_faces: int = 2000) -> None
 def main() -> None:
     # Resolve output directory relative to this script
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_dir = os.path.dirname(script_dir)
+    project_dir = os.path.dirname(os.path.dirname(script_dir))
     output_dir = os.path.join(project_dir, "assets", "rocks")
     os.makedirs(output_dir, exist_ok=True)
 

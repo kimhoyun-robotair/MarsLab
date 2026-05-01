@@ -43,7 +43,7 @@ their respective upstream licenses and are **not** listed here; see
 The URDF is consumed two ways:
 
 1. **Offline** — converted once to USD via
-   ``scripts/phase1/convert_urdf_to_usd.py`` and the USD is loaded by
+   ``tools/convert_urdf_to_usd.py`` and the USD is loaded by
    the runtime.
 2. **Runtime** — read at Stage-3 boot, mesh paths are rewritten from
    ``./meshes/`` to absolute ``file://`` URIs (see

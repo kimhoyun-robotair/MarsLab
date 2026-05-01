@@ -19,7 +19,7 @@ same directory as the original so mesh references (./meshes/*.gltf)
 still resolve, and is removed in a finally block.
 
 Usage:
-    scripts/isaac_python.sh scripts/phase1/convert_urdf_to_usd.py
+    marslab/isaac_python.sh tools/convert_urdf_to_usd.py
 
 Optional flags:
     --urdf PATH   Override the input URDF path.
@@ -212,7 +212,7 @@ def main() -> int:
         # * collision_from_visuals=True synthesises collision shapes
         #   from visual meshes (URDF has no <collision> blocks).
         # * import_inertia_tensor=True: consume the URDF <inertial>
-        #   mass + diagonal inertia.  ``scripts/fix_urdf_inertia.py``
+        #   mass + diagonal inertia.  ``tools/fix_urdf_inertia.py``
         #   populates the URDF with a bbox/density-derived 1025 kg
         #   distribution before this converter runs, so PhysX gets
         #   valid mass on every Body_*.  The previous False setting

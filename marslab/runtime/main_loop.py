@@ -18,7 +18,7 @@ The inline ``sendTransform`` block in :func:`_publish_odometry` was
 replaced with a call to
 :func:`marslab.ros2_bridge.odometry_publisher.publish_odometry` so the
 ``tf_broadcaster is None`` gate (rclpy odom TF is OFF by default) is
-enforced in a single place. ``scripts/phase1/main.py`` is the live
+enforced in a single place. ``marslab/main.py`` is the live
 Stage 3 runtime entry point.
 """
 
@@ -395,7 +395,7 @@ def build_atmosphere_loop_state(
     Collapses the boilerplate Stage-3 callers used to write inline to
     wire every ``DynamicAtmosphereConfig`` + ``StageTwoAtmosphereInit``
     field into a mutable loop state.  Keeps
-    ``scripts/phase1/main.py`` focused on Stage-3 orchestration.
+    ``marslab/main.py`` focused on Stage-3 orchestration.
 
     Args:
         atmo_init: :class:`marslab.runtime.stage2_boot.StageTwoAtmosphereInit`
@@ -411,7 +411,7 @@ def build_atmosphere_loop_state(
     # ``sol_duration_seconds`` is required by ``AtmospherePanel._format_mode_status``
     # when the panel is toggled to Auto mode. Dropping it here caused a KeyError
     # inside the GUI callback the first time the Sun mode button was clicked
-    # on ``scripts/phase1/main.py``.
+    # on ``marslab/main.py``.
     atmosphere_dict: Dict[str, Any] = {
         "tau": tau,
         "sun_mode": "auto" if dyn.enabled else "manual",
@@ -441,7 +441,7 @@ def run_main_loop(ctx: LoopContext) -> int:
 
     Args:
         ctx: Pre-initialized :class:`LoopContext` assembled by the
-            :mod:`scripts.phase1.main` after Isaac Sim boot and
+            :mod:`marslab.main` after Isaac Sim boot and
             ``world.reset()``.
 
     Returns:

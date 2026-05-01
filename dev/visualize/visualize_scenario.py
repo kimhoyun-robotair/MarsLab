@@ -14,10 +14,10 @@ time (GDAL is only touched if the scenario omits a pre-converted DEM
 directory).
 
 Usage:
-    python3 scripts/visualize_scenario.py <scenario_yaml> [<output_png>]
+    python3 dev/visualize/visualize_scenario.py <scenario_yaml> [<output_png>]
 
 Example:
-    python3 scripts/visualize_scenario.py configs/scenarios/basic_mars.yaml
+    python3 dev/visualize/visualize_scenario.py configs/scenarios/basic_mars.yaml
     -> writes _workspace/scenario_basic_mars.png
 """
 

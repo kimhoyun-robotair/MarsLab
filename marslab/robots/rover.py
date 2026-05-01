@@ -12,9 +12,9 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 # ``rpy_to_quat`` is the single source of truth in
-# ``marslab.math.quaternion``.  Re-exported here so existing import
+# ``marslab.quaternion``.  Re-exported here so existing import
 # sites (``from marslab.robots.rover import rpy_to_quat``) keep working.
-from marslab.math.quaternion import rpy_to_quat  # noqa: F401
+from marslab.quaternion import rpy_to_quat  # noqa: F401
 
 # DriveAPI and PD-gain helpers live in ``marslab.robots.drive_api_setup``.
 # Re-exported here so existing imports (``from marslab.robots.rover import

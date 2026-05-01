@@ -276,10 +276,10 @@ def _rpy_deg_to_quat_wxyz(rpy_deg: Optional[Iterable[float]]) -> tuple:
     """Convert ``[roll, pitch, yaw]`` in degrees (ZYX intrinsic) to ``(w, x, y, z)``.
 
     ``None`` or an all-zero list yields the identity quaternion.  Kept
-    local so the tests do not need to stub ``marslab.math.quaternion``.
+    local so the tests do not need to stub ``marslab.quaternion``.
 
     Note:
-        ``marslab.math.quaternion`` exposes a radian-input
+        ``marslab.quaternion`` exposes a radian-input
         ``rpy_to_quat``; a degree-input variant has not yet been
         promoted there.  When that variant lands, this helper can be
         replaced with a one-line import.

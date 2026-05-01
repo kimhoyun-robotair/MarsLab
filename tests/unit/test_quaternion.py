@@ -1,4 +1,4 @@
-"""Unit tests for marslab.math.quaternion helpers ([w,x,y,z] convention)."""
+"""Unit tests for marslab.quaternion helpers ([w,x,y,z] convention)."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ import math
 import numpy as np
 import pytest
 
-from marslab.math import quaternion as qm
-from marslab.math.quaternion import (
+from marslab import quaternion as qm
+from marslab.quaternion import (
     quat_inverse,
     quat_multiply,
     quat_rotate_vec,
@@ -263,7 +263,7 @@ def test_quat_inverse_warns_non_unit() -> None:
     """
     from _pytest.logging import LogCaptureHandler
 
-    logger = logging.getLogger("marslab.math.quaternion")
+    logger = logging.getLogger("marslab.quaternion")
     handler = LogCaptureHandler()
     handler.setLevel(logging.WARNING)
     logger.addHandler(handler)
@@ -282,7 +282,7 @@ def test_quat_inverse_no_warn_for_unit() -> None:
     """Negative case: a unit quaternion must not trigger the warning."""
     from _pytest.logging import LogCaptureHandler
 
-    logger = logging.getLogger("marslab.math.quaternion")
+    logger = logging.getLogger("marslab.quaternion")
     handler = LogCaptureHandler()
     handler.setLevel(logging.WARNING)
     logger.addHandler(handler)

@@ -52,7 +52,7 @@ running locally.
   (THE critical Wk1 acceptance test, run by user in Isaac Sim)
   -- PASSED 2026-04-14 via v4 probe `IMUSensor.lin_acc[z] ∈ [3.67, 3.77]` gating
   (user run, exit 0, evidence at /home/hoyunkim/MarsLab/temp.txt line 462)
-- Method: spawn rover in scripts/phase1/main.py, step sim ~5s, screenshot + IMU log
+- Method: spawn rover in marslab/main.py, step sim ~5s, screenshot + IMU log
 - Spawn geometry (post code-quality-reviewer C1, 2026-04-14): spawn_position
   z = 0.50 m above the sampled terrain surface. Wheel radius = 0.15 m, so
   the wheel bottoms start with a 0.20 m drop gap, avoiding explosive t=0
@@ -69,7 +69,7 @@ running locally.
   - Physics MUST be actively stepping. Wrap the probe in a temporary
     `isaacsim.core.api.SimulationContext(physics_prim_path="/physicsScene",
     physics_dt=1/200)` + `.reset()` + 1000 `.step(render=False)` calls (~5 s sim
-    time). `scripts/phase1/main.py` alone only does `simulation_app.update()` and
+    time). `marslab/main.py` alone only does `simulation_app.update()` and
     never advances physics.
   - Rover prim path is read at runtime from `robot_prim_paths["rover_0"]`
     (populated by the spawn loop), not hardcoded.
@@ -82,7 +82,7 @@ running locally.
     to confirm the rover actually settled. Both paths feed the same `imu_z`
     variable and the same Mars-band assert `3.67 <= imu_z <= 3.77`.
   - Expected PASS line: `[wk1-imu] PASS: |z| = <value> m/s^2 in [3.67, 3.77]`.
-  - Revert the entire probe block from `scripts/phase1/main.py` after the run;
+  - Revert the entire probe block from `marslab/main.py` after the run;
     permanent publisher is Wk2 #7 scope under `marslab/ros2_bridge/`.
   - Full procedure (Steps 1-5) is mirrored by the integration test
     `tests/integration/test_imu_gravity_actual.py`; old v1 snippet
@@ -90,13 +90,13 @@ running locally.
     `DISABLED (wk1_imu_probe_v1): replaced 2026-04-14`.
 - IMU probe v5 procedure (post TaskList #10 + #11, 2026-04-14):
   - **Status:** v5 is the live probe, sentinel-delimited at
-    `scripts/phase1/main.py:374-627` by `# === Wk1 acceptance probe v5:
+    `marslab/main.py:374-627` by `# === Wk1 acceptance probe v5:
     dual-sink logging (TEMPORARY) ===` / `# === end Wk1 acceptance probe
     v5 ===`. Historical versions v1-v4 are no longer kept in-tree;
     consult VCS history if needed.
   - **Physics now runs** (task #10, 2026-04-14): `marslab/robots/rover.py`
     applies `PhysxSchema.PhysxSceneAPI.Apply(scene_prim)` idempotently;
-    `scripts/phase1/main.py` instantiates `isaacsim.core.api.World(
+    `marslab/main.py` instantiates `isaacsim.core.api.World(
     physics_prim_path="/physicsScene",
     sim_params={"gravity": (0, 0, -config.mars_env.gravity)})` before the
     stage is built, and drives the main loop with `world.reset()` +
@@ -126,7 +126,7 @@ running locally.
     `[wk1-imu] VERDICT: PASS reason="..." |g|=<value> imu_status=valid`
   - **Recommended invocation** (so stdout is captured even without
     task #11's carb mirror):
-    `cd ~/MarsLab && ~/isaacsim/python.sh scripts/phase1/main.py --config configs/scenarios/jezero_flat.yaml 2>&1 | tee /tmp/main.log`
+    `cd ~/MarsLab && ~/isaacsim/python.sh marslab/main.py --config configs/scenarios/jezero_flat.yaml 2>&1 | tee /tmp/main.log`
     The authoritative source of truth is always the
     `wk1_imu_probe_result.json` file regardless of log capture.
   - **Fail-mode table (ordered by likelihood, for user triage):**
@@ -144,7 +144,7 @@ running locally.
     5. Post-assert Kit SIGSEGV -- try/finally should prevent; if it
        still happens, the v5 shutdown structure regressed.
   - **Revert after PASS:** delete the entire block between the v5
-    sentinels from `scripts/phase1/main.py`. Permanent IMU publisher is
+    sentinels from `marslab/main.py`. Permanent IMU publisher is
     Wk2 #7 scope under `marslab/ros2_bridge/`.
 
 ## V10a: ROS2 Bridge -- cmd_vel / TF / Odometry Live (plan)
@@ -250,7 +250,7 @@ lifecycle block in `main()` that instantiates `CmdVelSubscriber`,
 
 ## V10b: ROS2 Bridge Live Topic Plumbing (acceptance)
 
-Wk2 #7 landed 2026-04-14 (TaskList #7 completed). `scripts/phase1/main.py`
+Wk2 #7 landed 2026-04-14 (TaskList #7 completed). `marslab/main.py`
 now wires the full ROS2 bridge lifecycle: `rclpy.init()` →
 `CmdVelSubscriber` + `TfBroadcaster` + `OdometryPublisher` →
 `SingleThreadedExecutor` → main publish loop → reverse-order shutdown
@@ -272,12 +272,12 @@ Expected stdout marker for a clean run:
 ### Acceptance procedure (user-run in Isaac Sim)
 
 - [ ] **V10-1** Headless smoke loop completes with `MARSLAB_PUBLISH` unset:
-  `~/isaacsim/python.sh scripts/phase1/main.py --config configs/scenarios/jezero_flat.yaml 2>&1 | tee /tmp/main_wk2.log`
+  `~/isaacsim/python.sh marslab/main.py --config configs/scenarios/jezero_flat.yaml 2>&1 | tee /tmp/main_wk2.log`
   - Pass criterion: exit code 0, 400-step publish loop executes,
     reverse-order shutdown reached, no Kit SIGSEGV, no
     `rclpy.shutdown()` exception logged.
 - [ ] **V10-2** Continuous publish mode with topic plumbing checks:
-  `MARSLAB_PUBLISH=1 ~/isaacsim/python.sh scripts/phase1/main.py --config configs/scenarios/jezero_flat.yaml`
+  `MARSLAB_PUBLISH=1 ~/isaacsim/python.sh marslab/main.py --config configs/scenarios/jezero_flat.yaml`
   In a second terminal (ROS2 Jazzy sourced):
   - [ ] `ros2 topic list` shows `/rover/rgb/image_raw`,
     `/rover/lidar/points`, `/rover/imu/data`, `/tf`, `/rover/odom`,

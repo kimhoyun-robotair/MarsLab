@@ -47,7 +47,7 @@ from typing import Tuple
 
 # Canonical USD path of the stationary ``odom`` anchor prim created by
 # :func:`create_odom_anchor`.  Both :func:`marslab.robots.rover.spawn_rover`
-# and ``scripts/phase1/main.py`` reference this path; keeping the
+# and ``marslab/main.py`` reference this path; keeping the
 # string in one place removes the drift risk of a duplicated literal.
 DEFAULT_ODOM_ANCHOR_PATH = "/World/odom_anchor"
 

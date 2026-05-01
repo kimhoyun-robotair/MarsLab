@@ -40,8 +40,8 @@
 # wrapper does the purge in the parent shell immediately before exec.
 #
 # Usage:
-#   scripts/isaac_python.sh scripts/phase1/main.py --config configs/scenarios/jezero_flat.yaml
-#   scripts/isaac_python.sh scripts/phase1/main.py --config configs/scenarios/jezero_flat.yaml 2>&1 | tee ~/MarsLab/temp.txt
+#   marslab/isaac_python.sh marslab/main.py --config configs/scenarios/jezero_flat.yaml
+#   marslab/isaac_python.sh marslab/main.py --config configs/scenarios/jezero_flat.yaml 2>&1 | tee ~/MarsLab/temp.txt
 #
 # The wrapper invokes ~/isaacsim/python.sh (override via ISAAC_SIM_PATH).
 

@@ -1,4 +1,4 @@
-"""Runtime helpers shared by scripts/phase1 entrypoints.
+"""Runtime helpers shared by the ``marslab`` entrypoint.
 
 This package isolates config-loading and preflight-check helpers so that
 Stage 2/3 runtime scripts do not inline their own file-existence and

@@ -20,7 +20,7 @@ the following contract:
 4. Neither template carries a ``base_config`` include (that is the
    whole point of "self-contained").
 5. The DEM conversion config exposes the keys
-   ``scripts/convert_dem.py`` actually reads (``terrain.source``,
+   ``tools/convert_dem.py`` actually reads (``terrain.source``,
    ``terrain.dem_path``, ``terrain.converted_dem_dir``).
 """
 
@@ -36,7 +36,7 @@ from marslab.config.schema import MarsLabConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_DIR = REPO_ROOT / "configs" / "scenarios"
-DEM_CONVERSION_DIR = REPO_ROOT / "configs" / "dem_conversion"
+DEM_CONVERSION_DIR = REPO_ROOT / "tools" / "dem_conversion"
 
 TEMPLATE_PROCEDURAL = SCENARIO_DIR / "template_single_file.yaml"
 TEMPLATE_HIRISE = SCENARIO_DIR / "template_hirise.yaml"
@@ -136,9 +136,9 @@ def test_template_single_file_inlines_rover_sensors() -> None:
 
 def test_dem_conversion_sample_validates_and_exposes_required_fields() -> None:
     """The DEM conversion config validates and carries every key
-    ``scripts/convert_dem.py`` reads.
+    ``tools/convert_dem.py`` reads.
 
-    Consumer (scripts/convert_dem.py:39, 46, 51-58):
+    Consumer (tools/convert_dem.py:39, 46, 51-58):
         * ``config.terrain.source`` (must == "hirise")
         * ``config.terrain.dem_path``
         * ``config.terrain.converted_dem_dir`` (optional, falls back to
@@ -155,7 +155,7 @@ def test_dem_conversion_and_hirise_template_share_converted_dir() -> None:
     """The 2-step workflow only works if the conversion output dir matches
     the scenario template's ``converted_dem_dir``.
 
-    Without this invariant, running ``scripts/convert_dem.py`` produces
+    Without this invariant, running ``tools/convert_dem.py`` produces
     files in directory A while ``template_hirise.yaml`` looks in
     directory B at runtime — silent data loss for the user.
     """

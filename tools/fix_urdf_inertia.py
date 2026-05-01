@@ -63,7 +63,7 @@ Usage
 -----
 ::
 
-    python3 scripts/fix_urdf_inertia.py
+    python3 tools/fix_urdf_inertia.py
 
 Idempotent: reads the URDF, replaces each ``<mass value="0"/>`` and
 ``<inertia ... ="0" .../>`` line, writes back.  Re-running on an
