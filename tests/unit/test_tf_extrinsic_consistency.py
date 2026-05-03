@@ -325,11 +325,12 @@ class TestExtrinsicNoHiddenTransform:
     quaternion formula the spawner uses (mirrored locally — see
     :func:`_rpy_deg_to_quat_wxyz`).  If the spawner ever applies an
     extra rotation or scale on the way in, this test will not catch
-    it directly, but the integration test
-    (``tests/integration/test_tf_tree_completeness.py``) compares the
-    runtime extrinsic against these same YAML values and will catch
-    it.  Here we only certify that the YAML -> quat -> YAML round-trip
-    is exact, so the YAML is a faithful sole source of truth.
+    it directly; runtime extrinsic verification is now performed by
+    full-sim launch + RViz visual inspection (the old
+    ``tests/integration/test_tf_tree_completeness.py`` integration test
+    was retired 2026-05-04).  Here we only certify that the YAML ->
+    quat -> YAML round-trip is exact, so the YAML is a faithful sole
+    source of truth.
     """
 
     def test_camera_translation_is_raw_yaml_floats(self) -> None:

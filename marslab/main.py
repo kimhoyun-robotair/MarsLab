@@ -407,19 +407,16 @@ def main() -> int:
     # zero.
     #
     # ``init_quat_world`` is intentionally pinned to identity (1,0,0,0)
-    # rather than the PhysX-reported spawn quaternion.  The
-    # ``spawn_orientation_rpy = [pi, 0, 0]`` X-roll in the rover YAML
-    # makes the articulation root (``Body_Chassis``) USD prim X-rolled
-    # in world to compensate for the JPL m2020 URDF's graphics-style
-    # link-frame author convention (Z-down).  Feeding that X-rolled
-    # spawn quat to ``compute_odom_delta`` would make the published
-    # ``odom`` frame itself X-rolled (Z-down), violating REP-103.
-    # Identity ``init_quat_world`` keeps ``odom`` aligned with the
-    # world Z-up frame; the X-roll then naturally appears on
-    # ``odom -> Body_Chassis`` and is cancelled by the static
-    # ``base_link -> Body_Chassis`` X-roll wrapper published from
-    # ``launch/rover_state_publisher.launch.py``, leaving
-    # ``odom -> base_link`` as a pure REP-103 (yaw-only) transform.
+    # rather than the PhysX-reported spawn quaternion.  This anchors the
+    # ``odom`` frame to the REP-103 (Z-up) world axes irrespective of any
+    # spawn-time transient.  Since the 2026-05-04 rc1b URDF rewrite, the
+    # m2020 URDF is REP-103 aligned (+X forward, +Y left, +Z up) and
+    # ``spawn_orientation_rpy`` is identity, so the articulation root
+    # (``Body_Chassis``) USD prim spawns upright in world.  The X-roll
+    # wrapper that previously sat on ``base_link -> Body_Chassis`` is no
+    # longer required; ``base_link`` and ``Body_Chassis`` share the same
+    # canonical REP-103 frame, leaving ``odom -> base_link`` as a pure
+    # yaw-only transform driven by ``compute_odom_delta``.
     if articulation is not None:
         init_poses = articulation.get_world_poses()
         if init_poses is not None:

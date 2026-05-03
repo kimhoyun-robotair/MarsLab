@@ -40,7 +40,6 @@ MarsLab/
 │
 ├── tests/              Pytest suite.
 │   ├── unit/                Pure-Python, no Isaac Sim (~1230 tests).
-│   ├── integration/         Isaac-Sim-required (run via tools/run_integration_test.py).
 │   ├── fixtures/            Test data (e.g. sample_rock.obj for structure_assets).
 │   └── visual_inspection/   Manual checklist for renderings/sensors.
 │

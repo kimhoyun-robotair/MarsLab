@@ -50,6 +50,7 @@ __pycache__/
 tmp/
 work_log/
 docs/
+delete_later/
 
 # Claude Code harness — share .claude/agents and .claude/skills,
 # hide personal state and workspace

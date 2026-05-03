@@ -13,10 +13,11 @@ usd_path: "assets/robots/rover/m2020.usd"
 urdf_source_path: "assets/m2020-urdf-models/rover/m2020.urdf"
 prim_path: "/World/Rover"
 
-# Applying a roll about the x-axis: 
-# The URDF link frame is defined in the FRD coordinate system, so a roll rotation is applied to convert it to the ROS coordinate system.
+# URDF link frame is REP-103 aligned (+X forward, +Y left, +Z up) since the
+# 2026-05-04 FRD->REP-103 rewrite (rc1b_urdf_rep103). No X-roll spawn
+# compensation is required; identity rpy spawns the rover upright.
 spawn_position: [0.0, 0.0, 0.0]
-spawn_orientation_rpy: [3.14159, 0.0, 0.0]
+spawn_orientation_rpy: [0.0, 0.0, 0.0]
 
 # Spawn modes
 # absolute: use xy as-is; z = xy[2]
@@ -26,7 +27,7 @@ spawn:
   mode: "dem_center"
   xy: [0.0, 0.0]
   z_offset: 0.5
-  orientation_rpy: [3.14159, 0.0, 0.0]
+  orientation_rpy: [0.0, 0.0, 0.0]
 
 # Apply chassis CoM offset (m) to compensate for forward-arm mass bias
 com_offset: [0.2, 0.0, 0.0]
@@ -126,11 +127,10 @@ ros2:
     joint_states: 50             # OG ROS2PublishJointState tick rate (matches odom)
   # Frame names threaded through ``create_odometry_publisher`` so the
   # SLAM stack YAML shares one source of truth.
-  # ``child_frame_id`` is set to ``base_link`` (the X-roll wrapper
-  # frame published by ``launch/rover_state_publisher.launch.py`` as a
-  # static_transform_publisher) so the odom -> base_link chain uses
-  # the REP-103 frame, while base_link -> Body_Chassis (X-roll, static)
-  # connects into the URDF root.  SLAM launch params should set
+  # Since the URDF is REP-103 aligned (post rc1b_urdf_rep103), the URDF
+  # root link ``Body_Chassis`` already publishes in REP-103, so
+  # ``base_link`` and ``Body_Chassis`` resolve to the same frame
+  # (no X-roll wrapper needed).  SLAM launch params should set
   # ``base_frame: base_link`` to match.
   odom_publisher:
     frame_id: "odom"
@@ -150,24 +150,31 @@ ros2:
   # (RTAB-Map ``rgbd_odometry``, ORB-SLAM3, etc.) for the odom
   # transform.  The init_quat_world is forced to identity in the
   # runtime entry point (marslab/main.py) so the odom frame
-  # equals world REP-103, even though spawn_orientation_rpy applies
-  # an X-roll to the articulation root prim.  Set ``false`` to
-  # delegate ``odom -> base_link`` to a downstream visual SLAM stack;
+  # equals world REP-103.  Since the URDF is REP-103 aligned (post
+  # rc1b_urdf_rep103), spawn_orientation_rpy is identity and no
+  # X-roll compensation is applied.  Set ``false`` to delegate
+  # ``odom -> base_link`` to a downstream visual SLAM stack;
   # never run two publishers on the same transform.
   publish_odom_tf: true
 
 sensors:
-  # Sensor frames are authored in the X-rolled body frame matched by
-  # ``spawn_orientation_rpy = [3.14159, 0, 0]`` above.  In that frame
-  # ``+Z_body = -Z_world`` so a sensor 2.1 m above the chassis is at
-  # ``z = -2.1`` (NOT +2.1).  See the spawn block comment above and
-  # ``docs/frame_conventions.md``.  ``tf_broadcaster.py`` broadcasts these
-  # YAML values identity; the X-roll on the spawn parent provides the
-  # single canonical frame rotation.
+  # Sensor frames are authored in the URDF body frame, which is REP-103
+  # aligned (+X forward, +Y left, +Z up) since the 2026-05-04 rc1b URDF
+  # rewrite.  A sensor 2.1 m above the chassis is at ``z = +2.1``.
+  # ``tf_broadcaster.py`` broadcasts these values identity; no X-roll
+  # compensation is applied anywhere in the chain.
   camera:
     parent_link: "Body_Chassis"
-    local_translation: [1.2, 0.0, -1.0]
-    local_orientation_rpy_deg: [180.0, 0.0, 0.0]
+    local_translation: [1.2, 0.0, 1.0]
+    # URDF body frame is REP-103 (Z-up) post rc1b rewrite, so the camera
+    # parent Xform inherits an upright frame.  The image is broadcast
+    # with identity rpy; no X-roll compensation is needed.  An earlier
+    # iteration kept [180, 0, 0] under the assumption that the camera
+    # prim required an Isaac-Sim-convention image-plane flip, but
+    # empirical verification (2026-05-04) showed the resulting RGB image
+    # was inverted -- the [180, 0, 0] was a Z-down URDF compensation,
+    # not an Isaac-Sim convention requirement.
+    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     resolution: [640, 480]
     focal_length: 24.0
     clipping_range: [0.1, 1000.0]
@@ -195,16 +202,11 @@ sensors:
   # 0.4 deg horizontal step, 10 Hz rotation, 0.5-100 m range.
   lidar_3d:
     parent_link: "Body_Chassis"
-    local_translation: [1.7, 0.0, -2.4]
-    # X-roll matches camera / IMU sensors so the lidar_link ROS frame
-    # is REP-103 (Z-up) aligned with the rest of the sensor TF chain.
-    # tf_broadcaster.build_static_sensor_transforms applies this rpy
-    # to the broadcast quaternion (T3, 2026-04-29) so RViz Fixed
-    # Frame=odom/map renders /rover/lidar/points in the canonical
-    # ROS axis instead of the URDF graphics-style Z-down inherited
-    # from Body_Chassis.
+    local_translation: [1.7, 0.0, 2.4]
+    # URDF body frame is REP-103 (Z-up) post rc1b rewrite, so the
+    # lidar_link ROS frame inherits the canonical axis directly with
+    # identity rpy.  No X-roll compensation needed.
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
-    #local_orientation_rpy_deg: [180.0, 0.0, 0.0]
     range_min: 5.0
     range_max: 30.0
     horizontal_fov_deg: 270.0
@@ -225,10 +227,9 @@ sensors:
   # elevation, 360 deg horizontal, 0.25 deg step, 30 Hz rotation).
   lidar_2d:
     parent_link: "Body_Chassis"
-    local_translation: [1.1, 0.0, -0.3]
-    # X-roll mirrors lidar_3d / camera / IMU so /rover/scan publishes
-    # in the REP-103 (Z-up) frame after the T3 ROS broadcast applies
-    # this rpy.
+    local_translation: [1.1, 0.0, 0.3]
+    # URDF body frame is REP-103 (Z-up) post rc1b rewrite, so /rover/scan
+    # publishes in the canonical ROS axis with identity rpy.
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     range_min: 0.5
     range_max: 50.0
@@ -244,7 +245,7 @@ sensors:
   imu:
     parent_link: "Body_Chassis"
     local_translation: [0.0, 0.0, 0.0]
-    local_orientation_rpy_deg: [180.0, 0.0, 0.0]
+    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
 
 control:
   # Geometry derived from URDF kinematic chain (m2020.urdf).

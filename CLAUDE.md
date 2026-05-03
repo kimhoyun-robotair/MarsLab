@@ -246,22 +246,18 @@ Coverage areas:
 - Quaternion math (gimbal-lock branch, non-unit warning)
 - Sensor YAML schema, ROS2 QoS profile mapping
 
-### Integration Tests (Isaac Sim Required)
-Run with: `marslab/isaac_python.sh tools/run_integration_test.py`. Marked
-`@pytest.mark.integration` and gated on `pytest.importorskip("isaacsim")`.
-
-Current inventory:
-- `tests/integration/test_imu_gravity_actual.py` — Rover IMU z ∈ [3.67, 3.77] m/s²
-- `tests/integration/test_robot_spawn_ros2_topics.py` — `/rover/odom` within 30s
-
 ### Visual Inspection
 Documented in `tests/visual_inspection/checklist.md`. Logged in
-`work_log/LOG.md` with screenshot links.
+`work_log/LOG.md` with screenshot links.  Isaac Sim runtime verification
+(rover spawn, cmd_vel, sensor topics) is performed by launching the
+full sim via `marslab/isaac_python.sh marslab/main.py --config <scenario>`
+rather than a separate integration-test harness (the previous
+`tools/run_integration_test.py` + `tests/integration/` suite was retired
+2026-05-04 in favour of full-sim visual inspection).
 
 ### CI Pipeline
 - `.github/workflows/unit_tests.yaml` — "matrix [3.12]", black + ruff + mypy + pytest
 - `.github/workflows/security.yaml` — `pip-audit`
-- Integration tests: run manually via `tools/run_integration_test.py` (GPU required)
 
 ---
 

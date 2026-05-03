@@ -65,11 +65,3 @@ files = ["marslab/config", "marslab/environment"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-# Reviewer 2 #15 (2026-04-24): integration tests require Isaac Sim + GPU.
-# Default `pytest tests/unit/` runs stay GPU-free; to exercise the
-# integration suite use ``tools/run_integration_test.py`` which wraps
-# ``marslab/isaac_python.sh`` with ``-m integration`` removed from addopts.
-addopts = "-m 'not integration'"
-markers = [
-    "integration: requires Isaac Sim + GPU; skipped by default in unit runs",
-]

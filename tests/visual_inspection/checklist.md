@@ -84,9 +84,11 @@ running locally.
   - Expected PASS line: `[wk1-imu] PASS: |z| = <value> m/s^2 in [3.67, 3.77]`.
   - Revert the entire probe block from `marslab/main.py` after the run;
     permanent publisher is Wk2 #7 scope under `marslab/ros2_bridge/`.
-  - Full procedure (Steps 1-5) is mirrored by the integration test
-    `tests/integration/test_imu_gravity_actual.py`; old v1 snippet
-    preserved as HTML comment
+  - Full procedure (Steps 1-5) is mirrored by launching the full sim
+    (`marslab/isaac_python.sh marslab/main.py --config <scenario>`) and
+    inspecting the live `/rover/imu` topic in RViz / `ros2 topic echo`.
+    The previous `tests/integration/test_imu_gravity_actual.py` test
+    was retired 2026-05-04.  Old v1 snippet preserved as HTML comment
     `DISABLED (wk1_imu_probe_v1): replaced 2026-04-14`.
 - IMU probe v5 procedure (post TaskList #10 + #11, 2026-04-14):
   - **Status:** v5 is the live probe, sentinel-delimited at

@@ -23,8 +23,6 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
       - name: Run unit tests
-        # ``addopts = "-m 'not integration'"`` in pyproject.toml keeps
-        # Isaac Sim-dependent tests out of this GPU-less runner.
         run: pytest tests/unit/ -v --tb=short
 
   type-check:

@@ -31,7 +31,7 @@ import os
 import re
 import sys
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DEFAULT_URDF = os.path.join(REPO_ROOT, "assets", "m2020-urdf-models", "rover", "m2020.urdf")
 DEFAULT_USD = os.path.join(REPO_ROOT, "assets", "robots", "rover", "m2020.usd")
 

@@ -573,14 +573,17 @@ black --check marslab/ scripts/ tests/
 ruff check   marslab/ scripts/ tests/
 ```
 
-Isaac Sim integration tests (manual; user-driven per project convention):
+Isaac Sim runtime verification is performed by launching the full
+simulation against any scenario YAML and confirming spawn / cmd_vel /
+sensor topics in RViz manually:
 
 ```bash
-marslab/isaac_python.sh tools/run_integration_test.py
+marslab/isaac_python.sh marslab/main.py --config configs/scenarios/jezero_flat.yaml
 ```
 
-See `tests/integration/` for the IMU-gravity and ROS2-topic
-integration gates.
+The earlier `tools/run_integration_test.py` + `tests/integration/`
+harness was retired 2026-05-04; full-sim launch covers the same
+acceptance criteria with less infrastructure.
 
 ---
 

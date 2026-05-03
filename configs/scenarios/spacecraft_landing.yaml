@@ -82,10 +82,11 @@ rover:
   enabled: true
   base_config: "configs/robots/rover_m2020.yaml"
   # Rover parks 10 m east of the lander, facing west so the first
-  # navigation goal points straight at the lander.  Orientation RPY=(pi, 0, pi)
-  # gives the rover its correct "upright facing -X" pose on Mars Z-up.
+  # navigation goal points straight at the lander.  Orientation yaw=pi
+  # (rover faces -X toward the lander); URDF is REP-103 aligned so no
+  # X-roll compensation is needed.
   spawn:
     mode: "dem_relative"
     xy: [10.0, 0.0]
     z_offset: 0.5
-    orientation_rpy: [3.14159, 0.0, 3.14159]
+    orientation_rpy: [0.0, 0.0, 3.14159]
