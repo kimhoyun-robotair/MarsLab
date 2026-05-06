@@ -333,9 +333,8 @@ class SensorHandles:
     imu_prim_path: str
 
     # ------------------------------------------------------------------
-    # Read-side helpers (ported from Path A's camera.py / imu.py / lidar.py).
-    # These are bound to the handle object so callers don't need to pass
-    # individual prim paths / Camera objects around.
+    # Read-side helpers bound to the handle object so callers don't
+    # need to pass individual prim paths / Camera objects around.
     # ------------------------------------------------------------------
     def read_camera_rgb(self) -> np.ndarray:
         """Read RGBA image from the camera. Returns ``(H, W, 4)`` uint8 or empty."""
@@ -471,8 +470,9 @@ def spawn_sensors(
     from pxr import Gf, UsdGeom
 
     camera_cfg, imu_cfg = sensors_cfg["camera"], sensors_cfg["imu"]
-    # ``lidar_3d`` is the canonical key; ``lidar`` accepted for backward
-    # compatibility with pre-Stage-3 configs that did not yet split 2D/3D.
+    # ``lidar_3d`` is the canonical key; ``lidar`` accepted for
+    # backward compatibility with v0.6-and-earlier configs that
+    # predate the 2D/3D split.
     lidar_cfg = sensors_cfg.get("lidar_3d") or sensors_cfg.get("lidar")
 
     # Camera orientation strategy: ANY xformOp modification on the Camera

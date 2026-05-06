@@ -1042,7 +1042,7 @@ class RobotConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    type: str = Field(description="Robot type identifier (e.g., 'rover', 'quadruped')")
+    type: str = Field(description="Robot type identifier (e.g., 'rover')")
     urdf_path: str | None = Field(default=None, description="Path to custom URDF file")
     usd_asset_path: str | None = Field(default=None, description="Path to built-in USD asset")
     spawn_position: list[float] = Field(
@@ -1055,9 +1055,7 @@ class RobotConfig(BaseModel):
             "USD prim path for the spawned robot. ``None`` falls back to "
             "``/World/{type}`` so existing single-instance scenarios keep "
             "their historical prim layout. Override when spawning more than "
-            "one robot of the same type (e.g. ``/World/quadruped_0``). "
-            "Surfaces the previously hardcoded ``/World/quadruped`` "
-            "literal in ``marslab/robots/quadruped.py``."
+            "one robot of the same type (e.g. ``/World/rover_0``)."
         ),
     )
     drive: SkidSteerDriveConfig | None = Field(

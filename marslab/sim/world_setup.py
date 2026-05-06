@@ -21,10 +21,10 @@ def create_world(
     """Create the Isaac Sim ``World`` and apply Mars physics defaults.
 
     Args:
-        physics_dt: Physics step size in seconds (e.g. ``1/60``). The
-            60 Hz default matches the SLAM runtime main-loop
-            cadence -- physics and rendering tick at the same rate so
-            sensor publishers stay in lockstep with the controller.
+        physics_dt: Physics step size in seconds (e.g. ``1/60``). 60 Hz
+            is typical and matches the runtime main-loop cadence --
+            physics and rendering tick at the same rate so sensor
+            publishers stay in lockstep with the controller.
         gravity: Mars gravity magnitude in m/s^2 (e.g. ``3.72``).  Sign is
             normalised internally -- always applied as ``-abs(gravity)``
             along +Z.

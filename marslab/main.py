@@ -55,11 +55,7 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-# ``propagate_seeds_in_dict`` is re-exported here as a safety net so the
-# twin-lock regression tests stay green even though ``run_stage2_boot``
-# already enforces ``terrain.seed == mars_env.seed + 1`` internally.
-from marslab.config.loader import propagate_seeds_in_dict  # noqa: E402, F401
-from marslab.config.scenario_loader import load_scenario_config, resolve_spawn_pose  # noqa: E402
+from marslab.config.scenario_loader import resolve_spawn_pose  # noqa: E402
 from marslab.robots.drive_api_setup import configure_drives, reinforce_pd_gains  # noqa: E402
 from marslab.robots.rover import resolve_joint_indices, spawn_rover  # noqa: E402
 from marslab.robots.rover_control import ackermann_command  # noqa: E402
@@ -77,8 +73,6 @@ from marslab.runtime.articulation_setup import (  # noqa: E402
 )
 from marslab.runtime.loop_context import build_loop_context  # noqa: E402
 from marslab.runtime.main_loop import (  # noqa: E402
-    AtmosphereLoopState,
-    LoopContext,
     build_atmosphere_loop_state,
     run_main_loop,
 )
@@ -95,6 +89,25 @@ _LOG = logging.getLogger(__name__)
 
 
 def main() -> int:
+    """Boot Isaac Sim, build the Stage 3 scene, and run the main loop.
+
+    The function parses CLI arguments, runs the offline boot phase
+    (config + terrain + atmosphere via :func:`run_stage2_boot`), starts
+    Isaac Sim, builds the scene, optionally spawns the rover + sensors
+    + ROS2 bridge, assembles a :class:`LoopContext`, and hands control
+    to :func:`run_main_loop`. The ``finally`` block tears down the rclpy
+    bridge and the Isaac Sim ``simulation_app``.
+
+    Returns:
+        ``0`` on a clean ``KeyboardInterrupt`` or normal loop exit; the
+        same value :func:`run_main_loop` returns is propagated through.
+
+    Raises:
+        SystemExit: If ``simulation_app.close()`` raises during shutdown
+            the function calls :func:`os._exit` with code ``1`` after
+            flushing stdout/stderr (a regular ``raise`` cannot recover
+            from a half-torn-down Kit instance).
+    """
     parser = argparse.ArgumentParser(
         description="Stage 3 monolithic runtime: rover + scene + ROS2."
     )
@@ -153,8 +166,9 @@ def main() -> int:
         # Resolve the spawn orientation here so it can be reused for both
         # the USD root Xform (via ``spawn_rover``->``apply_spawn_pose``)
         # and the PhysX articulation root pose pin.  Single source of
-        # truth: ``rover.spawn.orientation_rpy`` (with Stage-1 fallback
-        # ``rover.spawn_orientation_rpy``).
+        # truth: ``rover.spawn.orientation_rpy``; falls back to the
+        # legacy flat ``rover.spawn_orientation_rpy`` if the nested key
+        # is absent.
         _spawn_block = rover_cfg.get("spawn", {}) if isinstance(rover_cfg, dict) else {}
         spawn_rpy_for_articulation = tuple(
             _spawn_block.get("orientation_rpy")
@@ -228,15 +242,14 @@ def main() -> int:
         print(f"[main] Rover prim: {prim_path}, rigid body: {rigid_body_path}", flush=True)
 
         # Post-spawn: optional ``isaac:nameOverride`` apply + ``odom``
-        # anchor creation.  These are gated by the schema flag
-        # ``Ros2BridgeConfig.enable_isaac_nameoverride`` (C3 default
-        # ``False``) because the C2+ ``robot_state_publisher`` workflow
-        # reads frame names directly from the URDF link declarations and
-        # never consults ``isaac:nameOverride``.  Set the flag ``True``
-        # only when running the legacy ``PubTF``-on-``/tf_raw`` workflow
-        # (``publish_joint_states=False``); the sensor graph in that
-        # mode references the odom anchor, so these calls must happen
-        # before ``build_sensor_graph``.
+        # anchor creation.  Gated by the schema flag
+        # ``Ros2BridgeConfig.enable_isaac_nameoverride`` (default
+        # ``False``) because the ``robot_state_publisher`` workflow reads
+        # frame names from the URDF link declarations directly. Set the
+        # flag ``True`` only for the legacy ``PubTF``-on-``/tf_raw``
+        # workflow (``publish_joint_states=False``); in that mode the
+        # sensor graph references the odom anchor, so these calls must
+        # happen before ``build_sensor_graph``.
         ros2_cfg_for_flags = rover_cfg.get("ros2", {}) if isinstance(rover_cfg, dict) else {}
         if bool(ros2_cfg_for_flags.get("enable_isaac_nameoverride", False)):
             apply_nameoverride(stage, rigid_body_path, "base_link")
@@ -294,21 +307,13 @@ def main() -> int:
             lidar_3d_prim_path=handles.lidar_3d_prim_path,
             imu_prim_path=handles.imu_prim_path,
             depth_sensor_cfg=camera_cfg.get("depth_sensor"),
-            # Pass the prim that actually carries
-            # ``PhysxArticulationRootAPI``.  USD inspection shows the
-            # import produces a nested layout:
-            #   /World/Rover                    (Xform spawn container)
-            #     /Body_Chassis                 (Xform-only container)
-            #       /Body_Chassis  <-- [ART_ROOT, RIGID] -- this prim
-            #       /Body_RockerLeft, /Body_WheelLeftFront, ...
-            # The first two ``world->Rover`` / ``world->Body_Chassis``
-            # runs confirmed the upper levels are not articulation roots.
-            # The canonical sample at ``test_pose_tree.py:103`` showed a
-            # single articulation-root path expands to the full link
-            # tree, so we point at the deepest path.  ``rover.py:502``
-            # also targets this exact prim for ``apply_mass_properties``
-            # (CoM + damping), which cross-validates that this is where
-            # PhysX recognises the articulation.
+            # The articulation root carries ``PhysxArticulationRootAPI``
+            # on ``{chassis_path}/Body_Chassis`` -- the deepest prim in
+            # the nested USD layout
+            #   /World/Rover/Body_Chassis/Body_Chassis  <-- ART_ROOT, RIGID
+            #                            /Body_RockerLeft, ...
+            # Cross-validated by ``rover.py:502`` which targets the same
+            # prim for ``apply_mass_properties`` (CoM + damping).
             articulation_root_prim_path=f"{chassis_path}/Body_Chassis",
             # The anchor prim is created above by ``create_odom_anchor``
             # at this exact path.  Both call sites import the same
@@ -378,15 +383,11 @@ def main() -> int:
         print("[main] --no-rover: world reset + Kit pump complete.", flush=True)
 
     # --- Optional atmosphere GUI panel (built AFTER world.reset + warmup) ----
-    # The panel's omni.ui widgets are finalised lazily by the Kit event loop,
-    # so we must let Kit pump several update iterations after ``world.reset()``
-    # before constructing the panel.  Placing the panel between
-    # ``setup_stage2_scene`` and ``spawn_rover`` (i.e. before any Kit pump)
-    # previously caused the first Auto/Manual click to raise
-    # ``AttributeError: 'AtmospherePanel' object has no attribute '_az_slider'``
-    # because slider widgets had not reached a stable state yet.  Creating the
-    # panel after warmup + a few explicit ``simulation_app.update()`` calls
-    # avoids that race.
+    # Construct the AtmospherePanel only after ``world.reset()`` + the
+    # warmup pump above so the lazy ``omni.ui`` slider widgets reach a
+    # stable state before the first user interaction. The five extra
+    # ``simulation_app.update()`` calls below give Kit additional ticks
+    # to finalise the panel layout.
     atmo_panel = None
     if not args.headless:
         try:
@@ -409,14 +410,11 @@ def main() -> int:
     # ``init_quat_world`` is intentionally pinned to identity (1,0,0,0)
     # rather than the PhysX-reported spawn quaternion.  This anchors the
     # ``odom`` frame to the REP-103 (Z-up) world axes irrespective of any
-    # spawn-time transient.  Since the 2026-05-04 rc1b URDF rewrite, the
-    # m2020 URDF is REP-103 aligned (+X forward, +Y left, +Z up) and
-    # ``spawn_orientation_rpy`` is identity, so the articulation root
-    # (``Body_Chassis``) USD prim spawns upright in world.  The X-roll
-    # wrapper that previously sat on ``base_link -> Body_Chassis`` is no
-    # longer required; ``base_link`` and ``Body_Chassis`` share the same
-    # canonical REP-103 frame, leaving ``odom -> base_link`` as a pure
-    # yaw-only transform driven by ``compute_odom_delta``.
+    # spawn-time transient.  The m2020 URDF is REP-103 aligned (+X
+    # forward, +Y left, +Z up) and ``spawn_orientation_rpy`` is identity,
+    # so ``base_link`` and ``Body_Chassis`` share the canonical REP-103
+    # frame and ``odom -> base_link`` is a yaw-only transform driven by
+    # ``compute_odom_delta``.
     if articulation is not None:
         init_poses = articulation.get_world_poses()
         if init_poses is not None:
@@ -435,7 +433,7 @@ def main() -> int:
         # list (camera/lidar_3d/lidar_2d/imu) sourced from the
         # validated YAML; ``sensor_frames_to_tuples`` adapts that to the
         # ``(child_frame, xyz)`` shape ``init_rclpy_side`` consumes.
-        sensor_frames = sensor_frames_to_tuples(build_sensor_frames(rover_cfg, sensors_cfg))
+        sensor_frames = sensor_frames_to_tuples(build_sensor_frames(sensors_cfg))
         urdf_rel = rover_cfg.get("urdf_source_path")
         urdf_abs = (
             urdf_rel
@@ -483,9 +481,6 @@ def main() -> int:
         compute_sky_dome_fn=compute_sky_dome_params,
         atmo_panel_update=(atmo_panel.update_display if atmo_panel is not None else None),
     )
-
-    # Silence unused-import linters for names kept as F401 for test-text checks.
-    _ = (propagate_seeds_in_dict, AtmosphereLoopState, LoopContext, load_scenario_config)
 
     print("[main] Entering main loop. Ctrl+C to exit.", flush=True)
     try:

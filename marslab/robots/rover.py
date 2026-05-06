@@ -469,12 +469,9 @@ def _spawn_rover_usd(
     load_rover_usd(usd_abs, prim_path)
     apply_spawn_pose(stage, prim_path, spawn_xyz, spawn_orientation_rpy)
     chassis_path = f"{prim_path}/Body_Chassis"
-    # Discover the moving rigid-body prim BEFORE applying mass / damping
-    # so both ``apply_mass_properties`` and ``apply_chassis_physics``
-    # operate on the same articulation body. Earlier code path applied
-    # mass to a literal ``{chassis_path}/Body_Chassis`` while applying
-    # chassis physics to the discovered rigid_body_path, which could
-    # silently mismatch if the USD layout changes.
+    # Discover the moving rigid-body prim BEFORE applying mass /
+    # damping so both ``apply_mass_properties`` and
+    # ``apply_chassis_physics`` operate on the same articulation body.
     return find_rigid_body_path(stage, chassis_path)
 
 

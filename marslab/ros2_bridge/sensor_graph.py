@@ -1,4 +1,4 @@
-"""Stage-3 ROS2 OmniGraph orchestrator.
+"""ROS2 OmniGraph orchestrator for the rover sensor stack.
 
 Composes a single action graph that drives:
 
@@ -14,14 +14,15 @@ Composes a single action graph that drives:
 * Camera RGB + Depth via independent render products.
 * 3-D LiDAR point cloud.
 
-The graph path + node names mirror the legacy Stage-1 graph to keep
-the debugger / ros2 graph view familiar.
+Node names are kept stable across releases so external tooling
+(``ros2 graph``, Kit's OmniGraph viewer) does not break when the
+graph is inspected.
 
 The list-building helpers (``_build_create_nodes`` /
 ``_build_connections`` / ``_build_set_values``) live in
 :mod:`marslab.ros2_bridge.sensor_graph_builder` so they can be unit
-tested without Isaac Sim.  They are re-exported below for backward
-compatibility with existing tests and callers.
+tested without Isaac Sim.  They are re-exported below so existing
+imports keep working.
 
 ``GRAPH_PATH`` is the canonical default for the action-graph prim
 path.  It is also the default for ``Ros2BridgeConfig.graph_path``
@@ -44,8 +45,9 @@ from marslab.ros2_bridge.sensor_graph_builder import (
     _ns_topic,
 )
 
-# Canonical default for the Stage-3 action graph prim path.  Also the
-# default for ``Ros2BridgeConfig.graph_path`` -- keep the two in sync.
+# Canonical default for the rover ROS2 action-graph prim path.  Also
+# the default for ``Ros2BridgeConfig.graph_path`` -- keep the two in
+# sync.
 GRAPH_PATH = "/World/Stage3ROS2Graph"
 
 
@@ -63,9 +65,9 @@ def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
     The raw ``rover.ros2`` YAML dict carries free-form keys that are
     NOT declared on :class:`Ros2BridgeConfig` (``namespace``,
     ``topics``, ``rates``, ``odom_publisher``, etc.).  Filtering to
-    schema fields before validation lets the orchestrator and every
-    legacy resolver wrapper pull defaults from a single validated
-    model without a ``model_validate`` per attribute.
+    schema fields before validation lets the orchestrator pull
+    defaults from a single validated model without a
+    ``model_validate`` per attribute.
 
     Args:
         ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
@@ -76,9 +78,8 @@ def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
         view of schema-declared fields (YAML overrides + pydantic
         defaults).
     """
-    # Local import keeps the schema dependency optional for the rare
-    # caller that imports ``sensor_graph`` without the full ``marslab``
-    # config tree (e.g. a minimal integration test harness).
+    # Function-local import to keep ``__init__.py`` import surface
+    # small (rclpy lives behind sensor_graph too).
     from marslab.config.schema.ros2_bridge import (
         Ros2BridgeConfig,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
@@ -101,7 +102,7 @@ def build_sensor_graph(
     lidar_2d_prim_path: Optional[str] = None,
     depth_sensor_cfg: Optional[Dict[str, Any]] = None,
 ) -> SensorGraphHandle:
-    """Build the Stage-3 ROS2 OmniGraph.
+    """Build the rover ROS2 OmniGraph.
 
     Args:
         ros2_cfg: ``rover.ros2`` block from the merged scenario config.
@@ -109,7 +110,7 @@ def build_sensor_graph(
             it overrides the module default :data:`GRAPH_PATH` and is
             validated the same way :class:`Ros2BridgeConfig` validates
             it (non-empty, ``/``-prefixed, no whitespace).  When absent
-            the legacy constant is used so existing scenario YAMLs keep
+            the module constant is used so existing scenario YAMLs keep
             loading unchanged.
         camera_prim_path: USD path of the Camera prim.
         camera_resolution: ``(width, height)`` tuple.
@@ -143,7 +144,7 @@ def build_sensor_graph(
             attribute names (``omni:rtx:post:depthSensor:<field>``).
             When the schema or the extension is unavailable at runtime
             the apply step is a no-op and the graph falls back to the
-            renderer's raw depth (Path-1-only behaviour).
+            renderer's raw depth.
 
     Returns:
         :class:`SensorGraphHandle`.
@@ -195,22 +196,25 @@ def build_sensor_graph(
         },
     )
 
-    # Optional Path 2: apply the depth-sensor schema to the shared
-    # camera render product.  Wrapped in try/except so a missing
-    # extension or an older Isaac Sim release falls back gracefully to
-    # the renderer's raw ``DistanceToImagePlane`` depth (Path-1-only
-    # behaviour).  ``depth_sensor_cfg`` is the YAML block validated
-    # earlier as :class:`marslab.config.schema.robot.DepthSensorConfig`.
+    # Optional depth-sensor schema apply on the shared camera render
+    # product.  Wrapped in try/except so a missing extension or an
+    # older Isaac Sim release falls back gracefully to the renderer's
+    # raw ``DistanceToImagePlane`` depth.  ``depth_sensor_cfg`` is the
+    # YAML block validated earlier as
+    # :class:`marslab.config.schema.robot.DepthSensorConfig`.
     if depth_sensor_cfg is not None and bool(depth_sensor_cfg.get("enabled")):
         try:
             _apply_depth_sensor_schema(graph_path, depth_sensor_cfg)
-        except Exception as exc:  # pragma: no cover - runtime-only fallback
+        except (
+            RuntimeError,
+            AttributeError,
+            ImportError,
+        ) as exc:  # pragma: no cover - runtime-only fallback
             import logging  # noqa: PLC0415  -- defer until needed
 
             logging.getLogger(__name__).warning(
                 "Depth-sensor schema apply skipped: %s.  Falling back to "
-                "the renderer's raw DistanceToImagePlane AOV (Path-1-only "
-                "behaviour).",
+                "the renderer's raw DistanceToImagePlane AOV.",
                 exc,
             )
 
@@ -243,7 +247,7 @@ def _apply_depth_sensor_schema(graph_path: str, depth_sensor_cfg: Dict[str, Any]
     the canonical ``omni:rtx:post:depthSensor:*`` names.
 
     Args:
-        graph_path: USD path of the Stage-3 action graph (``RPCamera``
+        graph_path: USD path of the rover action graph (``RPCamera``
             lives at ``{graph_path}/RPCamera``).
         depth_sensor_cfg: ``rover.sensors.camera.depth_sensor`` block
             (validated upstream as
@@ -305,97 +309,6 @@ def _build_qos_presets(options: Any) -> Tuple[str, str]:
     return to_omnigraph_qos_json(options.sensor_qos), to_omnigraph_qos_json(options.tf_qos)
 
 
-def _resolve_qos_presets(ros2_cfg: Dict[str, Any]) -> Tuple[str, str]:
-    """Return ``(sensor_preset, tf_preset)`` Isaac-Sim JSON-encoded QoS strings.
-
-    Thin wrapper that delegates to :func:`_resolve_ros2_bridge_options`
-    so the validated schema is the single source of truth.  Preserved
-    so external test suites that import the helper by name keep
-    working.
-    """
-    options = _resolve_ros2_bridge_options(ros2_cfg)
-    return _build_qos_presets(options)
-
-
-def _resolve_publish_camera_info(ros2_cfg: Dict[str, Any]) -> bool:
-    """Return whether to wire the RGB-derived ``CamInfo`` helper.
-
-    Reads ``ros2_cfg["publish_camera_info"]`` when present (validated via
-    :class:`Ros2BridgeConfig`) and falls back to the schema default
-    (``True`` -- monocular ``CameraInfo`` publication ON) when absent.
-    Mirrors :func:`_resolve_publish_pointcloud2` so the orchestrator
-    reaches both knobs through a single validation source.
-
-    Args:
-        ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
-            compatibility).
-
-    Returns:
-        ``True`` to append the ``CamInfo`` node + edges + values, else
-        ``False`` to skip the CameraInfo publisher entirely.
-    """
-    return bool(_resolve_ros2_bridge_options(ros2_cfg).publish_camera_info)
-
-
-def _resolve_publish_pointcloud2(ros2_cfg: Dict[str, Any]) -> bool:
-    """Return whether to wire the depth-derived ``CamPCL`` helper.
-
-    Reads ``ros2_cfg["publish_pointcloud2"]`` when present (validated via
-    :class:`Ros2BridgeConfig`) and falls back to the schema default
-    (``True`` -- RealSense-style RGB-D PointCloud2 ON) when absent.
-
-    Args:
-        ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
-            compatibility).
-
-    Returns:
-        ``True`` to append the ``CamPCL`` node + edges + values, else
-        ``False`` to skip the PointCloud2 publisher entirely.
-    """
-    return bool(_resolve_ros2_bridge_options(ros2_cfg).publish_pointcloud2)
-
-
-def _resolve_publish_joint_states(ros2_cfg: Dict[str, Any]) -> bool:
-    """Return whether to wire ``ROS2PublishJointState`` instead of ``PubTF``.
-
-    Reads ``ros2_cfg["publish_joint_states"]`` when present (validated
-    via :class:`Ros2BridgeConfig`) and falls back to the schema default
-    (C2+: ``True`` -- robot_state_publisher pattern; legacy: ``False``
-    -- ``/tf_raw`` PubTF + ``topic_tools relay`` pattern).  Mirrors
-    :func:`_resolve_publish_camera_info` so the orchestrator reaches
-    every publisher knob through one validation source.
-
-    Args:
-        ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
-            compatibility).
-
-    Returns:
-        ``True`` to wire the ``PubJointState`` node, ``False`` to wire
-        the legacy ``PubTF`` node.
-    """
-    return bool(_resolve_ros2_bridge_options(ros2_cfg).publish_joint_states)
-
-
-def _resolve_graph_path(ros2_cfg: Dict[str, Any]) -> str:
-    """Return the action-graph prim path for the Stage-3 bridge.
-
-    Reads ``ros2_cfg["graph_path"]`` when present (validated via
-    :class:`Ros2BridgeConfig` for consistency with schema-loaded
-    configs) and otherwise falls back to :data:`GRAPH_PATH`.  Routing
-    through :class:`Ros2BridgeConfig` keeps a single validation source
-    so ad-hoc dict-shaped callers and YAML-loaded callers reject the
-    same invalid inputs.
-
-    Args:
-        ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
-            compatibility).
-
-    Returns:
-        The validated prim path string.
-    """
-    return str(_resolve_ros2_bridge_options(ros2_cfg).graph_path)
-
-
 __all__ = [
     "GRAPH_PATH",
     "SensorGraphHandle",
@@ -404,8 +317,4 @@ __all__ = [
     "_build_connections",
     "_build_set_values",
     "_ns_topic",
-    "_resolve_graph_path",
-    "_resolve_publish_pointcloud2",
-    "_resolve_publish_camera_info",
-    "_resolve_publish_joint_states",
 ]

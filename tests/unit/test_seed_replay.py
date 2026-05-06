@@ -21,8 +21,6 @@ Modules covered (call-surface discovered with
 * :mod:`marslab.terrain.cave.geometry` -- :func:`build_centerline`
   and :func:`build_cross_sections` (shared ``rng``, draw order matters).
 * :mod:`marslab.terrain.cave.features` -- :func:`build_debris_cone`.
-* :mod:`marslab.environment.sun_position` -- :func:`sun_position_from_utc`
-  (no seed; deterministic given (UTC, lat, lon)).
 * :mod:`marslab.environment.tau_profile` -- :func:`compute_tau` for all
   three profile types (also no seed; deterministic given config).
 
@@ -35,15 +33,9 @@ which they wrap.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 import numpy as np
 import pytest
 
-from marslab.environment.sun_position import (
-    SunPosition,
-    sun_position_from_utc,
-)
 from marslab.environment.tau_profile import compute_tau
 from marslab.terrain.cave.features import build_debris_cone
 from marslab.terrain.cave.geometry import (
@@ -207,34 +199,7 @@ class TestDebrisConeReplay:
 
 
 # ---------------------------------------------------------------------------
-# 5. sun_position_from_utc (deterministic, no seed)
-# ---------------------------------------------------------------------------
-
-
-class TestSunPositionUtcReplay:
-    """``sun_position_from_utc`` is fully deterministic: same input -> same output."""
-
-    SAMPLES = [
-        # (label, utc_dt, lat, lon)
-        ("Jezero noon", datetime(2024, 7, 20, 12, 0, 0, tzinfo=timezone.utc), 18.44, 77.45),
-        ("Gusev winter", datetime(2024, 12, 1, 6, 0, 0, tzinfo=timezone.utc), -14.57, 175.47),
-        ("Polar summer", datetime(2025, 6, 15, 0, 0, 0, tzinfo=timezone.utc), 80.0, 30.0),
-        ("Equator", datetime(2026, 3, 14, 18, 0, 0, tzinfo=timezone.utc), 0.0, 0.0),
-    ]
-
-    @pytest.mark.parametrize("label,dt,lat,lon", SAMPLES)
-    def test_replay_bit_exact(self, label: str, dt: datetime, lat: float, lon: float) -> None:
-        """Two calls with identical (dt, lat, lon) return identical SunPosition."""
-        pos_a = sun_position_from_utc(dt, lat, lon)
-        pos_b = sun_position_from_utc(dt, lat, lon)
-        assert isinstance(pos_a, SunPosition)
-        assert pos_a.azimuth_deg == pos_b.azimuth_deg
-        assert pos_a.elevation_deg == pos_b.elevation_deg
-        assert pos_a.zenith_angle_rad == pos_b.zenith_angle_rad
-
-
-# ---------------------------------------------------------------------------
-# 6. tau_profile (deterministic, no seed)
+# 5. tau_profile (deterministic, no seed)
 # ---------------------------------------------------------------------------
 
 

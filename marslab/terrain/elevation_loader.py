@@ -1,6 +1,6 @@
 """Terrain elevation loader -- procedural, cave, or HiRISE DEM sources.
 
-Used by the Stage-2 / Stage-3 runtime and the scenario tooling so they
+Used by the ``marslab.main`` runtime and the scenario tooling so they
 share a single offline elevation-loading path. No Isaac Sim dependency;
 imports are kept lazy so that cave/procedural paths do not pull heavy
 geometry libraries unless used.
@@ -43,9 +43,11 @@ def load_terrain_elevation(
               For cave the metadata dict carries the full generator
               payload under ``metadata["_cave_data"]`` so downstream
               scene builders pick it up without a second generation
-              pass. The legacy ``terrain_cfg["_cave_data"]`` mirror is
-              also written for backward compatibility with consumers
-              that still read from the input config dict.
+              pass. The same payload is mirrored onto
+              ``terrain_cfg["_cave_data"]`` because the active stage-2
+              consumer (``marslab.runtime.stage2_scene``) reads from
+              the input config dict; both writes go to the same object
+              so they cannot drift.
             * ``resolution_m`` is metres per grid cell.
 
     Raises:
@@ -61,9 +63,13 @@ def load_terrain_elevation(
         preset = terrain_cfg.get("procedural_preset", "flat")
         if preset == "cave":
             elevation, metadata, res, cave_data = _load_cave(terrain_cfg, resolution)
-            # Canonical location is ``metadata["_cave_data"]``. The
-            # legacy mirror in ``terrain_cfg`` is preserved so existing
-            # consumers (``marslab.runtime.stage2_scene``) keep working.
+            # ``cave_data`` is published to two locations: ``metadata`` is
+            # the canonical key for callers that consume the loader's
+            # return value (tests, scenario tooling), and ``terrain_cfg``
+            # is the path the stage-2 scene builder
+            # (``marslab.runtime.stage2_scene``) reads from. Both writes
+            # share the same object reference so the two views cannot
+            # diverge.
             metadata["_cave_data"] = cave_data
             terrain_cfg["_cave_data"] = cave_data
             return elevation, metadata, res

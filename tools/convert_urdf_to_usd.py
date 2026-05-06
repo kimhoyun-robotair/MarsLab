@@ -157,8 +157,8 @@ def main() -> int:
     """Convert the sanitized m2020 URDF into a USD asset.
 
     Temp-file lifecycle invariant:
-        The temp URDF written by ``sanitize_urdf`` is removed before
-        ``os._exit(0)`` (see line 261-263 in the success branch).  The
+        The temp URDF written by ``sanitize_urdf`` is removed in the
+        success branch immediately before ``os._exit(0)``.  The
         ``finally`` block is a fallback only -- it is reachable only
         when an exception escapes after sanitize but before
         ``URDFParseAndImportFile`` returns.  ``os._exit`` is used in

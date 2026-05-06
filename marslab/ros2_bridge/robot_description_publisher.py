@@ -18,8 +18,9 @@ Design constraints adopted from
 
 QoS rationale: RViz's ``RobotModel`` display subscribes to the URDF topic
 with ``RELIABLE`` + ``TRANSIENT_LOCAL``.  When the publisher is
-``VOLATILE`` (the default), an RViz that connects after Stage-3 boot
-never receives the URDF and shows the "RobotModel: No transform" error.
+``VOLATILE`` (the default), an RViz that connects after the runtime
+boots never receives the URDF and shows the "RobotModel: No transform"
+error.
 ``TRANSIENT_LOCAL`` makes the latest sample latch on the publisher side
 so late joiners get it on subscription.  Depth is 1 because the URDF is
 published exactly once.
@@ -103,7 +104,7 @@ _BODY_CHASSIS_RE = re.compile(r'(["\s])Body_Chassis(["\s])')
 
 @dataclass
 class RobotDescriptionContext:
-    """Handles + state retained across the Stage-3 main loop.
+    """Handles + state retained across the runtime main loop.
 
     Attributes:
         publisher: The ``rclpy.publisher.Publisher`` for ``std_msgs/String``.

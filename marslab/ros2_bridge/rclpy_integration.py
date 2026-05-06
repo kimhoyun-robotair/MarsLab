@@ -1,4 +1,4 @@
-"""rclpy-side initialisation for the Stage-3 ROS2 bridge.
+"""rclpy-side initialisation for the rover ROS2 bridge.
 
 Extracted from :mod:`marslab.ros2_bridge.__init__` so that importing
 :mod:`marslab.ros2_bridge` does not trigger ``rclpy`` until the
@@ -7,8 +7,8 @@ runtime actually needs it.
 ``init_rclpy_side`` pulls the four QoS profiles (``cmd_vel_qos`` /
 ``odom_qos`` / ``sensor_qos`` / ``tf_qos``) from the ``rover.ros2``
 YAML block via
-:class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig`.  Legacy
-scenarios that do not declare QoS fields continue to get the schema
+:class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig`.
+Scenarios that do not declare QoS fields receive the schema
 defaults.
 """
 
@@ -116,11 +116,11 @@ def init_rclpy_side(
     )
 
     # ``sensor_parent_frame_id`` is a schema field
-    # (``Ros2BridgeConfig.sensor_parent_frame_id``); C1 default is
-    # ``"base_link"`` for backwards compatibility with the legacy
-    # nameOverride-paired chain.  Override via the rover YAML when the
-    # downstream consumer expects a different parent (e.g.
-    # ``Body_Chassis`` after C3 disables the URDF rewrite).
+    # (``Ros2BridgeConfig.sensor_parent_frame_id``).  Default
+    # ``"base_link"`` aligns the static sensor TFs with the URDF root
+    # link when ``rename_root_to_base_link=True``.  Override via the
+    # rover YAML when the downstream consumer expects a different
+    # parent (e.g. ``Body_Chassis`` when the URDF rewrite is disabled).
     sensor_parent_frame_id = str(validated_bridge.sensor_parent_frame_id)
     static_broadcaster = publish_static_sensor_tfs(
         node,
@@ -145,10 +145,12 @@ def init_rclpy_side(
             )
         rd_topic = _ns_topic(ns, topics["robot_description"])
         # ``rename_root_to_base_link`` is a schema field
-        # (``Ros2BridgeConfig.rename_root_to_base_link``); C1 default
-        # ``True`` preserves the legacy nameOverride-paired rewrite.
-        # C3 flips the default to ``False`` so the URDF link names
-        # match the OG-published joint owners verbatim.
+        # (``Ros2BridgeConfig.rename_root_to_base_link``).  Default
+        # ``True`` rewrites the URDF root link to ``base_link`` so the
+        # OmniGraph PubTF + ``isaac:nameOverride='base_link'`` path
+        # publishes a frame the URDF agrees with.  Set ``False`` when
+        # the robot_state_publisher workflow reads frame names directly
+        # from the URDF (no rewrite required).
         rename_root = bool(validated_bridge.rename_root_to_base_link)
         robot_description_ctx = publish_robot_description(
             node,

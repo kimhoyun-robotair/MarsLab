@@ -74,13 +74,14 @@ def compute_sky_dome_params(
     # Brightness: high at low tau, drops at high tau.
     brightness = max(cfg.brightness_min, 1.0 - cfg.brightness_decay * t)
 
-    # Select HDRI by tau range (placeholder paths)
+    # Select HDRI by tau range. Filenames live in ``SkyDomeConfig`` so a
+    # different HDRI set can be plugged in via YAML without source edit.
     if tau < 0.5:
-        hdri_name = "mars_sky_clear.png"
+        hdri_name = cfg.hdri_clear
     elif tau < 1.5:
-        hdri_name = "mars_sky_moderate.png"
+        hdri_name = cfg.hdri_moderate
     else:
-        hdri_name = "mars_sky_dusty.png"
+        hdri_name = cfg.hdri_dusty
 
     hdri_path = os.path.join(hdri_dir, hdri_name)
 

@@ -17,7 +17,7 @@ This module is the single source of truth for quaternion helpers:
 * ``marslab.ros2_bridge.odometry_math`` (quat_inverse / quat_multiply /
   quat_rotate_vec) re-exports from here.
 * ``marslab.robots.rover`` (rpy_to_quat) re-exports from here.
-* Stage 3 runtime scripts import ``rpy_to_quat`` from here directly.
+* ``marslab.runtime`` modules import ``rpy_to_quat`` from here directly.
 
 Dtype policy
 ------------

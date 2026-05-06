@@ -18,14 +18,14 @@ def centerline(rng):
     return build_centerline((200.0, 200.0), 0.0, 0.15, 60, 0.0, rng)
 
 
-def test_skylight_zero_count_empty(centerline, rng):
+def test_skylight_zero_count_empty(centerline):
     """count=0 returns [] with no domain dependence."""
-    assert compute_skylight_positions(centerline, 0, 20.0, (200.0, 200.0), rng) == []
+    assert compute_skylight_positions(centerline, 0, 20.0, (200.0, 200.0)) == []
 
 
-def test_skylight_no_overlap(centerline, rng):
+def test_skylight_no_overlap(centerline):
     """Placed skylights honour the 1.5 * diameter separation rule."""
-    positions = compute_skylight_positions(centerline, 2, 20.0, (200.0, 200.0), rng)
+    positions = compute_skylight_positions(centerline, 2, 20.0, (200.0, 200.0))
     min_dist = 20.0 * 1.5
     assert len(positions) == 2
     for i in range(len(positions)):
@@ -36,10 +36,10 @@ def test_skylight_no_overlap(centerline, rng):
             assert d >= min_dist
 
 
-def test_skylight_domain_margin(centerline, rng):
+def test_skylight_domain_margin(centerline):
     """Skylight centers stay a half-diameter + 10 m inside the domain edge."""
     diameter = 20.0
-    positions = compute_skylight_positions(centerline, 2, diameter, (200.0, 200.0), rng)
+    positions = compute_skylight_positions(centerline, 2, diameter, (200.0, 200.0))
     margin = diameter / 2.0 + 10.0
     assert len(positions) == 2
     for x, y in positions:
@@ -57,7 +57,7 @@ def test_skylight_count_raises_when_domain_too_small(rng):
     """
     short = build_centerline((20.0, 20.0), 0.0, 0.0, 5, 0.0, rng)
     with pytest.raises(ValueError, match="no centerline station"):
-        compute_skylight_positions(short, 3, 25.0, (20.0, 20.0), rng)
+        compute_skylight_positions(short, 3, 25.0, (20.0, 20.0))
 
 
 def test_debris_cone_apex_above_base(rng):

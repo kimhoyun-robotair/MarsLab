@@ -1,4 +1,4 @@
-"""ROS2 bridge package for MarsLab Stage-3 integration.
+"""ROS2 bridge package for MarsLab.
 
 Public surface
 --------------
@@ -10,13 +10,10 @@ Public surface
   from :mod:`marslab.ros2_bridge.sensor_graph`).
 * Pure math helpers in :mod:`marslab.ros2_bridge.odometry_math`.
 
-The individual submodules (``cmd_vel_subscriber``, ``odometry_publisher``,
-``tf_broadcaster``) stay importable on their own for unit tests.
-
-The ``BridgeContext`` dataclass and ``init_rclpy_side`` live in
-:mod:`marslab.ros2_bridge.context` and
-:mod:`marslab.ros2_bridge.rclpy_integration` respectively so importing
-this package does not pull rclpy at module load time.
+All public functions defer their ``rclpy`` imports until runtime,
+so the package can be imported in offline tests.  ``BridgeContext``
+and ``init_rclpy_side`` live in :mod:`marslab.ros2_bridge.context`
+and :mod:`marslab.ros2_bridge.rclpy_integration` respectively.
 """
 
 from __future__ import annotations

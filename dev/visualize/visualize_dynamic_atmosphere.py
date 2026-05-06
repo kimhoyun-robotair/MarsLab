@@ -39,7 +39,7 @@ def main() -> None:
     # stays consistent with the simulation (the prior literal ``24.66``
     # differed from ``sol_duration_seconds / 3600 = 24.6228`` by ~0.04 h).
     cfg = load_and_validate(os.path.join(REPO_ROOT, "dev/configs/mars_env.yaml"))
-    solar_constant = cfg.mars_env.solar_constant_mean
+    solar_constant = cfg.mars_env.solar_constant
     sol_hours = cfg.mars_env.sol_duration_seconds / 3600.0
 
     t_values = np.linspace(0.0, 1.0, 200)

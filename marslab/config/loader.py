@@ -2,50 +2,18 @@
 
 import os
 
-import yaml
-
 from marslab.config.schema import MarsLabConfig
-
-
-def load_config(config_path: str) -> MarsLabConfig:
-    """Load and validate a MarsLab YAML configuration file.
-
-    Args:
-        config_path: Path to the YAML configuration file.
-
-    Returns:
-        Validated MarsLabConfig instance.
-
-    Raises:
-        FileNotFoundError: If the config file does not exist.
-        pydantic.ValidationError: If config values fail validation.
-    """
-    abs_path = os.path.abspath(config_path)
-    if not os.path.isfile(abs_path):
-        raise FileNotFoundError(f"Configuration file not found: {abs_path}")
-
-    with open(abs_path, "r") as f:
-        data = yaml.safe_load(f)
-
-    return MarsLabConfig(**(data or {}))
 
 
 def propagate_seeds(config: MarsLabConfig, master_seed: int | None = None) -> MarsLabConfig:
     """Derive deterministic child seeds from a master seed (typed path).
 
-    Each sub-config gets a unique seed derived from the master seed using
-    simple offsets. This ensures full reproducibility from a single seed value.
-
-    This is the typed twin of :func:`propagate_seeds_in_dict`. Use this
-    function when the caller already holds a validated ``MarsLabConfig``;
-    use :func:`propagate_seeds_in_dict` when working with the raw dict
-    returned by ``load_scenario_config``. Both paths must enforce the
-    same invariant: ``terrain.seed == mars_env.seed + 1``.
-
-    Canonical seed-propagation list: ``mars_env``, ``terrain``. Any new
-    sub-config that requires deterministic randomization must be added
-    here AND in :func:`propagate_seeds_in_dict` so the two paths stay in
-    lockstep.
+    Today only ``mars_env`` and ``terrain`` are seeded; the
+    :func:`propagate_seeds_in_dict` twin enforces the same pair on the
+    raw-dict path. Both paths share the invariant
+    ``terrain.seed == mars_env.seed + 1``. Any new sub-config that
+    requires deterministic randomization must be added here AND in
+    :func:`propagate_seeds_in_dict` so the two paths stay in lockstep.
 
     Args:
         config: The configuration to update.

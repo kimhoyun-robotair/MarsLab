@@ -53,10 +53,16 @@ def generate_terrain(
     """Generate a procedural Mars terrain elevation map.
 
     Args:
-        preset: Terrain type — "flat", "crater", or "hills".
+        preset: Terrain type. One of ``"flat"``, ``"crater"``, ``"hills"``,
+            ``"rocky_plain"``, ``"canyon"``.
         size: (rows, cols) in pixels.
         resolution: Meters per pixel.
         seed: Random seed for reproducibility.
+        kwargs: Per-preset overrides. Currently consumed only by the
+            ``"canyon"`` preset (``canyon_depth``, ``canyon_floor_width``,
+            ``canyon_total_width``, ``canyon_curvature``, ``canyon_craters``,
+            ``canyon_crater_radius_range``, ``canyon_crater_depth_range``).
+            Ignored by the other presets.
 
     Returns:
         A tuple of (elevation, metadata) matching dem_loader.py format:
@@ -81,6 +87,8 @@ def generate_terrain(
     rng = np.random.default_rng(seed)
     rows, cols = size
 
+    # Preset whitelist is enforced above; the dispatch below covers every
+    # accepted value, so no terminal ``else`` branch is needed.
     if preset == "flat":
         elevation = _generate_flat(rng, rows, cols)
     elif preset == "crater":
@@ -89,10 +97,8 @@ def generate_terrain(
         elevation = _generate_hills(rng, rows, cols)
     elif preset == "canyon":
         elevation = _generate_canyon(rng, rows, cols, resolution, kwargs)
-    elif preset == "rocky_plain":
+    else:  # preset == "rocky_plain"
         elevation = _generate_rocky_plain(rng, rows, cols)
-    else:
-        raise ValueError(f"Unknown preset: {preset}")
 
     elevation = elevation.astype(np.float32)
 

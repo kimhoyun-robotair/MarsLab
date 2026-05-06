@@ -12,14 +12,8 @@ honours the ``publish_tf`` gate so OmniGraph ``PubTF`` and the rclpy
 Isaac Sim / ``rclpy`` symbols enter via the context only -- the module
 itself is offline-importable (no Isaac Sim imports at module scope).
 Normal exit or ``KeyboardInterrupt`` returns ``0``; the caller owns
-``simulation_app.close()``.
-
-The inline ``sendTransform`` block in :func:`_publish_odometry` was
-replaced with a call to
-:func:`marslab.ros2_bridge.odometry_publisher.publish_odometry` so the
-``tf_broadcaster is None`` gate (rclpy odom TF is OFF by default) is
-enforced in a single place. ``marslab/main.py`` is the live
-Stage 3 runtime entry point.
+``simulation_app.close()``. ``marslab/main.py`` is the live Stage 3
+runtime entry point.
 """
 
 from __future__ import annotations
@@ -95,10 +89,12 @@ class ControlState:
             limiting. Shape ``(n_drive,)`` float32.
         current_steer_targets: Per-wheel commanded steer angle after ramp
             limiting. Shape ``(n_steer,)`` float32.
-        step_count: Monotonic physics-step counter (also used as a simple
-            debug-log stride).
+        step_count: Monotonic physics-step counter; the debug-log stride
+            uses ``step_count % 60 == 0`` as its emit condition.
         latest_twist: Most recent ``(v, w)`` values seen on ``cmd_vel``.
-            Keys ``"v"`` and ``"w"`` — kept as a dict for Oracle parity.
+            Keys ``"v"`` and ``"w"`` -- kept as a dict for backward
+            compatibility with the GUI panel that reads/writes the same
+            mutable state.
     """
 
     current_drive_targets: np.ndarray
@@ -257,8 +253,9 @@ class LoopContext:
 
     Decomposition
     -------------
-    The original 34-field / 10-callable dataclass is the classic
-    god-object anti-pattern. The class is split into three composed views:
+    The flat dataclass exposes 35 fields (11 of them ``Callable``
+    hooks), which lends itself to a god-object reading. Three composed
+    sub-views give consumers a narrower surface:
 
     * :class:`VehicleGeometry` -- static rover kinematics.
     * :class:`ControlLimits` -- ramp / saturation envelope.
@@ -408,10 +405,8 @@ def build_atmosphere_loop_state(
         a :class:`LoopContext`.
     """
     dyn = atmo_init.dynamic
-    # ``sol_duration_seconds`` is required by ``AtmospherePanel._format_mode_status``
-    # when the panel is toggled to Auto mode. Dropping it here caused a KeyError
-    # inside the GUI callback the first time the Sun mode button was clicked
-    # on ``marslab/main.py``.
+    # ``sol_duration_seconds`` is required by ``AtmospherePanel`` when
+    # toggled to Auto mode.
     atmosphere_dict: Dict[str, Any] = {
         "tau": tau,
         "sun_mode": "auto" if dyn.enabled else "manual",

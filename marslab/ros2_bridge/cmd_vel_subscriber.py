@@ -1,11 +1,10 @@
 """rclpy subscriber for ``geometry_msgs/Twist`` command input.
 
-The Stage-3 runtime consumes ``/<ns>/cmd_vel`` each physics step to
-drive the Ackermann controller.  Keeping the subscriber in its own
-module lets the state container be unit-tested without importing
-``rclpy``.
+The runtime consumes ``/<ns>/cmd_vel`` each physics step to drive
+the Ackermann controller.  Keeping the subscriber in its own module
+lets the state container be unit-tested without importing ``rclpy``.
 
-``queue_size`` is keyword-only with no default.  The historical value
+``queue_size`` is keyword-only with no default.  The canonical value
 (``10``) lives in
 :class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig` under
 ``cmd_vel_queue_size`` and is threaded through ``init_rclpy_side``.
@@ -15,8 +14,8 @@ hide behind a Python fallback.
 The optional ``qos`` parameter pins reliability / durability / history
 depth through YAML via
 :class:`marslab.config.schema.ros2_bridge.QoSProfileConfig`.  When
-omitted the legacy integer-``queue_size`` call is preserved so existing
-tests and older call sites keep working.
+omitted the integer-``queue_size`` overload is used, matching the
+rclpy default profile.
 """
 
 from __future__ import annotations

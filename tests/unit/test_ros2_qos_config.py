@@ -395,15 +395,24 @@ class TestOmniGraphSetValuesIncludeQoS:
 
 
 class TestResolveQosPresets:
-    """``sensor_graph._resolve_qos_presets`` reads YAML overrides."""
+    """The orchestrator builds OmniGraph QoS JSON via _build_qos_presets.
+
+    These tests drive ``_resolve_ros2_bridge_options`` +
+    ``_build_qos_presets`` -- the same call chain the production
+    orchestrator runs.
+    """
 
     def test_defaults_when_yaml_absent(self) -> None:
         # ``to_omnigraph_qos_json`` returns JSON, not bare preset names.
         import json
 
-        from marslab.ros2_bridge.sensor_graph import _resolve_qos_presets
+        from marslab.ros2_bridge.sensor_graph import (
+            _build_qos_presets,
+            _resolve_ros2_bridge_options,
+        )
 
-        sensor_preset, tf_preset = _resolve_qos_presets({"namespace": "rover", "topics": {}})
+        options = _resolve_ros2_bridge_options({"namespace": "rover", "topics": {}})
+        sensor_preset, tf_preset = _build_qos_presets(options)
         sensor_dict = json.loads(sensor_preset)
         assert sensor_dict["reliability"] == "bestEffort"
         assert sensor_dict["durability"] == "volatile"
@@ -416,24 +425,28 @@ class TestResolveQosPresets:
         # JSON encoding instead of bare preset name.
         import json
 
-        from marslab.ros2_bridge.sensor_graph import _resolve_qos_presets
+        from marslab.ros2_bridge.sensor_graph import (
+            _build_qos_presets,
+            _resolve_ros2_bridge_options,
+        )
 
-        sensor_preset, _ = _resolve_qos_presets(
+        options = _resolve_ros2_bridge_options(
             {
                 "namespace": "rover",
                 "topics": {},
                 "sensor_qos": {"reliability": "reliable", "durability": "volatile"},
             }
         )
+        sensor_preset, _ = _build_qos_presets(options)
         sensor_dict = json.loads(sensor_preset)
         assert sensor_dict["reliability"] == "reliable"
         assert sensor_dict["durability"] == "volatile"
 
     def test_invalid_yaml_value_raises(self) -> None:
-        from marslab.ros2_bridge.sensor_graph import _resolve_qos_presets
+        from marslab.ros2_bridge.sensor_graph import _resolve_ros2_bridge_options
 
         with pytest.raises(ValidationError):
-            _resolve_qos_presets(
+            _resolve_ros2_bridge_options(
                 {
                     "namespace": "rover",
                     "topics": {},

@@ -29,7 +29,17 @@ spawn:
   z_offset: 0.5
   orientation_rpy: [0.0, 0.0, 0.0]
 
-# Apply chassis CoM offset (m) to compensate for forward-arm mass bias
+# Chassis CoM offset (m).  Empirically determined +0.2 m forward shift.
+# Even after the JPL URDF arm/turret/drill (~74 kg) was stripped, the
+# chassis bbox-derived inertia tensor (computed about the geometric
+# centre) does not match the real M2020 mass distribution -- the
+# electronics box / MMRTG / cabling sit forward of the wheelbase
+# midpoint.  Empirical evidence (delete_later/imu_diagnostic/imu_stat.py
+# 2026-05-04 run): com_offset = [0, 0, 0] yields stationary lin_x mean
+# = +1.27 m/s^2 (~20 deg forward pitch); com_offset = [0.2, 0, 0]
+# brings it down to +0.43 m/s^2 (~6.6 deg).  Keep the +0.2 value;
+# further refinement is a v1.5 task (IMU diagnostic + chassis
+# inertia re-tune).
 com_offset: [0.2, 0.0, 0.0]
 angular_damping: 12.0
 linear_damping: 0.5
@@ -116,7 +126,12 @@ ros2:
     scan: "scan"                 # 2D LaserScan for SLAM
     joint_states: "joint_states" # sensor_msgs/JointState for robot_state_publisher
   rates:
-    imu: 100
+    # IMU is locked to 30 Hz to match the effective PhysX physics tick
+    # observed under GPU-bound rendering (delete_later/imu_diagnostic/
+    # imu_stat.py reported ~31 Hz publish rate even when this value was
+    # set to 60).  Matching the rates avoids 60-vs-30 sampling aliasing
+    # in the linear_acceleration topic.
+    imu: 30
     odom: 50
     rgb: 30
     depth: 30
@@ -144,7 +159,7 @@ ros2:
   # to ``base_link`` if running the legacy ``rename_root_to_base_link=True``
   # rewrite path (or any third-party stack that hardcodes ``base_link``).
   sensor_parent_frame_id: "Body_Chassis"
-  # Phase 2: enable rclpy-side TF broadcast of ``odom -> base_link``
+  # Enable rclpy-side TF broadcast of ``odom -> base_link``
   # using the PhysX articulation root pose as ground-truth odometry.
   # Replaces the dependency on an external visual SLAM stack
   # (RTAB-Map ``rgbd_odometry``, ORB-SLAM3, etc.) for the odom
@@ -202,14 +217,14 @@ sensors:
   # 0.4 deg horizontal step, 10 Hz rotation, 0.5-100 m range.
   lidar_3d:
     parent_link: "Body_Chassis"
-    local_translation: [1.7, 0.0, 2.4]
+    local_translation: [1.45, 0.0, 2.1]
     # URDF body frame is REP-103 (Z-up) post rc1b rewrite, so the
     # lidar_link ROS frame inherits the canonical axis directly with
     # identity rpy.  No X-roll compensation needed.
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     range_min: 5.0
     range_max: 30.0
-    horizontal_fov_deg: 270.0
+    horizontal_fov_deg: 220.0
     vertical_fov_deg: 90.0
     horizontal_resolution_deg: 0.4
     vertical_resolution_deg: 1.875
@@ -227,13 +242,13 @@ sensors:
   # elevation, 360 deg horizontal, 0.25 deg step, 30 Hz rotation).
   lidar_2d:
     parent_link: "Body_Chassis"
-    local_translation: [1.1, 0.0, 0.3]
+    local_translation: [1.4, 0.0, 0.7]
     # URDF body frame is REP-103 (Z-up) post rc1b rewrite, so /rover/scan
     # publishes in the canonical ROS axis with identity rpy.
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     range_min: 0.5
-    range_max: 50.0
-    horizontal_fov_deg: 360.0
+    range_max: 20.0
+    horizontal_fov_deg: 200.0
     horizontal_resolution_deg: 0.25
     rotation_rate_hz: 30.0
     profile_name: "Example_Rotary_2D" # Isaac Sim Bundled RTX LiDAR profile (single-beam 2D)

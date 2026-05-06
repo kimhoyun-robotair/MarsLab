@@ -25,6 +25,7 @@ from marslab.config.schema.rendering import (
 from marslab.config.schema.robot import (
     CameraConfig,
     ChassisConfig,
+    DepthSensorConfig,
     IMUConfig,
     Lidar2DConfig,
     Lidar3DConfig,
@@ -57,6 +58,7 @@ __all__ = [
     "CaveGeometryConfig",
     "ChassisConfig",
     "DemCropConfig",
+    "DepthSensorConfig",
     "DynamicAtmosphereConfig",
     "FogConfig",
     "IMUConfig",

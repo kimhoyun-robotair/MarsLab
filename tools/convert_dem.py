@@ -1,7 +1,7 @@
 """GeoTIFF to numpy pre-conversion for GDAL-free Isaac Sim loading.
 
 Run with system Python (which has GDAL installed):
-    python tools/convert_dem.py --config configs/terrain/jezero_crater.yaml
+    python3 tools/convert_dem.py --config tools/dem_conversion/sample_jezero.yaml
 
 This converts the HiRISE DEM GeoTIFF into elevation.npy + metadata.json,
 which Isaac Sim Python can load without GDAL via load_converted_dem().
@@ -24,7 +24,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Convert HiRISE GeoTIFF to numpy format")
     parser.add_argument(
         "--config",
-        default="configs/terrain/jezero_crater.yaml",
+        default="tools/dem_conversion/sample_jezero.yaml",
         help="Path to terrain config YAML",
     )
     parser.add_argument(

@@ -283,17 +283,14 @@ class Ros2BridgeConfig(BaseModel):
             "that breaks downstream consumers; pick exactly one."
         ),
     )
-    # NOTE: defaults below preserve current (pre-fix) behaviour.  C1
-    # introduces the fields; C2 flips ``publish_joint_states`` to True
-    # and removes the OG PubTF node; C3 flips both nameOverride /
-    # rename defaults to False (URDF source-of-truth + Body_Chassis
-    # frame).  Splitting the rollout this way makes a single ``git
-    # revert`` of C2 or C3 fully restore the prior runtime behaviour
-    # without leaving stale yaml fields behind.
+    # Defaults below match the current runtime behaviour: the rover
+    # publishes ``sensor_msgs/JointState`` on ``<ns>/joint_states`` and
+    # a ROS-side ``robot_state_publisher`` derives ``/tf`` from URDF
+    # link declarations (no Isaac-side nameOverride / rename).
     publish_joint_states: bool = Field(
         default=True,
         description=(
-            "When ``True`` (C2+ default) the Stage-3 OmniGraph wires "
+            "When ``True`` (default) the OmniGraph wires "
             "``isaacsim.ros2.bridge.ROS2PublishJointState`` so the rover "
             "articulation publishes ``sensor_msgs/JointState`` on "
             "``<ns>/joint_states``.  A ROS-side ``robot_state_publisher`` "

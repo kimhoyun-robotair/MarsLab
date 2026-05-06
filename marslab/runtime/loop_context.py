@@ -1,7 +1,7 @@
 """Factory for assembling :class:`LoopContext` from spawn outputs.
 
 Extracted from ``marslab/main.py`` so the construction is a
-single offline-testable function instead of a 35-keyword call inlined
+single offline-testable function instead of a 23-keyword call inlined
 into the entry script.  The dataclass itself lives in
 :mod:`marslab.runtime.main_loop` -- keeping the factory separate avoids
 a circular import while still presenting a single import-and-call

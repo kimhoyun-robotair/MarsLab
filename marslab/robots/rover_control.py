@@ -1,16 +1,16 @@
-"""Pure-Python rover control primitives (Ackermann + ramp helpers).
+"""Pure-Python rover control primitives (Ackermann command).
 
-Everything here is pure NumPy -- no Isaac Sim, no ROS2, no IO -- so it
-can be unit-tested without booting any simulation.
+Pure NumPy: no Isaac Sim, no ROS2, no IO -- can be unit-tested without
+booting any simulation.
 
 Contents:
     * ``ackermann_command`` -- ICR-based steer angles + Euclidean
       per-wheel angular velocities for a 6-wheel rocker-bogie rover.
-    * ``ramp_wheel_velocities`` -- per-step drive velocity target limiter
-      with asymmetric acceleration/deceleration rates.
-    * ``ramp_steer_angles`` -- per-step steer angle target limiter.
-    * ``clamp_steer_angles`` -- saturate steer angles at mechanical
-      limits (rocker-bogie collision avoidance).
+
+The per-step ramp / clamp limiters live inline in
+``marslab.runtime.main_loop`` (single-source: the runtime owns the
+ramp state across ticks), so this module only exposes the
+stateless command computation.
 
 Coordinate convention (internal):
     X+ = rover forward, Y+ = rover left, Z+ = up.
@@ -48,8 +48,8 @@ def ackermann_command(
 
     Returns:
         Tuple of two arrays:
-            steer_angles: shape ``(4,)`` float32 — ``[LF, LR, RF, RR]`` in rad.
-            wheel_velocities: shape ``(6,)`` float32 —
+            steer_angles: shape ``(4,)`` float32 -- ``[LF, LR, RF, RR]`` in rad.
+            wheel_velocities: shape ``(6,)`` float32 --
                 ``[LF, LM, LR, RF, RM, RR]`` in rad/s.
 
     Raises:
@@ -68,18 +68,18 @@ def ackermann_command(
     half_ts = track_steer / 2.0
     half_tm = track_middle / 2.0
 
-    # Straight: no angular velocity → all steer zero, uniform drive.
+    # Straight: no angular velocity -> all steer zero, uniform drive.
     if abs(w) < _EPS_W:
         steer = np.zeros(4, dtype=np.float32)
         omega = float(v) / wheel_radius
         vel = np.full(6, omega, dtype=np.float32)
         return steer, vel
 
-    # Turning (includes point-turn when v ≈ 0).
+    # Turning (includes point-turn when v ~ 0).
     # ICR sits at (0, R) in the rover frame where R = v/w.
     R = float(v) / float(w)
 
-    # Steerable wheel positions — order: [LF, LR, RF, RR].
+    # Steerable wheel positions -- order: [LF, LR, RF, RR].
     steer_xy = [
         (+half_wb, +half_ts),  # LF: front-left
         (-half_wb, +half_ts),  # LR: rear-left
@@ -142,100 +142,3 @@ def ackermann_command(
         wheel_velocities[i] = float(np.copysign(1.0, w * dy)) * abs(w) * dist / wheel_radius
 
     return steer_angles, wheel_velocities
-
-
-def clamp_steer_angles(angles: np.ndarray, max_angle: float) -> np.ndarray:
-    """Saturate steer angles at mechanical stops.
-
-    The Ackermann controller can request 87°+ angles for tight turns
-    (R < wheelbase/2), which folds the rocker-bogie suspension.  Real
-    rovers have mechanical stops typically around 40°.
-
-    Args:
-        angles: Steer angle array (rad), any shape.
-        max_angle: Maximum absolute steer angle (rad).  Must be > 0.
-
-    Returns:
-        ``np.clip(angles, -max_angle, +max_angle)`` as float32.
-
-    Raises:
-        ValueError: If ``max_angle <= 0``.
-    """
-    if max_angle <= 0.0:
-        raise ValueError(f"max_angle must be > 0, got {max_angle}")
-    return np.clip(angles, -max_angle, max_angle).astype(np.float32)
-
-
-def ramp_steer_angles(
-    current: np.ndarray,
-    target: np.ndarray,
-    per_step_limit: float,
-) -> np.ndarray:
-    """Limit per-step change in steer angle targets.
-
-    Prevents snap transitions (e.g. cmd_vel going to zero while wheels
-    are still spinning -> sudden lateral impulse).  If ``per_step_limit``
-    is 0 or negative, the function returns ``target`` unchanged (ramp
-    disabled).
-
-    Args:
-        current: Last commanded steer targets (rad), shape ``(n,)``.
-        target: Desired new steer targets (rad), shape ``(n,)``.
-        per_step_limit: Maximum absolute delta per step (rad).
-
-    Returns:
-        New ramped targets, same shape/dtype as ``current``.
-
-    Note:
-        As of v1.0 the steer ramp is also implemented inline at the
-        runtime level (``marslab.runtime.main_loop``).  Prefer this
-        helper for new code paths so the ramp logic stays single-sourced.
-    """
-    if per_step_limit <= 0.0:
-        return target.astype(current.dtype, copy=True)
-    delta = target.astype(current.dtype) - current
-    delta = np.clip(delta, -per_step_limit, per_step_limit)
-    return current + delta
-
-
-def ramp_wheel_velocities(
-    current: np.ndarray,
-    target: np.ndarray,
-    per_step_limit: float,
-    decel_multiplier: float = 1.0,
-) -> np.ndarray:
-    """Limit per-step change in drive velocity targets.
-
-    Prevents the impulse that occurs when ``set_joint_velocity_targets``
-    jumps from 0 to a large value while ``drive_damping`` is high in
-    acceleration mode.  Braking (target magnitude lower than current)
-    is allowed to happen ``decel_multiplier`` times faster than
-    acceleration, which matches the human intuition that a rover should
-    stop quickly but accelerate gently.
-
-    If ``per_step_limit`` is 0 or negative, the function returns
-    ``target`` unchanged (ramp disabled).
-
-    Args:
-        current: Last commanded wheel velocity targets (rad/s), shape ``(n,)``.
-        target: Desired new velocity targets (rad/s), shape ``(n,)``.
-        per_step_limit: Baseline (acceleration) per-step delta limit (rad/s).
-        decel_multiplier: Multiplier applied per-element when the new
-            target magnitude is lower than the current target magnitude.
-            ``1.0`` = symmetric, ``3.0`` = brake 3× faster than accel.
-
-    Returns:
-        New ramped targets, same shape/dtype as ``current``.
-    """
-    if per_step_limit <= 0.0:
-        return target.astype(current.dtype, copy=True)
-    tgt = target.astype(current.dtype)
-    delta = tgt - current
-    is_decel = np.abs(tgt) < np.abs(current)
-    step_lim = np.where(
-        is_decel,
-        np.asarray(per_step_limit * decel_multiplier, dtype=current.dtype),
-        np.asarray(per_step_limit, dtype=current.dtype),
-    ).astype(current.dtype)
-    delta = np.clip(delta, -step_lim, step_lim)
-    return (current + delta).astype(current.dtype)

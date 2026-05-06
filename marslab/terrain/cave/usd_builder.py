@@ -102,6 +102,10 @@ def build_cave_scene(
         {base}/Skylight_N — skylight shaft walls
         {base}/DebrisCone_N — debris piles
         {base}/Breakdown  — PointInstancer for breakdown blocks
+        {base}/Breakdown/Prototypes/block_0 — icosphere prototype mesh
+        {base}/Materials/BreakdownMtl — OmniPBR material bound to the
+            breakdown prototype (created only when there is at least one
+            breakdown block to instance).
 
     Args:
         cave_data: Dict from

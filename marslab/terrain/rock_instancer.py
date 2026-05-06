@@ -43,8 +43,8 @@ def place_rocks_on_terrain(
         seed: Random seed for rotation randomization.
         rock_color: Mars rock base color RGB from config.
         rock_roughness: Rock surface roughness (0-1) from config.
-        rock_texture_dir: Path to rock PBR textures (None = color only).
         rock_mesh_dir: Path to OBJ mesh files (None = Sphere fallback).
+        rock_texture_dir: Path to rock PBR textures (None = color only).
     """
     if not rocks:
         return

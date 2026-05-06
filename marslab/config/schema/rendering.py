@@ -134,40 +134,53 @@ class PathTracingConfig(BaseModel):
 class SkyDomeConfig(BaseModel):
     """Sky-dome color / brightness ramp consumed by ``environment/sky_dome.py``.
 
-    Migrates the four previously hardcoded literals (``_CLEAR_SKY_RGB``,
-    ``_DUSTY_SKY_RGB``, brightness floor 0.1, brightness decay 0.3) out
-    of ``marslab/environment/sky_dome.py`` into YAML so all configurable
-    parameters live in YAML.
+    Surfaces sky color / brightness ramp parameters and the three
+    HDRI filenames selected by tau range (clear / moderate / dusty) so
+    all configurable parameters live in YAML.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     clear_rgb: Tuple[float, float, float] = Field(
         default=(0.76, 0.57, 0.35),
-        description=(
-            "Butterscotch clear-sky RGB at tau=0. Mirrors legacy ``_CLEAR_SKY_RGB`` "
-            "(Bell et al. 2006 MER Pancam)."
-        ),
+        description=("Butterscotch clear-sky RGB at tau=0. Bell et al. 2006 MER Pancam."),
     )
     dusty_rgb: Tuple[float, float, float] = Field(
         default=(0.85, 0.75, 0.60),
-        description=(
-            "Dust-storm sky RGB used as interpolation endpoint at tau >= 3. "
-            "Mirrors legacy ``_DUSTY_SKY_RGB``."
-        ),
+        description=("Dust-storm sky RGB used as interpolation endpoint at tau >= 3."),
     )
     brightness_min: float = Field(
         default=0.1,
         ge=0.0,
         le=1.0,
-        description="Lower clamp for sky-dome brightness. Was 0.1 in ``compute_sky_dome_params``.",
+        description="Lower clamp for sky-dome brightness.",
     )
     brightness_decay: float = Field(
         default=0.3,
         ge=0.0,
         description=(
-            "Slope of brightness = 1 - decay * t where t is the tau interpolation factor. "
-            "Previously the 0.3 multiplier in ``compute_sky_dome_params``."
+            "Slope of brightness = 1 - decay * t where t is the tau interpolation factor."
+        ),
+    )
+    hdri_clear: str = Field(
+        default="mars_sky_clear.png",
+        description=(
+            "HDRI filename selected when ``tau < 0.5``. Resolved against "
+            "``RenderingConfig.sky_dome_hdri_dir`` by ``compute_sky_dome_params``."
+        ),
+    )
+    hdri_moderate: str = Field(
+        default="mars_sky_moderate.png",
+        description=(
+            "HDRI filename selected when ``0.5 <= tau < 1.5``. Resolved against "
+            "``RenderingConfig.sky_dome_hdri_dir`` by ``compute_sky_dome_params``."
+        ),
+    )
+    hdri_dusty: str = Field(
+        default="mars_sky_dusty.png",
+        description=(
+            "HDRI filename selected when ``tau >= 1.5``. Resolved against "
+            "``RenderingConfig.sky_dome_hdri_dir`` by ``compute_sky_dome_params``."
         ),
     )
 

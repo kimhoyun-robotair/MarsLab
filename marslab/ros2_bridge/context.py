@@ -1,10 +1,10 @@
-"""Shared handle dataclass for the Stage-3 ROS2 bridge.
+"""Shared handle dataclass for the rover ROS2 bridge.
 
 Separated from :mod:`marslab.ros2_bridge.__init__` so that
 :mod:`marslab.ros2_bridge.rclpy_integration` and the sensor-graph
 builders can share a common value type without re-triggering the
-package top-level import (which keeps the public surface lazy with
-respect to rclpy).
+package top-level import (every public function defers its rclpy
+imports until runtime).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from marslab.ros2_bridge.odometry_publisher import OdometryPublisherContext
 
 @dataclass
 class BridgeContext:
-    """Aggregate handles used by the Stage-3 main loop.
+    """Aggregate handles used by the runtime main loop.
 
     Attributes:
         node: The rclpy ``Node`` handle.

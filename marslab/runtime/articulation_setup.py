@@ -46,9 +46,9 @@ def _resolve_joint_position_targets(
     Returns:
         ``(indices, targets)`` where ``indices[i]`` is the position of
         joint ``targets[i]``'s name in ``dof_names``. Joint names that
-        are not present in ``dof_names`` are dropped with an
-        ``ERROR``-level log entry (warning, not fatal: the runtime
-        continues with the URDF default pose for the missing joint).
+        are not present in ``dof_names`` are dropped with a
+        ``WARNING``-level log entry (not fatal: the runtime continues
+        with the URDF default pose for the missing joint).
     """
     indices: List[int] = []
     targets: List[float] = []
@@ -61,7 +61,7 @@ def _resolve_joint_position_targets(
             indices.append(list(dof_names).index(joint_name))
             targets.append(float(target_rad))
         else:
-            logger.error(
+            logger.warning(
                 "[articulation_setup] initial_joint_positions key %r is not in "
                 "articulation.dof_names; skipped.",
                 joint_name,
@@ -93,7 +93,8 @@ def apply_initial_joint_positions(
     Notes:
         The Isaac Sim ``set_joint_positions`` call is wrapped in a
         broad ``except`` so a transient PhysX hiccup does not abort the
-        simulation; the failure is logged at ``ERROR`` level.
+        simulation; the failure is logged at ``WARNING`` level because
+        the next physics step retries.
     """
     initial_positions = control_cfg.get("initial_joint_positions") or {}
     indices, targets = _resolve_joint_position_targets(initial_positions, dof_names)
@@ -110,7 +111,7 @@ def apply_initial_joint_positions(
             dict(zip([dof_names[i] for i in indices], targets, strict=True)),
         )
     except Exception as exc:  # noqa: BLE001
-        logger.error(
+        logger.warning(
             "[articulation_setup] Could not apply initial_joint_positions: %s",
             exc,
         )

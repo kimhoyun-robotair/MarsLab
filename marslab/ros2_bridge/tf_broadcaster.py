@@ -24,11 +24,11 @@ from __future__ import annotations
 
 from typing import Any, Iterable, List, Optional, Sequence, Tuple, Union
 
-# Sensor frame spec.  Two shapes accepted for backwards compatibility:
+# Sensor frame spec.  Two shapes accepted:
 #
-# * 2-tuple ``(child_frame_id, xyz)`` -- legacy form, broadcasts with
-#   identity rotation.  Pre-T3 callers pass this shape.
-# * 3-tuple ``(child_frame_id, xyz, rpy_deg)`` -- T3 form, applies
+# * 2-tuple ``(child_frame_id, xyz)`` -- broadcasts with identity
+#   rotation.  Used when the YAML omits ``local_orientation_rpy_deg``.
+# * 3-tuple ``(child_frame_id, xyz, rpy_deg)`` -- applies
 #   ``local_orientation_rpy_deg`` from the rover YAML into the
 #   broadcast quaternion so the ROS frame chain matches the USD prim
 #   orientation set by ``marslab.sensors.sensor_spawner``.  Required
@@ -54,10 +54,10 @@ def build_static_sensor_transforms(
     """Return a list of ``TransformStamped`` messages for static TF.
 
     Each ``SensorFrameSpec`` may be a 2-tuple ``(child_frame, xyz)``
-    (legacy, identity rotation) or a 3-tuple
-    ``(child_frame, xyz, rpy_deg)`` (T3+, applies the YAML
-    ``local_orientation_rpy_deg`` so the ROS frame matches the USD
-    prim orient set by ``marslab.sensors.sensor_spawner``).
+    (identity rotation) or a 3-tuple ``(child_frame, xyz, rpy_deg)``
+    (applies the YAML ``local_orientation_rpy_deg`` so the ROS frame
+    matches the USD prim orient set by
+    ``marslab.sensors.sensor_spawner``).
 
     Kept separate from :func:`publish_static_sensor_tfs` so callers
     can inspect or mutate the transforms before broadcast (e.g. for
@@ -100,8 +100,8 @@ def build_static_sensor_transforms(
         # intrinsic) into the broadcast quaternion.  ``rpy_to_quat``
         # returns scalar-first (w, x, y, z); ``geometry_msgs/Quaternion``
         # is scalar-last so unpack accordingly.  yaml ``[0, 0, 0]``
-        # produces the legacy identity quat -- backwards compatible
-        # with 2-tuple call sites.
+        # produces the identity quat -- equivalent to the 2-tuple
+        # call-site result.
         qw, qx, qy, qz = rpy_to_quat(
             math.radians(float(rpy_deg[0])),
             math.radians(float(rpy_deg[1])),

@@ -149,29 +149,18 @@ def _launch_setup(context, *args, **kwargs) -> list:
         ),
         # ``base_link -> Body_Chassis`` connector (identity transform).
         #
-        # The MarsLab odometry publisher (``odom_publisher.child_frame_id =
-        # base_link`` in the rover YAML) broadcasts ``odom -> base_link``
-        # using the PhysX articulation root pose, which is itself X-rolled
-        # in world by the spawn-time ``spawn_orientation_rpy = [pi, 0, 0]``
-        # compensation for the JPL m2020 URDF's graphics-style link-frame
-        # author convention.  This bakes the X-roll into ``odom ->
-        # base_link``.  Combined with this connector being identity, the
-        # ``odom -> base_link -> Body_Chassis`` chain inherits the X-roll
-        # so the URDF chain (``Body_Chassis -> Body_RockerLeft -> ...``)
-        # publishes mesh poses that line up with the world axes when an
-        # RViz Fixed Frame is set to ``odom`` or to a downstream SLAM map
-        # frame (e.g. RTAB-Map ``map``).
-        #
-        # An earlier iteration of this connector applied an explicit
-        # 180-deg X-roll on the wrapper, which made RViz Fixed Frame =
-        # base_link render correctly but caused Fixed Frame = odom and
-        # Fixed Frame = map to render the rover upside-down (the X-roll
-        # and the wrapper compensation chained into a double-correction
-        # depending on which Fixed Frame the consumer picked).  The
-        # identity wrapper yields a single canonical X-roll that travels
-        # from ``odom`` through ``base_link`` into the URDF chain, so
-        # every Fixed Frame upstream of ``base_link`` (odom, map, world,
-        # ...) renders the rover in the same canonical pose.
+        # Since the rc1b URDF rewrite (2026-05-04) the JPL m2020 URDF link
+        # frames are REP-103 aligned (+X forward, +Y left, +Z up) end-to-end.
+        # The rover prim spawns with identity orientation
+        # (``spawn_orientation_rpy: [0.0, 0.0, 0.0]`` in
+        # ``configs/robots/rover_m2020.yaml``) and no X-roll compensation is
+        # applied anywhere in the chain.  ``odom -> base_link`` is therefore
+        # an identity-rotation broadcast (translation = PhysX articulation
+        # root pose), and this connector is also identity so
+        # ``odom -> base_link -> Body_Chassis`` collapses to a single
+        # canonical pose.  Every RViz Fixed Frame -- ``odom``, ``map``,
+        # ``base_link``, ``Body_Chassis`` -- renders the rover in the same
+        # canonical pose (chassis up, wheels down).
         Node(
             package="tf2_ros",
             executable="static_transform_publisher",

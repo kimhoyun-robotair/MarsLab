@@ -39,15 +39,6 @@ class TestFieldExistence:
         assert isinstance(cfg.dynamic_atmosphere, DynamicAtmosphereConfig)
 
 
-class TestLegacySolarConstantMigration:
-    """Legacy YAML key ``solar_constant_mean`` must still load."""
-
-    def test_legacy_solar_constant_mean_migrates_to_solar_constant(self) -> None:
-        """``solar_constant_mean=590`` must produce ``solar_constant=590``."""
-        cfg = MarsEnvConfig(solar_constant_mean=590)
-        assert cfg.solar_constant == 590
-
-
 class TestDefaultGravity:
     """Mars gravity default is a load-bearing number -- lock it down."""
 

@@ -17,7 +17,6 @@ authored USD values win.  No Mars-physics constants live here.
 
 from __future__ import annotations
 
-import logging
 import math
 import os
 import re
@@ -33,8 +32,6 @@ from marslab.quaternion import rpy_to_quat
 # ``create_converter_task`` which is driven synchronously inside
 # :func:`convert_mesh_to_usd`.
 STRUCTURE_ASSET_EXTENSIONS: Tuple[str, ...] = (".obj", ".stl")
-
-_LOG = logging.getLogger(__name__)
 
 # Sanitiser regex shared by ``_default_asset_name`` and tests.  USD child
 # tokens must match ``[A-Za-z_][A-Za-z0-9_]*``; anything else is

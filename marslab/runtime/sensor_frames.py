@@ -52,17 +52,11 @@ def _resolve_sensor_block(sensors_cfg: Dict[str, Any], sensor_key: str) -> Dict[
 
 
 def build_sensor_frames(
-    rover_cfg: Dict[str, Any],
     sensors_cfg: Dict[str, Any],
 ) -> List[Dict[str, Any]]:
     """Construct the static-TF frame list from the rover sensor block.
 
     Args:
-        rover_cfg: The ``rover`` block from the scenario YAML. Reserved
-            for future use (e.g. an override layer); currently only the
-            ``sensors_cfg`` argument is consulted, but the signature
-            keeps ``rover_cfg`` so callers do not need to refactor when
-            override support lands.
         sensors_cfg: The ``rover.sensors`` block. Each sensor that is
             present contributes one frame record. Missing sensors are
             skipped silently so an asymmetric scenario (e.g. no 2D
@@ -78,8 +72,6 @@ def build_sensor_frames(
           (degrees, ZYX intrinsic); defaults to ``[0.0, 0.0, 0.0]``
           when the sensor block omits it.
     """
-    del rover_cfg  # reserved for future override layer (see docstring)
-
     frames: List[Dict[str, Any]] = []
     for child_frame, sensor_key in _SENSOR_FRAME_BINDINGS:
         block = _resolve_sensor_block(sensors_cfg, sensor_key)
@@ -105,8 +97,8 @@ def sensor_frames_to_tuples(
     """Adapt :func:`build_sensor_frames` output to the broadcaster API.
 
     :func:`marslab.ros2_bridge.tf_broadcaster.publish_static_sensor_tfs`
-    consumes ``(child_frame, xyz, rpy_deg)`` tuples (T3+ shape) so the
-    ROS broadcast quaternion matches the USD prim orient set by
+    consumes ``(child_frame, xyz, rpy_deg)`` tuples so the ROS broadcast
+    quaternion matches the USD prim orient set by
     ``marslab.sensors.sensor_spawner`` (camera/IMU YAML
     ``local_orientation_rpy_deg = [180, 0, 0]``).  The 3-tuple shape
     is required for the camera_link -> camera_optical_frame chain to

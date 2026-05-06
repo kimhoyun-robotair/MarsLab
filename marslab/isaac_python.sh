@@ -15,7 +15,7 @@
 # Letting them leak into the Isaac Sim process produces two failure
 # modes we have actually observed:
 #
-# Background (Python side):
+# Historical (Python side, fixed):
 #   `import rclpy` resolves /opt/ros/jazzy/.../python3.12/.../rclpy,
 #   which imports `_rclpy_pybind11.cpython-311-*.so`, which does not
 #   exist -> ModuleNotFoundError -> Kit atexit SIGSEGV.
@@ -101,7 +101,7 @@ if [[ ! -x "$ISAAC_PY" ]]; then
     exit 1
 fi
 
-# Re-export ISAAC_SIM_PATH so run_scene.py can pick up the same location
+# Re-export ISAAC_SIM_PATH so marslab/main.py can pick up the same location
 # when building its bundled rclpy path.
 export ISAAC_SIM_PATH
 
@@ -125,7 +125,7 @@ export LD_LIBRARY_PATH="${_BUNDLED_ROS2_LIB}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH
 
 # Preflight echo so the user can confirm the purge actually happened
 # when they read the tee log. All lines go to stderr so they do not
-# collide with run_scene.py stdout.
+# collide with marslab/main.py stdout.
 {
     echo "[isaac_python] LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-<unset>}"
     echo "[isaac_python] PYTHONPATH=${PYTHONPATH:-<unset>}"

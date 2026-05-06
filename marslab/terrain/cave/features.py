@@ -3,15 +3,10 @@
 Pure numpy + trimesh. No Isaac Sim. The orchestrator entry point lives
 at :mod:`marslab.terrain.cave.orchestrator`.
 
-RNG consumption order is fixed:
-
-    1. :func:`compute_skylight_positions` -- NO RNG draws. The ``rng``
-       parameter is accepted only for API symmetry with the other
-       placement helpers; retained so future jitter can be added
-       without another signature change.
-    2. :func:`build_debris_cone` -- one ``rng.standard_normal`` draw
-       per ring, for a total of ``DEBRIS_CONE_RINGS`` draws of length
-       ``DEBRIS_CONE_SEGMENTS``.
+:func:`compute_skylight_positions` is deterministic given its inputs and
+makes no RNG draws. :func:`build_debris_cone` draws one
+``rng.standard_normal`` per ring, for a total of
+``DEBRIS_CONE_RINGS`` draws of length ``DEBRIS_CONE_SEGMENTS``.
 """
 
 from __future__ import annotations
@@ -36,7 +31,6 @@ def compute_skylight_positions(
     count: int,
     diameter: float,
     domain_m: tuple[float, float],
-    rng: np.random.Generator,  # noqa: ARG001 -- reserved for jitter
     separation_ratio: float = SKYLIGHT_SEPARATION_RATIO,
     margin_extra_m: float = SKYLIGHT_MARGIN_EXTRA_M,
 ) -> list[tuple[float, float]]:
@@ -52,8 +46,6 @@ def compute_skylight_positions(
             list.
         diameter: Skylight diameter in meters.
         domain_m: ``(height_m, width_m)``.
-        rng: Accepted for signature parity with other placement
-            helpers. No draws are made today.
         separation_ratio: Minimum center-to-center distance expressed
             as a multiple of ``diameter``.
         margin_extra_m: Extra margin beyond ``diameter/2`` to keep

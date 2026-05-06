@@ -90,13 +90,13 @@ class TestUrdfPathResolve:
         assert c.urdf_path == path
 
     def test_prim_path_override(self) -> None:
-        """``prim_path`` override lets multiple quadrupeds coexist."""
+        """``prim_path`` override lets multiple instances of one type coexist."""
         c = RobotConfig(
-            type="quadruped",
-            usd_asset_path="go2.usd",
-            prim_path="/World/quadruped_0",
+            type="rover",
+            usd_asset_path="rover.usd",
+            prim_path="/World/rover_0",
         )
-        assert c.prim_path == "/World/quadruped_0"
+        assert c.prim_path == "/World/rover_0"
 
     def test_prim_path_default_none(self) -> None:
         """Default ``prim_path=None`` triggers the ``/World/{type}`` fallback."""

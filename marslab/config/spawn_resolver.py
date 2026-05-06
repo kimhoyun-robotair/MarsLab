@@ -27,6 +27,9 @@ def _bilinear_sample(grid: np.ndarray, row_f: float, col_f: float) -> float:
 
     Out-of-range indices clamp to the nearest valid cell.  Designed for
     dense 2-D elevation grids (shape ``(H, W)``).
+
+    Raises:
+        ValueError: If ``grid`` is not 2-D or has zero rows/cols.
     """
     if grid.ndim != 2:
         raise ValueError(f"Elevation grid must be 2-D, got shape {grid.shape}")

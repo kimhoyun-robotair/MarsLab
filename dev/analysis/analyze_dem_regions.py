@@ -29,7 +29,7 @@ from marslab.terrain.dem_loader import load_converted_dem  # noqa: E402
 # Configuration
 # ---------------------------------------------------------------------------
 
-DEFAULT_DEM_DIR = os.path.join(REPO_ROOT, "assets", "terrain", "dem", "jezero_crater_converted")
+DEFAULT_DEM_DIR = os.path.join(REPO_ROOT, "assets", "mars_assets", "DEM", "jezero_crater")
 OUTPUT_DIR = os.path.join(REPO_ROOT, "work_log", "scene_generation")
 OUTPUT_PNG = os.path.join(OUTPUT_DIR, "dem_regions_overview.png")
 

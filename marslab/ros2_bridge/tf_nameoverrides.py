@@ -140,8 +140,8 @@ def create_odom_anchor(
     Notes:
         ``UsdGeom.Xform.Define`` is idempotent on the same path -- a
         second call returns the existing prim.  Translation is set via
-        ``AddTranslateOp`` which Stage-3 also uses for the rover root
-        in ``marslab/robots/rover.py``.  ``isaac:nameOverride`` is
+        ``AddTranslateOp`` which the rover spawn helper also uses for
+        the rover root in ``marslab/robots/rover.py``.  ``isaac:nameOverride`` is
         applied via :func:`apply_nameoverride` so both helpers share
         a single attribute-creation code path.
     """

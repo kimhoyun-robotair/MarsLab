@@ -1,5 +1,6 @@
-# MarsLab Master Configuration
-# All physical parameters for Mars simulation environment.
+# Dev/visualize fixture (NOT a runtime master config).
+# Minimal flat-config fixture used by dev/visualize/* defaults and a few
+# unit tests.  Production scenarios live under configs/scenarios/*.yaml.
 
 mars_env:
   gravity: 3.72                      # m/s^2 (IAU standard)

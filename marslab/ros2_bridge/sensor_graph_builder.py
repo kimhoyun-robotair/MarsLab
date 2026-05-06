@@ -1,4 +1,4 @@
-"""Pure (offline-testable) builders for the Stage-3 ROS2 OmniGraph.
+"""Pure (offline-testable) builders for the rover ROS2 OmniGraph.
 
 Extracted from :mod:`marslab.ros2_bridge.sensor_graph` so the
 orchestration (which touches ``omni.graph.core``) stays thin and the
@@ -8,7 +8,7 @@ These helpers return simple Python data structures (lists of tuples)
 that the orchestrator then feeds into
 ``og.Controller.edit(..., {CREATE_NODES, CONNECT, SET_VALUES})``.
 
-Single render-product wiring (Path 1).  The historical layout used two
+Single render-product wiring.  An earlier layout used two
 ``IsaacCreateRenderProduct`` nodes for the same camera prim
 (``RPCamera`` for RGB, ``RPDepth`` for depth) which produced two
 separate SDG pipelines and yielded RGB/depth timestamp skew that broke
@@ -52,7 +52,7 @@ def _build_create_nodes(
     include_camera_info: bool = False,
     publish_joint_states: bool = True,
 ) -> List[Tuple[str, str]]:
-    """List of ``(node_name, node_type)`` tuples for the Stage-3 graph.
+    """List of ``(node_name, node_type)`` tuples for the rover graph.
 
     Args:
         include_lidar_2d: When True, appends the ``RPLidar2D`` +
@@ -79,7 +79,7 @@ def _build_create_nodes(
             the projection matrices from the USD ``Camera`` prim's focal
             length / aperture / clipping range, so YAML never duplicates
             them.
-        publish_joint_states: When True (default for C2+), wire
+        publish_joint_states: When True (default), wire
             ``isaacsim.ros2.bridge.ROS2PublishJointState`` (``PubJointState``)
             so the rover articulation publishes
             ``sensor_msgs/JointState`` on ``<ns>/joint_states``.  A
@@ -87,9 +87,9 @@ def _build_create_nodes(
             the latched ``/robot_description`` produces the full link
             tree TF on the canonical ``/tf`` topic, replacing the
             ``ROS2PublishTransformTree`` (``PubTF``) +
-            ``topic_tools relay`` workflow.  Set False to restore the
-            legacy ``PubTF``-on-``/tf_raw`` wiring (e.g. for a v0.7
-            scenario that still expects ``/tf_raw``).  The two nodes
+            ``topic_tools relay`` workflow.  Set False to wire
+            ``PubTF`` directly onto ``/tf_raw`` instead (used by v0.7
+            scenarios that still expect ``/tf_raw``).  The two nodes
             are mutually exclusive -- running both would yield two
             authorities for the same kinematic chain.  Citations:
             ``OgnROS2PublishJointState.rst:43`` (targetPrim relationship),
@@ -107,10 +107,10 @@ def _build_create_nodes(
         # the full /tf tree.  Single TF authority -- no relay required.
         nodes.append(("PubJointState", "isaacsim.ros2.bridge.ROS2PublishJointState"))
     else:
-        # Legacy PubTF wiring kept available for backwards compatibility.
-        # Auto-enumerates articulation chain via ``inputs:targetPrims``.
-        # Citations: ``OgnROS2PublishTransformTree.rst:21,45``; canonical
-        # wiring at ``isaacsim/.../tests/test_pose_tree.py:72``.
+        # Direct ``PubTF`` wiring on ``/tf_raw``.  Auto-enumerates the
+        # articulation chain via ``inputs:targetPrims``.  Citations:
+        # ``OgnROS2PublishTransformTree.rst:21,45``; canonical wiring
+        # at ``isaacsim/.../tests/test_pose_tree.py:72``.
         nodes.append(("PubTF", "isaacsim.ros2.bridge.ROS2PublishTransformTree"))
     nodes += [
         ("ReadIMU", "isaacsim.sensors.physics.IsaacReadIMU"),
@@ -258,9 +258,9 @@ def _build_set_values(
     ``TransformBroadcaster`` produces duplicated frames in RViz and
     consumers' TF buffers (the two backends serialise identical frames
     out of phase, and downstream consumers see ``/tf`` jitter that
-    breaks SLAM / localisation).  The split mirrors the historical Stage-1
-    layout; do not propose merging them again unless the user
-    explicitly asks.
+    breaks SLAM / localisation).  The two topics are kept separate
+    by user policy; do not propose merging them again unless the
+    user explicitly asks.
 
     Consumers that need the joint chain (RViz ``RobotModel`` display,
     debug tools) can run a one-line ``tf2_ros static_transform_publisher``
@@ -272,16 +272,15 @@ def _build_set_values(
     The ``inputs:qosProfile`` string input of every Isaac Sim ROS2
     bridge helper (``PubIMU``, ``CamRGB``, ``CamDepth``,
     ``Lidar3DHelper``, ``Lidar2DHelper``, ``PubTF``) is wired from
-    ``sensor_qos_preset`` / ``tf_qos_preset``.  Production callers
-    MUST pass the JSON-encoded form produced by
+    ``sensor_qos_preset`` / ``tf_qos_preset``.  Callers MUST pass the
+    JSON-encoded form produced by
     :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json`; the bare
-    preset-name defaults (``"SystemDefault"``, ``"SensorData"``) are
-    legacy fixture values retained only so existing offline tests keep
-    passing -- the C++ writer parses them as JSON and emits
-    ``Parsing error: ... last read: 'S'`` to stderr at runtime, so
-    relying on the defaults is a regression of the JSON-format fix.
-    The orchestrator (:mod:`marslab.ros2_bridge.sensor_graph`) always
-    threads the JSON form through, so production paths are safe.
+    preset-name string defaults (``"SystemDefault"``, ``"SensorData"``)
+    are kept only for the offline test fixture and would emit
+    ``Parsing error: ... last read: 'S'`` to stderr at runtime if a
+    real OmniGraph C++ writer ever consumed them.  The orchestrator
+    (:mod:`marslab.ros2_bridge.sensor_graph`) always threads the JSON
+    form through.
 
     Args:
         articulation_root_prim_path: USD path of the rover articulation
@@ -303,11 +302,11 @@ def _build_set_values(
         sensor_qos_preset: JSON-encoded QoS dict for IMU / camera /
             LiDAR helpers.  Build via
             :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json`.
-            Default ``"SensorData"`` is a legacy bare preset name kept
+            Default ``"SensorData"`` is a bare preset-name string kept
             only for offline test fixture compatibility.
         tf_qos_preset: JSON-encoded QoS dict for the TF publisher.
-            Default ``"SystemDefault"`` carries the same legacy caveat
-            as ``sensor_qos_preset``.
+            Default ``"SystemDefault"`` carries the same offline-only
+            caveat as ``sensor_qos_preset``.
         include_pointcloud2: When True **and** ``topics["points"]`` is
             present, append the ``CamPCL`` value bindings
             (``inputs:type='depth_pcl'``, topic name from
@@ -358,10 +357,11 @@ def _build_set_values(
             ("PubJointState.inputs:targetPrim", [usdrt.Sdf.Path(articulation_root_prim_path)]),
         ]
     else:
-        # Legacy PubTF wiring (publishes the articulation chain on
-        # ``/tf_raw`` with ``odom -> base_link -> ...`` framing).  Kept
-        # available for backwards compatibility with v0.7 scenarios that
-        # rely on ``topic_tools relay /tf_raw /tf``.
+        # Direct PubTF wiring publishes the articulation chain on
+        # ``/tf_raw`` with ``odom -> base_link -> ...`` framing.
+        # Used by v0.7 scenarios that rely on
+        # ``topic_tools relay /tf_raw /tf`` instead of the
+        # robot_state_publisher path.
         values += [
             ("PubTF.inputs:topicName", "/tf_raw"),
             ("PubTF.inputs:qosProfile", tf_qos_preset),

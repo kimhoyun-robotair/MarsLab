@@ -4,7 +4,7 @@
 field-robotics research, built on NVIDIA Isaac Sim 5.x.**
 
 MarsLab gives planetary-robotics researchers a single, scriptable, ROS2-native
-testbed for repeatable Mars experiments. Nine reference scenarios — from a
+testbed for repeatable Mars experiments. Eight reference scenarios — from a
 flat Jezero plain to a 200 m wide lava tube — ship as YAML configs that load
 the same M2020 Perseverance rover and the same Mars-calibrated atmosphere,
 so a SLAM or autonomy result on one scenario is directly comparable to results on
@@ -22,7 +22,7 @@ the others.
 * **Pydantic-validated** — every YAML field is type-checked at load time;
   typos fail loudly before Isaac Sim boots.
 
-**Target paper:** iSpaRo 2026 (regular paper, deadline 2026-06-16).
+**Target paper:** iSpaRo 2026 (regular paper, deadline 2026-06-15).
 **License:** Apache 2.0.
 **Korean readers:** dev-side guide is in `CLAUDE_kor.md`. End-user docs
 (this README, `docs/scenario_format.md`, `docs/colored_pointcloud.md`) are
@@ -116,9 +116,10 @@ procedural case.
 
 ```bash
 # Step 1: convert a HiRISE GeoTIFF to numpy + metadata.
-#         Uses GDAL on the host CPU. Output is written to
+#         Uses GDAL on the host CPU (no Isaac Sim required).
+#         Output is written to
 #         assets/mars_assets/DEM/<region>/{elevation.npy,metadata.json}.
-marslab/isaac_python.sh tools/convert_dem.py \
+python3 tools/convert_dem.py \
     --config tools/dem_conversion/sample_jezero.yaml
 
 # Step 2: run the simulator with a scenario that points at the
@@ -145,7 +146,7 @@ Eight reference scenarios ship with v1.0:
 | `jezero_rocks`            | HiRISE Jezero (same crop) | Same DEM, dense Golombek rocks (CFA k=0.08). Obstacle field.         |
 | `cerberus_canyon_easy`    | HiRISE Cerberus Fossae S  | 82% traversable. Approach-with-crater nav baseline.                   |
 | `cerberus_canyon`         | HiRISE Cerberus Fossae    | 28% impassable, mean slope 25°. Path-planning stress test.           |
-| `cave_lava_tube`          | Procedural (MARS-LT-B)    | 200 m wide lava tube, 1 skylight. GPS-denied SLAM.                   |
+| `cave_lava_tube`          | Procedural (MARS-LT-B)    | 200 m wide lava tube, 10 skylights. GPS-denied SLAM.                 |
 | `spacecraft_landing`      | HiRISE Jezero + structures| InSight-style lander + heat shield + parachute debris field.          |
 | `procedural_canyon`       | Procedural                | Synthetic canyon corridor, 30 m floor, 40 m walls. Confined nav.      |
 
@@ -250,22 +251,18 @@ Pick the Fixed Frame based on what you are debugging:
 
 | Fixed Frame | Use case | Rover orientation |
 |---|---|---|
-| `odom` (default) | `marslab.ros2_bridge.odometry_publisher` ground-truth, local planning | Correct (chassis up, wheels down) |
+| `odom` (default) | `marslab.ros2_bridge.odometry_publisher` ground-truth, local planning | Correct |
 | `map` | RTAB-Map global localisation | Correct |
-| `base_link` | Frame chain debugging (sensor mounts, wrapper transform) | Inverted (graphics-style URDF link frame) |
-| `Body_Chassis` | Raw URDF link inspection | Inverted |
+| `base_link` | Frame chain debugging (sensor mounts, wrapper transform) | Correct |
+| `Body_Chassis` | Raw URDF link inspection | Correct |
 
-The JPL m2020 URDF authors link frames in a graphics-style (Z-down)
-convention inherited from the JPL RSVP visualisation tool, not REP-103.
-The Stage-3 spawn applies a 180-deg X-roll on the rover prim
-(`spawn_orientation_rpy = [pi, 0, 0]` in
-`configs/robots/rover_m2020.yaml`) so the rover renders correctly
-inside Isaac Sim.  The same X-roll surfaces on `odom -> base_link`
-when `publish_odom_tf: true`, and the URDF chain inside
-`Body_Chassis` cancels it back out under the `odom` and `map`
-frames -- which is why those Fixed Frames render correctly while
-`base_link` and `Body_Chassis` themselves do not.  See
-`docs/frame_conventions.md` for the full derivation.
+Since the rc1b URDF rewrite (2026-05-04) the JPL m2020 URDF link frames are
+REP-103 aligned (+X forward, +Y left, +Z up) end-to-end. The rover prim
+spawns with identity orientation (`spawn_orientation_rpy: [0.0, 0.0, 0.0]`
+in `configs/robots/rover_m2020.yaml`) and no X-roll compensation is applied
+anywhere in the chain. Every Fixed Frame -- `odom`, `map`, `base_link`,
+`Body_Chassis` -- renders the rover in the same canonical pose
+(chassis up, wheels down).
 
 The legacy `PubTF`-on-`/tf_raw` + `topic_tools relay /tf_raw /tf`
 workflow is reachable via `ros2.publish_joint_states: false` +
@@ -323,8 +320,8 @@ with a `← 자주 바꾸는 곳` ("frequently changed") marker.
 ```yaml
 rover:
   control:
-    max_linear_velocity: 1.0       # was 0.5 m/s
-    max_angular_velocity: 0.8      # was 0.5 rad/s
+    max_linear_velocity: 1.0       # base default 4.0 m/s
+    max_angular_velocity: 0.8      # base default 0.7 rad/s
 ```
 
 ### 5b. Move the rover spawn
@@ -530,7 +527,7 @@ Ingenuity teams; URDF conversion by JPL RSVP team. See
 
 ### Roadmap
 
-* **v1.0 (current, iSpaRo 2026 submission):** engineering quality. Nine
+* **v1.0 (current, iSpaRo 2026 submission):** engineering quality. Eight
   scenarios, single M2020 rover, ROS2 bridge, SLAM, dynamic
   atmosphere, pydantic-validated YAML throughout.
 * **v1.5 (post-iSpaRo, engineering follow-ons):**
@@ -552,7 +549,7 @@ Ingenuity teams; URDF conversion by JPL RSVP team. See
 ## Requirements
 
 * **NVIDIA Isaac Sim 5.x** (standalone install)
-* **Python 3.10+**
+* **Python 3.12+**
 * **ROS2 Jazzy** (for the runtime bridge; not needed for unit tests)
 * **GPU:** NVIDIA RTX series (tested on RTX 5070 Ti)
 * **OS:** Ubuntu 22.04+
@@ -568,9 +565,9 @@ Python dependencies pin in `pyproject.toml` (`pydantic>=2.0`, `pyyaml>=6.0`,
 Unit tests run on CPU, no Isaac Sim required:
 
 ```bash
-pytest tests/unit/ -q                      # 1151+ tests
-black --check marslab/ scripts/ tests/
-ruff check   marslab/ scripts/ tests/
+pytest tests/unit/ -q                      # ~1237 tests
+black --check marslab/ tools/ tests/
+ruff check   marslab/ tools/ tests/
 ```
 
 Isaac Sim runtime verification is performed by launching the full

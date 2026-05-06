@@ -92,8 +92,8 @@ def configure_drives(
     Ordering note: MUST be called **BEFORE** ``world.reset()`` because
     PhysX syncs USD drive attributes to tensors only at the reset
     boundary; later writes are ignored by the tensor cache.  Post-reset
-    gain reinforcement still runs through ``articulation.set_gains`` —
-    see :func:`reinforce_pd_gains` for the Stage-2 counterpart.
+    gain reinforcement still runs through ``articulation.set_gains`` --
+    see :func:`reinforce_pd_gains` for the post-reset counterpart.
     """
     drive_joint_names = list(control_cfg["drive_joint_names"])
     steer_joint_names = list(control_cfg["steer_joint_names"])
@@ -154,13 +154,13 @@ def reinforce_pd_gains(
 ) -> None:
     """Reinforce PD gains into the PhysX tensors after ``world.reset``.
 
-    Ordering note: MUST be called **AFTER** ``world.reset()`` — only the
-    tensor-cache path (``articulation.set_gains``) propagates to the
-    running PhysX simulation.  ``articulation.set_effort_modes`` only
-    touches USD, so post-reset ``set_gains`` is the only path that
-    propagates to the tensor cache.  Matches the Stage 1 warm-up
-    sequence (10-step physics warmup + play timeline) that the caller is
-    expected to run immediately before calling this helper.
+    Ordering note: MUST be called **AFTER** ``world.reset()`` -- only
+    the tensor-cache path (``articulation.set_gains``) propagates to
+    the running PhysX simulation.  ``articulation.set_effort_modes``
+    only touches USD, so post-reset ``set_gains`` is the only path
+    that propagates to the tensor cache.  The caller is expected to
+    run the warm-up sequence (10-step physics warmup + play timeline,
+    see ``marslab/main.py``) immediately before calling this helper.
     """
     drive_joint_names = list(control_cfg["drive_joint_names"])
     steer_joint_names = list(control_cfg["steer_joint_names"])

@@ -38,7 +38,6 @@ import numpy as np
 
 from marslab.config.schema.terrain import CaveConfig
 from marslab.terrain.cave._constants import (
-    DEBRIS_CONE_DIAMETER_RATIO,
     DEBRIS_CONE_EXCLUSION_RATIO,
     DEBRIS_CONE_MAX_OFFSET_RATIO,
     SKYLIGHT_SHAFT_SEG_MIN,
@@ -88,9 +87,9 @@ def generate_cave_mesh(seed: int, cfg: CaveConfig) -> dict:
     """
     rng = np.random.default_rng(seed)
     rows, cols = cfg.domain_size
-    domain_size = (rows, cols)
     resolution = cfg.resolution
     domain_m = (rows * resolution, cols * resolution)
+    geom = cfg.geometry
 
     tube_width_m = cfg.tube_width_m
     tube_height_ratio = cfg.tube_height_ratio
@@ -114,6 +113,10 @@ def generate_cave_mesh(seed: int, cfg: CaveConfig) -> dict:
         cfg.path_resolution,
         floor_z,
         rng,
+        path_length_factor=geom.centerline_path_length_factor,
+        freq_ratio_secondary=geom.centerline_freq_ratio_secondary,
+        secondary_amp_ratio=geom.centerline_secondary_amp_ratio,
+        amp_domain_ratio=geom.centerline_amp_domain_ratio,
     )
 
     # --- 2. Cross-section profiles ---
@@ -124,6 +127,7 @@ def generate_cave_mesh(seed: int, cfg: CaveConfig) -> dict:
         cfg.cross_section_noise,
         ring_resolution,
         rng,
+        smooth_sigma=geom.cross_section_smooth_sigma,
     )
 
     # --- 3. Tube shell (ceiling + walls) ---
@@ -136,6 +140,7 @@ def generate_cave_mesh(seed: int, cfg: CaveConfig) -> dict:
         ring_resolution,
         cfg.floor_flat_pct,
         rng,
+        debris_height_scale=geom.floor_debris_height_scale,
     )
 
     # --- 5. Skylight positions ---
@@ -144,7 +149,6 @@ def generate_cave_mesh(seed: int, cfg: CaveConfig) -> dict:
         cfg.skylight_count,
         skylight_diameter_m,
         domain_m,
-        rng,
     )
 
     # --- 6. Skylight shafts ---
@@ -167,7 +171,7 @@ def generate_cave_mesh(seed: int, cfg: CaveConfig) -> dict:
     # --- 7. Debris cones (random positions along tube, avoiding centerline) ---
     debris_cones = []
     if cfg.debris_cone_present and cfg.debris_cone_count > 0:
-        cone_diameter = tube_width_m * DEBRIS_CONE_DIAMETER_RATIO
+        cone_diameter = tube_width_m * geom.debris_cone_diameter_ratio
         exclusion_half = tube_width_m * DEBRIS_CONE_EXCLUSION_RATIO
         n_stations = len(centerline)
         station_indices = rng.choice(
@@ -201,12 +205,14 @@ def generate_cave_mesh(seed: int, cfg: CaveConfig) -> dict:
 
     # --- 8. Surface cap ---
     surface_mesh, surface_elevation = build_surface_cap(
-        domain_size,
+        (rows, cols),
         resolution,
         surface_z,
         skylight_positions,
         skylight_diameter_m,
         rng,
+        noise_sigma=geom.surface_noise_sigma,
+        noise_amplitude_m=geom.surface_noise_amplitude_m,
     )
 
     # --- 9. Breakdown block positions ---

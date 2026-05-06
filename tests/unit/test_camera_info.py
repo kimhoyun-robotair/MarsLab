@@ -271,22 +271,32 @@ class TestSchemaPublishCameraInfo:
 
 
 class TestResolvePublishCameraInfo:
-    """``sensor_graph._resolve_publish_camera_info`` reads the YAML knob."""
+    """``Ros2BridgeConfig.publish_camera_info`` is the canonical knob.
+
+    The orchestrator reads it via ``_resolve_ros2_bridge_options`` --
+    these tests exercise the same path the production code takes.
+    """
 
     def test_absent_key_returns_schema_default(self) -> None:
-        from marslab.ros2_bridge.sensor_graph import _resolve_publish_camera_info
+        from marslab.ros2_bridge.sensor_graph import _resolve_ros2_bridge_options
 
-        assert _resolve_publish_camera_info({"namespace": "rover"}) is True
+        assert bool(_resolve_ros2_bridge_options({"namespace": "rover"}).publish_camera_info) is True
 
     def test_explicit_true_returned(self) -> None:
-        from marslab.ros2_bridge.sensor_graph import _resolve_publish_camera_info
+        from marslab.ros2_bridge.sensor_graph import _resolve_ros2_bridge_options
 
-        assert _resolve_publish_camera_info({"publish_camera_info": True}) is True
+        assert (
+            bool(_resolve_ros2_bridge_options({"publish_camera_info": True}).publish_camera_info)
+            is True
+        )
 
     def test_explicit_false_returned(self) -> None:
-        from marslab.ros2_bridge.sensor_graph import _resolve_publish_camera_info
+        from marslab.ros2_bridge.sensor_graph import _resolve_ros2_bridge_options
 
-        assert _resolve_publish_camera_info({"publish_camera_info": False}) is False
+        assert (
+            bool(_resolve_ros2_bridge_options({"publish_camera_info": False}).publish_camera_info)
+            is False
+        )
 
 
 class TestBuildSensorGraphCameraInfoInvocation:

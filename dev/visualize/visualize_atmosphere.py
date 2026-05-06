@@ -40,7 +40,7 @@ OUTPUT_PNG = os.path.join(OUTPUT_DIR, "atmosphere_visualization.png")
 def main() -> None:
     """Generate atmosphere visualization plots."""
     cfg = load_and_validate("dev/configs/mars_env.yaml")
-    solar_constant = cfg.mars_env.solar_constant_mean
+    solar_constant = cfg.mars_env.solar_constant
     zenith = math.radians(90.0 - cfg.mars_env.sun_elevation_deg)
     tau_hi = cfg.mars_env.dust_opacity_range[1]
     taus = np.linspace(_PLOT_TAU_MIN, tau_hi, _PLOT_TAU_SAMPLES)

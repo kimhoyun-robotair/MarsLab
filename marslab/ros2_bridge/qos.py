@@ -1,9 +1,9 @@
-"""QoS profile adapter: pydantic ``QoSProfileConfig`` → ``rclpy.qos.QoSProfile``.
+"""QoS profile adapter: pydantic ``QoSProfileConfig`` -> ``rclpy.qos.QoSProfile``.
 
 Isolated in its own module so the rest of the bridge can stay
 Isaac-Sim-runtime-focused: the ``rclpy.qos`` imports live inside the
-function body and are therefore evaluated only when the Stage-3
-runtime actually spins up rclpy.  Unit tests that import
+function body and are therefore evaluated only when the runtime
+actually spins up rclpy.  Unit tests that import
 :mod:`marslab.ros2_bridge.qos` without rclpy on the PYTHONPATH will
 succeed at import time and fail only if they call
 :func:`to_rclpy_qos`.

@@ -107,31 +107,35 @@ class TestCmdVelQueueSizeValidation:
 
 
 class TestResolveGraphPath:
-    """``sensor_graph._resolve_graph_path`` is the shared validation entry."""
+    """``Ros2BridgeConfig.graph_path`` is the validated source of truth.
+
+    The orchestrator reads it via ``_resolve_ros2_bridge_options``;
+    these tests exercise the same path.
+    """
 
     def test_absent_key_returns_module_default(self) -> None:
-        from marslab.ros2_bridge.sensor_graph import GRAPH_PATH, _resolve_graph_path
+        from marslab.ros2_bridge.sensor_graph import GRAPH_PATH, _resolve_ros2_bridge_options
 
-        assert _resolve_graph_path({"namespace": "rover"}) == GRAPH_PATH
+        assert str(_resolve_ros2_bridge_options({"namespace": "rover"}).graph_path) == GRAPH_PATH
 
     def test_present_key_is_returned(self) -> None:
-        from marslab.ros2_bridge.sensor_graph import _resolve_graph_path
+        from marslab.ros2_bridge.sensor_graph import _resolve_ros2_bridge_options
 
-        result = _resolve_graph_path({"graph_path": "/Custom/Graph"})
+        result = str(_resolve_ros2_bridge_options({"graph_path": "/Custom/Graph"}).graph_path)
         assert result == "/Custom/Graph"
 
     def test_invalid_key_raises_via_schema(self) -> None:
         """A bad prim path surfaces the pydantic ``ValidationError``."""
-        from marslab.ros2_bridge.sensor_graph import _resolve_graph_path
+        from marslab.ros2_bridge.sensor_graph import _resolve_ros2_bridge_options
 
         with pytest.raises(ValidationError):
-            _resolve_graph_path({"graph_path": "no-leading-slash"})
+            _resolve_ros2_bridge_options({"graph_path": "no-leading-slash"})
 
     def test_empty_string_raises_via_schema(self) -> None:
-        from marslab.ros2_bridge.sensor_graph import _resolve_graph_path
+        from marslab.ros2_bridge.sensor_graph import _resolve_ros2_bridge_options
 
         with pytest.raises(ValidationError):
-            _resolve_graph_path({"graph_path": ""})
+            _resolve_ros2_bridge_options({"graph_path": ""})
 
 
 class TestPackageReexport:

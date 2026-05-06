@@ -43,13 +43,13 @@ def test_resolve_joint_position_targets_empty_dict() -> None:
 def test_resolve_joint_position_targets_missing_key_logs_warning(
     caplog,
 ) -> None:
-    """Unknown joint names are dropped with an ERROR log entry."""
+    """Unknown joint names are dropped with a WARNING log entry."""
     dof_names = ["joint_a", "joint_b"]
     initial = {"joint_a": 0.1, "joint_unknown": 0.4}
 
     target_logger = logging.getLogger("marslab.runtime.articulation_setup")
     target_logger.propagate = True
-    caplog.set_level(logging.ERROR, logger="marslab.runtime.articulation_setup")
+    caplog.set_level(logging.WARNING, logger="marslab.runtime.articulation_setup")
     indices, targets = _resolve_joint_position_targets(initial, dof_names)
 
     assert indices == [0]
@@ -92,14 +92,14 @@ def test_apply_initial_joint_positions_empty_is_noop() -> None:
 def test_apply_initial_joint_positions_runtime_error_logged(
     caplog,
 ) -> None:
-    """A PhysX side failure logs at ERROR but does not raise."""
+    """A PhysX side failure logs at WARNING (transient retry) but does not raise."""
     articulation = MagicMock()
     articulation.set_joint_positions.side_effect = RuntimeError("physx hiccup")
     control_cfg = {"initial_joint_positions": {"joint_a": 0.1}}
 
     target_logger = logging.getLogger("marslab.runtime.articulation_setup")
     target_logger.propagate = True
-    caplog.set_level(logging.ERROR, logger="marslab.runtime.articulation_setup")
+    caplog.set_level(logging.WARNING, logger="marslab.runtime.articulation_setup")
     apply_initial_joint_positions(articulation, ["joint_a"], control_cfg)
 
     assert any("physx hiccup" in rec.getMessage() for rec in caplog.records)

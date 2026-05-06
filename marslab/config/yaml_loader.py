@@ -20,6 +20,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+# Two ``..`` segments: this file lives at ``marslab/config/yaml_loader.py``;
+# parent of ``config/`` is ``marslab/`` and its parent is the repo root.
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 __all__ = ["REPO_ROOT", "deep_merge", "load_scenario_config", "read_yaml"]

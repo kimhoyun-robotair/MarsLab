@@ -6,7 +6,7 @@ so the ``mars_env.dynamic_atmosphere`` YAML block gets pydantic
 validation instead of untyped ``dict.get()`` parsing.
 """
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -108,7 +108,7 @@ class DynamicAtmosphereConfig(BaseModel):
     """Runtime sun sweep + tau profile for the dynamic atmosphere loop.
 
     Matches the ``mars_env.dynamic_atmosphere`` YAML block. Consumed by
-    the Stage-2 and Stage-3 runtimes. Every field defaults so existing
+    the ``marslab.main`` runtime. Every field defaults so existing
     scenario YAMLs that omit some keys continue to validate
     (backward-compat guarantee).
     """
@@ -244,26 +244,6 @@ class MarsEnvConfig(BaseModel):
         default_factory=DynamicAtmosphereConfig,
         description="Runtime sun sweep + tau profile. See ``DynamicAtmosphereConfig`` for fields.",
     )
-
-    @model_validator(mode="before")
-    @classmethod
-    def _accept_legacy_solar_constant_mean(cls, data: Any) -> Any:
-        """Map the legacy ``solar_constant_mean`` key onto ``solar_constant``.
-
-        The ``_mean`` suffix was misleading because no min/max companion
-        fields exist. Accept the legacy key for one release so existing
-        YAMLs keep loading; if both keys are present the new
-        ``solar_constant`` value wins.
-        """
-        if not isinstance(data, dict):
-            return data
-        if "solar_constant_mean" in data and "solar_constant" not in data:
-            data = dict(data)
-            data["solar_constant"] = data.pop("solar_constant_mean")
-        elif "solar_constant_mean" in data:
-            data = dict(data)
-            data.pop("solar_constant_mean", None)
-        return data
 
     @model_validator(mode="after")
     def check_ranges(self) -> "MarsEnvConfig":

@@ -2,8 +2,7 @@
 
 Re-exports ``load_scenario_config``, ``resolve_spawn_pose``, ``deep_merge``
 from the sibling modules so existing imports in scripts/tests keep
-working. New code should import from ``marslab.config.yaml_loader`` and
-``marslab.config.spawn_resolver`` directly.
+working.
 """
 
 from marslab.config.spawn_resolver import resolve_spawn_pose
