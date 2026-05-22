@@ -26,13 +26,8 @@ Notes:
     Rayleigh/molecular scattering and is unphysical even for a
     dust-free Mars atmosphere).
 
-    The historical name ``compute_diffuse_fraction`` is preserved as a
-    deprecated alias that delegates to
-    :func:`compute_diffuse_fraction_1d_approx` so existing callers keep
-    working. It will be removed in v2.0 when the 2-D model lands.
 """
 
-import warnings
 from typing import Optional
 
 import numpy as np
@@ -103,28 +98,3 @@ def compute_diffuse_fraction_1d_approx(
     return float(np.interp(tau, _COMIMART_1D_TABLE[:, 0], _COMIMART_1D_TABLE[:, 1]))
 
 
-# ---------------------------------------------------------------------------
-# Deprecated alias — retained so existing callers continue to work.
-# Remove in v2.0 once the full 2-D COMIMART model is in place.
-# ---------------------------------------------------------------------------
-def compute_diffuse_fraction(tau: float) -> float:
-    """Deprecated alias for :func:`compute_diffuse_fraction_1d_approx`.
-
-    Kept for backward compatibility with existing call sites
-    (``runtime.stage2_boot``, etc.). New code should call
-    :func:`compute_diffuse_fraction_1d_approx` directly and, when the
-    v2.0 2-D model lands, pass ``zenith_rad`` as well.
-
-    Args:
-        tau: Dust optical depth (dimensionless, >= 0).
-
-    Returns:
-        Fraction of total irradiance arriving as diffuse light in [0, 1].
-    """
-    warnings.warn(
-        "compute_diffuse_fraction is deprecated; use "
-        "compute_diffuse_fraction_1d_approx (see module docstring).",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return compute_diffuse_fraction_1d_approx(tau)

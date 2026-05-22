@@ -227,8 +227,7 @@ class MarsEnvConfig(BaseModel):
     # Physics integration tick. Not a Mars constant -- the engine step
     # size -- but grouped here so every environmental scalar flows
     # through a single pydantic model rather than duplicated ``1.0/60.0``
-    # literals in :mod:`marslab.runtime.stage2_scene` and
-    # :mod:`marslab.runtime.main_loop`.
+    # literals in :mod:`marslab.runtime.main_loop`.
     physics_dt: float = Field(
         default=1.0 / 60.0,
         gt=0.0,

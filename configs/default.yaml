@@ -1,0 +1,53 @@
+# Canonical MarsLab scenario config.
+# Experiment variants use CLI overrides (--sun-azimuth-deg, --sun-elevation-deg).
+#
+# This file replaces the six ship-with scenario YAMLs (jezero_flat,
+# jezero_crater, jezero_rocks, cerberus_canyon, cerberus_canyon_easy,
+# spacecraft_landing) and their shared _base.yaml include fragment.
+# Terrain and scene blocks are absent because MarsLab v1.0 consumes
+# pre-built external USDA terrain files; those blocks are no longer
+# authored here.
+#
+# Usage:
+#   marslab/isaac_python.sh marslab/main.py --usda <usda_path>
+#   marslab/isaac_python.sh marslab/main.py --usda <usda_path> \
+#       --sun-azimuth-deg 135 --sun-elevation-deg 40
+
+mars_env:
+  gravity: 3.72
+  atmo_pressure: 610
+  atmo_density: 0.020
+  dust_optical_depth: 0.3
+  solar_constant: 589
+  surface_albedo_range: [0.10, 0.40]
+  surface_temp_mean: -60
+  sol_duration_seconds: 88642
+  dust_opacity_range: [0.5, 2.0]
+  sun_azimuth_deg: 180
+  sun_elevation_deg: 45
+  seed: 42
+  dynamic_atmosphere:
+    enabled: true
+    time_scale: 200.0
+    sun_sweep:
+      start_azimuth_deg: 90
+      end_azimuth_deg: 270
+      max_elevation_deg: 60
+    tau_profile: "constant"
+    tau_constant:
+      base_tau: 0.3
+    update_interval_frames: 10
+
+rendering:
+  mode: "ray_tracing"
+  sky_dome_hdri_dir: "assets/mars_sky/"
+  resolution: [1920, 1080]
+  sun_intensity_scale: 30.0
+  sun_color: [1.0, 0.95, 0.85]
+  sun_angular_diameter_deg: 0.35
+  dome_brightness_scale: 5000.0
+  fog_density_scale: 0.002
+  fog_color: [0.78, 0.62, 0.42]
+  spp: 32
+  total_spp: 256
+  max_bounces: 6

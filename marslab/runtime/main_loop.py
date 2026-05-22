@@ -390,13 +390,13 @@ def build_atmosphere_loop_state(
     """Factory: derive :class:`AtmosphereLoopState` from a boot snapshot.
 
     Collapses the boilerplate Stage-3 callers used to write inline to
-    wire every ``DynamicAtmosphereConfig`` + ``StageTwoAtmosphereInit``
+    wire every ``DynamicAtmosphereConfig`` + ``AtmosphereInit``
     field into a mutable loop state.  Keeps
     ``marslab/main.py`` focused on Stage-3 orchestration.
 
     Args:
-        atmo_init: :class:`marslab.runtime.stage2_boot.StageTwoAtmosphereInit`
-            produced by :func:`run_stage2_boot`.
+        atmo_init: :class:`marslab.runtime.atmosphere_boot.AtmosphereInit`
+            produced by :func:`boot_atmosphere`.
         tau: Initial dust optical depth value (mirrored into the live
             ``atmosphere_dict`` so the GUI panel sees it on startup).
 

@@ -3,13 +3,8 @@
 import numpy as np
 import pytest
 
-from marslab.ros2_bridge.odometry_math import (
-    compute_odom_delta,
-    quat_inverse,
-    quat_multiply,
-    quat_rotate_vec,
-    world_twist_to_body,
-)
+from marslab.quaternion import quat_inverse, quat_multiply, quat_rotate_vec
+from marslab.ros2_bridge.odometry_math import compute_odom_delta, world_twist_to_body
 
 IDENTITY = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
 

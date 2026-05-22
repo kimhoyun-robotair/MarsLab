@@ -39,25 +39,10 @@ from marslab.config.schema.robot import (
 )
 from marslab.config.schema.root import MarsLabConfig
 from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
-from marslab.config.schema.scene import (
-    SceneConfig,
-    StructureAssetConfig,
-    StructureConfigSchema,
-)
-from marslab.config.schema.terrain import (
-    CaveConfig,
-    CaveGeometryConfig,
-    DemCropConfig,
-    ProceduralCanyonConfig,
-    TerrainConfig,
-)
 
 __all__ = [
     "CameraConfig",
-    "CaveConfig",
-    "CaveGeometryConfig",
     "ChassisConfig",
-    "DemCropConfig",
     "DepthSensorConfig",
     "DynamicAtmosphereConfig",
     "FogConfig",
@@ -69,23 +54,18 @@ __all__ = [
     "OdomPublisherConfig",
     "OdometryCovarianceConfig",
     "PathTracingConfig",
-    "ProceduralCanyonConfig",
     "QoSProfileConfig",
     "RayTracingConfig",
     "RenderingConfig",
     "RobotConfig",
     "Ros2BridgeConfig",
-    "SceneConfig",
     "SensorsConfig",
     "SkidSteerDriveConfig",
     "SkyDomeConfig",
-    "StructureAssetConfig",
-    "StructureConfigSchema",
     "SunSweepConfig",
     "SuspensionConfig",
     "TauConstantConfig",
     "TauRampConfig",
     "TauSineConfig",
-    "TerrainConfig",
     "WheelsConfig",
 ]

@@ -35,7 +35,7 @@ __all__ = [
 # ``extra="forbid"`` is attached to every robot-schema BaseModel.  See
 # ``marslab/config/schema/mars_env.py`` for the global rationale.  A
 # typo like ``wheel_radious`` (sic) in a rover YAML would otherwise
-# persist through ``load_and_validate`` because pydantic v2 defaults to
+# persist through scenario YAML loading because pydantic v2 defaults to
 # ``extra="ignore"`` -- PhysX would then receive whatever Python literal
 # the runtime happened to fall back to.
 
@@ -127,7 +127,7 @@ class OdomPublisherConfig(BaseModel):
 # them via ``UsdPhysics.MassAPI`` (chassis/wheel mass + diagonal inertia
 # tensor) and ``UsdPhysics.MaterialAPI`` (wheel friction).  Default
 # values are M2020 Perseverance ballpark (NOT exact) -- see
-# ``configs/robots/rover_m2020.yaml`` inline comments for citations.
+# ``configs/rover_m2020.yaml`` inline comments for citations.
 # Override these defaults when configuring a different rover.
 
 
@@ -364,7 +364,7 @@ class SkidSteerDriveConfig(BaseModel):
         default=0.70, gt=0.0, description="Distance between left/right wheel centers (m)"
     )
     # The field names ``max_linear_velocity`` / ``max_angular_velocity``
-    # match the YAML keys declared in ``configs/robots/rover_m2020.yaml``
+    # match the YAML keys declared in ``configs/rover_m2020.yaml``
     # so a future ``SkidSteerDriveConfig.model_validate(control_cfg)``
     # call does not silently drop the speed clamps to the historical
     # ``max_linear_vel`` / ``max_angular_vel`` aliases.
@@ -401,7 +401,7 @@ class SkidSteerDriveConfig(BaseModel):
         gt=0.0,
         description=(
             "PhysX angular DriveAPI damping for velocity-mode wheel joints. "
-            "Matches ``control.drive_damping`` in ``configs/robots/rover_m2020.yaml`` "
+            "Matches ``control.drive_damping`` in ``configs/rover_m2020.yaml`` "
             "(currently 1000.0 for the M2020 rover). Required; no Python fallback."
         ),
     )
@@ -410,7 +410,7 @@ class SkidSteerDriveConfig(BaseModel):
         gt=0.0,
         description=(
             "PhysX angular DriveAPI stiffness for position-mode steering joints. "
-            "Matches ``control.steer_stiffness`` in ``configs/robots/rover_m2020.yaml`` "
+            "Matches ``control.steer_stiffness`` in ``configs/rover_m2020.yaml`` "
             "(currently 50000.0 for the M2020 rover). Required."
         ),
     )
@@ -419,7 +419,7 @@ class SkidSteerDriveConfig(BaseModel):
         gt=0.0,
         description=(
             "PhysX angular DriveAPI damping for position-mode steering joints. "
-            "Matches ``control.steer_damping`` in ``configs/robots/rover_m2020.yaml`` "
+            "Matches ``control.steer_damping`` in ``configs/rover_m2020.yaml`` "
             "(currently 5000.0 for the M2020 rover). Required."
         ),
     )
@@ -506,7 +506,7 @@ class SkidSteerDriveConfig(BaseModel):
 #
 # Every numeric sensor parameter (range, FOV, scan rate, USD profile)
 # flows through pydantic.  Without these schemas,
-# ``configs/robots/rover_m2020.yaml`` would reference Isaac Sim bundled
+# ``configs/rover_m2020.yaml`` would reference Isaac Sim bundled
 # profile *names* only (``"Example_Rotary"``) while the numeric content
 # of those profiles (range_min, horizontal_fov_deg, ...) sat hidden
 # inside Isaac Sim's JSON files -- un-discoverable from the MarsLab repo
@@ -912,7 +912,7 @@ class Lidar3DConfig(_LidarBaseConfig):
     """3D rotary LiDAR (Velodyne / Ouster style) configuration.
 
     Adds vertical FOV + vertical angular resolution to the shared base.
-    The default values in ``configs/robots/rover_m2020.yaml`` mirror
+    The default values in ``configs/rover_m2020.yaml`` mirror
     Isaac Sim's ``Example_Rotary`` JSON profile (16-beam, 30 deg
     vertical FOV, 1.875 deg vertical step) so migrating from name-only
     to fully-declared YAML is behaviour-preserving.
@@ -974,7 +974,7 @@ class IMUConfig(BaseModel):
 
     The IMU does NOT carry any range / sample-rate fields here -- its
     publish rate is driven by ``ros2.rates.imu`` (see
-    ``configs/robots/rover_m2020.yaml``) which is also the IMUSensor's
+    ``configs/rover_m2020.yaml``) which is also the IMUSensor's
     ``frequency`` parameter.  Keeping those two values in one place
     avoids the Mars-gravity drift that surfaces when the schema and the
     runtime defaults disagree.
@@ -1003,7 +1003,7 @@ class IMUConfig(BaseModel):
 class SensorsConfig(BaseModel):
     """Aggregate of camera + 3D LiDAR + 2D LiDAR + IMU sensor configs.
 
-    Mirrors the ``sensors:`` block in ``configs/robots/rover_m2020.yaml``.
+    Mirrors the ``sensors:`` block in ``configs/rover_m2020.yaml``.
     ``lidar_2d`` is optional because some scenarios (e.g. the spacecraft
     landing scene where the 2D scan is replaced by a different sensor) may
     legitimately omit it; the runtime guards on ``sensors_cfg.get("lidar_2d")``

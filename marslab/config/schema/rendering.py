@@ -191,7 +191,7 @@ class RenderingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     mode: Literal["path_tracing", "ray_tracing"] = Field(default="path_tracing")
-    sky_dome_hdri_dir: str = Field(default="assets/mars_assets/mars_sky/")
+    sky_dome_hdri_dir: str = Field(default="assets/mars_sky/")
     resolution: list[int] = Field(
         default=[1280, 720], min_length=2, max_length=2, description="[width, height] in pixels"
     )

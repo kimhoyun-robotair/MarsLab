@@ -1,60 +1,62 @@
-"""Unit tests for marslab.config.loader.load_and_validate."""
-
-from pathlib import Path
+"""Unit tests for marslab.config.loader.propagate_seeds_in_dict."""
 
 import pytest
-import yaml
 
-from marslab.config.loader import load_and_validate
-from marslab.config.schema import MarsLabConfig
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from marslab.config.loader import propagate_seeds_in_dict
 
 
-def test_load_and_validate_scenario_with_base_config():
-    """jezero_flat.yaml carries rover.base_config; mars_env/terrain/rendering validate."""
-    path = REPO_ROOT / "configs" / "scenarios" / "jezero_flat.yaml"
-    config = load_and_validate(str(path))
-    assert isinstance(config, MarsLabConfig)
-    assert config.mars_env.gravity == pytest.approx(3.72)
+def test_propagates_seed_from_mars_env() -> None:
+    """terrain.seed = mars_env.seed + 1 when both blocks present."""
+    cfg = {
+        "mars_env": {"seed": 10},
+        "terrain": {"source": "procedural"},
+    }
+    out = propagate_seeds_in_dict(cfg)
+    assert out["mars_env"]["seed"] == 10
+    assert out["terrain"]["seed"] == 11
 
 
-def test_load_and_validate_flat_yaml(tmp_path):
-    """A flat YAML with no ``base_config`` loads directly."""
-    flat = tmp_path / "minimal_flat.yaml"
-    flat.write_text(
-        yaml.safe_dump(
-            {
-                "mars_env": {"seed": 42},
-                "terrain": {
-                    "source": "procedural",
-                    "procedural_preset": "crater",
-                    "terrain_size": [256, 256],
-                    "terrain_resolution": 1.0,
-                },
-                "rendering": {"mode": "ray_tracing"},
-            }
-        )
-    )
-    config = load_and_validate(str(flat))
-    assert isinstance(config, MarsLabConfig)
+def test_master_seed_override() -> None:
+    """master_seed kwarg overrides mars_env.seed."""
+    cfg = {"mars_env": {"seed": 10}, "terrain": {"source": "procedural"}}
+    out = propagate_seeds_in_dict(cfg, master_seed=99)
+    assert out["mars_env"]["seed"] == 99
+    assert out["terrain"]["seed"] == 100
 
 
-def test_load_and_validate_auto_seed_propagation():
-    """propagate_seeds is called automatically; terrain.seed == mars_env.seed + 1."""
-    path = REPO_ROOT / "configs" / "scenarios" / "jezero_flat.yaml"
-    config = load_and_validate(str(path))
-    assert config.terrain.seed == config.mars_env.seed + 1
+def test_default_seed_when_absent() -> None:
+    """Missing mars_env.seed defaults to 42."""
+    cfg = {"mars_env": {}, "terrain": {}}
+    out = propagate_seeds_in_dict(cfg)
+    assert out["mars_env"]["seed"] == 42
+    assert out["terrain"]["seed"] == 43
 
 
-def test_load_and_validate_missing_file():
-    with pytest.raises(FileNotFoundError):
-        load_and_validate("/does/not/exist.yaml")
+def test_missing_blocks_noop() -> None:
+    """Missing mars_env or terrain block leaves cfg untouched."""
+    cfg = {"mars_env": {"seed": 5}}
+    out = propagate_seeds_in_dict(cfg)
+    assert "terrain" not in out
+    # When terrain is absent, mars_env.seed is also not mutated
+    assert out["mars_env"]["seed"] == 5
 
 
-def test_load_and_validate_missing_base(tmp_path):
-    """Top-level base_config pointing to a non-existent file raises FileNotFoundError."""
-    bad = tmp_path / "bad.yaml"
-    bad.write_text(yaml.safe_dump({"base_config": "./missing.yaml"}))
-    with pytest.raises(FileNotFoundError):
-        load_and_validate(str(bad))
+def test_bool_seed_rejected() -> None:
+    """bool is an int subclass; must be rejected explicitly."""
+    cfg = {"mars_env": {"seed": True}, "terrain": {}}
+    with pytest.raises(TypeError, match="seed must be int"):
+        propagate_seeds_in_dict(cfg)
+
+
+def test_negative_seed_rejected() -> None:
+    """Negative seeds violate deterministic reproducibility."""
+    cfg = {"mars_env": {"seed": -1}, "terrain": {}}
+    with pytest.raises(ValueError, match="seed must be >= 0"):
+        propagate_seeds_in_dict(cfg)
+
+
+def test_string_seed_rejected() -> None:
+    """Non-int seed must be rejected with TypeError."""
+    cfg = {"mars_env": {"seed": "42"}, "terrain": {}}
+    with pytest.raises(TypeError, match="seed must be int"):
+        propagate_seeds_in_dict(cfg)

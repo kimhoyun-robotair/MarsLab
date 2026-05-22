@@ -59,7 +59,7 @@ def _sanitize_urdf_for_robot_state_publisher(urdf_text: str) -> str:
       surfacing as ``"No transform from [Body_MHS_DebrisShield] to
       [Body_Chassis]"``.
 
-    The fix is the same one ``tools/convert_urdf_to_usd.py``
+    The fix is the same one ``marslab/convert_urdf_to_usd.py``
     already applies on the USD side (``_DEBRIS_SHIELD_RE`` at
     ``:66`` flips floating -> fixed; ``sanitize_urdf`` at
     ``:69-146`` strips ``JointRoot`` + ``ground`` outright).  This
@@ -153,7 +153,7 @@ def _launch_setup(context, *args, **kwargs) -> list:
         # frames are REP-103 aligned (+X forward, +Y left, +Z up) end-to-end.
         # The rover prim spawns with identity orientation
         # (``spawn_orientation_rpy: [0.0, 0.0, 0.0]`` in
-        # ``configs/robots/rover_m2020.yaml``) and no X-roll compensation is
+        # ``configs/rover_m2020.yaml``) and no X-roll compensation is
         # applied anywhere in the chain.  ``odom -> base_link`` is therefore
         # an identity-rotation broadcast (translation = PhysX articulation
         # root pose), and this connector is also identity so

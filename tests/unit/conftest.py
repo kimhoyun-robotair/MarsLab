@@ -9,6 +9,31 @@ import numpy as np
 import pytest
 
 # ---------------------------------------------------------------------------
+# Pytest collection exclusions
+#
+# These two suites became obsolete with the v1.0 USDA-external refactor:
+#
+# * ``test_terrain_schema.py`` exercises the retired ``TerrainConfig``
+#   / ``CaveConfig`` / ``DemCropConfig`` / ``ProceduralCanyonConfig``
+#   schemas that no longer compose into ``MarsLabConfig``. The schema
+#   module files survive until the user runs the pending ``git mv``
+#   batch but are no longer exported from ``marslab.config.schema``.
+# * ``test_atmosphere_schema.py`` covers ``DynamicAtmosphereConfig``
+#   plus a YAML-roundtrip test that constructs ``MarsLabConfig`` with a
+#   ``terrain`` block; both responsibilities were absorbed into
+#   ``test_config_schema.py`` (atmosphere defaults / bounds / immutability
+#   / yaml roundtrip without terrain block).
+#
+# Excluding them from collection keeps the suite green until the user
+# moves the files to ``delete_later/`` in the next git batch.
+# ---------------------------------------------------------------------------
+
+collect_ignore = [
+    "test_terrain_schema.py",
+    "test_atmosphere_schema.py",
+]
+
+# ---------------------------------------------------------------------------
 # Deterministic RNG (shared by every cave_* test module)
 # ---------------------------------------------------------------------------
 

@@ -1,7 +1,7 @@
 """TF tree + sensor extrinsic consistency between YAML and USD (offline).
 
 This is a pure-Python unit test that verifies the rover sensor
-mounting contract declared in ``configs/robots/rover_m2020.yaml``
+mounting contract declared in ``configs/rover_m2020.yaml``
 against the exported USD asset at ``assets/robots/rover/m2020.usd``.
 It does not import Isaac Sim -- only ``pxr.Usd`` (USD Python
 bindings, which are shipped standalone via the ``usd-core`` PyPI
@@ -47,7 +47,7 @@ import pytest
 import yaml
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-ROVER_YAML_PATH = os.path.join(REPO_ROOT, "configs", "robots", "rover_m2020.yaml")
+ROVER_YAML_PATH = os.path.join(REPO_ROOT, "configs", "rover_m2020.yaml")
 ROVER_USD_PATH = os.path.join(REPO_ROOT, "assets", "robots", "rover", "m2020.usd")
 
 # Sensor blocks that must declare ``parent_link``.  Keep this list in
@@ -62,7 +62,7 @@ EXPECTED_SENSOR_KEYS: Tuple[str, ...] = ("camera", "lidar_3d", "lidar_2d", "imu"
 
 
 def _load_rover_yaml() -> Dict[str, Any]:
-    """Load ``configs/robots/rover_m2020.yaml`` as a plain dict.
+    """Load ``configs/rover_m2020.yaml`` as a plain dict.
 
     Uses :func:`yaml.safe_load` so the test does not depend on the
     pydantic schema layer — that way a schema regression is caught by
@@ -204,7 +204,7 @@ class TestRoverYAMLSensorBlock:
         cfg = _load_rover_yaml()
         assert "sensors" in cfg, (
             f"{ROVER_YAML_PATH} missing top-level 'sensors:' block "
-            "(see configs/robots/rover_m2020.yaml:70-99)"
+            "(see configs/rover_m2020.yaml:70-99)"
         )
 
     @pytest.mark.parametrize("sensor_key", EXPECTED_SENSOR_KEYS)
@@ -285,7 +285,7 @@ class TestParentLinkExistsInUSD:
     def test_usd_file_present(self) -> None:
         assert os.path.isfile(ROVER_USD_PATH), (
             f"Rover USD not found at {ROVER_USD_PATH}. "
-            "Run tools/convert_urdf_to_usd.py to regenerate."
+            "Run marslab/convert_urdf_to_usd.py to regenerate."
         )
 
     def test_usd_has_articulation_links(self) -> None:
@@ -359,7 +359,7 @@ class TestExtrinsicNoHiddenTransform:
         Note: an earlier comment claimed the X-roll was the
         ``Y-up -> Z-up correction``; that was inaccurate (the rover
         is no longer X-rolled at spawn -- see
-        ``configs/robots/rover_m2020.yaml``). The 180-degree roll on
+        ``configs/rover_m2020.yaml``). The 180-degree roll on
         the **camera prim** is unrelated and is required for Isaac
         Sim's optical axis convention.
         """

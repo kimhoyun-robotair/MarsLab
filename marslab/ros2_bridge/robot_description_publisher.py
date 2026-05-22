@@ -273,7 +273,7 @@ def publish_robot_description(
     Raises:
         FileNotFoundError: When ``urdf_path`` does not exist.  The
             absolute path is included in the message so a typo in
-            ``configs/robots/rover_m2020.yaml`` surfaces immediately.
+            ``configs/rover_m2020.yaml`` surfaces immediately.
     """
     from std_msgs.msg import (
         String,

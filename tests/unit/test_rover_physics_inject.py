@@ -2,7 +2,7 @@
 
 Three layers of evidence:
 
-1. **YAML -> pydantic propagation.** ``configs/robots/rover_m2020.yaml``
+1. **YAML -> pydantic propagation.** ``configs/rover_m2020.yaml``
    parses cleanly into the ``ChassisConfig`` / ``WheelsConfig`` /
    ``SuspensionConfig`` models declared in
    ``marslab.config.schema.robot``. Field-by-field equality check.
@@ -18,7 +18,7 @@ Three layers of evidence:
    import.
 
 Every numeric assertion is sourced from
-``configs/robots/rover_m2020.yaml`` ``chassis:`` / ``wheels:`` /
+``configs/rover_m2020.yaml`` ``chassis:`` / ``wheels:`` /
 ``suspension:`` blocks -- the test is data-driven, not hardcoded.
 A YAML edit auto-flows into the assertions.
 """
@@ -39,7 +39,7 @@ from marslab.config.schema.robot import (
 )
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-ROVER_YAML_PATH = os.path.join(REPO_ROOT, "configs", "robots", "rover_m2020.yaml")
+ROVER_YAML_PATH = os.path.join(REPO_ROOT, "configs", "rover_m2020.yaml")
 
 
 # --- Fixtures ---------------------------------------------------------------

@@ -172,7 +172,7 @@ class TestRoverYamlRoundTrip:
 
         from marslab.config.schema.robot import CameraConfig
 
-        with open("configs/robots/rover_m2020.yaml") as fp:
+        with open("configs/rover_m2020.yaml") as fp:
             rover_yaml = yaml.safe_load(fp)
 
         camera_block = rover_yaml["sensors"]["camera"]

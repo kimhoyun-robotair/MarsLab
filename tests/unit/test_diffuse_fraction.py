@@ -7,10 +7,7 @@ acceptance bands and the Rayleigh-floor regression bounds.
 
 import pytest
 
-from marslab.environment.diffuse_fraction import (
-    compute_diffuse_fraction,
-    compute_diffuse_fraction_1d_approx,
-)
+from marslab.environment.diffuse_fraction import compute_diffuse_fraction_1d_approx
 
 
 def test_tau_0_3_range():
@@ -100,17 +97,6 @@ def test_diffuse_fraction_saturates_at_high_tau():
     for tau in [3.0, 4.0, 5.0, 6.0]:
         df = compute_diffuse_fraction_1d_approx(tau)
         assert df >= 0.80, f"tau={tau}: expected >= 0.80, got {df}"
-
-
-# ---------------------------------------------------------------------------
-# Backward-compat alias
-# ---------------------------------------------------------------------------
-
-
-def test_deprecated_alias_matches_new_function():
-    """``compute_diffuse_fraction`` must delegate to the 1-D approx fn."""
-    for tau in [0.0, 0.3, 1.0, 2.0, 4.0]:
-        assert compute_diffuse_fraction(tau) == compute_diffuse_fraction_1d_approx(tau)
 
 
 def test_zenith_hook_is_accepted_but_ignored():

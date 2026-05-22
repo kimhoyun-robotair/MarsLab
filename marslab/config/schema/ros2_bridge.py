@@ -13,7 +13,7 @@ defaults inside the ROS2 bridge are surfaced here as pydantic fields on
   The caller (rclpy_integration) never overrode it, so a noisy
   upstream controller could not back-pressure through YAML.
 
-Both are declared here.  ``configs/robots/rover_m2020.yaml``
+Both are declared here.  ``configs/rover_m2020.yaml``
 (``rover.ros2`` block) gains an optional ``graph_path`` +
 ``cmd_vel_queue_size`` pair.  Absent values fall back to the
 historical constants via the pydantic defaults so existing scenarios

@@ -39,13 +39,21 @@ class TestAckermannCommand:
 
     def test_negative_geometry_raises(self) -> None:
         with pytest.raises(ValueError, match="wheelbase"):
-            ackermann_command(1.0, 0.0, wheelbase=0.0, track_steer=1.0, track_middle=1.0, wheel_radius=0.25)
+            ackermann_command(
+                1.0, 0.0, wheelbase=0.0, track_steer=1.0, track_middle=1.0, wheel_radius=0.25
+            )
         with pytest.raises(ValueError, match="track_steer"):
-            ackermann_command(1.0, 0.0, wheelbase=2.0, track_steer=0.0, track_middle=1.0, wheel_radius=0.25)
+            ackermann_command(
+                1.0, 0.0, wheelbase=2.0, track_steer=0.0, track_middle=1.0, wheel_radius=0.25
+            )
         with pytest.raises(ValueError, match="track_middle"):
-            ackermann_command(1.0, 0.0, wheelbase=2.0, track_steer=1.0, track_middle=0.0, wheel_radius=0.25)
+            ackermann_command(
+                1.0, 0.0, wheelbase=2.0, track_steer=1.0, track_middle=0.0, wheel_radius=0.25
+            )
         with pytest.raises(ValueError, match="wheel_radius"):
-            ackermann_command(1.0, 0.0, wheelbase=2.0, track_steer=1.0, track_middle=1.0, wheel_radius=0.0)
+            ackermann_command(
+                1.0, 0.0, wheelbase=2.0, track_steer=1.0, track_middle=1.0, wheel_radius=0.0
+            )
 
     def test_dtype_float32(self, geometry: dict) -> None:
         steer, vel = ackermann_command(v=0.5, w=0.2, **geometry)

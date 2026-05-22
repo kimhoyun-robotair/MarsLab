@@ -11,8 +11,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from marslab.config.schema.mars_env import MarsEnvConfig
 from marslab.config.schema.rendering import RenderingConfig
 from marslab.config.schema.robot import RobotConfig
-from marslab.config.schema.scene import SceneConfig
-from marslab.config.schema.terrain import TerrainConfig
 
 __all__ = ["MarsLabConfig"]
 
@@ -22,15 +20,13 @@ __all__ = ["MarsLabConfig"]
 # default ``extra="ignore"`` would otherwise silently drop:
 #
 # * ``rover:`` -- scenario YAMLs declare per-scenario rover tuning under
-#   this key.  ``load_and_validate`` merges the scenario with the robot
-#   base_config and the result STILL sits under ``rover:``.  The runtime
-#   (``marslab.runtime.*``) reads the raw dict alongside ``MarsLabConfig``
-#   so keeping ``rover`` strictly-typed in schema would be premature.
-#   It is therefore accepted as an opaque dict and preserved verbatim
-#   on the model.
-# * ``base_config:`` -- ``marslab.config.loader.load_and_validate`` pops
-#   this before calling the constructor.  A belt-and-suspenders pop here
-#   covers direct ``MarsLabConfig(**yaml)`` call sites.
+#   this key. The runtime (``marslab.runtime.*``) reads the raw dict
+#   alongside ``MarsLabConfig`` so keeping ``rover`` strictly-typed in
+#   schema would be premature. It is therefore accepted as an opaque
+#   dict and preserved verbatim on the model.
+# * ``base_config:`` -- legacy YAML include key; popped by
+#   ``_strip_base_config_key`` below so direct ``MarsLabConfig(**yaml)``
+#   call sites are tolerant.
 #
 # Every other unknown key at the root now fails with ValidationError,
 # so typos like ``mars_envs:`` or ``rendering:`` misspelled as
@@ -38,21 +34,21 @@ __all__ = ["MarsLabConfig"]
 
 
 class MarsLabConfig(BaseModel):
-    """Top-level MarsLab configuration aggregating all sub-configs.
+    """Top-level MarsLab configuration aggregating runtime sub-configs.
 
-    The ``scene`` block carries the spacecraft / Mars base structures.
-    Default is an empty :class:`SceneConfig` so every scenario YAML that
-    omits the block (jezero_flat, cerberus_canyon, cave_lava_tube, ...)
-    continues to validate without change.
+    The v1.0 passthrough pipeline consumes pre-built external USDA terrain
+    files from MarsLab-Utils and does not author terrain or scene structures
+    internally, so the root model now composes only ``mars_env`` + ``robots``
+    + ``rendering`` + an opaque ``rover`` block. Legacy ``terrain`` and
+    ``scene`` blocks in scenario YAMLs were retired with the rest of the
+    in-repo authoring stack.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     mars_env: MarsEnvConfig = Field(default_factory=MarsEnvConfig)
-    terrain: TerrainConfig = Field(default_factory=TerrainConfig)
     robots: list[RobotConfig] = Field(default_factory=list)
     rendering: RenderingConfig = Field(default_factory=RenderingConfig)
-    scene: SceneConfig = Field(default_factory=SceneConfig)
     # ``rover`` is accepted as an opaque dict because strictly typing it
     # would cascade into a deep refactor of the scenario loader and the
     # runtime.  ``dict`` keeps forbid happy while preserving the block
@@ -61,7 +57,7 @@ class MarsLabConfig(BaseModel):
         default=None,
         description=(
             "Per-scenario rover tuning deep-merged from "
-            "``configs/robots/rover_m2020.yaml`` via the scenario loader. "
+            "``configs/rover_m2020.yaml`` via the scenario loader. "
             "Consumed by the runtime as an untyped dict; promoting this "
             "to a strict schema is a follow-up because the rover subtree "
             "is the most complex YAML block.  Partial schema validation "
@@ -75,9 +71,8 @@ class MarsLabConfig(BaseModel):
     def _strip_base_config_key(cls, data: Any) -> Any:
         """Drop the top-level ``base_config`` key if it slipped through.
 
-        ``load_and_validate`` already pops ``base_config`` before
-        calling this constructor, but direct ``MarsLabConfig(**yaml)``
-        call sites (tests, visualizers) do not.  Popping here keeps
+        Direct ``MarsLabConfig(**yaml)`` call sites (tests, visualizers)
+        may carry a stray ``base_config:`` key. Popping here keeps
         those paths tolerant without weakening ``extra="forbid"`` for
         typos elsewhere at the root.
         """

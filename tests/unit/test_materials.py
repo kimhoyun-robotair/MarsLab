@@ -30,22 +30,3 @@ def test_albedo_inverted_range_raises():
         MarsEnvConfig(surface_albedo_range=(0.5, 0.1))
 
 
-def test_mars_regolith_color_derivation():
-    """Albedo-derived color is reddish-brown (R > G > B)."""
-    import numpy as np
-
-    albedo = 0.25  # mid-range
-    color = np.array([albedo * 2.5, albedo * 1.8, albedo * 1.2])
-    color = np.clip(color, 0.0, 1.0)
-    assert color[0] > color[1] > color[2]  # R > G > B
-    assert all(0.0 <= c <= 1.0 for c in color)
-
-
-def test_albedo_boundary_colors():
-    """Colors at boundary albedo values are still valid."""
-    import numpy as np
-
-    for albedo in [0.10, 0.40]:
-        color = np.array([albedo * 2.5, albedo * 1.8, albedo * 1.2])
-        color = np.clip(color, 0.0, 1.0)
-        assert all(0.0 <= c <= 1.0 for c in color)

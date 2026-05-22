@@ -357,15 +357,6 @@ class SensorHandles:
             return np.empty((0, 3), dtype=np.float32)
         return np.array(pc, dtype=np.float32).reshape(-1, 3)
 
-    def read_lidar_2d_point_cloud(self) -> np.ndarray:
-        """Read the 2D LaserScan LiDAR point cloud (empty if unavailable)."""
-        if self.lidar_2d is None:
-            return np.empty((0, 3), dtype=np.float32)
-        pc = self.lidar_2d.get_point_cloud()
-        if pc is None or len(pc) == 0:
-            return np.empty((0, 3), dtype=np.float32)
-        return np.array(pc, dtype=np.float32).reshape(-1, 3)
-
     def read_imu(self) -> dict:
         """Read current IMU sensor data.
 

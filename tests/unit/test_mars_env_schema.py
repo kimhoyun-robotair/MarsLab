@@ -94,9 +94,7 @@ class TestYamlRoundtrip:
 
     def test_mars_env_embedded_in_marslab_config_roundtrip(self) -> None:
         """Round-trip through the root aggregator must not drop fields."""
-        cfg = MarsLabConfig(
-            terrain={"source": "procedural", "procedural_preset": "flat"},
-        )
+        cfg = MarsLabConfig()
         data = cfg.model_dump()
         yaml_blob = yaml.safe_dump(data)
         rebuilt = MarsLabConfig(**yaml_safe_load_non_none(yaml_blob))

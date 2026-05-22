@@ -6,6 +6,7 @@
 *.pem
 credentials.json
 secrets.json
+.omc/
 
 # Python
 __pycache__/
@@ -51,6 +52,7 @@ tmp/
 work_log/
 docs/
 delete_later/
+reference/
 
 # Claude Code harness — share .claude/agents and .claude/skills,
 # hide personal state and workspace

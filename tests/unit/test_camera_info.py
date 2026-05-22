@@ -280,7 +280,8 @@ class TestResolvePublishCameraInfo:
     def test_absent_key_returns_schema_default(self) -> None:
         from marslab.ros2_bridge.sensor_graph import _resolve_ros2_bridge_options
 
-        assert bool(_resolve_ros2_bridge_options({"namespace": "rover"}).publish_camera_info) is True
+        opts = _resolve_ros2_bridge_options({"namespace": "rover"})
+        assert bool(opts.publish_camera_info) is True
 
     def test_explicit_true_returned(self) -> None:
         from marslab.ros2_bridge.sensor_graph import _resolve_ros2_bridge_options

@@ -278,11 +278,3 @@ class TestReinforcePdGains:
             assert kds[0, idx] == pytest.approx(0.0)
 
 
-class TestFacadeReExport:
-    def test_rover_module_reexports_drive_api_setup_functions(self) -> None:
-        """rover.py must re-export the moved functions via facade import."""
-        from marslab.robots import drive_api_setup, rover
-
-        assert rover.configure_drives is drive_api_setup.configure_drives
-        assert rover.reinforce_pd_gains is drive_api_setup.reinforce_pd_gains
-        assert rover._apply_drive_api is drive_api_setup._apply_drive_api

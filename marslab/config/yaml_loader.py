@@ -1,8 +1,5 @@
 """YAML loading + deep merge + base_config include for scenario configs.
 
-The sibling module ``marslab.config.spawn_resolver`` holds the
-spawn-coordinate math.
-
 Public surface:
     ``read_yaml(path) -> dict``
     ``deep_merge(base, override) -> dict``
@@ -110,7 +107,7 @@ def load_scenario_config(scenario_path: str) -> Dict[str, Any]:
        overrides.  The scenario dict is deep-merged ON TOP of the base
        dict (scenario wins, lists are replaced).
     2. **Rover-level** ``rover.base_config``: pre-existing mechanism
-       that merges ``configs/robots/rover_m2020.yaml`` into the
+       that merges ``configs/rover_m2020.yaml`` into the
        scenario's ``rover:`` subtree.  Runs after the root merge so the
        final dict is ``{root_base} + scenario + rover:{robot_base +
        scenario.rover}``.

@@ -71,7 +71,7 @@ def build_loop_context(
             All ramp / saturation / Ackermann scalar fields are read
             here so callers do not duplicate the ``float(...)`` casts.
         physics_dt: Physics time step (seconds), typically sourced from
-            ``StageTwoAtmosphereInit.physics_dt``.
+            ``AtmosphereInit.physics_dt``.
         atmosphere: Pre-built :class:`AtmosphereLoopState`.
         render_config: Render configuration consumed by atmosphere
             update callbacks.

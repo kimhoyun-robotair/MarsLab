@@ -53,7 +53,6 @@ def test_sensor_handles_has_read_imu() -> None:
         "read_camera_rgb",
         "read_camera_depth",
         "read_lidar_3d_point_cloud",
-        "read_lidar_2d_point_cloud",
     ):
         assert hasattr(SensorHandles, name), f"SensorHandles lost helper {name!r}"
         assert callable(getattr(SensorHandles, name))

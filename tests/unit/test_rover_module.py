@@ -6,8 +6,9 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
+from marslab.quaternion import rpy_to_quat
 from marslab.robots import rover as rover_module
-from marslab.robots.rover import SpawnedRover, resolve_joint_indices, rpy_to_quat
+from marslab.robots.rover import SpawnedRover, resolve_joint_indices
 
 
 class TestRpyToQuat:
@@ -27,7 +28,7 @@ class TestRpyToQuat:
         """``rpy_to_quat(pi, 0, 0)`` -> X-roll quaternion ``+/-(0, 1, 0, 0)``.
 
         The Stage-3 spawn no longer applies the 180-degree X-roll (see
-        ``configs/robots/rover_m2020.yaml`` for the current spawn pose),
+        ``configs/rover_m2020.yaml`` for the current spawn pose),
         but the math is still load-bearing for any scenario that
         legitimately needs an X-rolled spawn.
         """

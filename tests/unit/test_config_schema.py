@@ -18,7 +18,6 @@ from marslab.config.schema import (
     TauConstantConfig,
     TauRampConfig,
     TauSineConfig,
-    TerrainConfig,
 )
 
 # --- Valid construction ---
@@ -30,12 +29,6 @@ def test_mars_env_defaults():
     assert c.gravity == 3.72
     assert c.dust_optical_depth == 0.3
     assert c.seed == 42
-
-
-def test_terrain_config_procedural():
-    """Procedural terrain does not require dem_path."""
-    c = TerrainConfig(source="procedural", procedural_preset="flat")
-    assert c.dem_path is None
 
 
 def test_rendering_config_defaults():
@@ -60,7 +53,6 @@ def test_robot_config_with_usd():
 def test_marslab_config_full():
     """Full MarsLabConfig with all sub-configs."""
     c = MarsLabConfig(
-        terrain=TerrainConfig(source="procedural", procedural_preset="flat"),
         robots=[RobotConfig(type="rover", urdf_path="test.urdf")],
     )
     assert len(c.robots) == 1
@@ -81,11 +73,6 @@ def test_marslab_config_full():
 def test_mars_env_bounds_reject(field: str, value: float) -> None:
     with pytest.raises(ValidationError):
         MarsEnvConfig(**{field: value})
-
-
-def test_terrain_source_invalid():
-    with pytest.raises(ValidationError):
-        TerrainConfig(source="moon")
 
 
 def test_rendering_mode_invalid():
@@ -117,30 +104,6 @@ def test_negative_seed():
 def test_resolution_non_positive():
     with pytest.raises(ValidationError):
         RenderingConfig(resolution=[0, 720])
-
-
-def test_hirise_without_any_path():
-    """HiRISE source requires either dem_path or converted_dem_dir."""
-    with pytest.raises(ValidationError):
-        TerrainConfig(source="hirise", dem_path=None, converted_dem_dir=None)
-
-
-def test_hirise_with_converted_dir_only():
-    """HiRISE source is valid with only converted_dem_dir (no dem_path)."""
-    tc = TerrainConfig(source="hirise", converted_dem_dir="assets/mars_assets/DEM/converted")
-    assert tc.converted_dem_dir == "assets/mars_assets/DEM/converted"
-    assert tc.dem_path is None
-
-
-def test_hirise_with_both_paths():
-    """HiRISE source is valid with both dem_path and converted_dem_dir."""
-    tc = TerrainConfig(
-        source="hirise",
-        dem_path="foo.tif",
-        converted_dem_dir="foo_converted",
-    )
-    assert tc.dem_path == "foo.tif"
-    assert tc.converted_dem_dir == "foo_converted"
 
 
 # --- Boundary values ---
@@ -193,7 +156,7 @@ def test_skid_steer_odom_publisher_default():
     drive_damping / steer_stiffness / steer_damping / drive_max_force /
     steer_max_force / suspension_damping / drive_type are required
     fields (no Python defaults). Values mirror
-    ``configs/robots/rover_m2020.yaml`` so the test does not drift from
+    ``configs/rover_m2020.yaml`` so the test does not drift from
     the runtime rover tuning.
     """
     c = SkidSteerDriveConfig(
@@ -522,3 +485,54 @@ def test_mars_env_dynamic_atmosphere_custom_dict():
     assert c.dynamic_atmosphere.enabled is True
     assert c.dynamic_atmosphere.tau_profile == "sine"
     assert c.dynamic_atmosphere.tau_sine.period_fraction == 0.5
+
+
+# --- Absorbed from test_atmosphere_schema.py ----------
+
+
+@pytest.mark.parametrize("profile", ["constant", "ramp", "sine"])
+def test_tau_profile_literal_valid(profile: str) -> None:
+    """``tau_profile`` accepts the three literal values."""
+    cfg = DynamicAtmosphereConfig(tau_profile=profile)
+    assert cfg.tau_profile == profile
+
+
+def test_tau_profile_literal_unknown_rejected() -> None:
+    """``tau_profile`` rejects strings outside the Literal set."""
+    with pytest.raises(ValidationError):
+        DynamicAtmosphereConfig(tau_profile="linear")
+
+
+def test_dynamic_atmosphere_model_copy_is_independent() -> None:
+    """``model_copy`` does not mutate the source (seed-propagation safety)."""
+    base = DynamicAtmosphereConfig(time_scale=200.0)
+    modified = base.model_copy(update={"time_scale": 50.0})
+    assert base.time_scale == pytest.approx(200.0)
+    assert modified.time_scale == pytest.approx(50.0)
+
+
+def test_marslab_config_yaml_roundtrip_preserves_dynamic_atmosphere(tmp_path) -> None:
+    """YAML -> MarsLabConfig roundtrip preserves dynamic_atmosphere fields."""
+    import yaml
+
+    payload = {
+        "mars_env": {
+            "dust_optical_depth": 0.5,
+            "dynamic_atmosphere": {
+                "enabled": True,
+                "tau_profile": "ramp",
+                "tau_ramp": {"start_tau": 0.2, "end_tau": 1.8},
+            },
+        },
+    }
+    path = tmp_path / "scenario.yaml"
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    config = MarsLabConfig(**data)
+
+    assert config.mars_env.dynamic_atmosphere.enabled is True
+    assert config.mars_env.dynamic_atmosphere.tau_profile == "ramp"
+    assert config.mars_env.dynamic_atmosphere.tau_ramp.start_tau == pytest.approx(0.2)
+    assert config.mars_env.dynamic_atmosphere.tau_ramp.end_tau == pytest.approx(1.8)

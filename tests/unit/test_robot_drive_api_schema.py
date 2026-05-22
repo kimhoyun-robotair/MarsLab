@@ -11,7 +11,7 @@ from marslab.config.schema import SkidSteerDriveConfig
 def _baseline_kwargs(**overrides) -> dict:
     """Minimum keyword set to instantiate ``SkidSteerDriveConfig``.
 
-    Mirrors the values in ``configs/robots/rover_m2020.yaml`` so the test
+    Mirrors the values in ``configs/rover_m2020.yaml`` so the test
     tracks the runtime rover tuning.
     """
     base = {
@@ -85,7 +85,7 @@ class TestRoverM2020Parity:
     """Values in the runtime rover YAML load cleanly and round-trip."""
 
     def test_rover_m2020_values_accepted(self) -> None:
-        """``configs/robots/rover_m2020.yaml`` literal values must validate."""
+        """``configs/rover_m2020.yaml`` literal values must validate."""
         cfg = SkidSteerDriveConfig(**_baseline_kwargs())
         assert cfg.drive_max_force == pytest.approx(1000000.0)
         assert cfg.steer_max_force == pytest.approx(100000.0)

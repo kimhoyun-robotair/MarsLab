@@ -11,25 +11,16 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-# ``rpy_to_quat`` is the single source of truth in
-# ``marslab.quaternion``.  Re-exported here so existing import
-# sites (``from marslab.robots.rover import rpy_to_quat``) keep working.
-from marslab.quaternion import rpy_to_quat  # noqa: F401
+from marslab.quaternion import rpy_to_quat
 
-# DriveAPI and PD-gain helpers live in ``marslab.robots.drive_api_setup``.
-# Re-exported here so existing imports (``from marslab.robots.rover import
-# configure_drives``, ``reinforce_pd_gains``) keep working.
-from marslab.robots.drive_api_setup import (  # noqa: F401
-    _apply_drive_api,
-    configure_drives,
-    reinforce_pd_gains,
-    resolve_joint_indices,
-)
+# ``resolve_joint_indices`` re-exported here so ``main.py`` and tests can
+# import it via ``from marslab.robots.rover import resolve_joint_indices``
+# (the spawn helper sits naturally on the rover facade).
+from marslab.robots.drive_api_setup import resolve_joint_indices
 
 _LOG = logging.getLogger(__name__)
 
 __all__ = [
-    "rpy_to_quat",
     "resolve_joint_indices",
     "SpawnedRover",
     "load_rover_usd",
@@ -39,9 +30,6 @@ __all__ = [
     "apply_wheel_physics",
     "apply_suspension_damping_split",
     "find_rigid_body_path",
-    "_apply_drive_api",
-    "configure_drives",
-    "reinforce_pd_gains",
     "spawn_rover",
 ]
 
@@ -134,7 +122,7 @@ def apply_mass_properties(
     """Apply CoM override + angular/linear damping on the articulation body.
 
     All three overrides are optional (pass ``None`` / ``0.0`` to skip).
-    See ``configs/robots/rover_m2020.yaml`` comments for tuning rationale.
+    See ``configs/rover_m2020.yaml`` comments for tuning rationale.
     """
     from pxr import Gf, PhysxSchema, UsdPhysics
 
@@ -164,7 +152,7 @@ def apply_mass_properties(
 # --- M2020 ballpark physics injection ---------------------------------------
 # Three small helpers below replace the URDF auto-computed mass / inertia /
 # friction placeholders with the values declared in
-# ``configs/robots/rover_m2020.yaml`` ``chassis:`` / ``wheels:`` /
+# ``configs/rover_m2020.yaml`` ``chassis:`` / ``wheels:`` /
 # ``suspension:`` blocks.  They run pre-reset (right after USD spawn) so
 # PhysX picks up the overrides during the first ``world.reset()`` tensor
 # sync.  Each helper takes its config block as a plain ``dict`` (the same
@@ -226,7 +214,7 @@ def apply_chassis_physics(
         may still be configurable from the rover root).
 
     The inertia tensor is M2020-ballpark (NOT a CAD-derived calibration).
-    See ``configs/robots/rover_m2020.yaml`` ``chassis:`` block for the
+    See ``configs/rover_m2020.yaml`` ``chassis:`` block for the
     bounding-box derivation; the unit test asserts the YAML values match
     the bbox formula to 1 % so a future edit cannot silently desync the
     documented formula from the numbers PhysX sees.
@@ -507,7 +495,7 @@ def _apply_rover_articulation_physics(
     Each block is optional -- a rover YAML that omits a block keeps the
     legacy behaviour (URDF-derived mass + the single
     ``control.suspension_damping`` channel).  See
-    ``configs/robots/rover_m2020.yaml`` for value rationale.  Each block
+    ``configs/rover_m2020.yaml`` for value rationale.  Each block
     is wrapped with ``model_validate`` so YAML typos / negative masses /
     unknown keys fail at spawn with ``ValidationError`` instead of
     ``KeyError`` deep inside the ``apply_*_physics`` helpers.
@@ -586,8 +574,8 @@ def spawn_rover(
         stage: USD stage (post-``SimulationApp`` init).
         rover_cfg: Merged ``rover:`` block from the scenario config.
         usd_abs: Absolute path to the rover USD file.
-        spawn_xyz: World-frame spawn position from
-            :func:`marslab.config.scenario_loader.resolve_spawn_pose`.
+        spawn_xyz: World-frame spawn position computed by the caller
+            (e.g. via DEM bbox sampling in ``marslab/main.py``).
 
     Returns:
         :class:`SpawnedRover` with discovered prim paths.

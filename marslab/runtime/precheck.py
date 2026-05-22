@@ -23,11 +23,11 @@ def check_rover_usd(usd_abs: str) -> None:
     Raises:
         FileNotFoundError: If ``usd_abs`` does not resolve to a file. The
             message includes the operator hint to run
-            ``tools/convert_urdf_to_usd.py``.
+            ``marslab/convert_urdf_to_usd.py``.
     """
     if not os.path.isfile(usd_abs):
         raise FileNotFoundError(
-            f"Rover USD missing: {usd_abs}. " f"Run tools/convert_urdf_to_usd.py first."
+            f"Rover USD missing: {usd_abs}. " f"Run marslab/convert_urdf_to_usd.py first."
         )
 
 
@@ -72,26 +72,3 @@ def check_lidar_cfg(lidar_cfg: Optional[Dict[str, Any]]) -> None:
         )
 
 
-def check_dem_assets(converted_dir: str) -> None:
-    """Raise ``FileNotFoundError`` if DEM assets are missing.
-
-    Abstracted so runtime scripts can pre-check before attempting the
-    full DEM load and report every missing file together.
-
-    Args:
-        converted_dir: Directory that should contain ``elevation.npy``
-            and ``metadata.json`` produced by ``tools/convert_dem.py``.
-
-    Raises:
-        FileNotFoundError: If either asset is absent. The message lists
-            every missing path so operators can fix in a single pass.
-    """
-    elev = os.path.join(converted_dir, "elevation.npy")
-    meta = os.path.join(converted_dir, "metadata.json")
-    missing = [p for p in (elev, meta) if not os.path.isfile(p)]
-    if missing:
-        raise FileNotFoundError(
-            "DEM assets missing: "
-            + ", ".join(missing)
-            + ". Run 'python tools/convert_dem.py' first."
-        )
