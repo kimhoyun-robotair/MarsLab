@@ -13,27 +13,18 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from marslab.ros2_bridge.odometry_publisher import OdometryPublisherContext
+from marslab.ros2_bridge.wheel_odometry_publisher import WheelOdometryContext
 
 
 @dataclass
 class BridgeContext:
     """Aggregate handles used by the runtime main loop.
 
-    Attributes:
-        node: The rclpy ``Node`` handle.
-        cmd_vel_subscription: The rclpy subscription created for
-            ``cmd_vel`` (kept alive for the lifetime of the node).
-        static_tf_broadcaster: StaticTransformBroadcaster publishing
-            sensor TFs at startup.
-        odom_ctx: :class:`OdometryPublisherContext` bundle.
-        twist_state: Mutable dict written by the cmd_vel callback and
-            read by the rover controller each tick.
-        robot_description_ctx: Optional ``RobotDescriptionContext`` from
-            :func:`marslab.ros2_bridge.robot_description_publisher.publish_robot_description`.
-            Held here so the ``TRANSIENT_LOCAL`` latched publisher is not
-            garbage-collected when ``init_rclpy_side`` returns. ``None``
-            when ``ros2.publish_robot_description=false`` or the URDF
-            path is missing.
+    ``odom_ctx`` publishes the PhysX articulation pose verbatim on
+    ``/rover/GT_Trajectory`` for ATE ground-truth comparison.
+    ``wheel_odom_ctx`` integrates wheel-joint angular velocities into a
+    skid-steer dead-reckoning estimate on ``/rover/odom`` so a downstream
+    SLAM stack has a noisy odometry source to fuse / correct.
     """
 
     node: Any
@@ -42,6 +33,7 @@ class BridgeContext:
     odom_ctx: OdometryPublisherContext
     twist_state: Dict[str, float]
     robot_description_ctx: Optional[Any] = None
+    wheel_odom_ctx: Optional[WheelOdometryContext] = None
 
 
 __all__ = ["BridgeContext"]

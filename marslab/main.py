@@ -37,7 +37,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import yaml
@@ -301,6 +301,37 @@ def _capture_odom_init_pose(articulation: Any) -> Tuple[np.ndarray, np.ndarray]:
             pos = np.asarray(arr, dtype=np.float32).copy()
     quat = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
     return pos, quat
+
+
+def _build_wheel_odom_params(
+    rover_cfg: Dict[str, Any],
+    control_cfg: Dict[str, Any],
+    dof_names: List[str],
+) -> Optional[Dict[str, Any]]:
+    """Resolve wheel-odometry YAML block into init_rclpy_side params, or None."""
+    wheel_cfg = rover_cfg.get("wheel_odometry")
+    if not wheel_cfg or not wheel_cfg.get("enabled", True):
+        return None
+    left_names = list(wheel_cfg["left_wheel_joints"])
+    right_names = list(wheel_cfg["right_wheel_joints"])
+    left_indices = resolve_joint_indices(dof_names, left_names)
+    right_indices = resolve_joint_indices(dof_names, right_names)
+    track_width = float(wheel_cfg.get("track_width", control_cfg.get("track_middle", 0.0)))
+    params: Dict[str, Any] = {
+        "left_indices": left_indices,
+        "right_indices": right_indices,
+        "wheel_radius": float(control_cfg["wheel_radius"]),
+        "track_width": track_width,
+        "slip_left": float(wheel_cfg.get("slip_left", 0.0)),
+        "slip_right": float(wheel_cfg.get("slip_right", 0.0)),
+        "sigma_omega": float(wheel_cfg.get("sigma_omega", 0.0)),
+        "seed": int(wheel_cfg.get("seed", 0)),
+    }
+    if "pose_diag" in wheel_cfg:
+        params["pose_diag"] = list(wheel_cfg["pose_diag"])
+    if "twist_diag" in wheel_cfg:
+        params["twist_diag"] = list(wheel_cfg["twist_diag"])
+    return params
 
 
 def main() -> int:
@@ -581,6 +612,7 @@ def main() -> int:
             sensor_frames = sensor_frames_to_tuples(build_sensor_frames(sensors_cfg))
             urdf_rel = rover_cfg.get("urdf_source_path")
             urdf_abs = _abs_repo_path(urdf_rel) if urdf_rel else None
+            wheel_odom_params = _build_wheel_odom_params(rover_cfg, control_cfg, dof_names)
             bridge = init_rclpy_side(
                 ros2_cfg=ros2_cfg,
                 sensor_frames=sensor_frames,
@@ -588,6 +620,7 @@ def main() -> int:
                 init_quat_world=odom_init_quat,
                 node_name="marslab_main_rover",
                 urdf_path=urdf_abs,
+                wheel_odom_params=wheel_odom_params,
             )
 
         # ---- GT publisher add-on (zero modifications to marslab/) ----------

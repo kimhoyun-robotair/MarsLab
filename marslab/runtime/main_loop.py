@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     # publisher module's ``rclpy`` / ``tf2_ros`` / ``nav_msgs`` imports
     # are themselves function-local.
     from marslab.ros2_bridge.odometry_publisher import OdometryPublisherContext
+    from marslab.ros2_bridge.wheel_odometry_publisher import WheelOdometryContext
 
 logger = logging.getLogger(__name__)
 
@@ -292,6 +293,7 @@ class LoopContext:
     control: ControlState
     atmosphere: AtmosphereLoopState
     odom_ctx: Optional["OdometryPublisherContext"]
+    wheel_odom_ctx: Optional["WheelOdometryContext"]
     render_config: Any
     ackermann_fn: Callable[..., Any]
     spin_once: Optional[Callable[..., None]] = None
@@ -522,6 +524,9 @@ def run_main_loop(ctx: LoopContext) -> int:
             if odom_ctx is not None and odom_ctx.publisher is not None:
                 _publish_odometry(ctx, ctl.step_count)
 
+            if ctx.wheel_odom_ctx is not None and ctx.wheel_odom_ctx.publisher is not None:
+                _publish_wheel_odometry(ctx, ctl.step_count)
+
             if ctl.step_count % atmo.update_interval == 0 and ctl.step_count > 0:
                 _update_atmosphere(ctx)
 
@@ -650,6 +655,29 @@ def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
         )
     except Exception as odom_exc:  # noqa: BLE001
         _log_once(logger, odom_exc, "odom_publish_failed", step_count)
+
+
+def _publish_wheel_odometry(ctx: LoopContext, step_count: int) -> None:
+    """Integrate wheel joint velocities and publish noisy odometry."""
+    wheel_ctx = ctx.wheel_odom_ctx
+    if wheel_ctx is None:
+        return
+
+    from marslab.ros2_bridge.wheel_odometry_publisher import publish_wheel_odometry
+
+    try:
+        jv = ctx.articulation.get_joint_velocities()
+        if jv is None:
+            _log_once(
+                logger,
+                RuntimeError("get_joint_velocities returned None"),
+                "joint_velocity_query_failed",
+                step_count,
+            )
+            return
+        publish_wheel_odometry(wheel_ctx, jv)
+    except Exception as exc:  # noqa: BLE001
+        _log_once(logger, exc, "wheel_odom_publish_failed", step_count)
 
 
 def _update_atmosphere(ctx: LoopContext) -> None:

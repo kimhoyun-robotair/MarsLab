@@ -142,6 +142,7 @@ class TestInitRclpySide:
             "topics": {
                 "cmd_vel": "cmd_vel",
                 "odom": "odom",
+                "gt_trajectory": "GT_Trajectory",
                 "imu": "imu",
                 "rgb": "rgb/image_raw",
                 "depth": "depth/image_raw",
@@ -168,7 +169,7 @@ class TestInitRclpySide:
 
         ros2_cfg = {
             "namespace": "rover",
-            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom", "gt_trajectory": "GT_Trajectory"},
         }
         init_rclpy_side(
             ros2_cfg=ros2_cfg,
@@ -191,11 +192,11 @@ class TestInitRclpySide:
 
         ros2_cfg = {
             "namespace": "rover",
-            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom", "gt_trajectory": "GT_Trajectory"},
             "odom_publisher": {
                 "queue_size": 42,
-                "frame_id": "map",
-                "child_frame_id": "base_footprint",
+                "gt_frame_id": "map",
+                "gt_child_frame_id": "base_footprint",
             },
         }
         init_rclpy_side(
@@ -208,7 +209,7 @@ class TestInitRclpySide:
         assert odom_kwargs["queue_size"] == 42
         assert odom_kwargs["frame_id"] == "map"
         assert odom_kwargs["child_frame_id"] == "base_footprint"
-        assert odom_kwargs["topic"] == "/rover/odom"
+        assert odom_kwargs["topic"] == "/rover/GT_Trajectory"
 
     def test_cmd_vel_queue_size_uses_yaml_override(
         self,
@@ -221,7 +222,7 @@ class TestInitRclpySide:
 
         ros2_cfg = {
             "namespace": "rover",
-            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom", "gt_trajectory": "GT_Trajectory"},
             "cmd_vel_queue_size": 37,
         }
         init_rclpy_side(
@@ -244,7 +245,7 @@ class TestInitRclpySide:
 
         ros2_cfg = {
             "namespace": "rover",
-            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom", "gt_trajectory": "GT_Trajectory"},
         }
         init_rclpy_side(
             ros2_cfg=ros2_cfg,
@@ -265,7 +266,7 @@ class TestInitRclpySide:
 
         ros2_cfg = {
             "namespace": "rover",
-            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom", "gt_trajectory": "GT_Trajectory"},
         }
         ctx = init_rclpy_side(
             ros2_cfg=ros2_cfg,
@@ -292,7 +293,7 @@ class TestInitRclpySide:
 
         ros2_cfg = {
             "namespace": "rover",
-            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom", "gt_trajectory": "GT_Trajectory"},
         }
         init_rclpy_side(
             ros2_cfg=ros2_cfg,
@@ -320,7 +321,7 @@ class TestInitRclpySide:
 
         ros2_cfg = {
             "namespace": "rover",
-            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom", "gt_trajectory": "GT_Trajectory"},
             "odom_qos": {
                 "reliability": "best_effort",
                 "durability": "volatile",
@@ -350,7 +351,7 @@ class TestInitRclpySide:
 
         ros2_cfg = {
             "namespace": "rover",
-            "topics": {"cmd_vel": "cmd_vel", "odom": "odom"},
+            "topics": {"cmd_vel": "cmd_vel", "odom": "odom", "gt_trajectory": "GT_Trajectory"},
         }
         init_rclpy_side(
             ros2_cfg=ros2_cfg,

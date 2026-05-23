@@ -140,6 +140,7 @@ def build_loop_context(
         control=control_state,
         atmosphere=atmosphere,
         odom_ctx=(bridge.odom_ctx if bridge is not None else None),
+        wheel_odom_ctx=(bridge.wheel_odom_ctx if bridge is not None else None),
         render_config=render_config,
         ackermann_fn=ackermann_fn,
         spin_once=spin_once,

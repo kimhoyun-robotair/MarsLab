@@ -867,6 +867,16 @@ class _LidarBaseConfig(BaseModel):
             "curated presets."
         ),
     )
+    variant: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional variant selection within a USD asset that bundles "
+            "multiple LiDAR specs (e.g. Ouster ``OS1.usd`` carries "
+            "``OS1_REV6_128ch10hz1024res`` etc.).  Forwarded to "
+            "``IsaacSensorCreateRtxLidar(variant=...)``; ``None`` selects "
+            "the asset default."
+        ),
+    )
 
     @model_validator(mode="after")
     def check_range_and_profile(self) -> "_LidarBaseConfig":

@@ -100,7 +100,7 @@ def test_build_loop_context_without_bridge_disables_odom_ctx() -> None:
 def test_build_loop_context_with_bridge_wires_odom_and_twist() -> None:
     """``bridge`` argument forwards ``odom_ctx`` + shares ``twist_state``."""
     twist = {"v": 1.0, "w": 0.25}
-    bridge = SimpleNamespace(odom_ctx=MagicMock(), twist_state=twist)
+    bridge = SimpleNamespace(odom_ctx=MagicMock(), twist_state=twist, wheel_odom_ctx=None)
     ctx = _build_minimal(bridge=bridge)
     assert ctx.odom_ctx is bridge.odom_ctx
     assert ctx.control.latest_twist is twist
@@ -166,8 +166,14 @@ def test_build_loop_context_publish_odom_tf_independence() -> None:
     forwards the reference.  Verified by passing two distinct mock
     bridges and asserting both flow through unchanged.
     """
-    bridge_a = SimpleNamespace(odom_ctx=MagicMock(name="odom_a"), twist_state={"v": 0.0, "w": 0.0})
-    bridge_b = SimpleNamespace(odom_ctx=None, twist_state={"v": 0.0, "w": 0.0})
+    bridge_a = SimpleNamespace(
+        odom_ctx=MagicMock(name="odom_a"),
+        twist_state={"v": 0.0, "w": 0.0},
+        wheel_odom_ctx=None,
+    )
+    bridge_b = SimpleNamespace(
+        odom_ctx=None, twist_state={"v": 0.0, "w": 0.0}, wheel_odom_ctx=None
+    )
     ctx_a = _build_minimal(bridge=bridge_a)
     ctx_b = _build_minimal(bridge=bridge_b)
     assert ctx_a.odom_ctx is bridge_a.odom_ctx

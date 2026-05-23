@@ -48,6 +48,7 @@ def test_loop_context_required_fields_present() -> None:
         "control",
         "atmosphere",
         "odom_ctx",
+        "wheel_odom_ctx",
         "render_config",
         "ackermann_fn",
         "spin_once",
@@ -232,6 +233,7 @@ def _make_minimal_ctx() -> LoopContext:
             solar_constant=589.0,
         ),
         odom_ctx=None,
+        wheel_odom_ctx=None,
         render_config=object(),
         ackermann_fn=_ackermann,
     )

@@ -173,6 +173,40 @@ def _resolve_lidar_profile(lidar_cfg: Dict[str, Any]) -> str:
     )
 
 
+def _resolve_omnilidar_prim_path(stage: Any, prim_path: str) -> str:
+    """Return the path of the OmniLidar prim at or under ``prim_path``.
+
+    ``RtxSensorCreator`` references ``.usda`` profiles (Example_Rotary,
+    HESAI_XT32_SD10 are special-cased) as the OmniLidar prim directly,
+    but vendor ``.usd`` carriers (Ouster OS0/OS1/OS2, etc.) are
+    referenced as an ``Xform`` whose variant set switches in the actual
+    OmniLidar as a descendant prim.  Downstream wiring
+    (``_apply_lidar_runtime_overrides``, ``SensorHandles.lidar_3d_prim_path``,
+    ``RPLidar3D.inputs:cameraPrim`` in ``sensor_graph_builder``) needs
+    the OmniLidar path, so this helper normalises the two cases.
+
+    Offline test stages (``stage=object()``) lack ``GetPrimAtPath``;
+    the input path is returned unchanged so the existing test bypass
+    in ``_apply_lidar_runtime_overrides`` keeps working.  When the
+    prim cannot be resolved the input path is returned unchanged so
+    the caller's existing error path fires with the original message.
+    """
+    if not hasattr(stage, "GetPrimAtPath"):
+        return prim_path
+    root = stage.GetPrimAtPath(prim_path)
+    if root is None or not root.IsValid() or not hasattr(root, "GetTypeName"):
+        return prim_path
+    if root.GetTypeName() == "OmniLidar":
+        return prim_path
+    stack = list(root.GetChildren())
+    while stack:
+        child = stack.pop()
+        if child.GetTypeName() == "OmniLidar":
+            return str(child.GetPath())
+        stack.extend(child.GetChildren())
+    return prim_path
+
+
 def _apply_lidar_runtime_overrides(
     stage: Any,
     prim_path: str,
@@ -531,7 +565,10 @@ def spawn_sensors(
         # in Isaac Sim 5.x; pass it through only when the YAML overrides it
         # so unrelated runtimes do not regress on the default.
         lidar_3d_kwargs["name"] = str(lidar_cfg["usd_profile"])
+    if lidar_cfg.get("variant"):
+        lidar_3d_kwargs["variant"] = str(lidar_cfg["variant"])
     lidar_3d = LidarRtx(**lidar_3d_kwargs)
+    lidar_prim_path = _resolve_omnilidar_prim_path(stage, lidar_prim_path)
     _apply_lidar_runtime_overrides(stage, lidar_prim_path, lidar_cfg)
     lidar_3d.initialize()
 
@@ -555,7 +592,10 @@ def spawn_sensors(
         }
         if lidar_2d_cfg.get("usd_profile"):
             lidar_2d_kwargs["name"] = str(lidar_2d_cfg["usd_profile"])
+        if lidar_2d_cfg.get("variant"):
+            lidar_2d_kwargs["variant"] = str(lidar_2d_cfg["variant"])
         lidar_2d = LidarRtx(**lidar_2d_kwargs)
+        lidar_2d_prim_path = _resolve_omnilidar_prim_path(stage, lidar_2d_prim_path)
         _apply_lidar_runtime_overrides(stage, lidar_2d_prim_path, lidar_2d_cfg)
         lidar_2d.initialize()
         _LOG.info(

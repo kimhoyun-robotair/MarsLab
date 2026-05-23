@@ -62,6 +62,7 @@ def _make_ctx(*, odom_ctx: Any, articulation: Any) -> ml.LoopContext:
             solar_constant=589.0,
         ),
         odom_ctx=odom_ctx,
+        wheel_odom_ctx=None,
         render_config=object(),
         ackermann_fn=_ackermann,
     )

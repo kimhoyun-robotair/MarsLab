@@ -25,6 +25,7 @@ from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
 from marslab.ros2_bridge.robot_description_publisher import publish_robot_description
 from marslab.ros2_bridge.sensor_graph_builder import _ns_topic
 from marslab.ros2_bridge.tf_broadcaster import publish_static_sensor_tfs
+from marslab.ros2_bridge.wheel_odometry_publisher import create_wheel_odometry_publisher
 
 
 def init_rclpy_side(
@@ -35,6 +36,7 @@ def init_rclpy_side(
     node_name: str = "marslab_stage3_runtime",
     *,
     urdf_path: Optional[str] = None,
+    wheel_odom_params: Optional[Dict[str, Any]] = None,
 ) -> BridgeContext:
     """Boot rclpy and wire cmd_vel / static TF / odom publishers.
 
@@ -159,37 +161,51 @@ def init_rclpy_side(
             rename_root_to_base_link=rename_root,
         )
 
-    odom_topic = _ns_topic(ns, topics["odom"])
-    # Pull frame_id / child_frame_id / queue_size from YAML when the
-    # rover block declares an ``odom_publisher`` sub-map. The sub-map
-    # mirrors ``OdomPublisherConfig``
-    # (marslab/config/schema/robot.py) so the SLAM stack frame
-    # names stay aligned with a single YAML source. Falls back to the
-    # historical function defaults when the key is absent so existing
-    # scenario YAMLs keep loading unchanged.
+    # GT trajectory publisher: PhysX articulation pose verbatim on
+    # ``/<ns>/GT_Trajectory`` (was ``/<ns>/odom`` pre-refactor).  This
+    # topic is the GT for ATE comparison and never carries TF authority.
+    gt_topic = _ns_topic(ns, topics["gt_trajectory"])
     odom_pub_cfg = ros2_cfg.get("odom_publisher", {}) if isinstance(ros2_cfg, dict) else {}
-    # Default OFF so the OmniGraph ``ROS2PublishTransformTree`` is the
-    # sole TF authority for ``odom -> base_link``.  An external
-    # ``ros2 run topic_tools relay /tf_raw /tf`` then merges the
-    # OmniGraph chain into the canonical ``/tf`` topic for RViz / SLAM.
-    # Setting this ``True`` while the relay runs would give tf2 two
-    # parents for ``base_link``.  The schema field
-    # ``Ros2BridgeConfig.publish_odom_tf`` is the validated source of
-    # truth; it returns ``False`` by default and is overridable via
-    # the YAML.
-    publish_odom_tf = bool(validated_bridge.publish_odom_tf)
     odom_ctx = create_odometry_publisher(
         node=node,
-        topic=odom_topic,
+        topic=gt_topic,
         init_pos_world=init_pos_world,
         init_quat_world=init_quat_world,
         queue_size=int(odom_pub_cfg.get("queue_size", 10)),
-        frame_id=str(odom_pub_cfg.get("frame_id", "odom")),
-        child_frame_id=str(odom_pub_cfg.get("child_frame_id", "base_link")),
+        frame_id=str(odom_pub_cfg.get("gt_frame_id", "world")),
+        child_frame_id=str(odom_pub_cfg.get("gt_child_frame_id", "base_link_gt")),
         odom_qos=qos_bundle["odom"],
         tf_qos=qos_bundle["tf"],
-        publish_tf=publish_odom_tf,
+        publish_tf=False,
     )
+
+    # Wheel-encoder dead-reckoning publisher on ``/<ns>/odom``.  When
+    # ``wheel_odom_params`` is ``None`` the publisher is skipped so the
+    # legacy ``--no-rover`` path keeps working.
+    wheel_odom_ctx = None
+    if wheel_odom_params is not None:
+        wheel_odom_topic = _ns_topic(ns, topics["odom"])
+        publish_wheel_odom_tf = bool(validated_bridge.publish_odom_tf)
+        wheel_odom_ctx = create_wheel_odometry_publisher(
+            node=node,
+            topic=wheel_odom_topic,
+            left_indices=wheel_odom_params["left_indices"],
+            right_indices=wheel_odom_params["right_indices"],
+            wheel_radius=float(wheel_odom_params["wheel_radius"]),
+            track_width=float(wheel_odom_params["track_width"]),
+            slip_left=float(wheel_odom_params.get("slip_left", 0.0)),
+            slip_right=float(wheel_odom_params.get("slip_right", 0.0)),
+            sigma_omega=float(wheel_odom_params.get("sigma_omega", 0.0)),
+            seed=int(wheel_odom_params.get("seed", 0)),
+            queue_size=int(odom_pub_cfg.get("queue_size", 10)),
+            odom_qos=qos_bundle["odom"],
+            tf_qos=qos_bundle["tf"],
+            frame_id=str(odom_pub_cfg.get("frame_id", "odom")),
+            child_frame_id=str(odom_pub_cfg.get("child_frame_id", "base_link")),
+            publish_tf=publish_wheel_odom_tf,
+            pose_diag=wheel_odom_params.get("pose_diag"),
+            twist_diag=wheel_odom_params.get("twist_diag"),
+        )
 
     return BridgeContext(
         node=node,
@@ -198,6 +214,7 @@ def init_rclpy_side(
         odom_ctx=odom_ctx,
         twist_state=twist_state,
         robot_description_ctx=robot_description_ctx,
+        wheel_odom_ctx=wheel_odom_ctx,
     )
 
 

@@ -26,7 +26,7 @@ spawn_orientation_rpy: [0.0, 0.0, 0.0]
 spawn:
   mode: "dem_center"
   xy: [0.0, 0.0]
-  z_offset: 0.5
+  z_offset: 0.1
   orientation_rpy: [0.0, 0.0, 0.0]
 
 # Chassis CoM offset (m).  Empirically determined +0.2 m forward shift.
@@ -117,7 +117,8 @@ ros2:
     cmd_vel: "cmd_vel"
     robot_description: "robot_description"
     imu: "imu"
-    odom: "odom"
+    odom: "odom"                 # wheel-encoder dead-reckoning estimate (SLAM input)
+    gt_trajectory: "GT_Trajectory"  # PhysX articulation pose verbatim (ATE ground truth)
     rgb: "rgb/image_raw"
     depth: "depth/image_raw"
     points: "depth/points"       # RGB-D PointCloud2 (RealSense-style)
@@ -190,9 +191,9 @@ sensors:
     # was inverted -- the [180, 0, 0] was a Z-down URDF compensation,
     # not an Isaac-Sim convention requirement.
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
-    resolution: [640, 480]
+    resolution: [1280, 960]
     focal_length: 24.0
-    clipping_range: [0.1, 1000.0]
+    clipping_range: [0.1, 10.0]
     # Optional stereo-disparity depth simulation
     # (OmniSensorDepthSensorSingleViewAPI schema).  ``enabled: false`` keeps
     # the v0.7 / v1.0 behaviour where depth comes from the renderer's
@@ -223,17 +224,19 @@ sensors:
     # identity rpy.  No X-roll compensation needed.
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
     range_min: 5.0
-    range_max: 30.0
+    range_max: 100.0
     horizontal_fov_deg: 220.0
-    vertical_fov_deg: 90.0
+    vertical_fov_deg: 45.0
     horizontal_resolution_deg: 0.4
     vertical_resolution_deg: 1.875
-    rotation_rate_hz: 30.0
-    profile_name: "Example_Rotary" # Isaac Sim Bundeled RTX LiDAR profile (16-beam Velodyne-style)
+    rotation_rate_hz: 10.0
+    profile_name: "OS1" # Isaac Sim Bundled RTX LiDAR asset key (Ouster OS1 USD carries variant set)
     profile_json_path: null
     # Swap the LiDAR USD model by changing this key (e.g. ``Velodyne_VLP16``).
     # ``null`` falls back to ``profile_name``.
     usd_profile: null
+    # Variant inside the OS1.usd asset (128-channel @ 10 Hz, 1024 horizontal samples).
+    variant: "OS1_REV6_128ch10hz1024res"
 
   # 2D LaserScan sensor for SLAM.  Clones the RTX Lidar
   # pipeline used by ``lidar_3d``; only the bundled profile and mount
@@ -304,3 +307,18 @@ control:
   steer_ramp_rate: 2.0
   decel_multiplier: 3.0
   debug_logging: false
+
+# Wheel-encoder dead-reckoning odometry publisher (skid-steer FK).
+# Subscribes to wheel joint angular velocities, injects slip + Gaussian
+# noise, integrates pose, and publishes nav_msgs/Odometry on
+# ``/<ns>/odom``.  This is the SLAM input -- the PhysX GT pose lives on
+# ``/<ns>/GT_Trajectory`` for ATE comparison.  See GT_Trajectory.md.
+wheel_odometry:
+  enabled: true
+  left_wheel_joints:  ["LF_DRIVE", "LM_DRIVE", "LR_DRIVE"]
+  right_wheel_joints: ["RF_DRIVE", "RM_DRIVE", "RR_DRIVE"]
+  track_width: 2.369        # m — matches control.track_middle (rear-axle).
+  slip_left:  0.02          # fractional rotational slip (0 = no slip).
+  slip_right: 0.02
+  sigma_omega: 0.05         # rad/s -- Gaussian noise on each wheel bank.
+  seed: 42
