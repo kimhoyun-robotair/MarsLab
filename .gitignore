@@ -7,6 +7,8 @@
 credentials.json
 secrets.json
 .omc/
+.codex/
+.codegraph/
 
 # Python
 __pycache__/

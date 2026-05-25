@@ -176,10 +176,40 @@ Any USDA passed via `--usda` must satisfy:
 * `UsdPhysics.CollisionAPI` on at least one mesh so the rover wheels have
   contact geometry.
 
-Spawn position is `(DEM_center_xy, surface_z + z_offset)` where
-`DEM_center_xy` is the world-space bbox centre of the first visible mesh and
-`surface_z` is the median Z of mesh points sampled near that centre (capped at
-200 K samples for fast stage loading).
+### Rover spawn modes
+
+Spawn position is resolved by `marslab.main._resolve_spawn` from the
+`spawn:` block in `configs/rover_m2020.yaml`. Four modes are supported:
+
+| `spawn.mode` | XY resolution | Use case |
+|---|---|---|
+| `dem_center` *(default)* | DEM bbox centre | Legacy behaviour |
+| `dem_relative` | `dem_center + xy` | Spawn at a fixed offset from DEM centre |
+| `absolute` | `xy` in world frame | Multi-rover scenes or non-centred terrains |
+| `trajectory_start` | First sample of `spawn.trajectory_path` (a TUM file) | Run a reference trajectory from its own start point |
+
+`surface_z` is sampled from the DEM mesh at the resolved XY (median of mesh
+points within a small radius). Final Z = `surface_z + spawn.z_offset` (YAML
+`spawn.z_offset` overrides the CLI `--z-offset` flag if both are set).
+
+`spawn.orientation_rpy` controls the spawn yaw, except in
+`trajectory_start` mode where `spawn.use_yaw_from_trajectory: true`
+(default) overrides yaw with `2·atan2(qz, qw)` from the TUM first sample.
+
+#### Example — spawn rover at the start of a TrajectoryComposer TUM
+
+```yaml
+# configs/rover_m2020.yaml
+spawn:
+  mode: "trajectory_start"
+  trajectory_path: "../MarsLab-Utils/TrajectoryComposer/out/jezero_rocky_loop/trajectory.tum"
+  z_offset: 0.1
+  use_yaw_from_trajectory: true
+```
+
+The rover will spawn at the trajectory's first `(tx, ty)` with its yaw
+aligned to the trajectory's first sample, ready for direct ATE evaluation
+against the reference TUM.
 
 Any nested `PhysicsScene` inside the USDA is auto-deactivated so the
 Mars-gravity `/physicsScene` created by `marslab.sim.world_setup.create_world`
@@ -298,6 +328,45 @@ ros2 launch kinematic_icp online_node.launch.py \
     tf_timeout:=0.5 \
     visualize:=true
 ```
+
+#### Partial-scan caveat (LiDAR rotation ≪ sim tick rate)
+
+Isaac Sim's `ROS2RtxLidarHelper` defaults to `inputs:fullScan = False`,
+meaning each simulation tick publishes only the angular slice that the
+LiDAR rotated through since the previous tick. When
+`lidar_3d.rotation_rate_hz` is close to the sim tick rate (e.g. the
+bundled `Example_Rotary` profile at 30 Hz on a 30 Hz tick) the slice
+covers nearly a full revolution and registrators stay happy, but vendor
+profiles with realistic rotation (e.g. Ouster `OS1` at 10 Hz) emit
+~36° slices that destabilise kiss-icp / kinematic-icp adaptive
+thresholds and crash the node.
+
+Two workarounds are supported:
+
+1. **YAML-only (recommended for quick experiments)** — raise
+   `lidar_3d.rotation_rate_hz` to match the sim tick rate. This is the
+   default for `configs/rover_m2020.yaml`:
+   ```yaml
+   sensors:
+     lidar_3d:
+       rotation_rate_hz: 30   # 10 → 30 to mirror the sim tick rate
+   ```
+   The trade-off is physical fidelity: Ouster `OS1` actually rotates
+   at 10 / 20 Hz, so scan-time effects (motion compensation, deskew)
+   no longer reflect the real sensor.
+
+2. **OmniGraph helper flag (physically correct, requires code edit)** —
+   enable accumulation inside `ROS2RtxLidarHelper` so a full revolution
+   is published per message regardless of rotation rate. The line lives
+   in `marslab/ros2_bridge/sensor_graph_builder.py` next to the other
+   `Lidar3DHelper.inputs:*` keys; the inline NOTE there records the
+   exact snippet:
+   ```python
+   ("Lidar3DHelper.inputs:fullScan", True),
+   ```
+   Use this when you keep the realistic `rotation_rate_hz` and want
+   kiss-icp / RTAB-Map to consume a full 360° (or YAML-cropped FOV)
+   per frame. Publish rate then drops to the LiDAR rotation rate.
 
 ### RTAB-Map (3D LiDAR mode)
 

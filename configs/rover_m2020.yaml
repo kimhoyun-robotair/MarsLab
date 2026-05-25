@@ -19,15 +19,26 @@ prim_path: "/World/Rover"
 spawn_position: [0.0, 0.0, 0.0]
 spawn_orientation_rpy: [0.0, 0.0, 0.0]
 
-# Spawn modes
-# absolute: use xy as-is; z = xy[2]
-# dem_center: spawn at DEM center; z = center elevation + z_offset
-# dem_relative: xy is a local offset from the DEM center
+# Spawn modes (consumed by ``marslab.main._resolve_spawn``):
+#   dem_center        — spawn at DEM bbox centre. ``xy`` ignored.
+#   dem_relative      — spawn at ``(dem_center_x + xy[0], dem_center_y + xy[1])``.
+#   absolute          — spawn at ``(xy[0], xy[1])`` in the world frame.
+#   trajectory_start  — spawn at the first sample of the TUM trajectory
+#                       pointed to by ``trajectory_path``. If
+#                       ``use_yaw_from_trajectory`` is true (default), the yaw
+#                       in ``orientation_rpy`` is overridden by the trajectory.
+#
+# In every mode, ground Z is sampled from the DEM at the resolved XY and the
+# rover Z is set to ``surface_z + z_offset``. ``z_offset`` here overrides the
+# CLI ``--z-offset`` flag if present.
 spawn:
   mode: "dem_center"
   xy: [0.0, 0.0]
   z_offset: 0.1
   orientation_rpy: [0.0, 0.0, 0.0]
+  # Only used when mode == "trajectory_start":
+  trajectory_path: null               # e.g. "TrajectoryComposer/out/jezero_rocky_loop/trajectory.tum"
+  use_yaw_from_trajectory: true
 
 # Chassis CoM offset (m).  Empirically determined +0.2 m forward shift.
 # Even after the JPL URDF arm/turret/drill (~74 kg) was stripped, the
@@ -138,7 +149,7 @@ ros2:
     depth: 30
     points: 30               # depth-derived PointCloud2 matches the depth rate
     camera_info: 30      # CameraInfo published in lock-step with rgb/depth
-    lidar: 10          # For ROS2 Point Cloud Topic Publishing Rate, Not same as the RTX LiDAR rotation rate (see ``lidar_3d.rotation_rate_hz`` below).
+    lidar: 30          # For ROS2 Point Cloud Topic Publishing Rate, Not same as the RTX LiDAR rotation rate (see ``lidar_3d.rotation_rate_hz`` below).
     scan: 30         # For ROS2 LaserScan Topic Publishing Rate, Not same as the RTX LiDAR rotation rate (see ``lidar_2d.rotation_rate_hz`` below).
     joint_states: 50             # OG ROS2PublishJointState tick rate (matches odom)
   # Frame names threaded through ``create_odometry_publisher`` so the
@@ -190,10 +201,10 @@ sensors:
     # empirical verification (2026-05-04) showed the resulting RGB image
     # was inverted -- the [180, 0, 0] was a Z-down URDF compensation,
     # not an Isaac-Sim convention requirement.
-    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+    local_orientation_rpy_deg: [0.0, -5.0, 0.0]
     resolution: [1280, 960]
-    focal_length: 24.0
-    clipping_range: [0.1, 10.0]
+    focal_length: 18.0
+    clipping_range: [0.1, 1500.0]
     # Optional stereo-disparity depth simulation
     # (OmniSensorDepthSensorSingleViewAPI schema).  ``enabled: false`` keeps
     # the v0.7 / v1.0 behaviour where depth comes from the renderer's
@@ -229,7 +240,7 @@ sensors:
     vertical_fov_deg: 45.0
     horizontal_resolution_deg: 0.4
     vertical_resolution_deg: 1.875
-    rotation_rate_hz: 10.0
+    rotation_rate_hz: 30.0
     profile_name: "OS1" # Isaac Sim Bundled RTX LiDAR asset key (Ouster OS1 USD carries variant set)
     profile_json_path: null
     # Swap the LiDAR USD model by changing this key (e.g. ``Velodyne_VLP16``).

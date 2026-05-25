@@ -430,6 +430,22 @@ def _build_set_values(
         ("Lidar3DHelper.inputs:topicName", _ns_topic(ns, topics["lidar"])),
         ("Lidar3DHelper.inputs:frameId", "lidar_link"),
         ("Lidar3DHelper.inputs:type", "point_cloud"),
+        # NOTE: ``inputs:fullScan`` defaults to ``False`` on
+        # ``ROS2RtxLidarHelper``, which means a partial scan (only the
+        # angular slice covered since the previous tick) is published
+        # every simulation frame.  This is fine when the YAML
+        # ``rotation_rate_hz`` roughly matches the sim tick rate (e.g.
+        # 30 Hz LiDAR + 30 Hz sim = one full revolution per tick), but
+        # it breaks kinematic-icp / kiss-icp / kindr-style registrators
+        # for slower LiDARs (e.g. Ouster OS1 at 10 Hz on a 30 Hz sim
+        # tick yields ~36 deg azimuth slices per message, which
+        # de-stabilises the adaptive threshold and voxel map).  To
+        # accumulate one full revolution before publishing, add:
+        #
+        #     ("Lidar3DHelper.inputs:fullScan", True),
+        #
+        # See ``README.md`` (SLAM integration notes) for the matching
+        # ``configs/rover_m2020.yaml`` knob (``lidar_3d.rotation_rate_hz``).
         ("Lidar3DHelper.inputs:qosProfile", sensor_qos_preset),
     ]
     if include_pointcloud2 and "points" in topics:
