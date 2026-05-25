@@ -988,6 +988,13 @@ class IMUConfig(BaseModel):
     ``frequency`` parameter.  Keeping those two values in one place
     avoids the Mars-gravity drift that surfaces when the schema and the
     runtime defaults disagree.
+
+    Optional Gaussian noise fields (``sigma_lin_acc`` / ``sigma_ang_vel``)
+    enable Python-side noise injection via
+    :mod:`marslab.ros2_bridge.imu_noise_publisher`.  When both are zero
+    (the default) no noise publisher is created and the OmniGraph path
+    publishes the raw PhysX readings unchanged.  The RNG seed is taken
+    from the top-level ``sensors.seed`` field on :class:`SensorsConfig`.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -1007,6 +1014,24 @@ class IMUConfig(BaseModel):
         min_length=3,
         max_length=3,
         description="[roll, pitch, yaw] in degrees (ZYX intrinsic).",
+    )
+    sigma_lin_acc: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Gaussian noise std-dev on each linear-acceleration axis (m/s^2). "
+            "Zero disables noise injection (default, matches legacy behaviour). "
+            "RNG is seeded from ``sensors.seed``."
+        ),
+    )
+    sigma_ang_vel: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Gaussian noise std-dev on each angular-velocity axis (rad/s). "
+            "Zero disables noise injection (default). "
+            "RNG is seeded from ``sensors.seed``."
+        ),
     )
 
 
@@ -1044,6 +1069,17 @@ class SensorsConfig(BaseModel):
     imu: IMUConfig = Field(
         ...,
         description="IMU mount + frame.",
+    )
+    seed: Optional[int] = Field(
+        default=None,
+        description=(
+            "Master RNG seed for all Python-side sensor noise models "
+            "(wheel odometry, IMU, depth camera).  ``None`` (default) "
+            "falls back to nondeterministic behaviour, preserving the "
+            "original behaviour when the field is omitted from the YAML. "
+            "Per-sensor RNGs are derived via ``np.random.SeedSequence`` "
+            "so each sensor's stream is independent."
+        ),
     )
 
 

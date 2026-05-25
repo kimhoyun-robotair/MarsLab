@@ -21,6 +21,7 @@ import numpy as np
 from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
 from marslab.ros2_bridge.cmd_vel_subscriber import create_cmd_vel_subscriber
 from marslab.ros2_bridge.context import BridgeContext
+from marslab.ros2_bridge.imu_noise_publisher import create_imu_noise_publisher
 from marslab.ros2_bridge.odometry_publisher import create_odometry_publisher
 from marslab.ros2_bridge.robot_description_publisher import publish_robot_description
 from marslab.ros2_bridge.sensor_graph_builder import _ns_topic
@@ -37,6 +38,7 @@ def init_rclpy_side(
     *,
     urdf_path: Optional[str] = None,
     wheel_odom_params: Optional[Dict[str, Any]] = None,
+    imu_noise_params: Optional[Dict[str, Any]] = None,
 ) -> BridgeContext:
     """Boot rclpy and wire cmd_vel / static TF / odom publishers.
 
@@ -207,6 +209,26 @@ def init_rclpy_side(
             twist_diag=wheel_odom_params.get("twist_diag"),
         )
 
+    # IMU noise publisher — only created when sigma fields are non-zero.
+    # ``imu_noise_params`` carries ``imu_prim_path``, ``sigma_lin_acc``,
+    # ``sigma_ang_vel``, and ``seed`` derived from the master sensors.seed.
+    imu_noise_ctx = None
+    if imu_noise_params is not None:
+        sigma_la = float(imu_noise_params.get("sigma_lin_acc", 0.0))
+        sigma_av = float(imu_noise_params.get("sigma_ang_vel", 0.0))
+        if sigma_la > 0.0 or sigma_av > 0.0:
+            imu_topic = _ns_topic(ns, topics["imu"])
+            imu_noise_ctx = create_imu_noise_publisher(
+                node=node,
+                topic=imu_topic,
+                imu_prim_path=str(imu_noise_params["imu_prim_path"]),
+                sigma_lin_acc=sigma_la,
+                sigma_ang_vel=sigma_av,
+                seed=imu_noise_params.get("seed"),
+                queue_size=10,
+                sensor_qos=qos_bundle["sensor"],
+            )
+
     return BridgeContext(
         node=node,
         cmd_vel_subscription=cmd_vel_sub,
@@ -215,6 +237,7 @@ def init_rclpy_side(
         twist_state=twist_state,
         robot_description_ctx=robot_description_ctx,
         wheel_odom_ctx=wheel_odom_ctx,
+        imu_noise_ctx=imu_noise_ctx,
     )
 
 

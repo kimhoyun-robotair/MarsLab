@@ -141,6 +141,7 @@ def build_loop_context(
         atmosphere=atmosphere,
         odom_ctx=(bridge.odom_ctx if bridge is not None else None),
         wheel_odom_ctx=(bridge.wheel_odom_ctx if bridge is not None else None),
+        imu_noise_ctx=(getattr(bridge, "imu_noise_ctx", None) if bridge is not None else None),
         render_config=render_config,
         ackermann_fn=ackermann_fn,
         spin_once=spin_once,

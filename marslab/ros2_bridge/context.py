@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from marslab.ros2_bridge.imu_noise_publisher import ImuNoiseContext
 from marslab.ros2_bridge.odometry_publisher import OdometryPublisherContext
 from marslab.ros2_bridge.wheel_odometry_publisher import WheelOdometryContext
 
@@ -25,6 +26,8 @@ class BridgeContext:
     ``wheel_odom_ctx`` integrates wheel-joint angular velocities into a
     skid-steer dead-reckoning estimate on ``/rover/odom`` so a downstream
     SLAM stack has a noisy odometry source to fuse / correct.
+    ``imu_noise_ctx`` publishes Python-side noisy IMU on ``/rover/imu``
+    when IMU noise fields are non-zero; ``None`` when noise is disabled.
     """
 
     node: Any
@@ -34,6 +37,7 @@ class BridgeContext:
     twist_state: Dict[str, float]
     robot_description_ctx: Optional[Any] = None
     wheel_odom_ctx: Optional[WheelOdometryContext] = None
+    imu_noise_ctx: Optional[ImuNoiseContext] = None
 
 
 __all__ = ["BridgeContext"]

@@ -799,7 +799,37 @@ def main() -> int:
             sensor_frames = sensor_frames_to_tuples(build_sensor_frames(sensors_cfg))
             urdf_rel = rover_cfg.get("urdf_source_path")
             urdf_abs = _abs_repo_path(urdf_rel) if urdf_rel else None
+
+            # Derive per-sensor seeds from the master seed via SeedSequence so
+            # each sensor's RNG stream is independent.  Indices are stable:
+            #   0 → wheel odometry, 1 → IMU, 2 → depth camera (future)
+            master_seed = sensors_cfg.get("seed")
+            if master_seed is not None:
+                ss = np.random.SeedSequence(int(master_seed))
+                child_seeds = ss.spawn(3)
+                odom_seed = int(child_seeds[0].generate_state(1)[0])
+                imu_seed: Optional[int] = int(child_seeds[1].generate_state(1)[0])
+            else:
+                odom_seed = None
+                imu_seed = None
+
             wheel_odom_params = _build_wheel_odom_params(rover_cfg, control_cfg, dof_names)
+            # Override wheel odom seed from master if master seed is set.
+            if wheel_odom_params is not None and odom_seed is not None:
+                wheel_odom_params["seed"] = odom_seed
+
+            imu_cfg = sensors_cfg.get("imu", {})
+            sigma_la = float(imu_cfg.get("sigma_lin_acc", 0.0))
+            sigma_av = float(imu_cfg.get("sigma_ang_vel", 0.0))
+            imu_noise_params: Optional[Dict[str, Any]] = None
+            if sigma_la > 0.0 or sigma_av > 0.0:
+                imu_noise_params = {
+                    "imu_prim_path": handles.imu_prim_path,
+                    "sigma_lin_acc": sigma_la,
+                    "sigma_ang_vel": sigma_av,
+                    "seed": imu_seed,
+                }
+
             bridge = init_rclpy_side(
                 ros2_cfg=ros2_cfg,
                 sensor_frames=sensor_frames,
@@ -808,6 +838,7 @@ def main() -> int:
                 node_name="marslab_main_rover",
                 urdf_path=urdf_abs,
                 wheel_odom_params=wheel_odom_params,
+                imu_noise_params=imu_noise_params,
             )
 
         # ---- GT publisher add-on (zero modifications to marslab/) ----------

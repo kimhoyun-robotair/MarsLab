@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     # Type-only import: keeps the runtime offline-importable because the
     # publisher module's ``rclpy`` / ``tf2_ros`` / ``nav_msgs`` imports
     # are themselves function-local.
+    from marslab.ros2_bridge.imu_noise_publisher import ImuNoiseContext
     from marslab.ros2_bridge.odometry_publisher import OdometryPublisherContext
     from marslab.ros2_bridge.wheel_odometry_publisher import WheelOdometryContext
 
@@ -297,6 +298,7 @@ class LoopContext:
     render_config: Any
     ackermann_fn: Callable[..., Any]
     spin_once: Optional[Callable[..., None]] = None
+    imu_noise_ctx: Optional["ImuNoiseContext"] = None
     update_sun_fn: Optional[Callable[..., None]] = None
     update_sky_fn: Optional[Callable[..., None]] = None
     configure_fog_fn: Optional[Callable[..., None]] = None
@@ -527,6 +529,9 @@ def run_main_loop(ctx: LoopContext) -> int:
             if ctx.wheel_odom_ctx is not None and ctx.wheel_odom_ctx.publisher is not None:
                 _publish_wheel_odometry(ctx, ctl.step_count)
 
+            if ctx.imu_noise_ctx is not None and ctx.imu_noise_ctx.publisher is not None:
+                _publish_imu_with_noise(ctx, ctl.step_count)
+
             if ctl.step_count % atmo.update_interval == 0 and ctl.step_count > 0:
                 _update_atmosphere(ctx)
 
@@ -678,6 +683,38 @@ def _publish_wheel_odometry(ctx: LoopContext, step_count: int) -> None:
         publish_wheel_odometry(wheel_ctx, jv)
     except Exception as exc:  # noqa: BLE001
         _log_once(logger, exc, "wheel_odom_publish_failed", step_count)
+
+
+def _publish_imu_with_noise(ctx: LoopContext, step_count: int) -> None:
+    """Read the PhysX IMU frame, inject seeded Gaussian noise, publish."""
+    imu_ctx = ctx.imu_noise_ctx
+    if imu_ctx is None:
+        return
+
+    from marslab.ros2_bridge.imu_noise_publisher import publish_imu_with_noise
+
+    try:
+        from isaacsim.sensors.physics import _sensor as _imu_sensor
+    except ImportError:
+        try:
+            from omni.isaac.sensor import _sensor as _imu_sensor
+        except ImportError:
+            return
+
+    try:
+        imu_interface = _imu_sensor.acquire_imu_sensor_interface()
+        reading = imu_interface.get_sensor_reading(
+            imu_ctx.imu_prim_path, use_latest_data=True, read_gravity=True
+        )
+        lin_acc = np.array(
+            [reading.lin_acc_x, reading.lin_acc_y, reading.lin_acc_z], dtype=np.float64
+        )
+        ang_vel = np.array(
+            [reading.ang_vel_x, reading.ang_vel_y, reading.ang_vel_z], dtype=np.float64
+        )
+        publish_imu_with_noise(imu_ctx, lin_acc, ang_vel)
+    except Exception as exc:  # noqa: BLE001
+        _log_once(logger, exc, "imu_noise_publish_failed", step_count)
 
 
 def _update_atmosphere(ctx: LoopContext) -> None:

@@ -23,6 +23,7 @@ class TestBridgeContextDataclass:
             "twist_state",
             "robot_description_ctx",
             "wheel_odom_ctx",
+            "imu_noise_ctx",
         ]
 
     def test_constructible_with_placeholder_values(self) -> None:

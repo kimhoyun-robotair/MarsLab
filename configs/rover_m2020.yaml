@@ -32,12 +32,12 @@ spawn_orientation_rpy: [0.0, 0.0, 0.0]
 # rover Z is set to ``surface_z + z_offset``. ``z_offset`` here overrides the
 # CLI ``--z-offset`` flag if present.
 spawn:
-  mode: "dem_center"
+  mode: "trajectory_start"
   xy: [0.0, 0.0]
   z_offset: 0.1
   orientation_rpy: [0.0, 0.0, 0.0]
   # Only used when mode == "trajectory_start":
-  trajectory_path: null               # e.g. "TrajectoryComposer/out/jezero_rocky_loop/trajectory.tum"
+  trajectory_path: "/home/hoyunkim/MarsLab-Utils/TrajectoryComposer/out/jezero_enhanced_test_zigzag/trajectory.tum"               # e.g. "TrajectoryComposer/out/jezero_rocky_loop/trajectory.tum"
   use_yaw_from_trajectory: true
 
 # Chassis CoM offset (m).  Empirically determined +0.2 m forward shift.
@@ -185,6 +185,13 @@ ros2:
   publish_odom_tf: true
 
 sensors:
+  # Master RNG seed for all Python-side sensor noise models.
+  # Same seed → identical noise sequence on rerun (wheel odom, IMU, depth camera).
+  # Omit or set to null for nondeterministic behaviour (original default).
+  # Per-sensor RNGs are derived independently via np.random.SeedSequence so
+  # changing one sensor's parameters does not shift another's sequence.
+  seed: 42
+
   # Sensor frames are authored in the URDF body frame, which is REP-103
   # aligned (+X forward, +Y left, +Z up) since the 2026-05-04 rc1b URDF
   # rewrite.  A sensor 2.1 m above the chassis is at ``z = +2.1``.
@@ -275,6 +282,10 @@ sensors:
     parent_link: "Body_Chassis"
     local_translation: [0.0, 0.0, 0.0]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+    # Python-side Gaussian noise (seeded from sensors.seed).
+    # Zero disables noise injection (preserves raw PhysX readings via OmniGraph).
+    sigma_lin_acc: 0.05   # m/s^2 per axis — MEMS IMU ballpark
+    sigma_ang_vel: 0.005  # rad/s per axis — MEMS gyro ballpark
 
 control:
   # Geometry derived from URDF kinematic chain (m2020.urdf).
