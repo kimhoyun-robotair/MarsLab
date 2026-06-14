@@ -62,8 +62,9 @@ def compute_sky_dome_params(
 
     cfg = sky_cfg if sky_cfg is not None else _DEFAULT_SKY_DOME_CONFIG
 
-    # Interpolation factor: 0 at tau=0 (clear), 1 at tau>=3.0 (dusty)
-    t = min(tau / 3.0, 1.0)
+    # Interpolation factor: 0 at tau=0 (clear), 1 at tau >= cfg.tau_saturation
+    # (dusty). Default saturation is 3.0 (SkyDomeConfig).
+    t = min(tau / cfg.tau_saturation, 1.0)
 
     clear = cfg.clear_rgb
     dusty = cfg.dusty_rgb

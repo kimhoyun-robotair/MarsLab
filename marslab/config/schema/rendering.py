@@ -147,7 +147,21 @@ class SkyDomeConfig(BaseModel):
     )
     dusty_rgb: Tuple[float, float, float] = Field(
         default=(0.85, 0.75, 0.60),
-        description=("Dust-storm sky RGB used as interpolation endpoint at tau >= 3."),
+        description=(
+            "Dust-storm sky RGB used as interpolation endpoint at "
+            "tau >= tau_saturation."
+        ),
+    )
+    tau_saturation: float = Field(
+        default=3.0,
+        gt=0.0,
+        description=(
+            "Tau at which the sky color/brightness ramp saturates: the "
+            "interpolation factor is t = min(tau / tau_saturation, 1). The "
+            "default 3.0 preserves the historical ramp; raise it (e.g. 6.0) "
+            "so the sky keeps evolving across a wider domain-randomization "
+            "tau range."
+        ),
     )
     brightness_min: float = Field(
         default=0.1,

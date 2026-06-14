@@ -439,11 +439,12 @@ def _build_set_values(
         # it breaks kinematic-icp / kiss-icp / kindr-style registrators
         # for slower LiDARs (e.g. Ouster OS1 at 10 Hz on a 30 Hz sim
         # tick yields ~36 deg azimuth slices per message, which
-        # de-stabilises the adaptive threshold and voxel map).  To
-        # accumulate one full revolution before publishing, add:
-        #
-        #     ("Lidar3DHelper.inputs:fullScan", True),
-        #
+        # de-stabilises the adaptive threshold and voxel map).
+        # fullScan=True accumulates one full revolution per message —
+        # enabled 2026-06-13 after kiss-icp diverged (3 m median step
+        # jumps) and kinematic-icp under-estimated rotation on the
+        # sector slices; see SlamRunner round-4 notes.
+        ("Lidar3DHelper.inputs:fullScan", True),
         # See ``README.md`` (SLAM integration notes) for the matching
         # ``configs/rover_m2020.yaml`` knob (``lidar_3d.rotation_rate_hz``).
         ("Lidar3DHelper.inputs:qosProfile", sensor_qos_preset),

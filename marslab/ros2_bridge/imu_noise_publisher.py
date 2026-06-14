@@ -1,11 +1,15 @@
 """Python-side IMU noise injection with a seeded RNG.
 
 The OmniGraph ``ReadIMU`` → ``PubIMU`` path publishes raw PhysX IMU
-readings with no Gaussian noise.  This module provides an optional
-rclpy-side publisher that reads the same IMU frame, injects zero-mean
-Gaussian noise on all six axes (3 linear-acceleration + 3 angular-velocity),
-and publishes ``sensor_msgs/Imu`` on a separate topic so SLAM stacks
-that need repeatable noise sequences can drive from this topic instead.
+readings with no Gaussian noise on ``/<ns>/imu``.  This module provides
+an optional rclpy-side publisher that reads the same IMU frame, injects
+zero-mean Gaussian noise on all six axes (3 linear-acceleration +
+3 angular-velocity), and publishes ``sensor_msgs/Imu`` on
+``/<ns>/imu_noisy`` — a *separate* topic from the OmniGraph ``PubIMU``
+output — so SLAM stacks that need repeatable noise sequences can subscribe
+to ``imu_noisy`` instead.  The two topics are distinct by design: running
+both publishers simultaneously does NOT produce duplicate messages on any
+single topic.
 
 The seeded :func:`numpy.random.default_rng` call guarantees that the same
 ``seed`` value produces an identical noise sequence across multiple runs.

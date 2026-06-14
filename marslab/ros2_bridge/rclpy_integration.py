@@ -168,13 +168,20 @@ def init_rclpy_side(
     # topic is the GT for ATE comparison and never carries TF authority.
     gt_topic = _ns_topic(ns, topics["gt_trajectory"])
     odom_pub_cfg = ros2_cfg.get("odom_publisher", {}) if isinstance(ros2_cfg, dict) else {}
+    # GT publisher emits ABSOLUTE world pose (REP-105 `map` frame) so it
+    # matches the world-frame reference trajectory used by PathFollower
+    # and serves as the ATE reference directly without alignment offset.
+    # Passing identity init makes the publisher's delta computation a no-op:
+    # delta = current_world - 0 = current_world.
+    _gt_init_pos_abs = np.zeros(3, dtype=np.float32)
+    _gt_init_quat_abs = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)  # wxyz identity
     odom_ctx = create_odometry_publisher(
         node=node,
         topic=gt_topic,
-        init_pos_world=init_pos_world,
-        init_quat_world=init_quat_world,
+        init_pos_world=_gt_init_pos_abs,
+        init_quat_world=_gt_init_quat_abs,
         queue_size=int(odom_pub_cfg.get("queue_size", 10)),
-        frame_id=str(odom_pub_cfg.get("gt_frame_id", "world")),
+        frame_id=str(odom_pub_cfg.get("gt_frame_id", "map")),
         child_frame_id=str(odom_pub_cfg.get("gt_child_frame_id", "base_link_gt")),
         odom_qos=qos_bundle["odom"],
         tf_qos=qos_bundle["tf"],
@@ -198,7 +205,7 @@ def init_rclpy_side(
             slip_left=float(wheel_odom_params.get("slip_left", 0.0)),
             slip_right=float(wheel_odom_params.get("slip_right", 0.0)),
             sigma_omega=float(wheel_odom_params.get("sigma_omega", 0.0)),
-            seed=int(wheel_odom_params.get("seed", 0)),
+            seed=int(wheel_odom_params["seed"]) if wheel_odom_params.get("seed") is not None else None,
             queue_size=int(odom_pub_cfg.get("queue_size", 10)),
             odom_qos=qos_bundle["odom"],
             tf_qos=qos_bundle["tf"],
@@ -217,7 +224,11 @@ def init_rclpy_side(
         sigma_la = float(imu_noise_params.get("sigma_lin_acc", 0.0))
         sigma_av = float(imu_noise_params.get("sigma_ang_vel", 0.0))
         if sigma_la > 0.0 or sigma_av > 0.0:
-            imu_topic = _ns_topic(ns, topics["imu"])
+            # Publish noisy IMU on a dedicated topic to avoid colliding with the
+            # OmniGraph PubIMU node, which also publishes to topics["imu"].
+            # Downstream SLAM stacks that need repeatable noisy IMU should
+            # subscribe to /<ns>/imu_noisy; /<ns>/imu remains the raw OmniGraph stream.
+            imu_topic = _ns_topic(ns, topics.get("imu_noisy", topics["imu"] + "_noisy"))
             imu_noise_ctx = create_imu_noise_publisher(
                 node=node,
                 topic=imu_topic,

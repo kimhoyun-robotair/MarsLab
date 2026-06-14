@@ -94,10 +94,6 @@ _DEFAULT_Z_OFFSET = 0.1
 _DEFAULT_SCENARIO = "configs/default.yaml"
 _TERRAIN_PRIM_PATH = "/World/Terrain"
 
-# Cap on mesh point samples for DEM-center elevation lookup. Multi-million
-# point heightfields would otherwise dominate stage-load time.
-_DEM_SAMPLE_CAP = 200_000
-
 
 def _abs_repo_path(p: str) -> str:
     """Resolve a possibly repo-relative path to an absolute path."""
@@ -154,79 +150,91 @@ def _parse_tum_first_pose(tum_path: str) -> Tuple[float, float, float, float]:
     raise ValueError(f"{tum_path}: no data lines found")
 
 
+def _find_terrain_meshes(
+    stage: Any,
+    terrain_prim_path: str,
+) -> Tuple[Any, Any]:
+    """Return ``(visible_mesh, collision_mesh)`` prims under ``terrain_prim_path``.
+
+    The visible mesh is the first non-``invisible`` ``UsdGeom.Mesh`` (the
+    rendered surface); the collision mesh is the first prim named ``*Collision*``
+    or authored ``invisible`` (the surface the rover physically rests on). Either
+    may be ``None``.
+    """
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
+
+    terrain_root = stage.GetPrimAtPath(terrain_prim_path)
+    if not terrain_root.IsValid():
+        raise RuntimeError(f"Terrain prim not found at {terrain_prim_path}")
+
+    visible = collision = None
+    for prim in Usd.PrimRange(terrain_root):
+        if not prim.IsA(UsdGeom.Mesh):
+            continue
+        vis_attr = UsdGeom.Imageable(prim).GetVisibilityAttr()
+        invisible = vis_attr.IsValid() and vis_attr.Get() == UsdGeom.Tokens.invisible
+        if "Collision" in prim.GetName() or invisible:
+            if collision is None:
+                collision = prim
+        elif visible is None:
+            visible = prim
+    return visible, collision
+
+
+def _nearest_k_median_z(
+    mesh_prim: Any,
+    target_x: float,
+    target_y: float,
+    k: int = 8,
+) -> float:
+    """Median world-Z of the ``k`` mesh vertices nearest ``(target_x, target_y)``
+    in world XY.
+
+    Evaluates the surface elevation AT the target point rather than averaging a
+    size-scaled disk, so spawn Z is unbiased on sloped/curved terrain (a disk
+    median sits above the floor of a crater and below the crest of a rise). The
+    k-nearest median (vs single nearest) is robust to a stray vertex.
+    """
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
+
+    points = UsdGeom.Mesh(mesh_prim).GetPointsAttr().Get()
+    if points is None or len(points) == 0:
+        raise RuntimeError(
+            f"Mesh {mesh_prim.GetPath()} has no authored points; cannot sample "
+            "DEM elevation."
+        )
+    local_to_world = UsdGeom.XformCache(
+        Usd.TimeCode.Default()
+    ).GetLocalToWorldTransform(mesh_prim)
+    matrix = np.array(local_to_world, dtype=np.float64)   # 4x4, row-vector convention
+    pts = np.asarray(points, dtype=np.float64)
+    world = pts @ matrix[:3, :3] + matrix[3, :3]
+    d2 = (world[:, 0] - target_x) ** 2 + (world[:, 1] - target_y) ** 2
+    k = min(k, world.shape[0])
+    idx = np.argpartition(d2, k - 1)[:k]
+    return float(np.median(world[idx, 2]))
+
+
 def _sample_dem_surface_z_at(
     stage: Any,
     terrain_prim_path: str,
     target_x: float,
     target_y: float,
 ) -> float:
-    """Return the DEM surface elevation at world XY ``(target_x, target_y)``.
+    """Return the ground elevation at world XY ``(target_x, target_y)``.
 
-    Mirrors the sampling strategy of :func:`_sample_dem_elevation` but uses
-    ``(target_x, target_y)`` instead of the bbox centre as the search
-    centre. Raises RuntimeError if no mesh samples land within the radius.
+    Samples the median Z of the vertices nearest the exact XY on the collision
+    mesh (the surface the rover rests on; falls back to the visible mesh).
+    Evaluating at the exact point avoids the regional-average bias that made the
+    rover spawn metres above the ground on large, high-relief scenes (craters).
     """
-    from pxr import Gf, Usd, UsdGeom  # noqa: PLC0415
-
-    terrain_root = stage.GetPrimAtPath(terrain_prim_path)
-    if not terrain_root.IsValid():
-        raise RuntimeError(f"Terrain prim not found at {terrain_prim_path}")
-
-    visual_mesh_prim = None
-    for prim in Usd.PrimRange(terrain_root):
-        if not prim.IsA(UsdGeom.Mesh):
-            continue
-        vis_attr = UsdGeom.Imageable(prim).GetVisibilityAttr()
-        if vis_attr.IsValid() and vis_attr.Get() == UsdGeom.Tokens.invisible:
-            continue
-        visual_mesh_prim = prim
-        break
-    if visual_mesh_prim is None:
+    visible, collision = _find_terrain_meshes(stage, terrain_prim_path)
+    mesh_prim = collision if collision is not None else visible
+    if mesh_prim is None:
         raise RuntimeError(
-            f"No visible UsdGeom.Mesh under {terrain_prim_path}"
+            f"No UsdGeom.Mesh under {terrain_prim_path}; cannot sample DEM elevation."
         )
-
-    bbox_cache = UsdGeom.BBoxCache(
-        Usd.TimeCode.Default(),
-        includedPurposes=[UsdGeom.Tokens.default_],
-    )
-    bbox = bbox_cache.ComputeWorldBound(visual_mesh_prim).ComputeAlignedRange()
-    bmin, bmax = bbox.GetMin(), bbox.GetMax()
-
-    points = UsdGeom.Mesh(visual_mesh_prim).GetPointsAttr().Get()
-    if points is None or len(points) == 0:
-        raise RuntimeError(
-            f"Mesh {visual_mesh_prim.GetPath()} has no authored points"
-        )
-
-    xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-    local_to_world = xform_cache.GetLocalToWorldTransform(visual_mesh_prim)
-
-    n_points = len(points)
-    stride = max(1, n_points // _DEM_SAMPLE_CAP)
-    bbox_diag_xy = float(np.hypot(bmax[0] - bmin[0], bmax[1] - bmin[1]))
-    radius_xy = max(0.5, bbox_diag_xy * 0.02)
-    radius_xy_sq = radius_xy * radius_xy
-
-    sample_zs = []
-    for i in range(0, n_points, stride):
-        p = points[i]
-        world_p = local_to_world.Transform(
-            Gf.Vec3d(float(p[0]), float(p[1]), float(p[2]))
-        )
-        dx = float(world_p[0]) - target_x
-        dy = float(world_p[1]) - target_y
-        if dx * dx + dy * dy <= radius_xy_sq:
-            sample_zs.append(float(world_p[2]))
-
-    if not sample_zs:
-        raise RuntimeError(
-            f"No mesh samples within {radius_xy:.2f} m of "
-            f"({target_x:.3f}, {target_y:.3f}). The target XY may lie outside "
-            "the DEM footprint."
-        )
-
-    return float(np.median(np.asarray(sample_zs, dtype=np.float64)))
+    return _nearest_k_median_z(mesh_prim, target_x, target_y)
 
 
 def _resolve_spawn(
@@ -316,96 +324,37 @@ def _sample_dem_elevation(
 ) -> Tuple[float, float, float]:
     """Return ``(cx, cy, surface_z)`` at the DEM center.
 
-    Strategy:
-
-    1. Walk the prim tree under ``terrain_prim_path`` and pick the first
-       visible ``UsdGeom.Mesh`` (skip ``CollisionMesh`` prims that
-       HiRISEGen authors with ``visibility = "invisible"``).
-    2. Compute the world-space axis-aligned bbox via
-       :class:`UsdGeom.BBoxCache` -> DEM center XY.
-    3. Walk the mesh's authored points (strided to cap at
-       :data:`_DEM_SAMPLE_CAP` samples), transform each to world space
-       via the mesh's ``GetLocalToWorldTransform``, and take the median
-       Z of samples within a small XY radius of the bbox center.
-    4. Raise :class:`RuntimeError` if the mesh has no points or zero
-       samples land within the radius. No silent fallback.
+    ``(cx, cy)`` is the visible-mesh world bbox centre. ``surface_z`` is the
+    ground elevation sampled at that exact centre XY from the collision mesh
+    (falls back to the visible mesh) via :func:`_nearest_k_median_z` -- not a
+    regional disk average, so it is unbiased on craters/canyons.
     """
-    from pxr import Gf, Usd, UsdGeom  # noqa: PLC0415
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
 
-    terrain_root = stage.GetPrimAtPath(terrain_prim_path)
-    if not terrain_root.IsValid():
-        raise RuntimeError(f"Terrain prim not found at {terrain_prim_path}")
-
-    visual_mesh_prim = None
-    for prim in Usd.PrimRange(terrain_root):
-        if not prim.IsA(UsdGeom.Mesh):
-            continue
-        # Skip invisible collision meshes; the rendered surface is the visible mesh.
-        vis_attr = UsdGeom.Imageable(prim).GetVisibilityAttr()
-        if vis_attr.IsValid() and vis_attr.Get() == UsdGeom.Tokens.invisible:
-            continue
-        visual_mesh_prim = prim
-        break
-    if visual_mesh_prim is None:
+    visible, collision = _find_terrain_meshes(stage, terrain_prim_path)
+    if visible is None and collision is None:
         raise RuntimeError(
-            f"No visible UsdGeom.Mesh under {terrain_prim_path}; "
-            "cannot sample DEM elevation."
+            f"No UsdGeom.Mesh under {terrain_prim_path}; cannot sample DEM elevation."
         )
 
+    bbox_ref = visible if visible is not None else collision
     bbox_cache = UsdGeom.BBoxCache(
         Usd.TimeCode.Default(),
         includedPurposes=[UsdGeom.Tokens.default_],
     )
-    bbox = bbox_cache.ComputeWorldBound(visual_mesh_prim).ComputeAlignedRange()
+    bbox = bbox_cache.ComputeWorldBound(bbox_ref).ComputeAlignedRange()
     bmin, bmax = bbox.GetMin(), bbox.GetMax()
     cx = float((bmin[0] + bmax[0]) / 2.0)
     cy = float((bmin[1] + bmax[1]) / 2.0)
 
-    points = UsdGeom.Mesh(visual_mesh_prim).GetPointsAttr().Get()
-    if points is None or len(points) == 0:
-        raise RuntimeError(
-            f"Mesh {visual_mesh_prim.GetPath()} has no authored points; cannot "
-            "sample DEM elevation. Inspect the USDA file."
-        )
-
-    xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-    local_to_world = xform_cache.GetLocalToWorldTransform(visual_mesh_prim)
-
-    n_points = len(points)
-    stride = max(1, n_points // _DEM_SAMPLE_CAP)
-    bbox_diag_xy = float(np.hypot(bmax[0] - bmin[0], bmax[1] - bmin[1]))
-    radius_xy = max(0.5, bbox_diag_xy * 0.02)
-    radius_xy_sq = radius_xy * radius_xy
-
-    sample_zs = []
-    for i in range(0, n_points, stride):
-        p = points[i]
-        world_p = local_to_world.Transform(
-            Gf.Vec3d(float(p[0]), float(p[1]), float(p[2]))
-        )
-        dx = float(world_p[0]) - cx
-        dy = float(world_p[1]) - cy
-        if dx * dx + dy * dy <= radius_xy_sq:
-            sample_zs.append(float(world_p[2]))
-
-    if not sample_zs:
-        raise RuntimeError(
-            f"No mesh samples within {radius_xy:.2f} m of DEM center "
-            f"({cx:.3f}, {cy:.3f}). Stride={stride}/{n_points} may be too coarse "
-            "for this DEM; reduce _DEM_SAMPLE_CAP or supply a denser USDA."
-        )
-
-    surface_z = float(np.median(np.asarray(sample_zs, dtype=np.float64)))
+    mesh_prim = collision if collision is not None else visible
+    surface_z = _nearest_k_median_z(mesh_prim, cx, cy)
     _LOG.info(
-        "DEM center=(%.3f, %.3f) surface_z=%.3f (n_samples=%d, radius=%.2f m, "
-        "stride=%d/%d)",
+        "DEM center=(%.3f, %.3f) surface_z=%.3f (nearest-k median on %s mesh)",
         cx,
         cy,
         surface_z,
-        len(sample_zs),
-        radius_xy,
-        stride,
-        n_points,
+        "collision" if collision is not None else "visible",
     )
     return cx, cy, surface_z
 

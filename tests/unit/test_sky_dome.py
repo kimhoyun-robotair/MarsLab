@@ -53,6 +53,29 @@ def test_color_rgb_range(tau: float) -> None:
         assert 0.0 <= c <= 1.0
 
 
+def test_tau_saturation_default_freezes_ramp_above_3():
+    """With the default config the ramp saturates at tau=3 (historical)."""
+    sky3 = compute_sky_dome_params(3.0, "assets/mars_sky/")
+    sky5 = compute_sky_dome_params(5.0, "assets/mars_sky/")
+    assert sky3.base_color_rgb == sky5.base_color_rgb
+    assert sky3.brightness == sky5.brightness
+
+
+def test_tau_saturation_override_extends_ramp():
+    """tau_saturation=6 keeps color/brightness evolving between tau 3 and 6."""
+    from marslab.config.schema import SkyDomeConfig
+
+    cfg = SkyDomeConfig(tau_saturation=6.0)
+    sky3 = compute_sky_dome_params(3.0, "assets/mars_sky/", sky_cfg=cfg)
+    sky5 = compute_sky_dome_params(5.0, "assets/mars_sky/", sky_cfg=cfg)
+    assert sky3.base_color_rgb != sky5.base_color_rgb
+    assert sky3.brightness > sky5.brightness
+    # At tau == saturation the override matches the default ramp endpoint.
+    sky6 = compute_sky_dome_params(6.0, "assets/mars_sky/", sky_cfg=cfg)
+    sky_default_sat = compute_sky_dome_params(3.0, "assets/mars_sky/")
+    assert sky6.base_color_rgb == sky_default_sat.base_color_rgb
+
+
 def test_hdri_selection_by_tau():
     """Different tau ranges select different HDRI files."""
     sky_clear = compute_sky_dome_params(0.1, "hdri/")

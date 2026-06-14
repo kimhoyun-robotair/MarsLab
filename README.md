@@ -234,6 +234,7 @@ Default rover namespace is `/rover/` (override via `rover.ros2.namespace` in
 |---|---|---|---|
 | `/rover/odom` | `nav_msgs/Odometry` | RELIABLE/depth=10 | `Ros2BridgeConfig.odom_qos` |
 | `/rover/imu` | `sensor_msgs/Imu` | BEST_EFFORT/depth=5 | `Ros2BridgeConfig.sensor_qos` |
+| `/rover/imu_noisy` | `sensor_msgs/Imu` | BEST_EFFORT/depth=5 | `Ros2BridgeConfig.sensor_qos` (only published when `imu.sigma_lin_acc > 0` or `sigma_ang_vel > 0`) |
 | `/rover/rgb/image_raw` + `/rover/rgb/camera_info` | `sensor_msgs/Image`, `CameraInfo` | BEST_EFFORT/depth=5 | `Ros2BridgeConfig.sensor_qos` |
 | `/rover/depth/image_raw` + `/rover/depth/points` | `sensor_msgs/Image`, `PointCloud2` | BEST_EFFORT/depth=5 | `Ros2BridgeConfig.sensor_qos` |
 | `/rover/lidar/points` | `sensor_msgs/PointCloud2` | BEST_EFFORT/depth=5 | `Ros2BridgeConfig.sensor_qos` |
@@ -241,6 +242,23 @@ Default rover namespace is `/rover/` (override via `rover.ros2.namespace` in
 | `/clock` | `rosgraph_msgs/Clock` | (Isaac Sim default) | OmniGraph node |
 | `/rover/joint_states` | `sensor_msgs/JointState` | RELIABLE + TRANSIENT_LOCAL/100 | `Ros2BridgeConfig.tf_qos` |
 | `/tf` + `/tf_static` + `/robot_description` | std | RELIABLE + TRANSIENT_LOCAL/100 | `Ros2BridgeConfig.tf_qos` |
+
+### IMU topic selection (raw vs noisy)
+
+MarsLab publishes IMU data on **two separate topics**. Downstream consumers
+(SLAM, path follower, sensor fusion) must explicitly pick one:
+
+| Topic | Source | Use case |
+|---|---|---|
+| `/rover/imu` | Isaac Sim OmniGraph `PubIMU` node (raw) | Ground-truth IMU with no noise. Useful for algorithm bring-up, debugging, ideal-condition baselines. **Does not model real-sensor characteristics.** |
+| `/rover/imu_noisy` | rclpy Python publisher with seeded Gaussian noise (`sigma_lin_acc`, `sigma_ang_vel`) | Reproducible noisy IMU for SLAM benchmarking. Same `sensors.seed` → identical noise sequence (see `marslab/ros2_bridge/imu_noise_publisher.py`). Multi-seed ATE experiments should subscribe here. |
+
+Only `/rover/imu` is always published. `/rover/imu_noisy` is published only
+when `imu.sigma_lin_acc > 0` or `imu.sigma_ang_vel > 0` in `rover_m2020.yaml`.
+
+**Default in `configs/rover_m2020.yaml`**: `sigma_lin_acc: 0.05`,
+`sigma_ang_vel: 0.005` — `/rover/imu_noisy` is published. Set both to `0.0` to
+disable the noisy publisher.
 
 ### TF authority
 

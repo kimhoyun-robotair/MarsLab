@@ -32,12 +32,13 @@ spawn_orientation_rpy: [0.0, 0.0, 0.0]
 # rover Z is set to ``surface_z + z_offset``. ``z_offset`` here overrides the
 # CLI ``--z-offset`` flag if present.
 spawn:
-  mode: "trajectory_start"
+  mode: "trajectory_start" 
   xy: [0.0, 0.0]
   z_offset: 0.1
   orientation_rpy: [0.0, 0.0, 0.0]
   # Only used when mode == "trajectory_start":
-  trajectory_path: "/home/hoyunkim/MarsLab-Utils/TrajectoryComposer/out/jezero_enhanced_test_zigzag/trajectory.tum"               # e.g. "TrajectoryComposer/out/jezero_rocky_loop/trajectory.tum"
+  trajectory_path: "/home/hoyunkim/MarsLab-Utils/TrajectoryComposer/out/jezero_habitat_ellipse_orbit/trajectory.tum"               # e.g. "TrajectoryComposer/out/jezero_rocky_loop/trajectory.tum"
+  # trajectory_path: null
   use_yaw_from_trajectory: true
 
 # Chassis CoM offset (m).  Empirically determined +0.2 m forward shift.
@@ -127,7 +128,8 @@ ros2:
   topics:
     cmd_vel: "cmd_vel"
     robot_description: "robot_description"
-    imu: "imu"
+    imu: "imu"           # OmniGraph PubIMU — raw PhysX readings, no noise
+    imu_noisy: "imu_noisy"  # Python imu_noise_publisher — seeded Gaussian noise injected; only active when imu.sigma_* > 0
     odom: "odom"                 # wheel-encoder dead-reckoning estimate (SLAM input)
     gt_trajectory: "GT_Trajectory"  # PhysX articulation pose verbatim (ATE ground truth)
     rgb: "rgb/image_raw"
@@ -199,7 +201,7 @@ sensors:
   # compensation is applied anywhere in the chain.
   camera:
     parent_link: "Body_Chassis"
-    local_translation: [1.2, 0.0, 1.0]
+    local_translation: [1.2, 0.0, 2.1]
     # URDF body frame is REP-103 (Z-up) post rc1b rewrite, so the camera
     # parent Xform inherits an upright frame.  The image is broadcast
     # with identity rpy; no X-roll compensation is needed.  An earlier
@@ -208,10 +210,10 @@ sensors:
     # empirical verification (2026-05-04) showed the resulting RGB image
     # was inverted -- the [180, 0, 0] was a Z-down URDF compensation,
     # not an Isaac-Sim convention requirement.
-    local_orientation_rpy_deg: [0.0, -5.0, 0.0]
+    local_orientation_rpy_deg: [6.6,  0.0, 90.0]
     resolution: [1280, 960]
     focal_length: 18.0
-    clipping_range: [0.1, 1500.0]
+    clipping_range: [0.1, 100.0]
     # Optional stereo-disparity depth simulation
     # (OmniSensorDepthSensorSingleViewAPI schema).  ``enabled: false`` keeps
     # the v0.7 / v1.0 behaviour where depth comes from the renderer's
@@ -223,7 +225,7 @@ sensors:
       enabled: false
       baseline_mm: 55.0
       min_distance_m: 0.3
-      max_distance_m: 10.0
+      max_distance_m: 100.0
       noise_mean: 0.0
       noise_sigma: 0.005
       confidence_threshold: 0.95
@@ -343,4 +345,6 @@ wheel_odometry:
   slip_left:  0.02          # fractional rotational slip (0 = no slip).
   slip_right: 0.02
   sigma_omega: 0.05         # rad/s -- Gaussian noise on each wheel bank.
-  seed: 42
+  # seed is intentionally omitted here; it is injected at runtime from
+  # sensors.seed (via main.py child[0] SeedSequence). When sensors.seed
+  # is None the wheel odom RNG uses a nondeterministic seed.
