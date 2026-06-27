@@ -32,7 +32,7 @@ spawn_orientation_rpy: [0.0, 0.0, 0.0]
 # rover Z is set to ``surface_z + z_offset``. ``z_offset`` here overrides the
 # CLI ``--z-offset`` flag if present.
 spawn:
-  mode: "trajectory_start" 
+  mode: "dem_center"
   xy: [0.0, 0.0]
   z_offset: 0.1
   orientation_rpy: [0.0, 0.0, 0.0]

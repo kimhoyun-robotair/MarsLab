@@ -55,6 +55,7 @@ work_log/
 docs/
 delete_later/
 reference/
+figure/
 
 # Claude Code harness — share .claude/agents and .claude/skills,
 # hide personal state and workspace
