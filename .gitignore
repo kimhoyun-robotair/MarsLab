@@ -57,13 +57,14 @@ delete_later/
 reference/
 figure/
 
-# Claude Code harness — share .claude/agents and .claude/skills,
+# Agent (Including Claude Code and Codex) harness e,g, share .claude/agents and .claude/skills,
 # hide personal state and workspace
 .claude/settings.local.json
 .claude/.cache/
 .claude/logs/
 _workspace/
 _workspace_*/
+.omo/
 
 # 개발때만 임시로 gitinore
 assets/mars_assets/space_assets/*.usdz

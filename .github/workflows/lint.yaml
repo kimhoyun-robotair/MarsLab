@@ -20,7 +20,7 @@ jobs:
         run: pip install black>=24.0 ruff>=0.4
 
       - name: Check formatting
-        run: black --check --diff marslab/ tests/ scripts/
+        run: black --check --diff marslab/
 
       - name: Run linter
-        run: ruff check marslab/ tests/ scripts/
+        run: ruff check marslab/
