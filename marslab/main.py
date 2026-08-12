@@ -118,11 +118,7 @@ def _load_rover_cfg(rover_yaml_abs: str) -> Dict[str, Any]:
 def _resolve_spawn_rpy(rover_cfg: Dict[str, Any]) -> Tuple[float, float, float]:
     """Resolve spawn RPY from the rover YAML (mirrors main.py:172-176)."""
     spawn_block = rover_cfg.get("spawn", {}) if isinstance(rover_cfg, dict) else {}
-    rpy_raw = (
-        spawn_block.get("orientation_rpy")
-        if isinstance(spawn_block, dict)
-        else None
-    )
+    rpy_raw = spawn_block.get("orientation_rpy") if isinstance(spawn_block, dict) else None
     if rpy_raw is None:
         rpy_raw = rover_cfg.get("spawn_orientation_rpy", [0.0, 0.0, 0.0])
     return float(rpy_raw[0]), float(rpy_raw[1]), float(rpy_raw[2])
@@ -178,13 +174,10 @@ def _nearest_k_median_z(
     points = UsdGeom.Mesh(mesh_prim).GetPointsAttr().Get()
     if points is None or len(points) == 0:
         raise RuntimeError(
-            f"Mesh {mesh_prim.GetPath()} has no authored points; cannot sample "
-            "DEM elevation."
+            f"Mesh {mesh_prim.GetPath()} has no authored points; cannot sample " "DEM elevation."
         )
-    local_to_world = UsdGeom.XformCache(
-        Usd.TimeCode.Default()
-    ).GetLocalToWorldTransform(mesh_prim)
-    matrix = np.array(local_to_world, dtype=np.float64)   # 4x4, row-vector convention
+    local_to_world = UsdGeom.XformCache(Usd.TimeCode.Default()).GetLocalToWorldTransform(mesh_prim)
+    matrix = np.array(local_to_world, dtype=np.float64)  # 4x4, row-vector convention
     pts = np.asarray(points, dtype=np.float64)
     world = pts @ matrix[:3, :3] + matrix[3, :3]
     d2 = (world[:, 0] - target_x) ** 2 + (world[:, 1] - target_y) ** 2
@@ -267,9 +260,16 @@ def _resolve_spawn(
         "Resolved spawn: mode=%s xyz=(%.3f, %.3f, %.3f) rpy=(%.3f, %.3f, %.3f) "
         "[dem_center=(%.3f, %.3f), surface_z=%.3f, z_offset=%.3f]",
         mode,
-        spawn_xyz[0], spawn_xyz[1], spawn_xyz[2],
-        spawn_rpy[0], spawn_rpy[1], spawn_rpy[2],
-        cx_dem, cy_dem, surface_z, z_off,
+        spawn_xyz[0],
+        spawn_xyz[1],
+        spawn_xyz[2],
+        spawn_rpy[0],
+        spawn_rpy[1],
+        spawn_rpy[2],
+        cx_dem,
+        cy_dem,
+        surface_z,
+        z_off,
     )
     return spawn_xyz, spawn_rpy
 
@@ -661,12 +661,8 @@ def main() -> int:
         pin_articulation_root_pose(articulation, spawn_xyz, spawn_rpy)
 
         dof_names = list(articulation.dof_names)
-        drive_indices = resolve_joint_indices(
-            dof_names, list(control_cfg["drive_joint_names"])
-        )
-        steer_indices = resolve_joint_indices(
-            dof_names, list(control_cfg["steer_joint_names"])
-        )
+        drive_indices = resolve_joint_indices(dof_names, list(control_cfg["drive_joint_names"]))
+        steer_indices = resolve_joint_indices(dof_names, list(control_cfg["steer_joint_names"]))
         zero_steer_joints(articulation, steer_indices)
         apply_initial_joint_positions(articulation, dof_names, control_cfg)
 
