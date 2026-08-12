@@ -23,11 +23,6 @@ spawn_orientation_rpy: [0.0, 0.0, 0.0]
 #   dem_center        — spawn at DEM bbox centre. ``xy`` ignored.
 #   dem_relative      — spawn at ``(dem_center_x + xy[0], dem_center_y + xy[1])``.
 #   absolute          — spawn at ``(xy[0], xy[1])`` in the world frame.
-#   trajectory_start  — spawn at the first sample of the TUM trajectory
-#                       pointed to by ``trajectory_path``. If
-#                       ``use_yaw_from_trajectory`` is true (default), the yaw
-#                       in ``orientation_rpy`` is overridden by the trajectory.
-#
 # In every mode, ground Z is sampled from the DEM at the resolved XY and the
 # rover Z is set to ``surface_z + z_offset``. ``z_offset`` here overrides the
 # CLI ``--z-offset`` flag if present.
@@ -36,10 +31,6 @@ spawn:
   xy: [0.0, 0.0]
   z_offset: 0.1
   orientation_rpy: [0.0, 0.0, 0.0]
-  # Only used when mode == "trajectory_start":
-  trajectory_path: "/home/hoyunkim/MarsLab-Utils/TrajectoryComposer/out/jezero_habitat_ellipse_orbit/trajectory.tum"               # e.g. "TrajectoryComposer/out/jezero_rocky_loop/trajectory.tum"
-  # trajectory_path: null
-  use_yaw_from_trajectory: true
 
 # Chassis CoM offset (m).  Empirically determined +0.2 m forward shift.
 # Even after the JPL URDF arm/turret/drill (~74 kg) was stripped, the
@@ -115,13 +106,6 @@ suspension:
   # target the differential beam without touching the bogie pivot.
   rocker_damping: 75.0     # N*m*s/rad  — primary rocker arms.
   bogie_damping: 50.0      # N*m*s/rad  — bogie sub-arms (matches legacy).
-
-# Offline URDF-to-USD converter flags.  Runtime must NOT re-run URDF
-# import; these are consumed only by marslab/convert_urdf_to_usd.py.
-urdf_merge_fixed_joints: false
-urdf_fix_base: false
-urdf_self_collision: false
-urdf_create_physics_scene: false
 
 ros2:
   namespace: "rover"

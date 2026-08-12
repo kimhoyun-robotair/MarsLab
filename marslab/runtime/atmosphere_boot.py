@@ -5,9 +5,8 @@ Loads the scenario config and pre-computes every atmospheric parameter
 Isaac Sim is launched. Pure Python so the unit test suite can exercise it
 without a GPU.
 
-This module intentionally omits terrain loading — it is designed for the
-passthrough pipeline that consumes pre-built USDA terrain files externally
-(e.g. from MarsLab-Utils) and therefore has no dependency on
+This module intentionally omits terrain loading. The passthrough pipeline
+consumes a supplied pre-built USDA terrain file and has no dependency on
 ``marslab.terrain.*`` at any scope.
 
 Returns a frozen :class:`AtmosphereBootResult` consumed downstream by the
@@ -178,9 +177,7 @@ def boot_atmosphere(
     solar_constant = mars_env_model.solar_constant
     direct_intensity = compute_direct_intensity(solar_constant, tau, sun_pos.zenith_angle_rad)
     diffuse_frac = compute_diffuse_fraction_1d_approx(tau)
-    hdri_dir = os.path.join(
-        repo_root, rendering_cfg.get("sky_dome_hdri_dir", "assets/mars_sky/")
-    )
+    hdri_dir = os.path.join(repo_root, rendering_cfg.get("sky_dome_hdri_dir", "assets/mars_sky/"))
     sky_params = compute_sky_dome_params(tau, hdri_dir)
     _LOG.info(
         "Atmosphere: tau=%s, direct=%.1f W/m2, diffuse_frac=%.2f",

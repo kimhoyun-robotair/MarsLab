@@ -21,14 +21,10 @@ def check_rover_usd(usd_abs: str) -> None:
         usd_abs: Absolute filesystem path to the converted rover USD.
 
     Raises:
-        FileNotFoundError: If ``usd_abs`` does not resolve to a file. The
-            message includes the operator hint to run
-            ``marslab/convert_urdf_to_usd.py``.
+        FileNotFoundError: If ``usd_abs`` does not resolve to a file.
     """
     if not os.path.isfile(usd_abs):
-        raise FileNotFoundError(
-            f"Rover USD missing: {usd_abs}. " f"Run marslab/convert_urdf_to_usd.py first."
-        )
+        raise FileNotFoundError(f"Rover USD missing: {usd_abs}")
 
 
 def check_rover_block(rover_cfg: Optional[Dict[str, Any]]) -> None:
@@ -70,5 +66,3 @@ def check_lidar_cfg(lidar_cfg: Optional[Dict[str, Any]]) -> None:
             "Scenario config missing sensors.lidar block "
             "(expected 'lidar_3d' or 'lidar' key under sensors)."
         )
-
-

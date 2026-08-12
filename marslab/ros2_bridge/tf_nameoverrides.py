@@ -12,21 +12,9 @@ Two responsibilities:
    chain reads ``odom -> base_link -> {wheels, sensors}`` instead of
    ``world -> Body_Chassis -> ...``.
 
-Citations (verified against the local Isaac Sim 5.1 install):
-
-* ``isaac:nameOverride`` is declared as a string applied schema attribute
-  in
-  ``/home/hoyunkim/isaacsim/exts/isaacsim.robot.schema/usd/schema/isaac/robot_schema/__init__.py:42``
-  -- prefix ``isaac:``, type ``Sdf.ValueTypeNames.String``.
-* The non-Raw ``ROS2PublishTransformTree`` consumes the override when
-  serialising frame names; the unit tests that pin behaviour are at
-  ``/home/hoyunkim/isaacsim/exts/isaacsim.ros2.bridge/isaacsim/ros2/bridge/tests/test_pose_tree.py:154-156``
-  (sets ``nameOverride``) and ``:215-229`` (verifies the published
-  parent ``frame_id`` matches the override string).  The OGN node is
-  declared ``Has State? = False``
-  (``OgnROS2PublishTransformTree.rst:61``), so the override is read on
-  every ``compute()`` tick rather than cached at edit-time -- making
-  the apply-then-edit ordering flexible.
+Isaac Sim declares ``isaac:nameOverride`` as a string applied schema
+attribute. The non-Raw ``ROS2PublishTransformTree`` consumes the override
+when serialising frame names and reads it on each compute tick.
 
 Design notes:
 

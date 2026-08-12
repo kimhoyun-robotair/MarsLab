@@ -14,8 +14,7 @@ stage uses the user USDA mesh instead.
 
 Run from MarsLab repo root::
 
-    marslab/isaac_python.sh marslab/main.py \\
-        --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda
+    marslab/isaac_python.sh marslab/main.py --usda /path/to/terrain.usda
 
 Spawn position is ``(DEM_center_xy, surface_z + z_offset)`` where
 ``DEM_center_xy`` is the world-space bbox center of the USDA terrain
@@ -37,7 +36,6 @@ import logging
 import os
 import sys
 from pathlib import Path
-import math
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -93,6 +91,7 @@ _LOG = logging.getLogger("marslab.main")
 _DEFAULT_Z_OFFSET = 0.1
 _DEFAULT_SCENARIO = "configs/default.yaml"
 _TERRAIN_PRIM_PATH = "/World/Terrain"
+_REMOVED_SPAWN_MODE = "trajectory_" "start"
 
 
 def _abs_repo_path(p: str) -> str:
@@ -105,6 +104,12 @@ def _load_rover_cfg(rover_yaml_abs: str) -> Dict[str, Any]:
     with open(rover_yaml_abs, "r", encoding="utf-8") as fh:
         rover_cfg = yaml.safe_load(fh) or {}
     check_rover_block(rover_cfg)
+    spawn_cfg = rover_cfg.get("spawn")
+    if isinstance(spawn_cfg, dict) and spawn_cfg.get("mode") == _REMOVED_SPAWN_MODE:
+        raise RuntimeError(
+            f"spawn.mode '{_REMOVED_SPAWN_MODE}' was removed; use dem_center, "
+            "dem_relative, or absolute"
+        )
     sensors_cfg = rover_cfg["sensors"]
     check_lidar_cfg(sensors_cfg.get("lidar_3d") or sensors_cfg.get("lidar"))
     return rover_cfg
@@ -121,33 +126,6 @@ def _resolve_spawn_rpy(rover_cfg: Dict[str, Any]) -> Tuple[float, float, float]:
     if rpy_raw is None:
         rpy_raw = rover_cfg.get("spawn_orientation_rpy", [0.0, 0.0, 0.0])
     return float(rpy_raw[0]), float(rpy_raw[1]), float(rpy_raw[2])
-
-
-def _parse_tum_first_pose(tum_path: str) -> Tuple[float, float, float, float]:
-    """Read a TUM-format trajectory file and return ``(x, y, z, yaw)`` of the
-    first sample.
-
-    TUM line format: ``t tx ty tz qx qy qz qw``.  Yaw is recovered from the
-    quaternion's Z-component via ``yaw = 2 * atan2(qz, qw)`` (qx = qy = 0 for
-    a pure Z-axis rotation, which is the convention used by every generator
-    in TrajectoryComposer/).
-    """
-    with open(tum_path, "r", encoding="utf-8") as fh:
-        for line in fh:
-            s = line.strip()
-            if not s or s.startswith("#"):
-                continue
-            parts = s.split()
-            if len(parts) < 8:
-                raise ValueError(
-                    f"{tum_path}: first sample has {len(parts)} columns, "
-                    "expected 8 (TUM: t tx ty tz qx qy qz qw)"
-                )
-            tx = float(parts[1]); ty = float(parts[2]); tz = float(parts[3])
-            qz = float(parts[6]); qw = float(parts[7])
-            yaw = 2.0 * math.atan2(qz, qw)
-            return tx, ty, tz, yaw
-    raise ValueError(f"{tum_path}: no data lines found")
 
 
 def _find_terrain_meshes(
@@ -252,11 +230,6 @@ def _resolve_spawn(
     * ``dem_relative``: spawn at ``(dem_center_x + xy[0],
       dem_center_y + xy[1])``.
     * ``absolute``: spawn at ``(xy[0], xy[1])`` in world frame.
-    * ``trajectory_start``: spawn at the first sample of the TUM trajectory
-      pointed to by ``spawn.trajectory_path`` (repo-relative or absolute).
-      If ``spawn.use_yaw_from_trajectory`` is true (default), the YAML
-      ``orientation_rpy`` yaw is overridden by the trajectory's first yaw.
-
     The ground elevation at the resolved XY is sampled from the loaded
     DEM mesh; the rover Z is set to ``surface_z + z_offset``. The
     ``z_offset`` is taken from the YAML ``spawn.z_offset`` if present,
@@ -270,42 +243,25 @@ def _resolve_spawn(
 
     cx_dem, cy_dem, _ = _sample_dem_elevation(stage, terrain_prim_path)
 
-    yaw_override: Optional[float] = None
     if mode == "dem_center":
         sx, sy = cx_dem, cy_dem
     elif mode == "dem_relative":
         sx = cx_dem + float(xy[0])
         sy = cy_dem + float(xy[1])
     elif mode == "absolute":
-        sx = float(xy[0]); sy = float(xy[1])
-    elif mode == "trajectory_start":
-        traj_path = spawn_block.get("trajectory_path")
-        if not traj_path:
-            raise RuntimeError(
-                "spawn.mode = 'trajectory_start' but spawn.trajectory_path is "
-                "missing in the rover YAML"
-            )
-        traj_abs = _abs_repo_path(traj_path)
-        tx, ty, _tz, tyaw = _parse_tum_first_pose(traj_abs)
-        sx, sy = tx, ty
-        if bool(spawn_block.get("use_yaw_from_trajectory", True)):
-            yaw_override = tyaw
-        _LOG.info(
-            "spawn.mode=trajectory_start: first sample (%.3f, %.3f) yaw=%.3f rad "
-            "from %s", tx, ty, tyaw, traj_abs,
-        )
+        sx = float(xy[0])
+        sy = float(xy[1])
     else:
         raise RuntimeError(
             f"Unknown spawn.mode='{mode}' in rover YAML; expected one of "
-            "dem_center | dem_relative | absolute | trajectory_start"
+            "dem_center | dem_relative | absolute"
         )
 
     surface_z = _sample_dem_surface_z_at(stage, terrain_prim_path, sx, sy)
     spawn_xyz = (sx, sy, surface_z + z_off)
 
     roll, pitch, yaw_yaml = _resolve_spawn_rpy(rover_cfg)
-    final_yaw = yaw_override if yaw_override is not None else yaw_yaml
-    spawn_rpy = (roll, pitch, final_yaw)
+    spawn_rpy = (roll, pitch, yaw_yaml)
 
     _LOG.info(
         "Resolved spawn: mode=%s xyz=(%.3f, %.3f, %.3f) rpy=(%.3f, %.3f, %.3f) "
@@ -664,7 +620,7 @@ def main() -> int:
 
         # ---- Resolve spawn XYZ + RPY from the YAML spawn block + DEM --------
         # The YAML ``spawn.mode`` selects between dem_center / dem_relative /
-        # absolute / trajectory_start. The CLI ``--z-offset`` is used only if
+        # absolute. The CLI ``--z-offset`` is used only if
         # ``spawn.z_offset`` is absent from the YAML.
         spawn_xyz, spawn_rpy = _resolve_spawn(
             stage,
@@ -789,20 +745,6 @@ def main() -> int:
                 wheel_odom_params=wheel_odom_params,
                 imu_noise_params=imu_noise_params,
             )
-
-        # ---- GT publisher add-on (zero modifications to marslab/) ----------
-        # Optional dependency: gt_publisher lives at ~/MarsLab-Utils/GT/gt_publisher
-        # and may not be on sys.path in every install. Absence is non-fatal.
-        try:
-            from gt_publisher.integration import (  # noqa: E402,PLC0415
-                attach_to_bridge,
-                register_physics_callback,
-            )
-            if bridge is not None:
-                gt_ctx = attach_to_bridge(bridge)
-                register_physics_callback(world, gt_ctx, articulation)
-        except ModuleNotFoundError:
-            _LOG.debug("gt_publisher not installed; skipping GT add-on.")
 
         # ---- LoopContext + main loop ---------------------------------------
         def _spin_once() -> None:
