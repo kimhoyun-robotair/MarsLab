@@ -41,13 +41,29 @@ def test_readme_documents_existing_legacy_runtime_command() -> None:
         _assert_existing_target(REPOSITORY_ROOT, documented_path)
 
 
-def test_readme_document_links_resolve() -> None:
+def test_readme_local_markdown_links_are_tracked() -> None:
     readme = README_PATH.read_text(encoding="utf-8")
-    documented_paths = set(re.findall(r"docs/[A-Za-z0-9_./-]+\.md", readme))
+    documented_paths = set(re.findall(r"\]\(([^)#]+)\)", readme))
 
     assert documented_paths, "README must retain at least one checked local documentation target"
     for documented_path in documented_paths:
         _assert_existing_target(REPOSITORY_ROOT, documented_path)
+        tracked = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=REPOSITORY_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if tracked.returncode == 0:
+            tracked = subprocess.run(
+                ["git", "ls-files", "--error-unmatch", documented_path],
+                cwd=REPOSITORY_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            assert tracked.returncode == 0, f"documented target is not tracked: {documented_path}"
 
 
 def test_current_help_preserves_legacy_usda_flag() -> None:

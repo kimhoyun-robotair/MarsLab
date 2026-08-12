@@ -264,8 +264,6 @@ ros2 run depth_image_proc point_cloud_xyzrgb_node \
     -r points:=/rover/depth/points_xyzrgb
 ```
 
-See `docs/colored_pointcloud.md` for the full pattern.
-
 ---
 
 ## 5. 3D LiDAR Odometry (kinematic-icp / RTAB-Map)
@@ -472,7 +470,4 @@ marslab/isaac_python.sh marslab/main.py \
 
 ## Where to Read Next
 
-* [Camera point-cloud notes](docs/colored_pointcloud.md)
-* [Odometry and ground-truth notes](docs/odometry_ground_truth.md)
-* [Frame conventions](docs/frame_conventions.md)
 * [Project contribution guidance](AGENTS.md)
