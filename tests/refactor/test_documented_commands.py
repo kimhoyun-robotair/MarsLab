@@ -10,9 +10,13 @@ import pytest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 README_PATH = REPOSITORY_ROOT / "README.md"
 DOCUMENTED_COMMAND_PATHS = (
-    "assets/scene/jezero_plain/jezero_plain.usdz",
     "configs/default.yaml",
     "configs/rover_m2020.yaml",
+)
+EXTERNAL_RUNTIME_INPUTS = (
+    "assets/scene/jezero_plain/jezero_plain.usdz",
+    "assets/robots/rover/m2020.usd",
+    "assets/m2020-urdf-models/rover/m2020.urdf",
 )
 SCAN_PATHS = ("README.md", "configs", "AGENTS.md", "marslab")
 LEGACY_USDA_ALLOWLIST = {
@@ -39,6 +43,13 @@ def test_readme_documents_existing_legacy_runtime_command() -> None:
 
     for documented_path in DOCUMENTED_COMMAND_PATHS:
         _assert_existing_target(REPOSITORY_ROOT, documented_path)
+
+
+def test_explicit_runtime_inputs_are_not_implicit_package_requirements() -> None:
+    readme = README_PATH.read_text(encoding="utf-8")
+
+    for runtime_input in EXTERNAL_RUNTIME_INPUTS:
+        assert runtime_input in readme
 
 
 def test_readme_local_markdown_links_are_tracked() -> None:

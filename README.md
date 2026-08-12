@@ -157,8 +157,9 @@ continues to spell the scene argument `--usda` until S06; pass the selected
 USDZ file to that flag during this compatibility window.
 
 The rover is an explicit versioned input. `configs/rover_m2020.yaml` names
-`assets/robots/rover/m2020.usd`; its ROS companion URDF and meshes remain in
-the `assets/m2020-urdf-models` submodule. Keep these assets intact when
+`assets/robots/rover/m2020.usd`; its ROS companion URDF is
+`assets/m2020-urdf-models/rover/m2020.urdf` and its meshes remain in the
+`assets/m2020-urdf-models` submodule. Keep these assets intact when
 cloning or packaging a runtime checkout. MarsLab does not convert or generate
 either Scene or Rover assets at startup.
 
