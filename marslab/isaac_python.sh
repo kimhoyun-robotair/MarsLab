@@ -22,8 +22,8 @@
 #
 # Background (C side, fixed by this wrapper):
 #   After sys.path was purged inside the Python entry script, the
-#   import resolved to the Isaac Sim bundled rclpy at
-#   ~/isaacsim/exts/isaacsim.ros2.bridge/jazzy, BUT the C dynamic
+#   import resolved to the Isaac Sim bundled rclpy under
+#   $ISAAC_SIM_PATH/exts/isaacsim.ros2.bridge/jazzy, BUT the C dynamic
 #   linker still saw LD_LIBRARY_PATH=/opt/ros/jazzy/... and loaded
 #   /opt/ros/jazzy/lib/librcl_interfaces__rosidl_generator_py.so
 #   (Python 3.12 ABI) into the Python 3.11 process. That .so tried
@@ -40,10 +40,10 @@
 # wrapper does the purge in the parent shell immediately before exec.
 #
 # Usage:
-#   marslab/isaac_python.sh marslab/main.py --config configs/scenarios/jezero_flat.yaml
-#   marslab/isaac_python.sh marslab/main.py --config configs/scenarios/jezero_flat.yaml 2>&1 | tee ~/MarsLab/temp.txt
+#   marslab/isaac_python.sh marslab/main.py --usda assets/scene/jezero_plain/jezero_plain.usdz \
+#     --scenario configs/default.yaml --rover-yaml configs/rover_m2020.yaml --no-ros2
 #
-# The wrapper invokes ~/isaacsim/python.sh (override via ISAAC_SIM_PATH).
+# The wrapper invokes $ISAAC_SIM_PATH/python.sh.
 
 set -e
 

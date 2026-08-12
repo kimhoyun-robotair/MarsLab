@@ -138,10 +138,8 @@ def build_sensor_graph(
             render product so the depth output simulates a stereo
             disparity camera (RealSense-style noise + occlusion holes +
             confidence map) instead of the renderer's noiseless
-            ``DistanceToImagePlane`` AOV.  See
-            ``isaacsim/exts/isaacsim.sensors.camera/isaacsim/sensors/
-            camera/single_view_depth_sensor.py:46-503`` for the schema
-            attribute names (``omni:rtx:post:depthSensor:<field>``).
+            ``DistanceToImagePlane`` AOV. The public single-view depth-sensor
+            API uses ``omni:rtx:post:depthSensor:<field>`` attribute names.
             When the schema or the extension is unavailable at runtime
             the apply step is a no-op and the graph falls back to the
             renderer's raw depth.
@@ -223,9 +221,6 @@ def build_sensor_graph(
 
 # ``omni:rtx:post:depthSensor:<field>`` USD attribute names for the
 # ``OmniSensorDepthSensorSingleViewAPI`` schema.  Pinned in one place so
-# YAML field renames don't silently desync from the schema.  Source:
-# ``isaacsim/extscache/omni.usd.schema.omni_sensors-0.0.0+69cbf6ad/
-# usd_plugins/generatedSchema.usda`` (OmniSensorDepthSensorSingleViewAPI).
 _DEPTH_SENSOR_SCHEMA_ATTRS: Dict[str, str] = {
     "baseline_mm": "omni:rtx:post:depthSensor:baselineMM",
     "min_distance_m": "omni:rtx:post:depthSensor:minDistance",

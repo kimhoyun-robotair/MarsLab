@@ -4,13 +4,12 @@
 # This file replaces the six ship-with scenario YAMLs (jezero_flat,
 # jezero_crater, jezero_rocks, cerberus_canyon, cerberus_canyon_easy,
 # spacecraft_landing) and their shared _base.yaml include fragment.
-# Terrain and scene blocks are absent because MarsLab v1.0 consumes
-# pre-built external USDA terrain files; those blocks are no longer
-# authored here.
+# Terrain and scene blocks are absent because MarsLab consumes a supplied
+# Scene USDZ package; scene authoring is not part of this configuration.
 #
 # Usage:
-#   marslab/isaac_python.sh marslab/main.py --usda <usda_path>
-#   marslab/isaac_python.sh marslab/main.py --usda <usda_path> \
+#   marslab/isaac_python.sh marslab/main.py --usda assets/scene/jezero_plain/jezero_plain.usdz
+#   marslab/isaac_python.sh marslab/main.py --usda assets/scene/jezero_plain/jezero_plain.usdz \
 #       --sun-azimuth-deg 135 --sun-elevation-deg 40
 
 mars_env:

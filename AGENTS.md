@@ -62,8 +62,8 @@ reference → rover/sensors → optional ROS 2 side → `LoopContext` → main l
   runtime loop. Keep pure/offline code importable without Isaac or GPU.
 - Defer `omni`, `isaacsim`, `pxr`, and live `rclpy` imports until their runtime
   boundary. Isaac must be started through `marslab/isaac_python.sh`.
-- Terrain USDA is supplied by MarsLab-Utils and referenced at runtime; do not add
-  terrain authoring back into this repository.
+- Scene USDZ packages are explicit runtime inputs; do not add terrain or scene
+  authoring back into this repository.
 - `assets/m2020-urdf-models` is a git submodule. Clone/update it recursively.
 
 ## ANTI-PATTERNS (THIS PROJECT)
@@ -88,8 +88,9 @@ black --check marslab/ tests/
 ruff check marslab/ tests/
 mypy
 
-# Isaac runtime (external terrain USDA required)
-marslab/isaac_python.sh marslab/main.py --usda /path/to/terrain.usda
+# Isaac runtime (the legacy --usda flag accepts the current Scene USDZ input)
+marslab/isaac_python.sh marslab/main.py --usda assets/scene/jezero_plain/jezero_plain.usdz \
+  --scenario configs/default.yaml --rover-yaml configs/rover_m2020.yaml --no-ros2
 ```
 
 ## NOTES

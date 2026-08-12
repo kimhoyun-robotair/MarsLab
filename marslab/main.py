@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Production entry point: USDA + Rover + ROS2 with dynamic atmosphere/lighting.
 
-Loads a user-provided HiRISE-based USDA terrain (with baked materials
-and collision), spawns the MarsLab M2020 rover on top of it, and runs
+Loads a user-provided Scene USDZ package (with baked materials and
+collision) through the pre-S06 ``--usda`` compatibility flag, spawns the
+MarsLab M2020 rover on top of it, and runs
 the full MarsLab atmosphere / lighting stack (sun + sky dome + fog,
 optionally Auto-mode sun sweep) plus the ROS2 bridge.
 
@@ -10,18 +11,18 @@ The scenario YAML (default ``configs/default.yaml``)
 supplies ``mars_env`` + ``rendering`` + ``dynamic_atmosphere`` blocks.
 The scenario's own ``terrain`` block is still loaded (``boot_atmosphere``
 requires it) but the resulting elevation grid is discarded -- the live
-stage uses the user USDA mesh instead.
+stage uses the supplied scene mesh instead.
 
 Run from MarsLab repo root::
 
-    marslab/isaac_python.sh marslab/main.py --usda /path/to/terrain.usda
+    marslab/isaac_python.sh marslab/main.py --usda assets/scene/jezero_plain/jezero_plain.usdz
 
 Spawn position is ``(DEM_center_xy, surface_z + z_offset)`` where
 ``DEM_center_xy`` is the world-space bbox center of the USDA terrain
 mesh and ``surface_z`` is the median Z of mesh points sampled near
 that center.
 
-The user-provided USDA must satisfy:
+The supplied scene package must satisfy:
 
 * ``upAxis = "Z"`` and ``metersPerUnit = 1``.
 * Carries ``UsdPhysics.CollisionAPI`` on at least one mesh under the
@@ -316,9 +317,9 @@ def _sample_dem_elevation(
 
 
 def _reference_user_usda(stage: Any, usda_abs: str) -> None:
-    """Reference the user's USDA under ``/World/Terrain`` and tidy.
+    """Reference the supplied legacy ``--usda`` scene input under ``/World/Terrain``.
 
-    The user USDA's own ``PhysicsScene`` (if any) is deactivated so the
+    The scene's own ``PhysicsScene`` (if any) is deactivated so the
     Mars-gravity ``/physicsScene`` created by :func:`create_world`
     remains the sole active physics scene.
     """
@@ -424,17 +425,17 @@ def _build_wheel_odom_params(
 
 
 def main() -> int:
-    """Boot Isaac Sim, load USDA, spawn rover, run atmosphere + ROS2 loop."""
+    """Boot Isaac Sim, load the legacy-flag scene input, and run the rover loop."""
     parser = argparse.ArgumentParser(
         description=(
-            "MarsLab: Isaac Sim Mars rover simulation. Loads a pre-built USDA "
-            "terrain, spawns the M2020 rover, runs dynamic atmosphere + ROS2."
+            "MarsLab: Isaac Sim Mars rover simulation. Loads a supplied Scene USDZ "
+            "through legacy --usda, spawns the M2020 rover, runs dynamic atmosphere + ROS2."
         ),
     )
     parser.add_argument(
         "--usda",
         required=True,
-        help="Path to the user-provided HiRISE USDA terrain file.",
+        help="Path to the supplied Scene USDZ package (legacy --usda flag).",
     )
     parser.add_argument(
         "--scenario",
@@ -443,7 +444,7 @@ def main() -> int:
             "Scenario YAML supplying mars_env + rendering + dynamic_atmosphere "
             f"blocks (default: {_DEFAULT_SCENARIO}). The scenario's terrain block "
             "is loaded but its elevation grid is discarded -- the live stage uses "
-            "the --usda mesh instead."
+            "the supplied --usda scene mesh instead."
         ),
     )
     parser.add_argument(
@@ -533,7 +534,6 @@ def main() -> int:
 
     # Atmosphere boot: resolve atmosphere snapshot (mars_env + rendering +
     # dynamic_atmosphere). Sun position can be overridden via CLI flags;
-    # the USDA mesh replaces any terrain block on the stage.
     scenario_abs = _abs_repo_path(args.scenario)
     boot = boot_atmosphere(
         scenario_abs,
@@ -591,7 +591,6 @@ def main() -> int:
             gravity=mars_env_model.gravity,
         )
 
-        # ---- Reference user USDA + suppress duplicate PhysicsScene ----------
         _reference_user_usda(stage, usda_abs)
 
         # ---- Atmosphere / lighting (gated by --no-atmosphere) --------------

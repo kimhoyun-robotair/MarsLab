@@ -12,12 +12,10 @@ Single render-product wiring.  An earlier layout used two
 ``IsaacCreateRenderProduct`` nodes for the same camera prim
 (``RPCamera`` for RGB, ``RPDepth`` for depth) which produced two
 separate SDG pipelines and yielded RGB/depth timestamp skew that broke
-RTAB-Map / depth_image_proc fusion.  NVIDIA's canonical pattern (see
-``isaacsim/exts/isaacsim.ros2.bridge/isaacsim/ros2/bridge/impl/
-og_shortcuts/og_rtx_sensors.py:75-227``) fans a single render product
-out to every camera helper (RGB, Depth, PointCloud2, CameraInfo) so
-they share one render pass and one timestamp.  This module follows
-that pattern.
+RTAB-Map / depth_image_proc fusion. Isaac Sim's ROS 2 camera-helper API fans a
+single render product out to every camera helper (RGB, Depth, PointCloud2,
+CameraInfo) so they share one render pass and one timestamp. This module
+follows that pattern.
 """
 
 from __future__ import annotations
@@ -63,22 +61,17 @@ def _build_create_nodes(
             wired off the single shared camera render product
             (``RPCamera``) with ``inputs:type='depth_pcl'`` so the RGB-D
             camera publishes a ``sensor_msgs/PointCloud2`` topic at the
-            depth-camera rate.  Source:
-            ``isaacsim/exts/isaacsim.ros2.bridge/isaacsim/ros2/bridge/
-            ogn/python/nodes/OgnROS2CameraHelper.py:141-155`` -- the
-            ``depth_pcl`` token routes through ``ROS2PublishPointCloud``
-            with ``DistanceToImagePlane`` as the source render variable.
+            depth-camera rate. The public ROS2CameraHelper API routes the
+            ``depth_pcl`` token through ``ROS2PublishPointCloud`` with
+            ``DistanceToImagePlane`` as the source render variable.
         include_camera_info: When True, appends a
             ``isaacsim.ros2.bridge.ROS2CameraInfoHelper`` node
             (``CamInfo``) fed off the same shared ``RPCamera`` render
             product so the camera publishes ``sensor_msgs/CameraInfo``
             (intrinsics K / P / R / D, width, height) alongside
-            ``rgb/image_raw``.  Source:
-            ``isaacsim/exts/isaacsim.ros2.bridge/docs/ogn/
-            OgnROS2CameraInfoHelper.rst:21`` -- the helper auto-derives
-            the projection matrices from the USD ``Camera`` prim's focal
-            length / aperture / clipping range, so YAML never duplicates
-            them.
+            ``rgb/image_raw``. The public ROS2CameraInfoHelper API derives
+            projection matrices from the USD ``Camera`` prim's focal length,
+            aperture, and clipping range, so YAML never duplicates them.
         publish_joint_states: When True (default), wire
             ``isaacsim.ros2.bridge.ROS2PublishJointState`` (``PubJointState``)
             so the rover articulation publishes
@@ -391,21 +384,6 @@ def _build_set_values(
         ("RPCamera.inputs:cameraPrim", [camera_prim_path]),
         ("RPCamera.inputs:width", int(camera_resolution[0])),
         ("RPCamera.inputs:height", int(camera_resolution[1])),
-        # ``resetSimulationTimeOnStop`` lives on the *helper* nodes, not
-        # on ``IsaacCreateRenderProduct``.  Verified against the OGN
-        # spec at ``isaacsim/exts/isaacsim.core.nodes/.../
-        # OgnIsaacCreateRenderProduct.ogn:12-37`` (only ``execIn /
-        # width / height / cameraPrim / enabled`` are declared) and the
-        # canonical wiring at ``isaacsim/exts/isaacsim.ros2.bridge/.../
-        # og_shortcuts/og_rtx_sensors.py:87,160,189,217`` which sets
-        # the flag on ``CameraInfoPublish`` / ``RGBPublish`` /
-        # ``DepthPublish`` / ``DepthPclPublish`` (helper nodes).
-        # Schema docs: ``OgnROS2CameraHelper.rst:48``,
-        # ``OgnROS2CameraInfoHelper.rst:49``,
-        # ``OgnROS2RtxLidarHelper.rst:48``.  Setting the flag on every
-        # consumer keeps the original intent (timestamps reset on Stop)
-        # without violating the OGN attribute lookup that crashed Kit
-        # in the dual-RP layout.
         ("CamRGB.inputs:resetSimulationTimeOnStop", True),
         ("CamDepth.inputs:resetSimulationTimeOnStop", True),
         ("Lidar3DHelper.inputs:resetSimulationTimeOnStop", True),

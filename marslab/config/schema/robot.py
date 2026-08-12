@@ -534,12 +534,8 @@ class DepthSensorConfig(BaseModel):
     runtime falls back to the renderer's raw ``DistanceToImagePlane``
     AOV, which is noiseless and bypasses the stereo simulation.
 
-    Schema source: ``isaacsim/extscache/
-    omni.usd.schema.omni_sensors-0.0.0+69cbf6ad/usd_plugins/
-    generatedSchema.usda`` (``OmniSensorDepthSensorSingleViewAPI``).
-    The Python wrapper that documents each attribute is at
-    ``isaacsim/exts/isaacsim.sensors.camera/isaacsim/sensors/camera/
-    single_view_depth_sensor.py:46-503``.
+    The public Isaac Sim single-view depth-sensor schema defines the
+    ``omni:rtx:post:depthSensor:<field>`` attributes used by this model.
 
     Default values mirror Intel RealSense D455 ballpark parameters
     (baseline 55 mm, max disparity 110 px) so a freshly-enabled config

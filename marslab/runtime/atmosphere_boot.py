@@ -6,7 +6,7 @@ Isaac Sim is launched. Pure Python so the unit test suite can exercise it
 without a GPU.
 
 This module intentionally omits terrain loading. The passthrough pipeline
-consumes a supplied pre-built USDA terrain file and has no dependency on
+consumes a supplied Scene USDZ package and has no dependency on
 ``marslab.terrain.*`` at any scope.
 
 Returns a frozen :class:`AtmosphereBootResult` consumed downstream by the
@@ -110,7 +110,7 @@ def boot_atmosphere(
     """Load config and pre-compute the static atmosphere snapshot.
 
     Does NOT load terrain data. Intended for the passthrough pipeline that
-    consumes externally pre-built USDA terrain files.
+    consumes supplied Scene USDZ packages.
 
     Args:
         config_path: Path to the scenario YAML config.

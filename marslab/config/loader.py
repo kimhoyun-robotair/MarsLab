@@ -23,7 +23,7 @@ def propagate_seeds_in_dict(cfg: dict, master_seed: int | None = None) -> dict:
     mutates and returns the dict in place.
 
     Missing ``mars_env`` or ``terrain`` blocks are left untouched —
-    callers that skip terrain (e.g. the USDA-external passthrough) are
+    callers that skip terrain (e.g. the supplied-scene passthrough) are
     free to omit them.
 
     Args:

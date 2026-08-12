@@ -4,18 +4,16 @@
 field-robotics research, built on NVIDIA Isaac Sim 5.x.**
 
 MarsLab gives planetary-robotics researchers a single, scriptable, ROS2-native
-testbed for repeatable Mars experiments. The runtime consumes a pre-built
-external USDA terrain (any HiRISE-derived USD scene authored upstream in
-[`MarsLab-Utils`](https://github.com/kimhoyun-robotair/MarsLab-Utils)) plus a
-single `configs/default.yaml` describing the Mars atmosphere + lighting, then
-spawns the M2020 Perseverance rover with a full ROS2 bridge on top.
+testbed for repeatable Mars experiments. The runtime consumes a self-contained
+Scene USDZ package, a scenario YAML for Mars atmosphere + lighting, and the
+versioned M2020 rover USD bundle with its companion ROS assets.
 
 * **Reproducible by design** — every randomized process accepts a `seed`; one
-  YAML + one `--usda` path = identical output every run.
-* **External terrain authoring** — terrain meshes (HiRISE / procedural / cave
-  / habitat) are baked into USDA upstream by MarsLab-Utils. MarsLab only
-  consumes them, so terrain authoring code (DEM loader, procedural generator,
-  rock placer, cave builder, structure loader) no longer lives in this repo.
+  Scene package plus one YAML configuration produces the same setup every run.
+* **Explicit runtime inputs** — scene authoring is outside MarsLab's runtime
+  scope. The supplied Scene USDZ and Rover assets are consumed as inputs; this
+  repository does not generate terrain, rocks, habitats, or rover USD at run
+  time.
 * **ROS2 Jazzy native** — `cmd_vel`, odometry, IMU, RGB, depth, RGB-D point
   cloud, 3D + 2D LiDAR, full TF tree.
 * **Pydantic-validated** — every YAML field is type-checked at load time;
@@ -42,25 +40,20 @@ cd MarsLab
 # 2. Install Python deps (Isaac Sim 5.x must already be installed locally)
 pip install -e ".[dev]" --break-system-packages
 
-# 3. Build a USDA terrain upstream (one-time, in MarsLab-Utils repo):
-#    See https://github.com/kimhoyun-robotair/MarsLab-Utils — HiRISEGen,
-#    CraterComposer, RockyComposer, etc. produce USDA scene files.
-#    Example output: ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda
-
-# 4. Convert the M2020 URDF -> USD once (no GPU rover spawn until this exists):
-marslab/isaac_python.sh marslab/fix_urdf_inertia.py        # idempotent mass+inertia rewrite
-marslab/isaac_python.sh marslab/convert_urdf_to_usd.py     # URDF -> assets/robots/rover/m2020.usd
-
-# 5. Run the sim.  Single line:
+# 3. Run the packaged Jezero reference scene.  --usda is retained during the
+#    pre-S06 transition even though the input is a self-contained USDZ package.
 marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda
+    --usda assets/scene/jezero_plain/jezero_plain.usdz \
+    --scenario configs/default.yaml \
+    --rover-yaml configs/rover_m2020.yaml \
+    --no-ros2
 ```
 
 Companion terminal (required for full TF):
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-ros2 launch ~/MarsLab/launch/rover_state_publisher.launch.py
+ros2 launch launch/rover_state_publisher.launch.py
 ```
 
 Drive it (third terminal):
@@ -82,7 +75,7 @@ expressed as a CLI flag combination on top of the single `configs/default.yaml`.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--usda PATH` | str | (required) | Path to the pre-built USDA terrain (HiRISE / procedural / cave). Built upstream in MarsLab-Utils. |
+| `--usda PATH` | str | (required) | Legacy pre-S06 parser flag for the required Scene USDZ package. |
 | `--scenario PATH` | str | `configs/default.yaml` | YAML supplying `mars_env` + `rendering` + `dynamic_atmosphere` blocks. Most users never override. |
 | `--rover-yaml PATH` | str | `configs/rover_m2020.yaml` | Rover sensors + control + ROS2 config. |
 | `--z-offset FLOAT` | float | `0.1` | Vertical clearance above the DEM-sampled surface at the USDA bbox centre (meters). |
@@ -97,47 +90,37 @@ expressed as a CLI flag combination on top of the single `configs/default.yaml`.
 ```bash
 # Default — overhead sun, dynamic atmosphere, ROS2 on, viewport visible.
 marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda
+    --usda assets/scene/jezero_plain/jezero_plain.usdz
 
 # Morning sun experiment (formerly the "spacecraft_landing" preset).
 marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda \
+    --usda assets/scene/jezero_plain/jezero_plain.usdz \
     --sun-azimuth-deg 135 \
     --sun-elevation-deg 40
 
 # Headless CI run (no viewport, full sim runs in the background).
 marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/cerberus_canyon/terrain_scene.usda \
+    --usda assets/scene/grand_canyon/grand_canyon.usdz \
     --headless
 
 # No ROS2 (rover physics only, no topics published).
 marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda \
+    --usda assets/scene/jezero_plain/jezero_plain.usdz \
     --no-ros2
 
 # No atmosphere stack (debug viewport jitter or pure terrain+rover validation).
 marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda \
+    --usda assets/scene/jezero_plain/jezero_plain.usdz \
     --no-atmosphere
 
 # Custom z-offset (rover spawn 0.8 m above DEM centre — for bouldery terrain).
 marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/cerberus_canyon/terrain_scene.usda \
+    --usda assets/scene/grand_canyon/grand_canyon.usdz \
     --z-offset 0.8
-
-# Custom scenario YAML (e.g. dust-storm preset with tau=2.5).
-marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda \
-    --scenario configs/dust_storm.yaml
-
-# Custom rover config (e.g. alternate sensor layout).
-marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda \
-    --rover-yaml configs/rover_m2020_lidar_only.yaml
 
 # Composite — morning sun + headless + custom z-offset.
 marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda \
+    --usda assets/scene/jezero_plain/jezero_plain.usdz \
     --sun-azimuth-deg 135 \
     --sun-elevation-deg 40 \
     --headless \
@@ -149,7 +132,7 @@ marslab/isaac_python.sh marslab/main.py \
 ```bash
 # Pipe to a log file for later inspection.
 marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda \
+    --usda assets/scene/jezero_plain/jezero_plain.usdz \
     2>&1 | tee ~/MarsLab/tmp/run.log
 ```
 
@@ -166,54 +149,22 @@ ros2 topic pub --once /rover/cmd_vel geometry_msgs/Twist \
 
 ---
 
-## 3. USDA Requirements
+## 3. Scene and Rover Inputs
 
-Any USDA passed via `--usda` must satisfy:
+MarsLab ships four reference Scene USDZ packages under `assets/scene/`:
+Jezero Plain, Main Crater, Mars Base, and Grand Canyon. The current parser
+continues to spell the scene argument `--usda` until S06; pass the selected
+USDZ file to that flag during this compatibility window.
 
-* `upAxis = "Z"`, `metersPerUnit = 1`.
-* At least one visible `UsdGeom.Mesh` under the default prim (used for DEM
-  surface sampling).
-* `UsdPhysics.CollisionAPI` on at least one mesh so the rover wheels have
-  contact geometry.
+The rover is an explicit versioned input. `configs/rover_m2020.yaml` names
+`assets/robots/rover/m2020.usd`; its ROS companion URDF and meshes remain in
+the `assets/m2020-urdf-models` submodule. Keep these assets intact when
+cloning or packaging a runtime checkout. MarsLab does not convert or generate
+either Scene or Rover assets at startup.
 
-### Rover spawn modes
-
-Spawn position is resolved by `marslab.main._resolve_spawn` from the
-`spawn:` block in `configs/rover_m2020.yaml`. Four modes are supported:
-
-| `spawn.mode` | XY resolution | Use case |
-|---|---|---|
-| `dem_center` *(default)* | DEM bbox centre | Legacy behaviour |
-| `dem_relative` | `dem_center + xy` | Spawn at a fixed offset from DEM centre |
-| `absolute` | `xy` in world frame | Multi-rover scenes or non-centred terrains |
-| `trajectory_start` | First sample of `spawn.trajectory_path` (a TUM file) | Run a reference trajectory from its own start point |
-
-`surface_z` is sampled from the DEM mesh at the resolved XY (median of mesh
-points within a small radius). Final Z = `surface_z + spawn.z_offset` (YAML
-`spawn.z_offset` overrides the CLI `--z-offset` flag if both are set).
-
-`spawn.orientation_rpy` controls the spawn yaw, except in
-`trajectory_start` mode where `spawn.use_yaw_from_trajectory: true`
-(default) overrides yaw with `2·atan2(qz, qw)` from the TUM first sample.
-
-#### Example — spawn rover at the start of a TrajectoryComposer TUM
-
-```yaml
-# configs/rover_m2020.yaml
-spawn:
-  mode: "trajectory_start"
-  trajectory_path: "../MarsLab-Utils/TrajectoryComposer/out/jezero_rocky_loop/trajectory.tum"
-  z_offset: 0.1
-  use_yaw_from_trajectory: true
-```
-
-The rover will spawn at the trajectory's first `(tx, ty)` with its yaw
-aligned to the trajectory's first sample, ready for direct ATE evaluation
-against the reference TUM.
-
-Any nested `PhysicsScene` inside the USDA is auto-deactivated so the
-Mars-gravity `/physicsScene` created by `marslab.sim.world_setup.create_world`
-remains the sole active physics scene.
+The scene must expose collision geometry suitable for rover contact. A nested
+`PhysicsScene`, when present, is deactivated so MarsLab's Mars-gravity
+`/physicsScene` remains the sole active physics scene.
 
 ---
 
@@ -432,15 +383,9 @@ Three principles govern every structural decision:
 | `marslab/fix_urdf_inertia.py` | URDF mass + inertia inject (idempotent) | No |
 | `marslab/quaternion.py` | Pure quaternion utilities | No |
 
-Removed in v1.0 (moved to `delete_later/`): `marslab/terrain/`,
-`marslab/scene/`, `marslab/runtime/stage2_boot.py`,
-`marslab/runtime/stage2_scene.py`, `marslab/config/scenario_loader.py`,
-`marslab/config/spawn_resolver.py`, `marslab/runtime/config_loader.py`.
-Terrain authoring + scene composition are now upstream in MarsLab-Utils;
-runtime only consumes the resulting USDA.
-
-The full guideline catalogue (G1-G10 and OP-1 through OP-5) lives in
-`CLAUDE.md`.
+Terrain authoring, scene composition, and URDF conversion are deliberately
+outside the runtime path. MarsLab consumes the supplied Scene USDZ and Rover
+assets without generating replacements at startup.
 
 ---
 
@@ -448,16 +393,15 @@ The full guideline catalogue (G1-G10 and OP-1 through OP-5) lives in
 
 ### License
 
-Apache 2.0 — see `LICENSE`. All MarsLab source code is original. We study
-OmniLRS, RLRoverLab, SRB, and `unitree_sim_isaaclab` for algorithmic and
-pattern inspiration but do not copy code or naming.
+The repository's release and third-party notices are finalized separately from
+this runtime documentation pass. Do not infer redistribution rights for the
+Scene or Rover assets from this README.
 
 ### Third-Party Assets
 
-The Perseverance (M2020) rover URDF and glTF meshes are vendored as a git
-submodule under `assets/m2020-urdf-models/` (a fork of
-`github.com/nasa-jpl/m2020-urdf-models`, NASA/JPL release IDs URS307049 and
-URS309682). See `THIRD_PARTY_LICENSES.md` for the full attribution.
+The Perseverance (M2020) rover URDF and glTF meshes are supplied by the
+`assets/m2020-urdf-models/` submodule. Preserve the submodule and the rover
+USD's layers, materials, and meshes; S13 owns formal attribution and notices.
 
 ### Citation
 
@@ -476,8 +420,7 @@ URS309682). See `THIRD_PARTY_LICENSES.md` for the full attribution.
 ### Roadmap
 
 * **v1.0 (current, iSpaRo 2026 submission):** single-rover M2020, ROS2
-  bridge, SLAM, dynamic atmosphere. USDA terrain consumed from upstream
-  MarsLab-Utils.
+  bridge, SLAM, dynamic atmosphere, and supplied Scene USDZ packages.
 * **v1.5 (post-iSpaRo, engineering follow-ons):**
     * GUI USDA loader.
     * Non-ROS2 dataset export (HDF5 / Parquet) for ML training.
@@ -514,20 +457,22 @@ ruff check marslab/ tests/
 ```
 
 Isaac Sim runtime verification is performed by launching the full
-simulation against a USDA + the default scenario YAML and confirming spawn
+simulation against a supplied Scene USDZ + the default scenario YAML and confirming spawn
 / cmd_vel / sensor topics in RViz:
 
 ```bash
 marslab/isaac_python.sh marslab/main.py \
-    --usda ~/MarsLab-Utils/HiRISEGen/out/jezero_enhanced/terrain_scene.usda
+    --usda assets/scene/jezero_plain/jezero_plain.usdz \
+    --scenario configs/default.yaml \
+    --rover-yaml configs/rover_m2020.yaml \
+    --no-ros2
 ```
 
 ---
 
 ## Where to Read Next
 
-* `docs/colored_pointcloud.md` — `depth_image_proc` XYZRGB fusion pattern.
-* `docs/odometry_ground_truth.md` — odom publisher + RTAB-Map handoff.
-* `CLAUDE.md` (English) / `CLAUDE_kor.md` (Korean) — developer-side
-  guidelines, principles, and the sprint plan toward iSpaRo 2026.
-* `work_log/LOG.md` — append-only development history.
+* [Camera point-cloud notes](docs/colored_pointcloud.md)
+* [Odometry and ground-truth notes](docs/odometry_ground_truth.md)
+* [Frame conventions](docs/frame_conventions.md)
+* [Project contribution guidance](AGENTS.md)

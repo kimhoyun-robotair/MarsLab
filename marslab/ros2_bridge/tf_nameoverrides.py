@@ -70,11 +70,10 @@ def apply_nameoverride(stage: object, prim_path: str, frame_name: str) -> bool:
         case so a typo never silently swallows the wiring).
 
     Notes:
-        ``isaac:nameOverride`` is declared at
-        ``isaacsim/exts/isaacsim.robot.schema/usd/schema/isaac/robot_schema/__init__.py:42``
-        as a string applied-schema attribute.  Always created with
-        ``custom=True`` so an existing applied-schema occurrence is
-        reused rather than fighting USD's strict type system.
+        The public Isaac Sim robot schema treats ``isaac:nameOverride`` as a
+        string applied-schema attribute. Always create it with ``custom=True``
+        so an existing applied-schema occurrence is reused rather than fighting
+        USD's strict type system.
     """
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():

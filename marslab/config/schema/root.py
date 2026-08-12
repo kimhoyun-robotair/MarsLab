@@ -36,8 +36,8 @@ __all__ = ["MarsLabConfig"]
 class MarsLabConfig(BaseModel):
     """Top-level MarsLab configuration aggregating runtime sub-configs.
 
-    The v1.0 passthrough pipeline consumes supplied pre-built USDA terrain
-    files and does not author terrain or scene structures internally, so the
+    The passthrough pipeline consumes supplied Scene USDZ packages and does
+    not author terrain or scene structures internally, so the
     root model now composes only ``mars_env`` + ``robots``
     + ``rendering`` + an opaque ``rover`` block. Legacy ``terrain`` and
     ``scene`` blocks in scenario YAMLs were retired with the rest of the

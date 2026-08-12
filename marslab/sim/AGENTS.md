@@ -29,5 +29,5 @@ pytest tests/unit/test_sim_boot.py tests/unit/test_sim_world_setup.py -q
 
 ## NOTES
 
-The terrain USDA is referenced by higher-level startup code; this package builds
-the simulation container and world only, not terrain assets.
+The explicit Scene USDZ input is referenced by higher-level startup code; this
+package builds the simulation container and world only, not scene assets.
