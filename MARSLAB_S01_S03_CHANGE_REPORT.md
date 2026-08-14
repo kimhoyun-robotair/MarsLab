@@ -33,16 +33,16 @@ S01/S02의 승인된 내용은 그대로 상속하고, S03 후보 이후 이 문
 
 | 파일(현재 위치) | 현재 심볼/구간 | 변경 내용(삭제된 구 동작 포함) |
 |---|---|---|
-| `configs/rover_m2020.yaml` | `spawn` 주석·블록, 현재 22–33행 | `trajectory_start`, `trajectory_path`, `use_yaw_from_trajectory` 예시와 절대 Utils 경로를 삭제했다. `dem_center`, `dem_relative`, `absolute`만 문서화한다. URDF 변환 플래그 4개(구 110행 부근)는 삭제했고, S05 전환 때문에 `usd_path` 12행은 아직 유지한다. |
-| `marslab/main.py` | `_REMOVED_SPAWN_MODE`, `_load_rover_cfg` 92–116행 | 제거된 `trajectory_start` 요청을 Kit 부팅 전에 명시적인 `RuntimeError`로 거부한다. |
-| `marslab/main.py` | `_resolve_spawn_rpy` 119–125행, `_resolve_spawn` 212–275행 | TUM 첫 pose 파서 `_parse_tum_first_pose`와 `math` import, 궤적 기반 좌표·yaw 오버라이드를 삭제했다. 세 가지 spawn 모드만 허용하고 오류 메시지도 갱신했다. |
-| `marslab/main.py` | `_reference_user_usda` 319–327행, `main` 427–447행·594행·619행 | USDA 외부 terrain 표현을 공급 Scene 입력 표현으로 바꾸고, `--usda` 호환 플래그로 Scene USDZ를 받는 설명을 반영했다. 중첩 `PhysicsScene` 비활성화 동작은 유지한다. |
-| `marslab/main.py` | `main`의 ROS 초기화·LoopContext 구간 700–745행 | `MarsLab-Utils/GT/gt_publisher` 선택 import/fallback과 `attach_to_bridge`/`register_physics_callback`를 삭제했다. 현재 735–745행의 bridge/LoopContext 경계 주변에는 MarsLab 소유 GT 경로만 남긴다. |
-| `marslab/main.py` | `_nearest_k_median_z` 159–187행, `main` 427행 이후 | S01 포맷 커밋에서 행 길이와 다중 인자 호출을 Black 형식으로 정리했다(행동 변화 없음). |
+| `configs/rover_m2020.yaml` | 현재 `spawn` 블록 14–18행 (`usd_path`는 현재 없음) | S01 당시 `trajectory_start`, `trajectory_path`, `use_yaw_from_trajectory` 예시와 절대 Utils 경로를 삭제했다. `dem_center`, `dem_relative`, `absolute`만 문서화한다. URDF 변환 플래그 4개(구 110행 부근)와 legacy `usd_path`도 S03에서 제거되어 현재 YAML에는 없다. |
+| `marslab/main.py` | 제거된 `_REMOVED_SPAWN_MODE`는 현재 없음; `_load_rover_cfg` 99–101행 | 제거된 `trajectory_start` 요청을 Kit 부팅 전에 typed `ValidationError`로 거부한다. |
+| `marslab/main.py` | `_resolve_spawn_rpy` 104–108행, `_resolve_spawn` 194–257행 | TUM 첫 pose 파서 `_parse_tum_first_pose`와 `math` import, 궤적 기반 좌표·yaw 오버라이드를 삭제했다. 세 가지 spawn 모드만 허용하고 오류 메시지도 갱신했다. |
+| `marslab/main.py` | `_reference_user_usda` 300–325행, `main` parser 407–447행 | USDA 외부 terrain 표현을 공급 Scene 입력 표현으로 바꾸고, `--usda` 호환 플래그로 Scene USDZ를 받는 설명을 반영했다. 중첩 `PhysicsScene` 비활성화 동작은 유지한다. |
+| `marslab/main.py` | ROS 초기화 713–722행; LoopContext 경계 724행; atmosphere callback 분기 735–745행 | `MarsLab-Utils/GT/gt_publisher` 선택 import/fallback과 `attach_to_bridge`/`register_physics_callback`를 삭제했다. 현재 bridge와 LoopContext 경계를 정확히 가리키며 735–745행은 atmosphere callback 설정이다. |
+| `marslab/main.py` | `_nearest_k_median_z` 141–169행, `main` 407행 이후 | S01 포맷 커밋에서 행 길이와 다중 인자 호출을 Black 형식으로 정리했다(행동 변화 없음). |
 | `marslab/runtime/precheck.py` | `check_rover_usd` 14–26행 | 누락 Rover USD 오류에서 변환 스크립트를 실행하라는 Utils 안내를 삭제하고 파일 경로만 보고한다. |
 | `marslab/runtime/atmosphere_boot.py` | 모듈 설명 5–11행, `boot_atmosphere` 104–113행 | 외부 USDA/Utils 설명을 공급 Scene USDZ 설명으로 교체했다. 순수 atmosphere 계산과 terrain 미로드 정책은 유지한다. |
-| `marslab/config/schema/root.py` | `MarsLabConfig` docstring 36–47행 | terrain/scene authoring이 내부에서 수행되지 않고 공급 Scene을 소비한다는 설명으로 갱신했다. 모델 필드/`extra="forbid"` 동작은 그대로다. |
-| `marslab/ros2_bridge/tf_nameoverrides.py` | 모듈 주석 14–26행, `apply_nameoverride` docstring 70–78행 | `<Isaac-Sim-install>` 파일 인용을 제거하고 공개 Isaac Sim robot schema/API 설명으로 대체했다. 함수 동작(커스텀 `isaac:nameOverride`)은 유지했다. |
+| `marslab/config/schema/root.py` | 현재 `MarsLabConfig = ScenarioConfig` alias 1–5행 | S01/S02 당시 terrain/scene authoring이 내부에서 수행되지 않고 공급 Scene을 소비한다는 설명을 갱신했으며, S03에서는 root를 5행 compatibility alias로 축소했다. strict 모델 동작은 Scenario schema에 있다. |
+| `marslab/ros2_bridge/tf_nameoverrides.py` | 모듈 설명 1–29행, `apply_nameoverride` 51–77행 | `<Isaac-Sim-install>` 파일 인용을 제거하고 공개 Isaac Sim robot schema/API 설명으로 대체했다. 함수 동작(커스텀 `isaac:nameOverride`)은 유지했다. |
 
 ### 새 도구·테스트
 
@@ -65,16 +65,16 @@ S02는 기존 파일을 삭제하지 않고 stale truth를 정리했다. S01과 
 | `README.md` | Architecture 367–387행, License/Assets 391–403행, Roadmap 419–425행, Tests 448–474행 | **제품 문서**: authoring/변환이 런타임 밖임을 명시하고 자산 권리 주장을 유보했으며 공급 Scene 기준 테스트 명령과 `AGENTS.md` 링크만 남겼다. 기존 `docs/colored_pointcloud.md`, `CLAUDE*`, `work_log` 링크는 삭제했다(파일 삭제가 아니라 README 링크 삭제). |
 | `configs/default.yaml` | 파일 주석 4–12행 | **설정 주석**: terrain/scene 블록 부재 사유와 공급 Scene USDZ `--usda` 예를 갱신했다. |
 | `configs/rover_m2020.yaml` | `spawn` 22–33행 및 S01 연속 | **설정 주석**: trajectory/절대 Utils 경로와 변환 플래그를 제거했다. 실제 `usd_path`는 S05 전까지 유지한다. |
-| `marslab/config/loader.py` | `propagate_seeds_in_dict` docstring 10–30행 | **코드 주석**: “USDA-external passthrough”를 “supplied-scene passthrough”로 바꿨다. |
-| `marslab/config/schema/robot.py` | `DepthSensorConfig` docstring 524–542행 | **코드 주석**: Isaac 설치 내부 파일 경로 인용을 공개 single-view depth schema/API 설명으로 대체했다. |
-| `marslab/config/schema/root.py` | `MarsLabConfig` docstring 36–47행, S01 연속 | **코드 주석**: 공급 Scene USDZ 표현을 반영했다. |
-| `marslab/config/schema/ros2_bridge.py` | `Ros2BridgeConfig` 설명 172–250행 | **코드 주석**: ROS2 camera helper의 개인 Isaac 설치 경로·라인 인용을 공개 API 설명으로 바꿨다. QoS/필드 동작은 바꾸지 않았다. |
+| `marslab/config/loader.py` | 현재 compatibility exports 1–3행 (`propagate_seeds_in_dict`는 S03에서 제거) | **코드 주석/구조**: “USDA-external passthrough”를 “supplied-scene passthrough”로 바꾼 뒤 S03에서 raw seed helper를 제거하고 typed loader export만 남겼다. |
+| `marslab/config/schema/robot.py` | 현재 compatibility aliases/exports 1–34행 (`DepthSensorConfig`는 rover_sensors로 이동) | **코드 주석/구조**: Isaac 설치 내부 파일 경로 인용을 공개 single-view depth schema/API 설명으로 대체한 후 S03에서 Rover 모델 별칭만 제공한다. |
+| `marslab/config/schema/root.py` | 현재 `MarsLabConfig` alias 1–5행, S01/S02 설명은 historical | **코드 주석/구조**: 공급 Scene USDZ 표현을 반영한 historical root 설명은 S03에서 ScenarioConfig compatibility alias로 축소되었다. |
+| `marslab/config/schema/ros2_bridge.py` | 현재 compatibility exports 1–3행 (`Ros2BridgeConfig`는 rover_ros2로 이동) | **코드 주석/구조**: ROS2 camera helper의 개인 Isaac 설치 경로·라인 인용을 공개 API 설명으로 바꾼 뒤 S03에서 Rover ROS2 모델 re-export만 남겼다. |
 | `marslab/isaac_python.sh` | 배경 설명 22–29행, Usage 42–47행 | **런처 주석**: `<Isaac-Sim-install>` 인용을 `$ISAAC_SIM_PATH`로 바꾸고 실제 Scene USDZ·scenario·rover 실행 예를 적었다. 셸 동작은 변경하지 않았다. |
-| `marslab/main.py` | 모듈/CLI 설명 1–30행·427–447행, S01 연속 구간 | **코드+주석**: USDA terrain 문구를 Scene USDZ로 정리하고 S01 포맷 변경을 포함했다. |
+| `marslab/main.py` | 모듈 설명 1–30행, CLI parser 407–447행, S01 연속 구간 | **코드+주석**: USDA terrain 문구를 Scene USDZ로 정리하고 S01 포맷 변경을 포함했다. |
 | `marslab/ros2_bridge/sensor_graph.py` | `build_sensor_graph` 설명 138–145행, `_DEPTH_SENSOR_SCHEMA_ATTRS` 224–233행 | **코드 주석**: depth sensor의 개인 schema 경로 인용을 공개 API/속성명 설명으로 바꿨다. graph wiring은 유지했다. |
 | `marslab/ros2_bridge/sensor_graph_builder.py` | 모듈 설명 1–16행, `_build_create_nodes` 47–79행, `_build_set_values` 228–369행 | **코드 주석**: 개인 Isaac 설치 경로·OGN 내부 파일 인용과 `resetSimulationTimeOnStop` 근거 주석을 제거하고 공개 ROS2 helper 설명을 남겼다. 노드/값 연결은 유지했다. |
-| `marslab/ros2_bridge/tf_nameoverrides.py` | 모듈/`apply_nameoverride` 설명 14–26·70–78행, S01 연속 | **코드 주석**: 공개 API 근거로 정리했다. |
-| `marslab/runtime/atmosphere_boot.py` | 모듈 설명 5–11행, `boot_atmosphere` 104–113행, 계산부 177–179행 | **코드 주석+포맷**: 공급 Scene USDZ 표현으로 갱신하고 한 줄 `os.path.join`을 포맷했다. 계산 결과는 동일하다. |
+| `marslab/ros2_bridge/tf_nameoverrides.py` | 모듈 설명 1–29행, `apply_nameoverride` 51–77행, S01 연속 | **코드 주석**: 공개 API 근거로 정리했다. |
+| `marslab/runtime/atmosphere_boot.py` | 모듈 설명 1–19행, `boot_atmosphere` 103–118행, 계산부 177–179행 | **코드 주석+포맷**: 공급 Scene USDZ 표현으로 갱신하고 한 줄 `os.path.join`을 포맷했다. 계산 결과는 동일하다. |
 | `marslab/runtime/precheck.py` | `check_rover_usd` 14–26행, S01 연속 | **코드 주석/메시지**: 변환 명령 안내 없는 간결한 오류로 정리했다. |
 | `marslab/sim/AGENTS.md` | Notes 30–33행 | **중첩 가이드 문서**: 상위 startup이 공급 Scene USDZ를 참조한다는 설명으로 바꿨다. |
 | `tests/refactor/test_documented_commands.py` | 상수 10–28행, 테스트 36–123행 | **새 테스트**: README/설정 대상 존재, 세 외부 runtime 입력 문자열, 추적된 Markdown 링크, `--usda` allowlist, 개인/Utils 경로 부재 및 음성 missing-target fixture를 검증한다. `01e1e0e`에서 링크 추적 검사를 강화했고 `f405362`에서 외부 입력을 명시적으로 구분했다. |
@@ -232,8 +232,9 @@ non-empty `parent_link`와 acquisition fields를 요구하고, disabled variant�
 cross-field 검증은 loader에서 Kit 전에 수행된다. raw YAML `safe_load`는
 `marslab/config/yaml_loader.py` 한 곳뿐이고 곧바로 Pydantic으로 parse한다.
 
-`_PRE_S05_ROVER_USD_PATH`는 `marslab/main.py:90`과 S01 compatibility test의 두
-사용처에만 존재하는 임시 상수다. S03은 CLI asset ownership을 구현하지 않았으며,
+`_PRE_S05_ROVER_USD_PATH`는 `marslab/main.py:90`에서 선언되고 production
+resolution은 `marslab/main.py:507`에서 수행되며, S01 compatibility test는
+`tests/refactor/test_no_utils_dependencies.py:11,42`에서 이를 확인한다. S03은 CLI asset ownership을 구현하지 않았으며,
 S05에서 Rover USD 입력을 CLI/RunPlan으로 전환할 때 이 상수를 제거해야 한다는
 bounded risk를 명시적으로 남긴다. 이는 S04 asset manifest/submodule 및 S05
 RunPlan/CLI 작업을 앞당기지 않았다는 뜻이다.
