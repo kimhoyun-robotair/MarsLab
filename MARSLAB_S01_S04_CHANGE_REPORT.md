@@ -335,17 +335,18 @@ OpenUSD 전에 typed error가 되는지 확인한다. semantic failure는 앱을
 
 | 성공 기준 | 정확한 호출/관찰 | 증거 |
 |---|---|---|
-| focused safety/negative | `python3 -m pytest tests/refactor/test_asset_validator_failures.py -q` → **10 passed**, repeat도 **10 passed** | `agent/task-4/pytest-failures.txt`, `pytest-failures-repeat.txt` |
-| refactor regression | `python3 -m pytest tests/refactor -q` → **41 passed** | `agent/task-4/pytest-refactor.txt` |
-| full available suite | `python3 -m pytest -q` → **41 passed** | `agent/task-4/pytest-full.txt` |
-| quality gates | Black 9 files unchanged, Ruff pass, mypy 8 files pass, validation `compileall` pass, `git diff --check` pass | `black.txt`, `ruff.txt`, `mypy.txt`, `compileall.txt`, `diff-check.txt` |
-| exact Isaac command | `marslab/isaac_python.sh -m marslab.validation.assets --require-ros-companion ... --scene` 네 개 실행 → exit 0, 다섯 nonempty JSON | `agent/task-4/manual-terminal.txt`, `executor-evidence-audit-r2.txt` |
-| pre-app malformed | corrupt Scene/Rover 명령 → exit 1, typed diagnostic, app 미시작 | `failure-corrupt-preapp.txt`, `failure-corrupt-rover-preapp.txt`, `executor-evidence-audit-r2.txt` |
-| post-boot semantic failure | malformed empty USDA → exit 1, typed semantic JSON, startup/shutdown 관찰 | `agent/task-4/qa-r3/malformed-terminal.log`, `malformed.exit`, `executor-evidence-audit-r2.txt` |
+| focused safety/negative | `env -u PYTHONPATH -u AMENT_PREFIX_PATH -u ROS_DISTRO python3 -m pytest tests/refactor/test_asset_validator_failures.py -q`를 두 번 실행 → **12 passed**, **12 passed** | `agent/task-4/qa-r3/focused-1.log`, `focused-2.log`, `agent/task-4/fix-r2/focused-tests-1-rerun.log`, `focused-tests-2-rerun.log` |
+| refactor regression | `python3 -m pytest tests/refactor -q` → **43 passed** | `agent/task-4/fix-r2/refactor-tests-rerun.log`, `quality-summary.md`, `final-integrity-audit.log` |
+| full available suite | 현재 SHA에 대한 full `tests/refactor` 범위 → **43 passed** (위 authoritative run과 동일한 범위; 이전 41-pass 중간 실행은 최종 수치로 사용하지 않음) | `agent/task-4/fix-r2/refactor-tests-rerun.log`, `final-integrity-audit.log` |
+| quality gates | Black 9 files unchanged, Ruff pass, mypy 8 files pass, validation `compileall` pass, `git diff --check` pass | `agent/task-4/fix-r2/black-rerun.log`, `ruff-rerun.log`, `mypy-rerun.log`, `compileall-rerun.log`, `diff-check-rerun.log` |
+| exact Isaac command | `marslab/isaac_python.sh -m marslab.validation.assets --require-ros-companion ... --scene` 네 개 실행 → exit 0, 다섯 nonempty JSON | `agent/task-4/qa-r3/real-cli.log`, `real-verification.txt`, `agent/task-4/fix-r2/posthook-positive-audit.log`, `final-integrity-audit.log` |
+| pre-app malformed | corrupt Scene/Rover 명령 → exit 1, typed diagnostic, app 미시작 | `agent/task-4/qa-r3/malformed-terminal.log`, `malformed-validate-rover.json`, `corrupt-terminal.log`, `corrupt-report.json`, `agent/task-4/fix-r2/quality-summary.md` |
+| post-boot semantic failure | valid-empty malformed USDA → exit 1, typed semantic JSON, startup/shutdown 관찰 | `agent/task-4/qa-r3/valid-empty-terminal.log`, `valid-empty-rover.json`, `agent/task-4/fix-r2/green-valid-empty-terminal.log`, `green-valid-empty-json/validate-rover.json`, `quality-summary.md` |
 
-현재 SHA에 대한 최종 evidence audit는 `executor-evidence-audit-r2.txt`의
-`AUDIT_SHA=d7fa4a3094bb175124d1709c489d7861cff29064`와
-`EXECUTOR_EVIDENCE_AUDIT=PASS`로 확인했다. 사용자 lane 및 S04 ledger/승인은
+현재 SHA에 대한 최종 evidence audit는 `agent/task-4/fix-r2/final-integrity-audit.log`의
+`sha=d7fa4a3094bb175124d1709c489d7861cff29064` 및
+`commit_and_artifact_integrity=confirmed`, 그리고 `agent/task-4/qa-r3/qa-report.md`의
+focused 12/12·real CLI·adversarial PASS로 확인했다. 사용자 lane 및 S04 ledger/승인은
 아직 완료되지 않았으므로(`executor-final-gate-status.txt`), 아래 명령을 사용자
 환경에서 다시 실행하고 S04 승인을 남기는 단계가 남아 있다.
 
@@ -367,7 +368,7 @@ stale checksum/submodule, partial JSON atomicity, repeated flaky test와 hang은
 untrusted instruction이 없는 정적 CLI 작업이라 미발생, cancel/resume 및
 repeated interruption도 중단이 없어 미발생으로 기록했다. xterm visual helper나
 문서 색상 렌더 검증은 이 CLI/data-shaped Markdown surface에 제공되지 않아
-적용하지 않았으며, 대신 exact terminal output을 `manual-terminal.txt`와 아래
+적용하지 않았으며, 대신 exact terminal output을 `agent/task-4/qa-r3/real-cli.log`와 아래
 수동 QA evidence에 보존한다. 수동 QA의 exact terminal invocation은
 `sed -n '1,380p' MARSLAB_S01_S04_CHANGE_REPORT.md && git diff --name-status 2f76557e6962f1cadffeaa876c34d9d00a9b8a93..d7fa4a3094bb175124d1709c489d7861cff29064`이며,
 보고서 346–350행의 사용자 QA 미승인 상태까지 출력한다.
