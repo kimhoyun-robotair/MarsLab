@@ -1,24 +1,9 @@
-# NASA JPL Perseverance (M2020) rover -- common base configuration.
-#
-# This file is consumed by scenarios via
-# ``configs/scenarios/<name>.yaml``  ->  rover.base_config .
-# The scenario loader deep-merges the scenario's ``rover:`` block onto
-# these defaults (scenario wins on leaf conflicts).
-#
-# Do NOT put per-scenario tweaks here -- put them in the scenario YAML
-# instead.
-
-# Just For Reference
-usd_path: "assets/robots/rover/m2020.usd"
-urdf_source_path: "assets/m2020-urdf-models/rover/m2020.urdf"
+urdf_source_path: "../assets/m2020-urdf-models/rover/m2020.urdf"
 prim_path: "/World/Rover"
 
 # URDF link frame is REP-103 aligned (+X forward, +Y left, +Z up) since the
 # 2026-05-04 FRD->REP-103 rewrite (rc1b_urdf_rep103). No X-roll spawn
 # compensation is required; identity rpy spawns the rover upright.
-spawn_position: [0.0, 0.0, 0.0]
-spawn_orientation_rpy: [0.0, 0.0, 0.0]
-
 # Spawn modes (consumed by ``marslab.main._resolve_spawn``):
 #   dem_center        — spawn at DEM bbox centre. ``xy`` ignored.
 #   dem_relative      — spawn at ``(dem_center_x + xy[0], dem_center_y + xy[1])``.
@@ -68,15 +53,11 @@ chassis:
   inertia_xx: 1036.1   # kg*m^2  (W=2.7, H=2.2)
   inertia_yy: 1182.2   # kg*m^2  (L=3.0, H=2.2)
   inertia_zz: 1391.4   # kg*m^2  (L=3.0, W=2.7)
-  bbox_lwh: [3.0, 2.7, 2.2] # documentation only — used by the unit test
-                                        #   to recompute inertia from first principles.
 
 wheels:
   # The current ``control.wheel_radius``
   # of 0.2667 m corresponds to a 0.5334 m diameter (URDF-derived); we keep
   # that value for kinematic IK consistency and document the 1.6 % gap below.
-  radius: 0.2667           # m  — matches ``control.wheel_radius`` exactly.
-  diameter_reference: 0.525  # m  — M2020 actual; documentation only.
   # Per-wheel mass estimate (M2020 ballpark).  Public M2020 papers do not
   # publish a per-wheel mass; 9.0 kg is a literature-aligned estimate for an
   # aluminum-machined, spoked rover wheel of this diameter.  6 wheels x 9 kg
@@ -88,7 +69,6 @@ wheels:
   #   I_transverse = m * (3 r^2 + h^2) / 12   with h = wheel width
   # Wheel width assumed h = 0.40 m (M2020 ballpark).  Inertia values are
   # offline-computed in the unit test for evidence.
-  width: 0.40              # m  — wheel width (M2020 ballpark).
   inertia_spin: 0.310      # kg*m^2  (about spin axis)
   inertia_transverse: 0.275  # kg*m^2  (radial axes)
   # PhysX material friction.  Mars regolith literature (Sullivan et al. 2017,
@@ -164,7 +144,7 @@ ros2:
   # transform.  The init_quat_world is forced to identity in the
   # runtime entry point (marslab/main.py) so the odom frame
   # equals world REP-103.  Since the URDF is REP-103 aligned (post
-  # rc1b_urdf_rep103), spawn_orientation_rpy is identity and no
+  # rc1b_urdf_rep103), spawn.orientation_rpy is identity and no
   # X-roll compensation is applied.  Set ``false`` to delegate
   # ``odom -> base_link`` to a downstream visual SLAM stack;
   # never run two publishers on the same transform.
@@ -184,6 +164,7 @@ sensors:
   # ``tf_broadcaster.py`` broadcasts these values identity; no X-roll
   # compensation is applied anywhere in the chain.
   camera:
+    enabled: true
     parent_link: "Body_Chassis"
     local_translation: [1.2, 0.0, 2.1]
     # URDF body frame is REP-103 (Z-up) post rc1b rewrite, so the camera
@@ -221,6 +202,7 @@ sensors:
   # Velodyne-style scanner, 30 deg vertical FOV, 360 deg horizontal at
   # 0.4 deg horizontal step, 10 Hz rotation, 0.5-100 m range.
   lidar_3d:
+    enabled: true
     parent_link: "Body_Chassis"
     local_translation: [1.45, 0.0, 2.1]
     # URDF body frame is REP-103 (Z-up) post rc1b rewrite, so the
@@ -231,8 +213,6 @@ sensors:
     range_max: 100.0
     horizontal_fov_deg: 220.0
     vertical_fov_deg: 45.0
-    horizontal_resolution_deg: 0.4
-    vertical_resolution_deg: 1.875
     rotation_rate_hz: 30.0
     profile_name: "OS1" # Isaac Sim Bundled RTX LiDAR asset key (Ouster OS1 USD carries variant set)
     profile_json_path: null
@@ -248,6 +228,7 @@ sensors:
   # Isaac Sim bundled ``Example_Rotary_2D`` JSON (single beam at -2 deg
   # elevation, 360 deg horizontal, 0.25 deg step, 30 Hz rotation).
   lidar_2d:
+    enabled: true
     parent_link: "Body_Chassis"
     local_translation: [1.4, 0.0, 0.7]
     # URDF body frame is REP-103 (Z-up) post rc1b rewrite, so /rover/scan
@@ -256,7 +237,6 @@ sensors:
     range_min: 0.5
     range_max: 20.0
     horizontal_fov_deg: 200.0
-    horizontal_resolution_deg: 0.25
     rotation_rate_hz: 30.0
     profile_name: "Example_Rotary_2D" # Isaac Sim Bundled RTX LiDAR profile (single-beam 2D)
     # Swap the LiDAR USD model by changing this key (e.g. ``Velodyne_VLP16``).
@@ -265,6 +245,7 @@ sensors:
     usd_profile: null
 
   imu:
+    enabled: true
     parent_link: "Body_Chassis"
     local_translation: [0.0, 0.0, 0.0]
     local_orientation_rpy_deg: [0.0, 0.0, 0.0]

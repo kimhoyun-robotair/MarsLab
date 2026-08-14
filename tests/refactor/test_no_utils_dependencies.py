@@ -6,8 +6,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
-from marslab.main import _abs_repo_path, _load_rover_cfg
+from marslab.main import _PRE_S05_ROVER_USD_PATH, _abs_repo_path, _load_rover_cfg
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROVER_YAML = REPO_ROOT / "configs" / "rover_m2020.yaml"
@@ -38,9 +39,10 @@ def test_rover_yaml_still_resolves_rover_usd() -> None:
     config = _load_rover_cfg(str(ROVER_YAML))
 
     # When: its Rover USD input is resolved through the current resolver.
-    resolved = Path(_abs_repo_path(config["usd_path"]))
+    resolved = Path(_abs_repo_path(_PRE_S05_ROVER_USD_PATH))
 
     # Then: it points at the checked-in Rover USD until S05 changes ownership.
+    assert config.spawn.mode == "dem_center"
     assert resolved == REPO_ROOT / "assets" / "robots" / "rover" / "m2020.usd"
     assert resolved.is_file()
 
@@ -53,7 +55,7 @@ def test_removed_trajectory_start_fails_before_kit(tmp_path: Path) -> None:
     rover_yaml.write_text(yaml.safe_dump(config), encoding="utf-8")
 
     # When/Then: the offline Rover-config boundary rejects it by name.
-    with pytest.raises(RuntimeError, match=r"spawn\.mode.*trajectory_start.*removed"):
+    with pytest.raises(ValidationError, match="trajectory_start"):
         _load_rover_cfg(str(rover_yaml))
 
 

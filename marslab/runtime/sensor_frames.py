@@ -38,14 +38,7 @@ _SENSOR_FRAME_BINDINGS: Tuple[Tuple[str, str], ...] = (
 
 
 def _resolve_sensor_block(sensors_cfg: Dict[str, Any], sensor_key: str) -> Dict[str, Any]:
-    """Return the dict for ``sensors_cfg[sensor_key]`` (or empty).
-
-    ``sensor_key`` ``"lidar_3d"`` falls back to ``"lidar"`` to match the
-    legacy YAML alias accepted by :mod:`marslab.main`.
-    """
     block = sensors_cfg.get(sensor_key)
-    if block is None and sensor_key == "lidar_3d":
-        block = sensors_cfg.get("lidar")
     if not isinstance(block, dict):
         return {}
     return block

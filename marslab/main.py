@@ -40,7 +40,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import yaml
 
 # marslab/main.py -> MarsLab/ is one level up.
 _THIS_FILE = Path(__file__).resolve()
@@ -49,7 +48,8 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 # Pre-Kit-boot imports (offline-safe; no isaacsim/omni/pxr/rclpy).
-from marslab.config.schema import MarsEnvConfig, RenderingConfig  # noqa: E402
+from marslab.config import RoverConfig, load_rover_config  # noqa: E402
+from marslab.config.schema.rover_sensors import EnabledImuConfig  # noqa: E402
 from marslab.robots.drive_api_setup import (  # noqa: E402
     configure_drives,
     reinforce_pd_gains,
@@ -75,11 +75,7 @@ from marslab.runtime.main_loop import (  # noqa: E402
     build_atmosphere_loop_state,
     run_main_loop,
 )
-from marslab.runtime.precheck import (  # noqa: E402
-    check_lidar_cfg,
-    check_rover_block,
-    check_rover_usd,
-)
+from marslab.runtime.precheck import check_rover_usd  # noqa: E402
 from marslab.runtime.sensor_frames import (  # noqa: E402
     build_sensor_frames,
     sensor_frames_to_tuples,
@@ -91,8 +87,8 @@ _LOG = logging.getLogger("marslab.main")
 
 _DEFAULT_Z_OFFSET = 0.1
 _DEFAULT_SCENARIO = "configs/default.yaml"
+_PRE_S05_ROVER_USD_PATH = "assets/robots/rover/m2020.usd"
 _TERRAIN_PRIM_PATH = "/World/Terrain"
-_REMOVED_SPAWN_MODE = "trajectory_" "start"
 
 
 def _abs_repo_path(p: str) -> str:
@@ -100,28 +96,14 @@ def _abs_repo_path(p: str) -> str:
     return p if os.path.isabs(p) else os.path.abspath(os.path.join(REPO_ROOT, p))
 
 
-def _load_rover_cfg(rover_yaml_abs: str) -> Dict[str, Any]:
+def _load_rover_cfg(rover_yaml_abs: str) -> RoverConfig:
     """Load and validate the rover YAML block (precheck before Kit boot)."""
-    with open(rover_yaml_abs, "r", encoding="utf-8") as fh:
-        rover_cfg = yaml.safe_load(fh) or {}
-    check_rover_block(rover_cfg)
-    spawn_cfg = rover_cfg.get("spawn")
-    if isinstance(spawn_cfg, dict) and spawn_cfg.get("mode") == _REMOVED_SPAWN_MODE:
-        raise RuntimeError(
-            f"spawn.mode '{_REMOVED_SPAWN_MODE}' was removed; use dem_center, "
-            "dem_relative, or absolute"
-        )
-    sensors_cfg = rover_cfg["sensors"]
-    check_lidar_cfg(sensors_cfg.get("lidar_3d") or sensors_cfg.get("lidar"))
-    return rover_cfg
+    return load_rover_config(rover_yaml_abs)
 
 
-def _resolve_spawn_rpy(rover_cfg: Dict[str, Any]) -> Tuple[float, float, float]:
+def _resolve_spawn_rpy(rover_cfg: RoverConfig) -> Tuple[float, float, float]:
     """Resolve spawn RPY from the rover YAML (mirrors main.py:172-176)."""
-    spawn_block = rover_cfg.get("spawn", {}) if isinstance(rover_cfg, dict) else {}
-    rpy_raw = spawn_block.get("orientation_rpy") if isinstance(spawn_block, dict) else None
-    if rpy_raw is None:
-        rpy_raw = rover_cfg.get("spawn_orientation_rpy", [0.0, 0.0, 0.0])
+    rpy_raw = rover_cfg.spawn.orientation_rpy
     return float(rpy_raw[0]), float(rpy_raw[1]), float(rpy_raw[2])
 
 
@@ -212,7 +194,7 @@ def _sample_dem_surface_z_at(
 def _resolve_spawn(
     stage: Any,
     terrain_prim_path: str,
-    rover_cfg: Dict[str, Any],
+    rover_cfg: RoverConfig,
     cli_z_offset: float,
 ) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
     """Resolve spawn ``(xyz, rpy)`` from the YAML ``spawn:`` block + DEM.
@@ -229,11 +211,10 @@ def _resolve_spawn(
     ``z_offset`` is taken from the YAML ``spawn.z_offset`` if present,
     otherwise falls back to the CLI ``--z-offset`` flag.
     """
-    spawn_block = (rover_cfg.get("spawn") or {}) if isinstance(rover_cfg, dict) else {}
-    mode = str(spawn_block.get("mode", "dem_center")).lower()
-    xy = spawn_block.get("xy", [0.0, 0.0])
-    z_off_yaml = spawn_block.get("z_offset")
-    z_off = float(z_off_yaml) if z_off_yaml is not None else float(cli_z_offset)
+    spawn_block = rover_cfg.spawn
+    mode = spawn_block.mode
+    xy = spawn_block.xy
+    z_off = spawn_block.z_offset if spawn_block.z_offset is not None else cli_z_offset
 
     cx_dem, cy_dem, _ = _sample_dem_elevation(stage, terrain_prim_path)
 
@@ -394,33 +375,32 @@ def _capture_odom_init_pose(articulation: Any) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def _build_wheel_odom_params(
-    rover_cfg: Dict[str, Any],
-    control_cfg: Dict[str, Any],
+    rover_cfg: RoverConfig,
     dof_names: List[str],
 ) -> Optional[Dict[str, Any]]:
     """Resolve wheel-odometry YAML block into init_rclpy_side params, or None."""
-    wheel_cfg = rover_cfg.get("wheel_odometry")
-    if not wheel_cfg or not wheel_cfg.get("enabled", True):
+    wheel_cfg = rover_cfg.wheel_odometry
+    if not wheel_cfg.enabled:
         return None
-    left_names = list(wheel_cfg["left_wheel_joints"])
-    right_names = list(wheel_cfg["right_wheel_joints"])
+    left_names = list(wheel_cfg.left_wheel_joints)
+    right_names = list(wheel_cfg.right_wheel_joints)
     left_indices = resolve_joint_indices(dof_names, left_names)
     right_indices = resolve_joint_indices(dof_names, right_names)
-    track_width = float(wheel_cfg.get("track_width", control_cfg.get("track_middle", 0.0)))
+    control_cfg = rover_cfg.control
     params: Dict[str, Any] = {
         "left_indices": left_indices,
         "right_indices": right_indices,
-        "wheel_radius": float(control_cfg["wheel_radius"]),
-        "track_width": track_width,
-        "slip_left": float(wheel_cfg.get("slip_left", 0.0)),
-        "slip_right": float(wheel_cfg.get("slip_right", 0.0)),
-        "sigma_omega": float(wheel_cfg.get("sigma_omega", 0.0)),
-        "seed": int(wheel_cfg.get("seed", 0)),
+        "wheel_radius": control_cfg.wheel_radius,
+        "track_width": wheel_cfg.track_width,
+        "slip_left": wheel_cfg.slip_left,
+        "slip_right": wheel_cfg.slip_right,
+        "sigma_omega": wheel_cfg.sigma_omega,
+        "seed": 0,
     }
-    if "pose_diag" in wheel_cfg:
-        params["pose_diag"] = list(wheel_cfg["pose_diag"])
-    if "twist_diag" in wheel_cfg:
-        params["twist_diag"] = list(wheel_cfg["twist_diag"])
+    if wheel_cfg.pose_diag is not None:
+        params["pose_diag"] = list(wheel_cfg.pose_diag)
+    if wheel_cfg.twist_diag is not None:
+        params["twist_diag"] = list(wheel_cfg.twist_diag)
     return params
 
 
@@ -517,19 +497,20 @@ def main() -> int:
         raise FileNotFoundError(f"USDA terrain file not found: {usda_abs}")
 
     rover_yaml_abs = _abs_repo_path(args.rover_yaml)
-    rover_cfg = _load_rover_cfg(rover_yaml_abs)
-    sensors_cfg = rover_cfg["sensors"]
-    control_cfg = rover_cfg["control"]
-    ros2_cfg = rover_cfg["ros2"]
+    rover = _load_rover_cfg(rover_yaml_abs)
+    rover_cfg = rover.model_dump(mode="python", exclude={"declaring_path"})
+    sensors_cfg = rover.sensors.model_dump(mode="python")
+    control_cfg = rover.control.model_dump(mode="python")
+    ros2_cfg = rover.ros2.model_dump(mode="python")
     camera_cfg = sensors_cfg["camera"]
 
-    rover_usd_abs = _abs_repo_path(rover_cfg["usd_path"])
+    rover_usd_abs = _abs_repo_path(_PRE_S05_ROVER_USD_PATH)
     check_rover_usd(rover_usd_abs)
 
     # spawn_rpy is now resolved together with spawn_xyz inside _resolve_spawn
     # (post-stage-load). Keep this for any logging that runs before the stage
     # is up.
-    spawn_rpy_yaml = _resolve_spawn_rpy(rover_cfg)
+    spawn_rpy_yaml = _resolve_spawn_rpy(rover)
     spawn_rpy = spawn_rpy_yaml
 
     # Atmosphere boot: resolve atmosphere snapshot (mars_env + rendering +
@@ -542,8 +523,8 @@ def main() -> int:
         sun_elevation_deg=args.sun_elevation_deg,
     )
     atmo_init = boot.atmosphere_init
-    mars_env_model = MarsEnvConfig(**boot.mars_cfg)
-    render_config = RenderingConfig(**boot.rendering_cfg)
+    mars_env_model = boot.mars_cfg
+    render_config = boot.rendering_cfg
 
     _LOG.info("Scenario: %s", scenario_abs)
     _LOG.info("USDA: %s", usda_abs)
@@ -624,7 +605,7 @@ def main() -> int:
         spawn_xyz, spawn_rpy = _resolve_spawn(
             stage,
             _TERRAIN_PRIM_PATH,
-            rover_cfg,
+            rover,
             cli_z_offset=float(args.z_offset),
         )
 
@@ -697,13 +678,12 @@ def main() -> int:
         # ---- rclpy bridge ---------------------------------------------------
         if not args.no_ros2:
             sensor_frames = sensor_frames_to_tuples(build_sensor_frames(sensors_cfg))
-            urdf_rel = rover_cfg.get("urdf_source_path")
-            urdf_abs = _abs_repo_path(urdf_rel) if urdf_rel else None
+            urdf_abs = str(rover.urdf_source_path)
 
             # Derive per-sensor seeds from the master seed via SeedSequence so
             # each sensor's RNG stream is independent.  Indices are stable:
             #   0 → wheel odometry, 1 → IMU, 2 → depth camera (future)
-            master_seed = sensors_cfg.get("seed")
+            master_seed = rover.sensors.seed
             if master_seed is not None:
                 ss = np.random.SeedSequence(int(master_seed))
                 child_seeds = ss.spawn(3)
@@ -713,14 +693,14 @@ def main() -> int:
                 odom_seed = None
                 imu_seed = None
 
-            wheel_odom_params = _build_wheel_odom_params(rover_cfg, control_cfg, dof_names)
+            wheel_odom_params = _build_wheel_odom_params(rover, dof_names)
             # Override wheel odom seed from master if master seed is set.
             if wheel_odom_params is not None and odom_seed is not None:
                 wheel_odom_params["seed"] = odom_seed
 
-            imu_cfg = sensors_cfg.get("imu", {})
-            sigma_la = float(imu_cfg.get("sigma_lin_acc", 0.0))
-            sigma_av = float(imu_cfg.get("sigma_ang_vel", 0.0))
+            imu_cfg = rover.sensors.imu
+            sigma_la = imu_cfg.sigma_lin_acc if isinstance(imu_cfg, EnabledImuConfig) else 0.0
+            sigma_av = imu_cfg.sigma_ang_vel if isinstance(imu_cfg, EnabledImuConfig) else 0.0
             imu_noise_params: Optional[Dict[str, Any]] = None
             if sigma_la > 0.0 or sigma_av > 0.0:
                 imu_noise_params = {

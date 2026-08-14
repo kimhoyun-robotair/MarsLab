@@ -80,15 +80,11 @@ def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
     """
     # Function-local import to keep ``__init__.py`` import surface
     # small (rclpy lives behind sensor_graph too).
-    from marslab.config.schema.ros2_bridge import (
+    from marslab.config.schema.rover_ros2 import (
         Ros2BridgeConfig,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
-    if not isinstance(ros2_cfg, dict):
-        return Ros2BridgeConfig()
-    schema_fields = set(Ros2BridgeConfig.model_fields.keys())
-    schema_subset = {k: v for k, v in ros2_cfg.items() if k in schema_fields}
-    return Ros2BridgeConfig.model_validate(schema_subset)
+    return Ros2BridgeConfig.model_validate(ros2_cfg)
 
 
 def build_sensor_graph(

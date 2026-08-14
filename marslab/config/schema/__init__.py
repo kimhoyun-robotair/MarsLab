@@ -1,48 +1,48 @@
-"""Aggregated pydantic schema for MarsLab configuration.
-
-The schema is split into seven domain modules plus a root aggregator
-to keep each module under ~300 LOC and surfaced area focused. Public
-imports remain unchanged:
-
-    from marslab.config.schema import MarsLabConfig, MarsEnvConfig, ...
-"""
-
-from marslab.config.schema.mars_env import (
+from marslab.config.schema.rover import (
+    ChassisConfig,
+    ControlConfig,
+    RoverConfig,
+    SpawnConfig,
+    SuspensionConfig,
+    WheelOdometryConfig,
+    WheelsConfig,
+)
+from marslab.config.schema.rover_ros2 import (
+    OdomPublisherConfig,
+    QoSProfileConfig,
+    Ros2BridgeConfig,
+)
+from marslab.config.schema.rover_sensors import (
+    CameraConfig,
+    DepthSensorConfig,
+    IMUConfig,
+    Lidar2DConfig,
+    Lidar3DConfig,
+    SensorsConfig,
+)
+from marslab.config.schema.scenario import (
     DynamicAtmosphereConfig,
+    FogConfig,
     MarsEnvConfig,
+    PathTracingConfig,
+    RayTracingConfig,
+    RenderingConfig,
+    ScenarioConfig,
+    SkyDomeConfig,
     SunSweepConfig,
     TauConstantConfig,
     TauRampConfig,
     TauSineConfig,
 )
-from marslab.config.schema.rendering import (
-    FogConfig,
-    PathTracingConfig,
-    RayTracingConfig,
-    RenderingConfig,
-    SkyDomeConfig,
-)
-from marslab.config.schema.robot import (
-    CameraConfig,
-    ChassisConfig,
-    DepthSensorConfig,
-    IMUConfig,
-    Lidar2DConfig,
-    Lidar3DConfig,
-    OdometryCovarianceConfig,
-    OdomPublisherConfig,
-    RobotConfig,
-    SensorsConfig,
-    SkidSteerDriveConfig,
-    SuspensionConfig,
-    WheelsConfig,
-)
-from marslab.config.schema.root import MarsLabConfig
-from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
+
+MarsLabConfig = ScenarioConfig
+RobotConfig = RoverConfig
+SkidSteerDriveConfig = ControlConfig
 
 __all__ = [
     "CameraConfig",
     "ChassisConfig",
+    "ControlConfig",
     "DepthSensorConfig",
     "DynamicAtmosphereConfig",
     "FogConfig",
@@ -52,20 +52,23 @@ __all__ = [
     "MarsEnvConfig",
     "MarsLabConfig",
     "OdomPublisherConfig",
-    "OdometryCovarianceConfig",
     "PathTracingConfig",
     "QoSProfileConfig",
     "RayTracingConfig",
     "RenderingConfig",
     "RobotConfig",
     "Ros2BridgeConfig",
+    "RoverConfig",
+    "ScenarioConfig",
     "SensorsConfig",
-    "SkidSteerDriveConfig",
     "SkyDomeConfig",
+    "SkidSteerDriveConfig",
+    "SpawnConfig",
     "SunSweepConfig",
     "SuspensionConfig",
     "TauConstantConfig",
     "TauRampConfig",
     "TauSineConfig",
+    "WheelOdometryConfig",
     "WheelsConfig",
 ]

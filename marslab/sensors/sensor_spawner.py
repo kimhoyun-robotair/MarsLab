@@ -149,14 +149,8 @@ def _resolve_lidar_profile(lidar_cfg: Dict[str, Any]) -> str:
        name.
     2. ``profile_name`` -- Isaac-Sim bundled profile name (e.g.
        ``"Example_Rotary"``).  This is the canonical schema field.
-    3. ``profile`` -- legacy key kept for the test harness; production
-       callers use the validated ``profile_name`` directly via the
-       schema.  Pydantic ``Lidar3DConfig`` / ``Lidar2DConfig`` already
-       rewrites it to ``profile_name`` via ``mode="before"`` validators
-       at YAML load time.
-
     Raises:
-        KeyError: If none of the three keys is present.  The schema
+        KeyError: If neither profile key is present.  The schema
             validators forbid this earlier in the pipeline, so this is a
             safety net for direct dict-driven callers.
     """
@@ -164,12 +158,9 @@ def _resolve_lidar_profile(lidar_cfg: Dict[str, Any]) -> str:
         return str(lidar_cfg["profile_json_path"])
     if lidar_cfg.get("profile_name"):
         return str(lidar_cfg["profile_name"])
-    if lidar_cfg.get("profile"):
-        return str(lidar_cfg["profile"])
     raise KeyError(
         "LiDAR config requires one of ``profile_name`` (preferred), "
-        "``profile_json_path`` (escape hatch), or the legacy ``profile`` "
-        "key.  None were found on the supplied lidar_cfg block."
+        "or ``profile_json_path`` (escape hatch)."
     )
 
 
@@ -495,10 +486,7 @@ def spawn_sensors(
     from pxr import Gf, UsdGeom
 
     camera_cfg, imu_cfg = sensors_cfg["camera"], sensors_cfg["imu"]
-    # ``lidar_3d`` is the canonical key; ``lidar`` accepted for
-    # backward compatibility with v0.6-and-earlier configs that
-    # predate the 2D/3D split.
-    lidar_cfg = sensors_cfg.get("lidar_3d") or sensors_cfg.get("lidar")
+    lidar_cfg = sensors_cfg["lidar_3d"]
 
     # Camera orientation strategy: ANY xformOp modification on the Camera
     # prim itself corrupts the RTX depth pipeline (vertical striping).

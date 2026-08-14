@@ -18,7 +18,7 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 
 import numpy as np
 
-from marslab.config.schema.ros2_bridge import QoSProfileConfig, Ros2BridgeConfig
+from marslab.config.schema.rover_ros2 import Ros2BridgeConfig
 from marslab.ros2_bridge.cmd_vel_subscriber import create_cmd_vel_subscriber
 from marslab.ros2_bridge.context import BridgeContext
 from marslab.ros2_bridge.imu_noise_publisher import create_imu_noise_publisher
@@ -68,23 +68,7 @@ def init_rclpy_side(
     if not rclpy.ok():
         rclpy.init(args=None)
 
-    # Validate the schema-known subset of ``ros2_cfg`` ONCE so every
-    # downstream attribute access comes from a single validated source.
-    # The raw YAML dict carries free-form keys (``namespace``,
-    # ``topics``, ``rates``, ``odom_publisher``) that are NOT declared
-    # on :class:`Ros2BridgeConfig`; with ``extra="forbid"`` a direct
-    # ``model_validate`` would reject them.  Filter to schema fields
-    # first so validation only sees declared keys, while keeping the
-    # raw dict around for the remaining free-form access below.  Falls
-    # back to a plain ``Ros2BridgeConfig()`` when ``ros2_cfg`` is not
-    # dict-shaped so legacy callers passing exotic mapping types keep
-    # working.
-    if isinstance(ros2_cfg, dict):
-        schema_fields = set(Ros2BridgeConfig.model_fields.keys())
-        schema_subset = {k: v for k, v in ros2_cfg.items() if k in schema_fields}
-        validated_bridge = Ros2BridgeConfig.model_validate(schema_subset, strict=False)
-    else:
-        validated_bridge = Ros2BridgeConfig()
+    validated_bridge = Ros2BridgeConfig.model_validate(ros2_cfg)
 
     ns = str(ros2_cfg["namespace"])
     topics = dict(ros2_cfg["topics"])
@@ -205,7 +189,11 @@ def init_rclpy_side(
             slip_left=float(wheel_odom_params.get("slip_left", 0.0)),
             slip_right=float(wheel_odom_params.get("slip_right", 0.0)),
             sigma_omega=float(wheel_odom_params.get("sigma_omega", 0.0)),
-            seed=int(wheel_odom_params["seed"]) if wheel_odom_params.get("seed") is not None else None,
+            seed=(
+                int(wheel_odom_params["seed"])
+                if wheel_odom_params.get("seed") is not None
+                else None
+            ),
             queue_size=int(odom_pub_cfg.get("queue_size", 10)),
             odom_qos=qos_bundle["odom"],
             tf_qos=qos_bundle["tf"],
@@ -252,28 +240,6 @@ def init_rclpy_side(
     )
 
 
-def _extract_qos_field(ros2_cfg: Dict[str, Any], key: str) -> Optional[Dict[str, Any]]:
-    """Return the raw dict for ``ros2_cfg[key]`` if it looks like a QoS block.
-
-    Accepts the YAML form (a nested dict with ``reliability`` /
-    ``durability`` / ``history`` / ``depth`` keys).  Returns ``None``
-    when the key is absent so the caller can fall back to the schema
-    default.  Non-dict values (e.g. an accidental string) are
-    rejected by pydantic when the dict is passed to
-    :class:`QoSProfileConfig` below, so no defensive check here.
-    """
-    if not isinstance(ros2_cfg, dict):
-        return None
-    raw = ros2_cfg.get(key)
-    if raw is None:
-        return None
-    if not isinstance(raw, dict):
-        # Pass through so pydantic produces the standard error message;
-        # rejecting here would require duplicating the schema validator.
-        return raw  # type: ignore[return-value]
-    return raw
-
-
 def _resolve_qos_bundle(ros2_cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Build the four rclpy ``QoSProfile`` instances from YAML.
 
@@ -292,19 +258,13 @@ def _resolve_qos_bundle(ros2_cfg: Dict[str, Any]) -> Dict[str, Any]:
         to_rclpy_qos,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
-    defaults = Ros2BridgeConfig()
-
-    def _pick(name: str, fallback: QoSProfileConfig) -> QoSProfileConfig:
-        raw = _extract_qos_field(ros2_cfg, name)
-        if raw is None:
-            return fallback
-        return QoSProfileConfig.model_validate(raw)
+    defaults = Ros2BridgeConfig.model_validate(ros2_cfg)
 
     return {
-        "cmd_vel": to_rclpy_qos(_pick("cmd_vel_qos", defaults.cmd_vel_qos)),
-        "odom": to_rclpy_qos(_pick("odom_qos", defaults.odom_qos)),
-        "sensor": to_rclpy_qos(_pick("sensor_qos", defaults.sensor_qos)),
-        "tf": to_rclpy_qos(_pick("tf_qos", defaults.tf_qos)),
+        "cmd_vel": to_rclpy_qos(defaults.cmd_vel_qos),
+        "odom": to_rclpy_qos(defaults.odom_qos),
+        "sensor": to_rclpy_qos(defaults.sensor_qos),
+        "tf": to_rclpy_qos(defaults.tf_qos),
     }
 
 

@@ -20,20 +20,19 @@ the CLI flags ``--sun-azimuth-deg`` / ``--sun-elevation-deg`` on
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple
+from typing import Any
 
-from marslab.config.loader import propagate_seeds_in_dict
-from marslab.config.schema import DynamicAtmosphereConfig, MarsEnvConfig
+from marslab.config.schema import DynamicAtmosphereConfig, MarsEnvConfig, RenderingConfig
+from marslab.config.schema.scenario import ScenarioConfig
 from marslab.config.yaml_loader import load_scenario_config
 
 _LOG = logging.getLogger(__name__)
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-_REQUIRED_SECTIONS: Tuple[str, ...] = ("mars_env", "rendering")
 
 
 @dataclass(frozen=True)
@@ -78,25 +77,25 @@ class AtmosphereInit:
 class AtmosphereBootResult:
     """Frozen result of :func:`boot_atmosphere`.
 
-    Bundles the merged config dict and the static atmosphere snapshot so
+    Bundles the validated scenario model and the static atmosphere snapshot so
     the scene/loop modules can run without re-reading YAML or reaching
     into ``environment``. Terrain fields are intentionally absent — this
     result is for the passthrough pipeline only.
 
     Attributes:
         config_path: Absolute path to the YAML that was loaded.
-        config: Merged scenario config dict (after ``base_config`` deep-merge).
-        mars_cfg: Shortcut to ``config['mars_env']``.
-        rendering_cfg: Shortcut to ``config['rendering']``.
+        config: Validated scenario model.
+        mars_cfg: Validated Mars environment model.
+        rendering_cfg: Validated rendering model.
         atmosphere_init: Pre-computed static atmosphere snapshot.
         repo_root: Absolute repository root (used by scene for HDRI /
             texture resolution).
     """
 
     config_path: str
-    config: Dict[str, Any]
-    mars_cfg: Dict[str, Any]
-    rendering_cfg: Dict[str, Any]
+    config: ScenarioConfig
+    mars_cfg: MarsEnvConfig
+    rendering_cfg: RenderingConfig
     atmosphere_init: AtmosphereInit
     repo_root: str
 
@@ -141,33 +140,16 @@ def boot_atmosphere(
 
     abs_config_path = os.path.abspath(config_path)
     cfg = load_scenario_config(abs_config_path)
-    # Enforce ``terrain.seed == mars_env.seed + 1`` on the raw dict path so
-    # callers share a single seed-propagation site. When ``terrain`` block is
-    # absent (passthrough pipeline), propagate_seeds_in_dict leaves it
-    # untouched per its contract.
-    cfg = propagate_seeds_in_dict(cfg)
-    for key in _REQUIRED_SECTIONS:
-        if key not in cfg:
-            raise ValueError(f"Config missing required section: '{key}'")
     _LOG.info("Loaded config: %s", abs_config_path)
 
-    mars_cfg = cfg["mars_env"]
-    rendering_cfg = cfg["rendering"]
-
-    # Route every scalar through pydantic so defaults live exactly once in
-    # :class:`MarsEnvConfig` rather than being duplicated as
-    # ``.get(..., literal)`` fallbacks here.
-    mars_env_model = MarsEnvConfig(**mars_cfg)
-    # Apply CLI sun-position overrides BEFORE any computation so that
-    # compute_sun_position / compute_direct_intensity / compute_sky_dome_params
-    # all see the overridden values. model_copy(update={...}) returns a new
-    # pydantic model instance; MarsEnvConfig does NOT use frozen=True so
-    # direct attribute assignment would also work, but model_copy is the
-    # pydantic-canonical pattern and avoids triggering validators twice.
+    mars_env_model = cfg.mars_env
+    rendering_cfg = cfg.rendering
+    mars_values = json.loads(mars_env_model.model_dump_json())
     if sun_azimuth_deg is not None:
-        mars_env_model = mars_env_model.model_copy(update={"sun_azimuth_deg": sun_azimuth_deg})
+        mars_values["sun_azimuth_deg"] = sun_azimuth_deg
     if sun_elevation_deg is not None:
-        mars_env_model = mars_env_model.model_copy(update={"sun_elevation_deg": sun_elevation_deg})
+        mars_values["sun_elevation_deg"] = sun_elevation_deg
+    mars_env_model = MarsEnvConfig.model_validate_json(json.dumps(mars_values, allow_nan=True))
 
     sun_pos = compute_sun_position(
         azimuth_deg=mars_env_model.sun_azimuth_deg,
@@ -177,7 +159,7 @@ def boot_atmosphere(
     solar_constant = mars_env_model.solar_constant
     direct_intensity = compute_direct_intensity(solar_constant, tau, sun_pos.zenith_angle_rad)
     diffuse_frac = compute_diffuse_fraction_1d_approx(tau)
-    hdri_dir = os.path.join(repo_root, rendering_cfg.get("sky_dome_hdri_dir", "assets/mars_sky/"))
+    hdri_dir = str(rendering_cfg.sky_dome_hdri_dir)
     sky_params = compute_sky_dome_params(tau, hdri_dir)
     _LOG.info(
         "Atmosphere: tau=%s, direct=%.1f W/m2, diffuse_frac=%.2f",
@@ -206,7 +188,7 @@ def boot_atmosphere(
     return AtmosphereBootResult(
         config_path=abs_config_path,
         config=cfg,
-        mars_cfg=mars_cfg,
+        mars_cfg=mars_env_model,
         rendering_cfg=rendering_cfg,
         atmosphere_init=atmosphere_init,
         repo_root=repo_root,

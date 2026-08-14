@@ -510,7 +510,7 @@ def _apply_rover_articulation_physics(
             ones consumed here; the wheel link list is sourced from
             ``control.drive_joint_names``.
     """
-    from marslab.config.schema.robot import (  # noqa: PLC0415
+    from marslab.config.schema.rover import (  # noqa: PLC0415
         ChassisConfig,
         SuspensionConfig,
         WheelsConfig,
@@ -521,7 +521,7 @@ def _apply_rover_articulation_physics(
     # path from ``rover_cfg["prim_path"]`` so the helper is robust to the
     # ``find_rigid_body_path`` fallback (which returns the chassis path
     # itself when no rigid-body child is found).
-    prim_path = str(rover_cfg.get("prim_path", "/World/Rover"))
+    prim_path = str(rover_cfg["prim_path"])
     chassis_path = f"{prim_path}/Body_Chassis"
 
     chassis_cfg = rover_cfg.get("chassis")
@@ -592,23 +592,25 @@ def spawn_rover(
                 stage, DEFAULT_ODOM_ANCHOR_PATH, spawn_xyz, frame_name="odom"
             )
     """
-    prim_path = str(rover_cfg.get("prim_path", "/World/Rover"))
-    spawn_block = rover_cfg.get("spawn", {}) if isinstance(rover_cfg, dict) else {}
-    rpy = tuple(
-        spawn_block.get("orientation_rpy")
-        or rover_cfg.get("spawn_orientation_rpy", [0.0, 0.0, 0.0])
-    )
+    prim_path = str(rover_cfg["prim_path"])
+    spawn_block = rover_cfg["spawn"]
+    rpy_raw = spawn_block["orientation_rpy"]
+    rpy = (float(rpy_raw[0]), float(rpy_raw[1]), float(rpy_raw[2]))
 
     rigid_body_path = _spawn_rover_usd(stage, prim_path, usd_abs, spawn_xyz, rpy)
 
-    com_offset_raw = rover_cfg.get("com_offset")
-    com_offset = None if com_offset_raw is None else tuple(float(v) for v in com_offset_raw)
+    com_offset_raw = rover_cfg["com_offset"]
+    com_offset = (
+        float(com_offset_raw[0]),
+        float(com_offset_raw[1]),
+        float(com_offset_raw[2]),
+    )
     _apply_rover_mass(
         stage,
         rigid_body_path,
         com_offset,
-        float(rover_cfg.get("angular_damping", 0.0)),
-        float(rover_cfg.get("linear_damping", 0.0)),
+        float(rover_cfg["angular_damping"]),
+        float(rover_cfg["linear_damping"]),
     )
 
     _apply_rover_articulation_physics(stage, rigid_body_path, rover_cfg)

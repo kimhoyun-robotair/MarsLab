@@ -48,7 +48,7 @@ import json
 import logging
 from typing import Any
 
-from marslab.config.schema.ros2_bridge import QoSProfileConfig
+from marslab.config.schema.rover_ros2 import QoSProfileConfig
 
 __all__ = [
     "to_rclpy_qos",

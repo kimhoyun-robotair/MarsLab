@@ -97,7 +97,7 @@ def configure_drives(
     """
     drive_joint_names = list(control_cfg["drive_joint_names"])
     steer_joint_names = list(control_cfg["steer_joint_names"])
-    suspension_names = list(control_cfg.get("suspension_joint_names", []))
+    suspension_names = list(control_cfg["suspension_joint_names"])
 
     # All keys below are required in the ``control:`` block.
     # ``SkidSteerDriveConfig`` validates at load time so a missing YAML
@@ -164,7 +164,7 @@ def reinforce_pd_gains(
     """
     drive_joint_names = list(control_cfg["drive_joint_names"])
     steer_joint_names = list(control_cfg["steer_joint_names"])
-    suspension_names = list(control_cfg.get("suspension_joint_names", []))
+    suspension_names = list(control_cfg["suspension_joint_names"])
 
     # See ``configure_drives``; all required keys validated by
     # ``SkidSteerDriveConfig`` at load time.
