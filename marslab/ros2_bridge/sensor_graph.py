@@ -29,7 +29,7 @@ path.  It is also the default for ``Ros2BridgeConfig.graph_path``
 (see :mod:`marslab.config.schema.ros2_bridge`).  The module constant
 is kept as the canonical default so legacy imports
 (``from marslab.ros2_bridge import GRAPH_PATH``) still resolve, but
-``build_sensor_graph`` reads ``ros2_cfg["graph_path"]`` first and
+``build_sensor_graph`` reads ``ros2_cfg.graph_path`` first and
 only falls back when the YAML key is absent.
 """
 
@@ -38,6 +38,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
+from marslab.config.schema.rover_ros2 import Ros2BridgeConfig
+from marslab.config.schema.rover_sensors import DepthSensorConfig
 from marslab.ros2_bridge.sensor_graph_builder import (
     _build_connections,
     _build_create_nodes,
@@ -59,7 +61,7 @@ class SensorGraphHandle:
     graph: Any
 
 
-def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
+def _resolve_ros2_bridge_options(ros2_cfg: Ros2BridgeConfig) -> Ros2BridgeConfig:
     """Validate the schema-known subset of ``ros2_cfg`` ONCE.
 
     The raw ``rover.ros2`` YAML dict carries free-form keys that are
@@ -78,17 +80,11 @@ def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
         view of schema-declared fields (YAML overrides + pydantic
         defaults).
     """
-    # Function-local import to keep ``__init__.py`` import surface
-    # small (rclpy lives behind sensor_graph too).
-    from marslab.config.schema.rover_ros2 import (
-        Ros2BridgeConfig,
-    )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
-
-    return Ros2BridgeConfig.model_validate(ros2_cfg)
+    return ros2_cfg
 
 
 def build_sensor_graph(
-    ros2_cfg: Dict[str, Any],
+    ros2_cfg: Ros2BridgeConfig,
     camera_prim_path: str,
     camera_resolution: Tuple[int, int],
     lidar_3d_prim_path: str,
@@ -96,7 +92,7 @@ def build_sensor_graph(
     articulation_root_prim_path: str,
     parent_anchor_prim_path: str,
     lidar_2d_prim_path: Optional[str] = None,
-    depth_sensor_cfg: Optional[Dict[str, Any]] = None,
+    depth_sensor_cfg: Optional[DepthSensorConfig] = None,
 ) -> SensorGraphHandle:
     """Build the rover ROS2 OmniGraph.
 
@@ -145,8 +141,17 @@ def build_sensor_graph(
     """
     import omni.graph.core as og  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
-    ns = str(ros2_cfg["namespace"])
-    topics = dict(ros2_cfg["topics"])
+    ns = ros2_cfg.namespace
+    topics = {
+        "imu": ros2_cfg.topics.imu,
+        "rgb": ros2_cfg.topics.rgb,
+        "depth": ros2_cfg.topics.depth,
+        "points": ros2_cfg.topics.points,
+        "camera_info": ros2_cfg.topics.camera_info,
+        "lidar": ros2_cfg.topics.lidar,
+        "scan": ros2_cfg.topics.scan,
+        "joint_states": ros2_cfg.topics.joint_states,
+    }
     options = _resolve_ros2_bridge_options(ros2_cfg)
     graph_path = options.graph_path
     sensor_preset, tf_preset = _build_qos_presets(options)
@@ -196,7 +201,7 @@ def build_sensor_graph(
     # raw ``DistanceToImagePlane`` depth.  ``depth_sensor_cfg`` is the
     # YAML block validated earlier as
     # :class:`marslab.config.schema.robot.DepthSensorConfig`.
-    if depth_sensor_cfg is not None and bool(depth_sensor_cfg.get("enabled")):
+    if depth_sensor_cfg is not None and depth_sensor_cfg.enabled:
         try:
             _apply_depth_sensor_schema(graph_path, depth_sensor_cfg)
         except (
@@ -228,7 +233,7 @@ _DEPTH_SENSOR_SCHEMA_ATTRS: Dict[str, str] = {
 }
 
 
-def _apply_depth_sensor_schema(graph_path: str, depth_sensor_cfg: Dict[str, Any]) -> None:
+def _apply_depth_sensor_schema(graph_path: str, depth_sensor_cfg: DepthSensorConfig) -> None:
     """Apply ``OmniSensorDepthSensorSingleViewAPI`` to the shared render product.
 
     Reads the actual render product prim path from the ``RPCamera``
@@ -276,10 +281,22 @@ def _apply_depth_sensor_schema(graph_path: str, depth_sensor_cfg: Dict[str, Any]
     if enabled_attr:
         enabled_attr.Set(True)
 
-    for yaml_field, attr_name in _DEPTH_SENSOR_SCHEMA_ATTRS.items():
-        if yaml_field not in depth_sensor_cfg:
-            continue
-        value = depth_sensor_cfg[yaml_field]
+    values = (
+        (depth_sensor_cfg.baseline_mm, _DEPTH_SENSOR_SCHEMA_ATTRS["baseline_mm"]),
+        (depth_sensor_cfg.min_distance_m, _DEPTH_SENSOR_SCHEMA_ATTRS["min_distance_m"]),
+        (depth_sensor_cfg.max_distance_m, _DEPTH_SENSOR_SCHEMA_ATTRS["max_distance_m"]),
+        (depth_sensor_cfg.noise_mean, _DEPTH_SENSOR_SCHEMA_ATTRS["noise_mean"]),
+        (depth_sensor_cfg.noise_sigma, _DEPTH_SENSOR_SCHEMA_ATTRS["noise_sigma"]),
+        (
+            depth_sensor_cfg.confidence_threshold,
+            _DEPTH_SENSOR_SCHEMA_ATTRS["confidence_threshold"],
+        ),
+        (
+            depth_sensor_cfg.max_disparity_pixel,
+            _DEPTH_SENSOR_SCHEMA_ATTRS["max_disparity_pixel"],
+        ),
+    )
+    for value, attr_name in values:
         attr = rp_prim.GetAttribute(attr_name)
         if attr:
             attr.Set(float(value))

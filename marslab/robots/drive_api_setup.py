@@ -24,9 +24,11 @@ step loop.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, List
 
 import numpy as np
+
+from marslab.config.schema.rover import ControlConfig
 
 
 def resolve_joint_indices(dof_names: List[str], requested: List[str]) -> List[int]:
@@ -85,7 +87,7 @@ def _apply_drive_api(
 def configure_drives(
     stage: Any,
     chassis_path: str,
-    control_cfg: Dict[str, Any],
+    control_cfg: ControlConfig,
 ) -> None:
     """Apply DriveAPI attributes to drive / steer / suspension joints.
 
@@ -95,20 +97,20 @@ def configure_drives(
     gain reinforcement still runs through ``articulation.set_gains`` --
     see :func:`reinforce_pd_gains` for the post-reset counterpart.
     """
-    drive_joint_names = list(control_cfg["drive_joint_names"])
-    steer_joint_names = list(control_cfg["steer_joint_names"])
-    suspension_names = list(control_cfg["suspension_joint_names"])
+    drive_joint_names = list(control_cfg.drive_joint_names)
+    steer_joint_names = list(control_cfg.steer_joint_names)
+    suspension_names = list(control_cfg.suspension_joint_names)
 
     # All keys below are required in the ``control:`` block.
     # ``SkidSteerDriveConfig`` validates at load time so a missing YAML
     # key raises ``KeyError`` rather than silently substituting a literal.
-    drive_damping = float(control_cfg["drive_damping"])
-    drive_max_force = float(control_cfg["drive_max_force"])
-    steer_stiffness = float(control_cfg["steer_stiffness"])
-    steer_damping = float(control_cfg["steer_damping"])
-    steer_max_force = float(control_cfg["steer_max_force"])
-    suspension_damping = float(control_cfg["suspension_damping"])
-    drive_type = str(control_cfg["drive_type"])
+    drive_damping = float(control_cfg.drive_damping)
+    drive_max_force = float(control_cfg.drive_max_force)
+    steer_stiffness = float(control_cfg.steer_stiffness)
+    steer_damping = float(control_cfg.steer_damping)
+    steer_max_force = float(control_cfg.steer_max_force)
+    suspension_damping = float(control_cfg.suspension_damping)
+    drive_type = control_cfg.drive_type
 
     joints_scope = f"{chassis_path}/joints"
 
@@ -149,7 +151,7 @@ def configure_drives(
 
 def reinforce_pd_gains(
     articulation: Any,
-    control_cfg: Dict[str, Any],
+    control_cfg: ControlConfig,
     dof_names: List[str],
 ) -> None:
     """Reinforce PD gains into the PhysX tensors after ``world.reset``.
@@ -162,16 +164,16 @@ def reinforce_pd_gains(
     run the warm-up sequence (10-step physics warmup + play timeline,
     see ``marslab/main.py``) immediately before calling this helper.
     """
-    drive_joint_names = list(control_cfg["drive_joint_names"])
-    steer_joint_names = list(control_cfg["steer_joint_names"])
-    suspension_names = list(control_cfg["suspension_joint_names"])
+    drive_joint_names = list(control_cfg.drive_joint_names)
+    steer_joint_names = list(control_cfg.steer_joint_names)
+    suspension_names = list(control_cfg.suspension_joint_names)
 
     # See ``configure_drives``; all required keys validated by
     # ``SkidSteerDriveConfig`` at load time.
-    drive_damping = float(control_cfg["drive_damping"])
-    steer_stiffness = float(control_cfg["steer_stiffness"])
-    steer_damping = float(control_cfg["steer_damping"])
-    suspension_damping = float(control_cfg["suspension_damping"])
+    drive_damping = float(control_cfg.drive_damping)
+    steer_stiffness = float(control_cfg.steer_stiffness)
+    steer_damping = float(control_cfg.steer_damping)
+    suspension_damping = float(control_cfg.suspension_damping)
 
     drive_indices = resolve_joint_indices(dof_names, drive_joint_names)
     steer_indices = resolve_joint_indices(dof_names, steer_joint_names)

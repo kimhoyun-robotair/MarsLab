@@ -37,7 +37,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, assert_never
 
 import numpy as np
 
@@ -48,8 +48,12 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 # Pre-Kit-boot imports (offline-safe; no isaacsim/omni/pxr/rclpy).
-from marslab.config import RoverConfig, load_rover_config  # noqa: E402
-from marslab.config.schema.rover_sensors import EnabledImuConfig  # noqa: E402
+from marslab.config import RoverConfig  # noqa: E402
+from marslab.config.schema.rover_sensors import (  # noqa: E402
+    DisabledSensorConfig,
+    EnabledCameraConfig,
+    EnabledImuConfig,
+)
 from marslab.robots.drive_api_setup import (  # noqa: E402
     configure_drives,
     reinforce_pd_gains,
@@ -65,17 +69,20 @@ from marslab.ros2_bridge.tf_nameoverrides import (  # noqa: E402
     DEFAULT_ODOM_ANCHOR_PATH,
 )
 from marslab.runtime.articulation_setup import (  # noqa: E402
-    apply_initial_joint_positions,
     pin_articulation_root_pose,
     zero_steer_joints,
 )
-from marslab.runtime.atmosphere_boot import boot_atmosphere  # noqa: E402
+from marslab.runtime.atmosphere_boot import prepare_atmosphere  # noqa: E402
 from marslab.runtime.loop_context import build_loop_context  # noqa: E402
 from marslab.runtime.main_loop import (  # noqa: E402
     build_atmosphere_loop_state,
     run_main_loop,
 )
-from marslab.runtime.precheck import check_rover_usd  # noqa: E402
+from marslab.runtime.run_plan import (  # noqa: E402
+    RunMode,
+    RunPlanRequest,
+    build_run_plan,
+)
 from marslab.runtime.sensor_frames import (  # noqa: E402
     build_sensor_frames,
     sensor_frames_to_tuples,
@@ -87,18 +94,7 @@ _LOG = logging.getLogger("marslab.main")
 
 _DEFAULT_Z_OFFSET = 0.1
 _DEFAULT_SCENARIO = "configs/default.yaml"
-_PRE_S05_ROVER_USD_PATH = "assets/robots/rover/m2020.usd"
 _TERRAIN_PRIM_PATH = "/World/Terrain"
-
-
-def _abs_repo_path(p: str) -> str:
-    """Resolve a possibly repo-relative path to an absolute path."""
-    return p if os.path.isabs(p) else os.path.abspath(os.path.join(REPO_ROOT, p))
-
-
-def _load_rover_cfg(rover_yaml_abs: str) -> RoverConfig:
-    """Load and validate the rover YAML block (precheck before Kit boot)."""
-    return load_rover_config(rover_yaml_abs)
 
 
 def _resolve_spawn_rpy(rover_cfg: RoverConfig) -> Tuple[float, float, float]:
@@ -428,6 +424,11 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--rover-usd",
+        required=True,
+        help="Path to the supplied Rover USD asset.",
+    )
+    parser.add_argument(
         "--rover-yaml",
         default="configs/rover_m2020.yaml",
         help="Rover YAML config (repo-relative path or absolute).",
@@ -492,20 +493,35 @@ def main() -> int:
         format="[%(name)s] %(levelname)s: %(message)s",
     )
 
-    usda_abs = os.path.abspath(os.path.expanduser(args.usda))
-    if not os.path.isfile(usda_abs):
-        raise FileNotFoundError(f"USDA terrain file not found: {usda_abs}")
+    plan = build_run_plan(
+        RunPlanRequest(
+            scene_path=args.usda,
+            rover_usd_path=args.rover_usd,
+            scenario_path=args.scenario,
+            rover_yaml_path=args.rover_yaml,
+            headless=bool(args.headless),
+            ros2_enabled=not bool(args.no_ros2),
+            atmosphere_enabled=not bool(args.no_atmosphere),
+            z_offset=float(args.z_offset),
+            sun_azimuth_deg=args.sun_azimuth_deg,
+            sun_elevation_deg=args.sun_elevation_deg,
+        ),
+        RunMode.RUN,
+    )
+    usda_abs = str(plan.resolved_inputs.scene)
+    rover = plan.rover
+    sensors_cfg = plan.sensors
+    control_cfg = plan.control
+    ros2_cfg = plan.ros2
+    match sensors_cfg.camera:
+        case EnabledCameraConfig() as camera_cfg:
+            pass
+        case DisabledSensorConfig():
+            raise RuntimeError("camera must be enabled for the live ROS sensor graph")
+        case unreachable_camera:
+            assert_never(unreachable_camera)
 
-    rover_yaml_abs = _abs_repo_path(args.rover_yaml)
-    rover = _load_rover_cfg(rover_yaml_abs)
-    rover_cfg = rover.model_dump(mode="python", exclude={"declaring_path"})
-    sensors_cfg = rover.sensors.model_dump(mode="python")
-    control_cfg = rover.control.model_dump(mode="python")
-    ros2_cfg = rover.ros2.model_dump(mode="python")
-    camera_cfg = sensors_cfg["camera"]
-
-    rover_usd_abs = _abs_repo_path(_PRE_S05_ROVER_USD_PATH)
-    check_rover_usd(rover_usd_abs)
+    rover_usd_abs = str(plan.resolved_inputs.rover_usd)
 
     # spawn_rpy is now resolved together with spawn_xyz inside _resolve_spawn
     # (post-stage-load). Keep this for any logging that runs before the stage
@@ -515,13 +531,8 @@ def main() -> int:
 
     # Atmosphere boot: resolve atmosphere snapshot (mars_env + rendering +
     # dynamic_atmosphere). Sun position can be overridden via CLI flags;
-    scenario_abs = _abs_repo_path(args.scenario)
-    boot = boot_atmosphere(
-        scenario_abs,
-        repo_root=REPO_ROOT,
-        sun_azimuth_deg=args.sun_azimuth_deg,
-        sun_elevation_deg=args.sun_elevation_deg,
-    )
+    scenario_abs = str(plan.resolved_inputs.scenario_yaml)
+    boot = prepare_atmosphere(plan.scenario, repo_root=REPO_ROOT)
     atmo_init = boot.atmosphere_init
     mars_env_model = boot.mars_cfg
     render_config = boot.rendering_cfg
@@ -538,7 +549,7 @@ def main() -> int:
     _LOG.info("Spawn rpy=%s z_offset=%.3fm", spawn_rpy, float(args.z_offset))
 
     # ---- Boot Kit + ROS2 bridge extension -----------------------------------
-    simulation_app = boot_simulation_app(headless=bool(args.headless))
+    simulation_app = boot_simulation_app(headless=plan.execution.headless)
 
     import omni.timeline  # noqa: PLC0415
     from isaacsim.core.prims import Articulation  # noqa: PLC0415
@@ -575,7 +586,7 @@ def main() -> int:
         _reference_user_usda(stage, usda_abs)
 
         # ---- Atmosphere / lighting (gated by --no-atmosphere) --------------
-        if args.no_atmosphere:
+        if not plan.execution.atmosphere_enabled:
             _add_fallback_light_if_missing(stage)
             _LOG.info("--no-atmosphere: skipping sun/sky/fog stack.")
         else:
@@ -606,11 +617,11 @@ def main() -> int:
             stage,
             _TERRAIN_PRIM_PATH,
             rover,
-            cli_z_offset=float(args.z_offset),
+            cli_z_offset=float(plan.spawn.z_offset or 0.0),
         )
 
         # ---- Rover spawn ----------------------------------------------------
-        spawned = spawn_rover(stage, rover_cfg, rover_usd_abs, spawn_xyz)
+        spawned = spawn_rover(stage, rover, rover_usd_abs, spawn_xyz)
         _LOG.info(
             "Rover spawned: prim=%s rigid_body=%s",
             spawned.prim_path,
@@ -622,10 +633,10 @@ def main() -> int:
         build_sensor_graph(
             ros2_cfg=ros2_cfg,
             camera_prim_path=handles.camera_prim_path,
-            camera_resolution=tuple(camera_cfg["resolution"]),
+            camera_resolution=camera_cfg.resolution,
             lidar_3d_prim_path=handles.lidar_3d_prim_path,
             imu_prim_path=handles.imu_prim_path,
-            depth_sensor_cfg=camera_cfg.get("depth_sensor"),
+            depth_sensor_cfg=camera_cfg.depth_sensor,
             articulation_root_prim_path=f"{spawned.chassis_path}/Body_Chassis",
             parent_anchor_prim_path=DEFAULT_ODOM_ANCHOR_PATH,
             lidar_2d_prim_path=handles.lidar_2d_prim_path,
@@ -641,10 +652,9 @@ def main() -> int:
         pin_articulation_root_pose(articulation, spawn_xyz, spawn_rpy)
 
         dof_names = list(articulation.dof_names)
-        drive_indices = resolve_joint_indices(dof_names, list(control_cfg["drive_joint_names"]))
-        steer_indices = resolve_joint_indices(dof_names, list(control_cfg["steer_joint_names"]))
+        drive_indices = resolve_joint_indices(dof_names, list(control_cfg.drive_joint_names))
+        steer_indices = resolve_joint_indices(dof_names, list(control_cfg.steer_joint_names))
         zero_steer_joints(articulation, steer_indices)
-        apply_initial_joint_positions(articulation, dof_names, control_cfg)
 
         _LOG.info("Warming up physics handle ...")
         for _ in range(10):
@@ -661,7 +671,7 @@ def main() -> int:
         # so slider edits propagate without a separate sync step.
         atmo_loop_state = build_atmosphere_loop_state(atmo_init, atmo_init.tau)
         atmo_panel = None
-        if not args.headless and not args.no_atmosphere:
+        if not plan.execution.headless and plan.execution.atmosphere_enabled:
             try:
                 from marslab.gui.atmosphere_panel import AtmospherePanel  # noqa: PLC0415
 
@@ -676,7 +686,7 @@ def main() -> int:
         odom_init_pos, odom_init_quat = _capture_odom_init_pose(articulation)
 
         # ---- rclpy bridge ---------------------------------------------------
-        if not args.no_ros2:
+        if plan.execution.ros2_enabled:
             sensor_frames = sensor_frames_to_tuples(build_sensor_frames(sensors_cfg))
             urdf_abs = str(rover.urdf_source_path)
 
@@ -699,8 +709,15 @@ def main() -> int:
                 wheel_odom_params["seed"] = odom_seed
 
             imu_cfg = rover.sensors.imu
-            sigma_la = imu_cfg.sigma_lin_acc if isinstance(imu_cfg, EnabledImuConfig) else 0.0
-            sigma_av = imu_cfg.sigma_ang_vel if isinstance(imu_cfg, EnabledImuConfig) else 0.0
+            match imu_cfg:
+                case EnabledImuConfig():
+                    sigma_la = imu_cfg.sigma_lin_acc
+                    sigma_av = imu_cfg.sigma_ang_vel
+                case DisabledSensorConfig():
+                    sigma_la = 0.0
+                    sigma_av = 0.0
+                case unreachable_imu:
+                    assert_never(unreachable_imu)
             imu_noise_params: Optional[Dict[str, Any]] = None
             if sigma_la > 0.0 or sigma_av > 0.0:
                 imu_noise_params = {
@@ -731,7 +748,7 @@ def main() -> int:
         # Atmosphere callbacks: gated. main_loop short-circuits at the first
         # None check (main_loop.py:686-694) so --no-atmosphere leaves the
         # rover step / odom / sensor read intact.
-        if args.no_atmosphere:
+        if not plan.execution.atmosphere_enabled:
             atmo_callbacks: Dict[str, Any] = {
                 "update_sun_fn": None,
                 "update_sky_fn": None,

@@ -1,7 +1,6 @@
 from pathlib import Path
 
-from marslab.config import RoverConfig
-from marslab.main import _load_rover_cfg
+from marslab.config import RoverConfig, load_rover_config
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -11,7 +10,7 @@ def test_canonical_rover_is_typed_and_paths_anchor_to_declaring_yaml() -> None:
     rover_path = REPO_ROOT / "configs" / "rover_m2020.yaml"
 
     # When: the production entry loader reads it.
-    rover = _load_rover_cfg(str(rover_path))
+    rover = load_rover_config(rover_path)
 
     # Then: exact runtime values and the current repo-relative asset anchor are stable.
     assert isinstance(rover, RoverConfig)

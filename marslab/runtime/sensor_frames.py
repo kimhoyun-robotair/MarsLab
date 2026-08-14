@@ -1,10 +1,10 @@
 """Pure helper that builds the sensor TF frame list for the runtime.
 
-Extracted from ``marslab/main.py`` so the dict-to-list
+Extracted from ``marslab/main.py`` so frame construction
 construction is exercised by an offline unit test instead of only at
 Isaac Sim startup.
 
-The output is a list of ``dict`` records (one per sensor) carrying the
+The output is a list of typed records (one per enabled sensor) carrying the
 fields ``child_frame``, ``local_translation``, and
 ``local_orientation_rpy_deg``.  The URDF parent-link field is
 intentionally NOT threaded through here: the YAML schema validates
@@ -15,7 +15,7 @@ chassis rigid body discovered by
 
 The current
 :func:`marslab.ros2_bridge.tf_broadcaster.publish_static_sensor_tfs`
-signature only consumes ``(child_frame, local_translation)`` tuples;
+signature only consumes frame tuples;
 :func:`sensor_frames_to_tuples` is provided as a thin adapter so the
 runtime can hand the validated dicts straight to the broadcaster
 without duplicating the iteration logic.
@@ -23,30 +23,29 @@ without duplicating the iteration logic.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Sequence, Tuple
+from dataclasses import dataclass
+from typing import List, Sequence, Tuple, assert_never
 
-# ``(child_frame, sensor_key)`` -- the canonical child-frame name and
-# the YAML key it sources from. Keeping this tuple-of-tuples local
-# avoids a runtime import of the schema module just to iterate four
-# constants.
-_SENSOR_FRAME_BINDINGS: Tuple[Tuple[str, str], ...] = (
-    ("camera_link", "camera"),
-    ("lidar_link", "lidar_3d"),
-    ("scan_frame", "lidar_2d"),
-    ("imu_link", "imu"),
+from marslab.config.schema.rover_sensors import (
+    DisabledSensorConfig,
+    EnabledCameraConfig,
+    EnabledImuConfig,
+    EnabledLidar2DConfig,
+    EnabledLidar3DConfig,
+    SensorsConfig,
 )
 
 
-def _resolve_sensor_block(sensors_cfg: Dict[str, Any], sensor_key: str) -> Dict[str, Any]:
-    block = sensors_cfg.get(sensor_key)
-    if not isinstance(block, dict):
-        return {}
-    return block
+@dataclass(frozen=True, slots=True)
+class SensorFrame:
+    child_frame: str
+    local_translation: tuple[float, float, float]
+    local_orientation_rpy_deg: tuple[float, float, float]
 
 
 def build_sensor_frames(
-    sensors_cfg: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    sensors_cfg: SensorsConfig,
+) -> List[SensorFrame]:
     """Construct the static-TF frame list from the rover sensor block.
 
     Args:
@@ -65,27 +64,37 @@ def build_sensor_frames(
           (degrees, ZYX intrinsic); defaults to ``[0.0, 0.0, 0.0]``
           when the sensor block omits it.
     """
-    frames: List[Dict[str, Any]] = []
-    for child_frame, sensor_key in _SENSOR_FRAME_BINDINGS:
-        block = _resolve_sensor_block(sensors_cfg, sensor_key)
-        if not block:
-            continue
-        if "local_translation" not in block:
-            continue
-        frames.append(
-            {
-                "child_frame": child_frame,
-                "local_translation": list(block["local_translation"]),
-                "local_orientation_rpy_deg": list(
-                    block.get("local_orientation_rpy_deg", [0.0, 0.0, 0.0])
-                ),
-            }
-        )
+    frames: List[SensorFrame] = []
+    bindings = (
+        ("camera_link", sensors_cfg.camera),
+        ("lidar_link", sensors_cfg.lidar_3d),
+        ("scan_frame", sensors_cfg.lidar_2d),
+        ("imu_link", sensors_cfg.imu),
+    )
+    for child_frame, sensor in bindings:
+        match sensor:
+            case DisabledSensorConfig():
+                continue
+            case (
+                EnabledCameraConfig()
+                | EnabledLidar3DConfig()
+                | EnabledLidar2DConfig()
+                | EnabledImuConfig()
+            ):
+                frames.append(
+                    SensorFrame(
+                        child_frame=child_frame,
+                        local_translation=sensor.local_translation,
+                        local_orientation_rpy_deg=sensor.local_orientation_rpy_deg,
+                    )
+                )
+            case unreachable:
+                assert_never(unreachable)
     return frames
 
 
 def sensor_frames_to_tuples(
-    frames: Sequence[Dict[str, Any]],
+    frames: Sequence[SensorFrame],
 ) -> List[Tuple[str, List[float], List[float]]]:
     """Adapt :func:`build_sensor_frames` output to the broadcaster API.
 
@@ -102,12 +111,12 @@ def sensor_frames_to_tuples(
     """
     return [
         (
-            str(frame["child_frame"]),
-            list(frame["local_translation"]),
-            list(frame.get("local_orientation_rpy_deg", [0.0, 0.0, 0.0])),
+            frame.child_frame,
+            list(frame.local_translation),
+            list(frame.local_orientation_rpy_deg),
         )
         for frame in frames
     ]
 
 
-__all__ = ["build_sensor_frames", "sensor_frames_to_tuples"]
+__all__ = ["SensorFrame", "build_sensor_frames", "sensor_frames_to_tuples"]

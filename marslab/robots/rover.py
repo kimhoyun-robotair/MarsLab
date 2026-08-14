@@ -11,6 +11,12 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+from marslab.config.schema.rover import (
+    ChassisConfig,
+    RoverConfig,
+    SuspensionConfig,
+    WheelsConfig,
+)
 from marslab.quaternion import rpy_to_quat
 
 # ``resolve_joint_indices`` re-exported here so ``main.py`` and tests can
@@ -196,7 +202,7 @@ def _set_mass_and_inertia(
 def apply_chassis_physics(
     stage: Any,
     rigid_body_path: str,
-    chassis_cfg: Dict[str, Any],
+    chassis_cfg: ChassisConfig,
 ) -> bool:
     """Inject chassis mass + diagonal inertia from the YAML ``chassis:`` block.
 
@@ -222,11 +228,11 @@ def apply_chassis_physics(
     return _set_mass_and_inertia(
         stage,
         rigid_body_path,
-        float(chassis_cfg["mass"]),
+        float(chassis_cfg.mass),
         (
-            float(chassis_cfg["inertia_xx"]),
-            float(chassis_cfg["inertia_yy"]),
-            float(chassis_cfg["inertia_zz"]),
+            float(chassis_cfg.inertia_xx),
+            float(chassis_cfg.inertia_yy),
+            float(chassis_cfg.inertia_zz),
         ),
     )
 
@@ -235,7 +241,7 @@ def apply_wheel_physics(
     stage: Any,
     chassis_path: str,
     wheel_link_names: List[str],
-    wheels_cfg: Dict[str, Any],
+    wheels_cfg: WheelsConfig,
 ) -> Dict[str, bool]:
     """Inject per-wheel mass / inertia / friction.
 
@@ -267,15 +273,15 @@ def apply_wheel_physics(
         caller logs and continues so a typo in the YAML wheel-name list
         does not abort the entire spawn.
     """
-    mass = float(wheels_cfg["mass"])
+    mass = float(wheels_cfg.mass)
     inertia = (
-        float(wheels_cfg["inertia_spin"]),
-        float(wheels_cfg["inertia_transverse"]),
-        float(wheels_cfg["inertia_transverse"]),
+        float(wheels_cfg.inertia_spin),
+        float(wheels_cfg.inertia_transverse),
+        float(wheels_cfg.inertia_transverse),
     )
-    friction_static = float(wheels_cfg["friction_static"])
-    friction_dynamic = float(wheels_cfg["friction_dynamic"])
-    restitution = float(wheels_cfg.get("restitution", 0.0))
+    friction_static = float(wheels_cfg.friction_static)
+    friction_dynamic = float(wheels_cfg.friction_dynamic)
+    restitution = float(wheels_cfg.restitution)
 
     results: Dict[str, bool] = {}
     for name in wheel_link_names:
@@ -337,7 +343,7 @@ def _bind_wheel_friction_material(
 def apply_suspension_damping_split(
     stage: Any,
     chassis_path: str,
-    suspension_cfg: Dict[str, Any],
+    suspension_cfg: SuspensionConfig,
     rocker_joint_names: Optional[List[str]] = None,
     bogie_joint_names: Optional[List[str]] = None,
 ) -> Dict[str, bool]:
@@ -364,8 +370,8 @@ def apply_suspension_damping_split(
     bogie_names = (
         list(bogie_joint_names) if bogie_joint_names is not None else ["LEFT_BOGIE", "RIGHT_BOGIE"]
     )
-    rocker_damping = float(suspension_cfg["rocker_damping"])
-    bogie_damping = float(suspension_cfg["bogie_damping"])
+    rocker_damping = float(suspension_cfg.rocker_damping)
+    bogie_damping = float(suspension_cfg.bogie_damping)
     joints_scope = f"{chassis_path}/joints"
 
     results: Dict[str, bool] = {}
@@ -488,7 +494,7 @@ def _apply_rover_mass(
 def _apply_rover_articulation_physics(
     stage: Any,
     rigid_body_path: str,
-    rover_cfg: Dict[str, Any],
+    rover_cfg: RoverConfig,
 ) -> None:
     """Validate and apply chassis / wheel / suspension overrides.
 
@@ -510,48 +516,28 @@ def _apply_rover_articulation_physics(
             ones consumed here; the wheel link list is sourced from
             ``control.drive_joint_names``.
     """
-    from marslab.config.schema.rover import (  # noqa: PLC0415
-        ChassisConfig,
-        SuspensionConfig,
-        WheelsConfig,
-    )
-
     # Wheels and suspension joints live under the chassis Xform; the
     # rigid-body prim is the chassis's moving child.  Source the chassis
-    # path from ``rover_cfg["prim_path"]`` so the helper is robust to the
+    # path from ``rover_cfg.prim_path`` so the helper is robust to the
     # ``find_rigid_body_path`` fallback (which returns the chassis path
     # itself when no rigid-body child is found).
-    prim_path = str(rover_cfg["prim_path"])
+    prim_path = rover_cfg.prim_path
     chassis_path = f"{prim_path}/Body_Chassis"
 
-    chassis_cfg = rover_cfg.get("chassis")
-    if isinstance(chassis_cfg, dict):
-        validated_chassis = ChassisConfig.model_validate(chassis_cfg).model_dump()
-        if not apply_chassis_physics(stage, rigid_body_path, validated_chassis):
-            _LOG.warning(
-                "chassis prim missing at %s; chassis mass/inertia override skipped.",
-                rigid_body_path,
-            )
+    if not apply_chassis_physics(stage, rigid_body_path, rover_cfg.chassis):
+        _LOG.warning(
+            "chassis prim missing at %s; chassis mass/inertia override skipped.",
+            rigid_body_path,
+        )
 
-    wheels_cfg = rover_cfg.get("wheels")
-    if isinstance(wheels_cfg, dict):
-        validated_wheels = WheelsConfig.model_validate(wheels_cfg).model_dump()
-        # Default wheel link list = the six ``*_DRIVE`` links from the
-        # M2020 URDF.  Pulled from ``control.drive_joint_names`` so a
-        # custom rover variant only has to declare its joint names once.
-        wheel_link_names = list(rover_cfg.get("control", {}).get("drive_joint_names", []))
-        if wheel_link_names:
-            apply_wheel_physics(stage, chassis_path, wheel_link_names, validated_wheels)
-
-    suspension_cfg = rover_cfg.get("suspension")
-    if isinstance(suspension_cfg, dict):
-        validated_suspension = SuspensionConfig.model_validate(suspension_cfg).model_dump()
-        apply_suspension_damping_split(stage, chassis_path, validated_suspension)
+    wheel_link_names = list(rover_cfg.control.drive_joint_names)
+    apply_wheel_physics(stage, chassis_path, wheel_link_names, rover_cfg.wheels)
+    apply_suspension_damping_split(stage, chassis_path, rover_cfg.suspension)
 
 
 def spawn_rover(
     stage: Any,
-    rover_cfg: Dict[str, Any],
+    rover_cfg: RoverConfig,
     usd_abs: str,
     spawn_xyz: Tuple[float, float, float],
 ) -> SpawnedRover:
@@ -592,14 +578,13 @@ def spawn_rover(
                 stage, DEFAULT_ODOM_ANCHOR_PATH, spawn_xyz, frame_name="odom"
             )
     """
-    prim_path = str(rover_cfg["prim_path"])
-    spawn_block = rover_cfg["spawn"]
-    rpy_raw = spawn_block["orientation_rpy"]
+    prim_path = rover_cfg.prim_path
+    rpy_raw = rover_cfg.spawn.orientation_rpy
     rpy = (float(rpy_raw[0]), float(rpy_raw[1]), float(rpy_raw[2]))
 
     rigid_body_path = _spawn_rover_usd(stage, prim_path, usd_abs, spawn_xyz, rpy)
 
-    com_offset_raw = rover_cfg["com_offset"]
+    com_offset_raw = rover_cfg.com_offset
     com_offset = (
         float(com_offset_raw[0]),
         float(com_offset_raw[1]),
@@ -609,8 +594,8 @@ def spawn_rover(
         stage,
         rigid_body_path,
         com_offset,
-        float(rover_cfg["angular_damping"]),
-        float(rover_cfg["linear_damping"]),
+        float(rover_cfg.angular_damping),
+        float(rover_cfg.linear_damping),
     )
 
     _apply_rover_articulation_physics(stage, rigid_body_path, rover_cfg)
