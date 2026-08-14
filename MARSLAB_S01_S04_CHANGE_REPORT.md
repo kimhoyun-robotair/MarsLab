@@ -363,10 +363,15 @@ EVIDENCE_DIR="$ATTEMPT_DIR/user" marslab/isaac_python.sh -m marslab.validation.a
 ```
 
 적대적 검증에서 malformed/corrupt, ZIP traversal, manifest path escape, symlink,
-stale checksum/submodule, partial JSON atomicity, repeated flaky test와 hang은
-각각 실행되어 PASS했다(`adversarial-report.json`). prompt injection은 외부
+stale checksum/submodule, semantic failure, 반복 flaky test와 bounded hang은 실제
+실행되어 PASS했다(`agent/task-4/qa-r3/qa-report.md`, `adversarial-report.json`).
+partial JSON atomicity/repeated interruption은 의도적 중단을 실행하지 않았으며,
+임시 파일→`fsync`→원자적 교체 구현 검사와 기존 JSON 출력의 파싱 가능성/잔여
+임시 파일 부재를 확인했다(PASS-INSPECTION; `agent/task-4/qa-r3/atomic-inspection.txt`,
+`agent/task-4/fix-r2/stale-valid-empty-terminal.log`). prompt injection은 외부
 untrusted instruction이 없는 정적 CLI 작업이라 미발생, cancel/resume 및
-repeated interruption도 중단이 없어 미발생으로 기록했다. xterm visual helper나
+repeated interruption은 one-shot CLI에 재개 프로토콜이 없어 비적용으로 기록했다.
+xterm visual helper나
 문서 색상 렌더 검증은 이 CLI/data-shaped Markdown surface에 제공되지 않아
 적용하지 않았으며, 대신 exact terminal output을 `agent/task-4/qa-r3/real-cli.log`와 아래
 수동 QA evidence에 보존한다. 수동 QA의 exact terminal invocation은
