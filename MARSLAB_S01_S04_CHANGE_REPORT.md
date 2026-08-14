@@ -275,7 +275,7 @@ S04 후보는 부모 `2f76557e6962f1cadffeaa876c34d9d00a9b8a93` 대비
 | A | `marslab/validation/__init__.py` | public exports 1–3 | `Diagnostic`, `Severity`, `ValidationReport`만 검증 facade로 노출한다. |
 | A | `marslab/validation/assets.py` | `_parser` 22–30; `_write_report` 63–76; `_lightweight_reports` 79–88; `main` 114–171 | 반복 `--scene`과 manifest/Rover/YAML/JSON 출력 입력을 파싱하고, ZIP·manifest·Rover header 검증을 먼저 수행한다. 모두 통과한 뒤에만 `importlib.import_module("isaacsim")`(132행)와 `SimulationApp`을 생성해 OpenUSD 의미 검사를 실행한다. 보고서는 `mkstemp`/`fsync`/`os.replace`로 원자적으로 기록하며 semantic error와 shutdown 후 exit 1을 보존한다. |
 | A | `marslab/validation/lightweight.py` | `validate_usdz_package` 18–93; `_check_file_map` 96–121; `validate_rover_manifest` 137–251 | USDZ ZIP member·symlink·metadata size/hash/layer/member 수를 확인하고, manifest의 bundle 및 recursive submodule checksum을 검증한다. Git submodule HEAD, companion URDF 존재, known warning을 typed diagnostic으로 합친다. |
-| A | `marslab/validation/models.py` | `Severity` 18–20; `SceneFacts`/`RoverFacts` 31–55; `ValidationReport` 57–111; errors 114–125 | 장면·Rover 사실, error/warning 진단, JSON schema version 1을 immutable dataclass로 정의한다. `ValidationReport.ok`(65–67)는 `Severity.ERROR`가 있을 때만 false이므로 알려진 warning은 비차단이고 새 error는 실패가 된다. |
+| A | `marslab/validation/models.py` | `Severity` 18–20; `SceneFacts`/`RoverFacts` 31–55; `ValidationReport` 57–111; errors 114–127 | 장면·Rover 사실, error/warning 진단, JSON schema version 1을 immutable dataclass로 정의한다. `ValidationReport.ok`(65–67)는 `Severity.ERROR`가 있을 때만 false이므로 알려진 warning은 비차단이고 새 error는 실패가 된다. |
 | A | `marslab/validation/openusd.py` | `_dependencies` 9–16; `inspect_scene` 19–55; `inspect_rover` 58–82 | `pxr.Usd`, `UsdGeom`, `UsdPhysics`, `UsdUtils.ComputeAllDependencies`를 함수 안에서만 import한다. default prim, Z-up/meters, mesh/collision/physics scene, articulation/chassis/prim names와 recursive layer/asset/unresolved dependency를 수집한다. |
 | A | `marslab/validation/paths.py` | `safe_path` 12–27; `safe_archive_member` 30–32; `sha256` 35–40 | 절대/`..`/백슬래시 경로, root 밖 resolve, manifest symlink 및 ZIP member traversal을 거부하고 파일 SHA-256을 계산한다. |
 | A | `marslab/validation/rover_file.py` | `_has_unrecognized_usda_root_token` 12–25; `validate_rover_file` 28–44 | PXR-USDC 또는 `#usda` header를 확인하되, header가 유효해도 첫 root token이 `class`/`def`/`over`가 아닌 malformed USDA는 OpenUSD 전에 `rover.file.corrupt` error로 거부한다. 이는 header-valid malformed 입력 회귀 수정이다. |
@@ -368,7 +368,9 @@ untrusted instruction이 없는 정적 CLI 작업이라 미발생, cancel/resume
 repeated interruption도 중단이 없어 미발생으로 기록했다. xterm visual helper나
 문서 색상 렌더 검증은 이 CLI/data-shaped Markdown surface에 제공되지 않아
 적용하지 않았으며, 대신 exact terminal output을 `manual-terminal.txt`와 아래
-수동 QA evidence에 보존한다.
+수동 QA evidence에 보존한다. 수동 QA의 exact terminal invocation은
+`sed -n '1,380p' MARSLAB_S01_S04_CHANGE_REPORT.md && git diff --name-status 2f76557e6962f1cadffeaa876c34d9d00a9b8a93..d7fa4a3094bb175124d1709c489d7861cff29064`이며,
+보고서 346–350행의 사용자 QA 미승인 상태까지 출력한다.
 
 ## 누적 변경 수와 작업 트리
 
