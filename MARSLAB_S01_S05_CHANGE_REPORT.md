@@ -420,3 +420,161 @@ git show --stat --oneline 8f08606 360226d a48868a 01e1e0e f405362 0358d0a 91abd4
 
 현재 파일의 표 인용 라인은 `nl -ba <file>`로 확인한다. 보고서 경로/라인 자동
 검증과 수동 `sed` 출력은 문서 rename 커밋 전후의 evidence 디렉터리에 저장한다.
+
+## S05 변경(불변 RunPlan과 typed runtime 소비자)
+
+S05는 부모 `689fab86d86f9e6ec03661a255c5909afa0a82a6`에서 후보
+`ddd28245092b693f1e544a53110d7e9dffb70087`까지의 실제 변경이다. 후보 커밋의
+제목은 `feat(runtime): resolve immutable run plans`이며, 현재
+`git diff --name-status 689fab86d86f9e6ec03661a255c5909afa0a82a6..ddd28245092b693f1e544a53110d7e9dffb70087`
+는 **15개 경로(추가 3, 수정 12, 삭제 0)**를 출력한다. 아래 표는 그 15개를
+현재 후보 SHA에서 `nl -ba`와 `rg`로 재확인한 심볼/행과 함께 모두 열거한다.
+
+### S05 변경 파일 목록(현재 심볼/정확한 행)
+
+| 상태 | 파일 | 현재 심볼/정확한 행 | 변경 내용 |
+|---|---|---|---|
+| M | `marslab/main.py` | `main` 403–813; `RunPlanRequest` 생성 497–510; resolved Rover USD 524–542; deferred `spawn_sensors` 576, 632 | CLI 입력을 하나의 `build_run_plan`으로 보내고 `plan.scenario`/`plan.rover`/`plan.sensors`/`plan.ros2`를 소비한다. `--rover-usd`를 명시 필수 입력으로 만들고 `_PRE_S05_ROVER_USD_PATH`·`_abs_repo_path`·`_load_rover_cfg`를 제거했으며 Isaac/ROS import는 runtime 지점에 남겼다. |
+| M | `marslab/robots/drive_api_setup.py` | `configure_drives` 87–149; `reinforce_pd_gains` 152–195 | drive/PD 설정 소비자 입력을 raw mapping에서 typed `ControlConfig`로 바꿔 validated 제어값만 사용한다. |
+| M | `marslab/robots/rover.py` | `load_rover_usd` 59–79; `spawn_rover` 538–607; articulation/physics helpers 205–535 | required Rover USD 경로를 호출자가 전달하는 단일 인자로 유지하고, rover typed config로 pose·질량·마찰·suspension·joint 설정을 수행한다. USD/Isaac import는 함수 내부 deferred 경계를 유지한다. |
+| M | `marslab/ros2_bridge/rclpy_integration.py` | `init_rclpy_side` 32–233; `_resolve_qos_bundle` 235–261 | `Ros2BridgeConfig` typed 모델에서 namespace/topics/rates/QoS를 읽고, rclpy 및 `rclpy.parameter` import를 함수 안에 둔다. 외부 rclpy QoS 생성 직전의 좁은 dictionary bundle만 허용한다. |
+| M | `marslab/ros2_bridge/sensor_graph.py` | `_resolve_ros2_bridge_options` 64–84; `build_sensor_graph` 86–233; `_apply_depth_sensor_schema` 236–302 | typed ROS2/depth 설정을 graph builder로 전달하고, depth schema 속성은 runtime OmniGraph 경계에서만 payload dictionary로 변환한다. `omni.graph.core` import는 함수 안에 있다. |
+| M | `marslab/runtime/articulation_setup.py` | `apply_initial_joint_positions` 74–118; `pin_articulation_root_pose` 121–152; `zero_steer_joints` 155–176 | 초기 관절·root pin·steering reset helper의 제어 입력을 typed `ControlConfig`로 고정하고 Isaac side effect를 호출 시점으로 지연한다. |
+| M | `marslab/runtime/atmosphere_boot.py` | `boot_atmosphere` 103–148; `prepare_atmosphere` 151–211 | legacy raw config 재로드 대신 이미 resolve된 typed `ScenarioConfig`/`MarsEnvConfig`를 사용한다. atmosphere 계산은 Kit 전 순수 단계로 유지된다. |
+| M | `marslab/runtime/loop_context.py` | `build_loop_context` 34–158 | loop assembly가 typed `ControlConfig`를 받아 ramp/saturation/Ackermann scalar를 직접 소비한다. 외부 callback/bridge 경계의 좁은 dict만 남기고 raw full-config adapter를 제거했다. |
+| A | `marslab/runtime/run_plan.py` | `RunPlanInputError` 31–38; `RunPlanRequest` 41–55; `ResolvedInputs` 57–79; `ExecutionPolicy` 82–89; `RunPlan` 91–121; path/input helpers 123–192; `build_run_plan` 194–226; serializers 228–238 | S05 핵심 구현. frozen/strict 요청·resolved inputs·execution policy·plan을 정의하고, Scene/Rover USD/Scenario YAML/Rover YAML을 required readable input으로 정확히 한 번 resolve한다. `validate`와 `run`이 동일 builder를 공유하며, `ResolvedInputs`는 절대 경로·deterministic sanitized JSON을 보장한다. |
+| M | `marslab/runtime/sensor_frames.py` | `SensorFrame` 40–44; `build_sensor_frames` 46–94; `sensor_frames_to_tuples` 96–122 | `SensorsConfig`의 discriminated enabled/disabled variants를 typed match로 소비한다. disabled 센서는 frame을 만들지 않으며 `assert_never`로 exhaustive 분기를 고정한다. |
+| M | `marslab/sensors/sensor_spawner.py` | `SensorHandles` 348–442; `spawn_sensors` 444–686; profile/override helpers 152–316 | camera/3-D LiDAR/2-D LiDAR/IMU spawning이 typed `SensorsConfig`와 `Ros2BridgeConfig`를 사용한다. Isaac sensor imports는 `spawn_sensors` 내부에 지연되며 runtime USD override payload만 좁은 mapping으로 남는다. |
+| M | `tests/refactor/test_no_utils_dependencies.py` | 26–109 (`test_legacy_cli_accepts_current_s01_interface`, explicit Rover USD 40–55, pre-Kit trajectory rejection 57–67, forbidden scans 69–109) | S01 compatibility 회귀를 현재 explicit Rover USD/RunPlan 경계에 맞추고 conversion/Utils 의존성 및 제거된 trajectory flag의 pre-Kit 실패를 고정한다. |
+| M | `tests/refactor/test_rover_schema.py` | `test_canonical_rover_is_typed_and_paths_anchor_to_declaring_yaml` 8–24 | S03 typed Rover schema 회귀를 유지하고 현재 discriminated sensor narrowing과 선언 YAML 기준 절대 경로를 확인한다. |
+| A | `tests/refactor/test_run_plan.py` | 34–57 resolved equality; 59–95 mode/execution difference; 97–121 frozen/sanitized plan; 124–183 missing/conflict/unreadable; 187–224 unknown/nonfinite/relative path | S05 public builder의 validate/run equality, mode-only difference, strict/frozen model, required input 및 pre-boot rejection을 11개 테스트로 고정한다. |
+| A | `tests/refactor/test_typed_runtime_consumers.py` | `_run_plan` 12–23; typed sensor frames 25–42; typed loop context 44–73 | 실제 `SensorsConfig`/`ControlConfig` 객체를 sensor-frame과 loop-context 소비자에 전달하고 disabled variant를 건너뛰는 2개 테스트를 추가한다. |
+
+S05 자체의 Git 삭제 파일은 **없다**. 위 표의 상태/개수는 후보 SHA에서 직접 얻은
+`git diff --name-status`와 일치하며, 보고서·계획·ledger·manifest·evidence는
+S05 제품 diff에 포함하지 않는다.
+
+### RunPlan 경계와 동작 계약
+
+`RunPlanRequest`는 `StrictConfigModel` 기반의 frozen strict 입력 모델이며 Scene,
+필수 Rover USD, Scenario YAML, Rover YAML, 선택 output/log 및 headless/ROS2/
+atmosphere/태양 override를 받는다(`marslab/runtime/run_plan.py:41–55`).
+`_required_file`(`123–139`)은 declaring CLI cwd 기준으로 경로를 canonicalize하고
+존재·일반 파일·읽기 권한을 확인한다. Scene legacy alias는 `_scene_path`
+(`141–149`)에서 canonical path와 동일할 때만 허용되어 충돌을 typed
+`RunPlanInputError`로 막는다. 따라서 Rover YAML의 과거 `usd_path`나
+`_PRE_S05_ROVER_USD_PATH` fallback은 더 이상 asset ownership이 아니다.
+
+`ResolvedInputs`(`57–79`)는 Scene/Rover USD/YAML/output/log의 절대 `Path`만
+보유한다. `build_run_plan`(`194–226`)은 scene → rover USD → YAML 입력을
+검사한 후 `load_scenario_config`/`load_rover_config`를 각각 한 번 호출하고,
+typed override를 적용해 `RunPlan`을 반환한다. `ExecutionPolicy`와
+`_execution_policy`(`82–89`, `151–169`)는 `VALIDATE`에서 boot/run을 false,
+`RUN`에서 true로 두며 그 외 resolved state는 공유한다. `serialize_resolved_inputs`
+(`228–230`)과 `serialize_run_plan`(`232–238`)은 Pydantic JSON을 deterministic하게
+생성하고 declaring path 중복을 제외한다. argv/cwd/repository provenance,
+개인 경로·token·secret 및 full raw config dump는 serialization에 들어가지 않는다.
+
+실제 runtime 소비자는 `main.py:497–535`에서 이 plan을 받은 뒤 `plan.scenario`,
+`plan.rover`, `plan.sensors`, `plan.ros2`, `plan.resolved_inputs.rover_usd`를
+사용한다. `prepare_atmosphere(plan.scenario, ...)`(`main.py:535`,
+`atmosphere_boot.py:151–211`)는 이미 검증된 Scenario를 다시 YAML로 읽지 않는다.
+`build_loop_context`·sensor frame/spawner·drive/articulation/ROS graph는 모두
+typed 하위 모델을 직접 받는다. 남은 dictionary는 OmniGraph/rclpy/publisher와
+같은 명시적 third-party payload 경계뿐이다. `omni`, `isaacsim`, `pxr`, live
+`rclpy` imports는 계속 함수 내부 deferred 상태다.
+
+### PIN → RED → GREEN 및 초기 raw-dict 실패의 최종 수정
+
+부모 SHA에서 S03/S04 선행 focused PIN은 `pin.txt`의 정확한 명령으로 **29 passed**
+였다. 같은 부모에서 새 `tests/refactor/test_run_plan.py`는 의도한
+`NotImplementedError` builder seam으로 **10 failed**(`red.txt`)였고, 이는 S05
+구현 전 RED이지 최종 실행 결과가 아니다.
+
+초기 typed-consumer RED는 실제 frozen Pydantic `SensorsConfig`가 구 dictionary
+처럼 `.get()`을 제공하지 않고, `ControlConfig`가 subscriptable하지 않아
+`typed-consumers-fix/RED.log`에서 두 테스트가 실패한 것이다. 최종 수정은
+`sensor_frames.py:67–94`의 typed sensor binding/match와 `loop_context.py:128–158`의
+typed control field 접근으로 raw-dict adapter를 제거했다. 그 뒤
+`typed-consumers-fix/pytest-typed-consumers.log`에서 **2 passed**이며, final
+focused/independent run은 아래와 같이 재실행됐다.
+
+| 성공 기준 | 정확한 시나리오·호출 | binary 관찰 | 증거 |
+|---|---|---|---|
+| 동일 builder의 validate/run resolved inputs | `env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH= python3 -m pytest tests/refactor/test_run_plan.py -q` (동일 SHA에서 1차) | **11 passed**, exit 0 | `agent/task-5/adversarial-verify-r3/pytest-focused-1.log` |
+| 반복 실행 안정성 | 같은 명령을 독립 2차 실행 | **11 passed**, exit 0 | `agent/task-5/adversarial-verify-r3/pytest-focused-2.log` |
+| typed sensor/loop consumers | `env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH= python3 -m pytest tests/refactor/test_typed_runtime_consumers.py -q` | **2 passed**, exit 0 | `agent/task-5/adversarial-verify-r3/pytest-typed.log` |
+| 전체 refactor 회귀 | `env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH= python3 -m pytest tests/refactor -q` | **56 passed**, exit 0 | `agent/task-5/adversarial-verify-r3/pytest-refactor.log` |
+| deterministic public JSON/typed surface | `PYTHONPATH= python3 /tmp/s05_verify_r3.py .omo/evidence/marslab-reference-runtime-refactor/agent/task-5/adversarial-verify-r3` | exit 0; `absolute=true`, `resolved_equal=true`, `plans_equal=true`, `typed_consumers=true`, `forbidden_imports=[]`, exact SHA | `agent/task-5/adversarial-verify-r3/manual-terminal.log`, `runplan-validate.json`, `runplan-run.json` |
+
+수동 public-builder JSON surface는 fresh validate/run 산출물을 parse하여 모든
+resolved path가 absolute/stable이고, 두 `resolved_inputs` bytes/객체가 같으며
+`mode`와 `execution`만 제거하면 전체 plan이 같음을 확인했다. typed sensor-frame과
+loop-context 출력도 실제 모델에서 만들어졌고, reached consumer annotation이
+정확한 schema class임을 확인했다. 이는 CLI parser 자체를 추가하는 S06 범위와
+구별되는 S05 public builder/data surface 검증이다.
+
+### 품질·적대적 검증·한계
+
+변경 15개 경로 대상 Black은 모두 변경 없이 통과했고 Ruff와 compileall 및
+`git diff --check`도 exit 0이다. mypy는 변경 hunk가 아닌 기존 진단 **3개**만
+남겼다: `sensor_graph_builder.py:328`의 unused `type: ignore`,
+`tf_nameoverrides.py:78`의 `object`/`GetPrimAtPath`, 그리고 기존
+`tests/refactor/test_rover_schema.py:18`의 disabled-sensor union narrowing이다.
+정확한 실행 결과는 `agent/task-5/adversarial-verify-r3/mypy.log`에 있으며
+S05 RunPlan/typed-consumer 변경 hunk 진단은 없다. 이 3건은 inherited quality
+limitation으로 기록하며 통과로 위장하지 않는다.
+
+R3 adversarial 검증(`adversarial-verify-r3/AdversarialVerify.md`)은 exact SHA/
+parent, stale-state, 보호된 dirty 파일 hash, malformed missing/conflicting/
+unreadable/unknown/nonfinite 입력의 boot-sentinel 이전 거부, deterministic JSON,
+deferred imports, bounded completion, 반복 focused test, misleading exit/JSON,
+생성 bytecode·temp/process/port/cache cleanup을 확인해 **confirmed / APPROVE
+recommendation / confidence 0.97**을 남겼다. cleanup receipt는
+`cleanup-receipt.txt`에 있고 현재 사용자 dirty 5개(`.gitignore`,
+`MARSLAB_STALE_RESIDUE_AUDIT.md`, `MarsLab.pdf`, `MarsLab_refactoring.md`,
+`package-lock.json`)는 byte-identical·미커밋으로 보존된다.
+
+정적 문서/CLI-data 작업이라 prompt injection, cancel/resume, hung/long-running
+interactive process, repeated interruption/flaky external service는 해당
+instruction interpreter·resume protocol·atomic product writer가 없어 N/A다.
+Visual color/layout QA와 xterm helper도 화면 디자인 주장이 없는 terminal-first
+문서이므로 N/A이며, 대신 위 exact terminal output이 first-class 관찰이다. Live
+Isaac/ROS boot은 CPU-only S05 gate에서 사용할 수 없어 후속 lifecycle 단계의
+사용자 환경 검증으로 남긴다. S05는 agent-confirmed 후보이며 prescribed user QA와
+명시적 `APPROVE S05`가 아직 pending이다. authoritative plan checkbox, manifest,
+ledger는 이 보고서 작업에서 변경하지 않았다.
+
+### S05 수동 QA, PIN/RED audit, 누적 rename 검증
+
+수동 QA의 전체 터미널 명령은 다음과 같다.
+
+```bash
+sed -n '1,460p' MARSLAB_S01_S05_CHANGE_REPORT.md && git diff --name-status 689fab86d86f9e6ec03661a255c5909afa0a82a6..ddd28245092b693f1e544a53110d7e9dffb70087
+```
+
+PASS observable은 S01→S05 순서와 각 단계의 단일 section, S05 15개 파일 목록과
+Git diff 목록 일치, typed RunPlan behavior/validation 및 pending user QA가
+한국어로 보이는 것이다. FAIL은 누락·중복·오경로·부정확한 line/SHA/count/evidence다.
+문서 rename 후 old prefix의 SHA-256은 rename 전 파일과 동일하며, 새 문서에서
+기존 S01/S04 heading과 모든 S01–S04 본문을 자동 비교해 보존한다. old path는
+삭제, new path는 추가로 커밋한다.
+
+## S01–S05 누적 마무리와 Git 재현
+
+S05 후보의 변경 통계는 **15개 경로, +943/-312**, 누적 S01–S05 제품 변경은
+S01–S04 기록을 그대로 상속하고 S05 15개 경로를 추가한 것이다. 보고서 rename
+자체는 제품 코드·테스트·계획·ledger/evidence와 분리된 단일 문서 변경이다.
+
+```bash
+S05_PARENT=689fab86d86f9e6ec03661a255c5909afa0a82a6
+S05_CANDIDATE=ddd28245092b693f1e544a53110d7e9dffb70087
+git rev-parse "$S05_PARENT" "$S05_CANDIDATE"
+git diff --name-status "$S05_PARENT" "$S05_CANDIDATE"
+git diff --diff-filter=D --name-only "$S05_PARENT" "$S05_CANDIDATE"
+git diff --check "$S05_PARENT" "$S05_CANDIDATE"
+```
+
+이 문서의 후속 report-only 커밋은 `docs(refactor): record cumulative S01 to S05
+changes`이며, 그 커밋 전후에도 사용자 dirty 5개와 `.omo` 계획/ledger/manifest는
+변경하지 않는다.
