@@ -1,14 +1,15 @@
-# MarsLab S01/S03 변경 보고서
+# MarsLab S01/S04 누적 변경 보고서
 
 ## 목적과 범위
 
-이 문서는 기준 커밋 `22fe45f9146e63e929ceb7163da9458aa0c98f7a`부터 S03 후보
-커밋 `91abd42dda5712711ee0f0b711316c94c7185e6f`까지의 실제 Git 변경을
-S01/S02/S03별로 기록한다. 범위는 S01(외부 MarsLab-Utils 의존성 제거),
+이 문서는 기준 커밋 `22fe45f9146e63e929ceb7163da9458aa0c98f7a`부터 S04 후보
+커밋 `d7fa4a3094bb175124d1709c489d7861cff29064`까지의 실제 Git 변경을
+S01/S02/S03/S04별로 기록한다. 범위는 S01(외부 MarsLab-Utils 의존성 제거),
 S02(공급된 Scene USDZ/Rover 입력을 기준으로 한 문서·설정·주석 정리),
-S03(Scenario/Rover 생산 스키마의 단일 strict 경계와 런타임 소비자 전환)이다.
-S04 이후 작업이나 `.omo` 내부 구현은 제품 변경으로 세지 않는다. 기준·후보와
-단계 부모는 `git`으로 재확인했으며, S03은 S04로 진행하지 않는다.
+S03(Scenario/Rover 생산 스키마의 단일 strict 경계와 런타임 소비자 전환),
+S04(공급 Scene USDZ와 Rover USD bundle/submodule의 사전·의미 검증)이다.
+S05 이후 작업이나 `.omo` 내부 구현은 제품 변경으로 세지 않는다. 각 단계의
+기준·후보와 부모는 `git`으로 재확인했다.
 
 ## 커밋 목록과 단계 경계
 
@@ -21,11 +22,12 @@ S04 이후 작업이나 `.omo` 내부 구현은 제품 변경으로 세지 않�
 | S02 | `f4053621844b212372f8c72f17a844e22b404a07` | 문서 명령의 입력 파일이 실제로 공급되는지 구별하는 테스트 보강 |
 | S02 | `0358d0a6d12041483b3d2cb3dcc96c9b2093bdd7` | S01/S02 보고서 검증 범위와 Git 근거 정리 |
 | S03 | `91abd42dda5712711ee0f0b711316c94c7185e6f` | 생산 Scenario/Rover strict Pydantic 스키마, 독립 YAML 로더, 런타임 소비자 전환 및 거부 테스트 |
+| S04 | `d7fa4a3094bb175124d1709c489d7861cff29064` | Scene USDZ/Rover USD bundle의 manifest·checksum·submodule·OpenUSD 의미 검증과 안전성 회귀 테스트 |
 
 S03 후보의 부모는 `0358d0a6d12041483b3d2cb3dcc96c9b2093bdd7`이며, 후보의
 제목은 `refactor(config): enforce production scenario and rover schemas`이다.
-S01/S02의 승인된 내용은 그대로 상속하고, S03 후보 이후 이 문서의 rename/content
-커밋만 추가한다.
+S01/S02/S03의 승인된 내용은 그대로 상속하고, S04 후보 이후 이 문서의
+rename/content 커밋만 추가한다.
 
 ## S01 변경(코드, 도구, 테스트)
 
@@ -202,16 +204,12 @@ S03 후보 `91abd42`는 부모 `0358d0a` 대비 **30개 경로(새 8, 수정 22,
 | `marslab/runtime/sensor_frames.py` | bindings 32–38; `_resolve_sensor_block` 40–45; frame builders 47–111 | `lidar` legacy alias fallback을 제거하고 canonical blocks만 사용한다. |
 | `marslab/sensors/sensor_spawner.py` | profile resolver 142–165; `SensorHandles` 331–425; `spawn_sensors` 427–640 | `profile`/`lidar` aliases를 제거하고 `profile_name`/`lidar_3d` canonical config만 소비한다. |
 | `tests/refactor/test_no_utils_dependencies.py` | constants 13–22; tests 25–102 | S01 compatibility test를 `RoverConfig`와 `_PRE_S05_ROVER_USD_PATH`에 맞추고 trajectory failure를 `ValidationError`로 고정한다. |
-
 ### S03 삭제 파일 — Git `D` 0개
-
 | Git 확인 명령 | 결과 |
 |---|---|
 | `git diff --diff-filter=D --name-only 0358d0a..91abd42` | 빈 출력, **삭제 파일 0개** |
-
 스키마가 기존 파일에서 모델을 이동·축소한 것은 파일 삭제가 아니라 수정이며,
 legacy import alias는 API 호환 이름일 뿐 YAML alias/raw contract가 아니다.
-
 ## S03 설정/YAML, 제거 필드와 엄격 제약
 
 S03 canonical field matrix는 `.omo/evidence/marslab-reference-runtime-refactor/agent/task-3/field-matrix.md`에
@@ -237,7 +235,6 @@ resolution은 `marslab/main.py:507`에서 수행되며, S01 compatibility test�
 S05에서 Rover USD 입력을 CLI/RunPlan으로 전환할 때 이 상수를 제거해야 한다는
 bounded risk를 명시적으로 남긴다. 이는 S04 asset manifest/submodule 및 S05
 RunPlan/CLI 작업을 앞당기지 않았다는 뜻이다.
-
 ## 테스트·수동·적대적 검증과 한계
 
 | 성공 기준 | 정확한 시나리오/호출 | 관찰된 binary 결과 | 증거 |
@@ -249,36 +246,148 @@ RunPlan/CLI 작업을 앞당기지 않았다는 뜻이다.
 | canonical YAML/field accounting | PyYAML parse와 field/AST checker | exit 0; 150 leaves, 217 accesses, unclassified 0 | `agent/task-3/yaml-parse.txt`, `field-matrix-check.txt`, `runtime-dict-accesses.txt` |
 | external consumer | `/tmp`에서 editable package로 두 YAML load | exit 0; typed classes, absolute paths, `ISAAC_IMPORT_MARKER=False` | `agent/task-3/manual-consumer.txt` |
 | malformed pre-Isaac | `/tmp` malformed rover loader, expected nonzero wrapper | exit 7; 13 errors, unknown-field true, Isaac marker false | `agent/task-3/manual-malformed.txt` |
-
 S03 adversarial verifier는 fresh archive/venv와 plugin autoload 차단으로 결과를
 독립 재현했고 verdict **CONFIRMED**를 남겼다. stale state, misleading exit code,
 dirty worktree, generated/cache cleanup을 별도 점검했으며 `.omo/evidence/.../agent/task-3/adversarial-verify/AdversarialVerify.md`에
 상세 결과가 있다. malformed/hostile input은 통과, prompt injection/cancel-resume/
 hung/flaky/repeated interruptions는 이 CPU-only 결정적 단계에 해당하지 않아
 N/A로 기록했다. Isaac GUI/ROS 실제 실행은 S03 지정 QA가 아니므로 주장하지 않는다.
-
 `tests/unit/`는 현재 트리에 없어 `pytest tests/unit -q`가 exit 4(파일/디렉터리 없음)다.
 전체 트리 Black도 변경과 무관한 선행 세 파일
 `marslab/environment/diffuse_fraction.py`, `marslab/ros2_bridge/imu_noise_publisher.py`,
 `marslab/ros2_bridge/wheel_odometry_publisher.py`에서 실패하며, 변경 범위 Black은
 통과했다. 이 두 항목은 S03 실패가 아닌 inherited baseline limitation이다.
+## S04 변경(자산 검증/안전성/테스트)
+
+S04 후보는 부모 `2f76557e6962f1cadffeaa876c34d9d00a9b8a93` 대비
+`d7fa4a3094bb175124d1709c489d7861cff29064`이며, 실제
+`git diff --name-status`는 **11개 경로(추가 10, 수정 1, 삭제 0)**다. 구현은
+공급된 Scene USDZ 네 개와 Perseverance Rover bundle/submodule을 Kit 경계
+안팎에서 검증한다. 아래 행은 후보 SHA의 현재 파일을 `nl -ba`로 다시 확인한
+시작 행이다.
+
+### S04 변경 파일 목록(현재 심볼/행과 동작)
+
+| 상태 | 파일 | 현재 심볼/정확한 행 | 변경 목적과 동작 |
+|---|---|---|---|
+| A | `assets/robots/rover/manifest.json` | `bundle_files` 2–9; `known_warnings` 10–16; `submodule` 18–112 | Rover USD bundle 6개 파일의 SHA-256, ROS companion submodule의 88개 파일과 pinned commit `bc25f70c9abe6c34b8019ae5ec10d5b7f1c122c6`, 허용된 baseline warning(선택적 `Frame_*` prim 참조 65건)을 선언한다. |
+| M | `marslab/runtime/precheck.py` | `check_rover_usd` 14–29 | 기존 missing-file preflight에 `os.access(..., os.R_OK)`를 추가해 읽을 수 없는 Rover USD를 `PermissionError`로 Kit 전에 거부한다. |
+| A | `marslab/validation/__init__.py` | public exports 1–3 | `Diagnostic`, `Severity`, `ValidationReport`만 검증 facade로 노출한다. |
+| A | `marslab/validation/assets.py` | `_parser` 22–30; `_write_report` 63–76; `_lightweight_reports` 79–88; `main` 114–171 | 반복 `--scene`과 manifest/Rover/YAML/JSON 출력 입력을 파싱하고, ZIP·manifest·Rover header 검증을 먼저 수행한다. 모두 통과한 뒤에만 `importlib.import_module("isaacsim")`(132행)와 `SimulationApp`을 생성해 OpenUSD 의미 검사를 실행한다. 보고서는 `mkstemp`/`fsync`/`os.replace`로 원자적으로 기록하며 semantic error와 shutdown 후 exit 1을 보존한다. |
+| A | `marslab/validation/lightweight.py` | `validate_usdz_package` 18–93; `_check_file_map` 96–121; `validate_rover_manifest` 137–251 | USDZ ZIP member·symlink·metadata size/hash/layer/member 수를 확인하고, manifest의 bundle 및 recursive submodule checksum을 검증한다. Git submodule HEAD, companion URDF 존재, known warning을 typed diagnostic으로 합친다. |
+| A | `marslab/validation/models.py` | `Severity` 18–20; `SceneFacts`/`RoverFacts` 31–55; `ValidationReport` 57–111; errors 114–125 | 장면·Rover 사실, error/warning 진단, JSON schema version 1을 immutable dataclass로 정의한다. `ValidationReport.ok`(65–67)는 `Severity.ERROR`가 있을 때만 false이므로 알려진 warning은 비차단이고 새 error는 실패가 된다. |
+| A | `marslab/validation/openusd.py` | `_dependencies` 9–16; `inspect_scene` 19–55; `inspect_rover` 58–82 | `pxr.Usd`, `UsdGeom`, `UsdPhysics`, `UsdUtils.ComputeAllDependencies`를 함수 안에서만 import한다. default prim, Z-up/meters, mesh/collision/physics scene, articulation/chassis/prim names와 recursive layer/asset/unresolved dependency를 수집한다. |
+| A | `marslab/validation/paths.py` | `safe_path` 12–27; `safe_archive_member` 30–32; `sha256` 35–40 | 절대/`..`/백슬래시 경로, root 밖 resolve, manifest symlink 및 ZIP member traversal을 거부하고 파일 SHA-256을 계산한다. |
+| A | `marslab/validation/rover_file.py` | `_has_unrecognized_usda_root_token` 12–25; `validate_rover_file` 28–44 | PXR-USDC 또는 `#usda` header를 확인하되, header가 유효해도 첫 root token이 `class`/`def`/`over`가 아닌 malformed USDA는 OpenUSD 전에 `rover.file.corrupt` error로 거부한다. 이는 header-valid malformed 입력 회귀 수정이다. |
+| A | `marslab/validation/semantic.py` | `evaluate_scene_facts` 18–47; `evaluate_rover_facts` 49–101 | Scene의 default root/Z-up/units/mesh/collision/unresolved dependency와 Rover의 articulation/`Body_Chassis`/configured joints/sensor mounts/unresolved dependency를 error 정책으로 평가한다. |
+| A | `tests/refactor/test_asset_validator_failures.py` | corrupt/header-valid/ZIP/semantic tests 58–172; manifest/submodule/path/symlink tests 175–263 | 10개 focused failure/safety 테스트로 corrupt ZIP/USD, malformed header-valid USDA, semantic 계약, uninitialized/wrong submodule, missing URDF/mesh, path escape와 symlink을 고정한다. Isaac 설치 시 CLI semantic failure가 nonzero이고 shutdown 로그/JSON을 남기는 테스트는 89–122에 있다. |
+
+삭제 파일은 **없다**(`git diff --diff-filter=D ...` 빈 출력). `assets/m2020-urdf-models`
+submodule gitlink도 부모와 후보 사이에 변경이 없으며, 현재 checkout과 manifest가
+동일한 `bc25f70c9abe6c34b8019ae5ec10d5b7f1c122c6`를 가리킨다. S04의 Git 변경
+목록은 위 11개와 정확히 일치한다.
+
+### 검증 범위와 자산 결과
+
+검증 대상은 `assets/scene/jezero_plain/jezero_plain.usdz`,
+`assets/scene/main_crater/main_crater.usdz`,
+`assets/scene/mars_base/mars_base.usdz`,
+`assets/scene/grand_canyon/grand_canyon.usdz`의 네 Scene과
+`assets/robots/rover/m2020.usd` 및 manifest가 선언한 bundle/submodule이다.
+manifest evidence(`asset-checksums.txt`)는 bundle 6개, companion 88개,
+submodule commit `bc25f70c9abe6c34b8019ae5ec10d5b7f1c122c6`를 확인했다. 네
+Scene의 pinned SHA-256과 크기는 다음과 같다.
+
+| Scene | 크기(bytes) | SHA-256 |
+|---|---:|---|
+| `grand_canyon` | 979,136,809 | `4eec054ed5b4cf0d8b0d61d50d733a5ab88d38b090b591464786d55efeb81f74` |
+| `jezero_plain` | 873,652,477 | `e805609c258854fc06ce45cceee6e8718f54bc10524c2e8f9094ddea821446ba` |
+| `main_crater` | 656,244,132 | `522b44b8e53dfc5c734b5caa42e01771084358684a9d8a1fc285892017087774` |
+| `mars_base` | 1,892,103,764 | `32297611e00a1c88e792ff8ac8c22a9ddd09b1edfa9b174bbd16830730d00abd` |
+
+실제 JSON 결과는 다섯 report 모두 `ok: true`, error 0, unresolved dependency
+0이다. Scene physics scene은 각각 `jezero_plain`/`grand_canyon`의
+`/World/PhysicsScene`, `main_crater`의 `/World/Terrain/PhysicsScene`,
+`mars_base`의 `/World/MarsTerrain/PhysicsScene`이며 Rover articulation은
+`/Perseverance/Body_Chassis/Body_Chassis`다. 알려진 nonblocking warning은
+Scene 원본의 material compliance 경고(순서대로 `jezero_plain` 1,
+`main_crater` 16, `mars_base` 19, `grand_canyon` 1건)와 manifest의 선택적
+visual `Frame_*` unresolved reference baseline 65건뿐이다. 이는
+`Severity.WARNING`으로 기록되며 `ok`를 false로 만들지 않는다. 새 structural,
+header, checksum, traversal, dependency error는 report `ok=false`와 exit 1로
+정책화했다.
+
+### 경계, 안전성, 회귀와 남은 사용자 단계
+
+Isaac/OpenUSD 경계는 의도적으로 지연된다. `assets.py:118–120`은 lightweight
+failure를 SimulationApp 전에 JSON으로 쓰고 종료하며, 모든 사전 검증을 통과한
+뒤 `assets.py:132–133`에서만 Isaac을 import/start한다. OpenUSD 모듈도
+`openusd.py:20–23, 58–64`의 함수 호출 시점에만 `pxr`를 import한다. ZIP
+member traversal/symlink은 `paths.py:12–32`와 `lightweight.py:26–50`, manifest
+escape/symlink은 `tests/refactor/test_asset_validator_failures.py:242–263`로
+고정했다. corrupt Scene/Rover는 SimulationApp 전에 exit 1이며
+`failure-corrupt-preapp.txt`, `failure-corrupt-rover-preapp.txt`에 남아 있다.
+malformed header-valid USDA는 `rover_file.py:12–44`와 테스트 76–82에서
+OpenUSD 전에 typed error가 되는지 확인한다. semantic failure는 앱을 시작한
+뒤에도 report를 원자적으로 저장하고 `post_quit`/`close` 후 exit 1을 반환한다.
+
+검증 명령과 실제 결과는 다음 evidence에 있다.
+
+| 성공 기준 | 정확한 호출/관찰 | 증거 |
+|---|---|---|
+| focused safety/negative | `python3 -m pytest tests/refactor/test_asset_validator_failures.py -q` → **10 passed**, repeat도 **10 passed** | `agent/task-4/pytest-failures.txt`, `pytest-failures-repeat.txt` |
+| refactor regression | `python3 -m pytest tests/refactor -q` → **41 passed** | `agent/task-4/pytest-refactor.txt` |
+| full available suite | `python3 -m pytest -q` → **41 passed** | `agent/task-4/pytest-full.txt` |
+| quality gates | Black 9 files unchanged, Ruff pass, mypy 8 files pass, validation `compileall` pass, `git diff --check` pass | `black.txt`, `ruff.txt`, `mypy.txt`, `compileall.txt`, `diff-check.txt` |
+| exact Isaac command | `marslab/isaac_python.sh -m marslab.validation.assets --require-ros-companion ... --scene` 네 개 실행 → exit 0, 다섯 nonempty JSON | `agent/task-4/manual-terminal.txt`, `executor-evidence-audit-r2.txt` |
+| pre-app malformed | corrupt Scene/Rover 명령 → exit 1, typed diagnostic, app 미시작 | `failure-corrupt-preapp.txt`, `failure-corrupt-rover-preapp.txt`, `executor-evidence-audit-r2.txt` |
+| post-boot semantic failure | malformed empty USDA → exit 1, typed semantic JSON, startup/shutdown 관찰 | `agent/task-4/qa-r3/malformed-terminal.log`, `malformed.exit`, `executor-evidence-audit-r2.txt` |
+
+현재 SHA에 대한 최종 evidence audit는 `executor-evidence-audit-r2.txt`의
+`AUDIT_SHA=d7fa4a3094bb175124d1709c489d7861cff29064`와
+`EXECUTOR_EVIDENCE_AUDIT=PASS`로 확인했다. 사용자 lane 및 S04 ledger/승인은
+아직 완료되지 않았으므로(`executor-final-gate-status.txt`), 아래 명령을 사용자
+환경에서 다시 실행하고 S04 승인을 남기는 단계가 남아 있다.
+
+```bash
+EVIDENCE_DIR="$ATTEMPT_DIR/user" marslab/isaac_python.sh -m marslab.validation.assets \
+  --require-ros-companion \
+  --rover-manifest assets/robots/rover/manifest.json \
+  --rover-usd assets/robots/rover/m2020.usd \
+  --rover-yaml configs/rover_m2020.yaml --json-dir "$EVIDENCE_DIR/task-4" \
+  --scene assets/scene/jezero_plain/jezero_plain.usdz \
+  --scene assets/scene/main_crater/main_crater.usdz \
+  --scene assets/scene/mars_base/mars_base.usdz \
+  --scene assets/scene/grand_canyon/grand_canyon.usdz
+```
+
+적대적 검증에서 malformed/corrupt, ZIP traversal, manifest path escape, symlink,
+stale checksum/submodule, partial JSON atomicity, repeated flaky test와 hang은
+각각 실행되어 PASS했다(`adversarial-report.json`). prompt injection은 외부
+untrusted instruction이 없는 정적 CLI 작업이라 미발생, cancel/resume 및
+repeated interruption도 중단이 없어 미발생으로 기록했다. xterm visual helper나
+문서 색상 렌더 검증은 이 CLI/data-shaped Markdown surface에 제공되지 않아
+적용하지 않았으며, 대신 exact terminal output을 `manual-terminal.txt`와 아래
+수동 QA evidence에 보존한다.
 
 ## 누적 변경 수와 작업 트리
 
 Git `22fe45f..91abd42`의 누적 통계는 **41개 경로, 1,756 insertions, 2,974
 deletions**이며 상태는 **추가 13, 수정 28, 삭제 0**이다. S03 자체는 **30개
-경로, 추가 8, 수정 22, 삭제 0, +960/-2,655**다. S01/S02/S03 제품 변경은
+경로, 추가 8, 수정 22, 삭제 0, +960/-2,655**다. S04 자체는
+`2f76557e..d7fa4a3`에서 **11개 경로, 추가 10, 수정 1, 삭제 0,
++1,224/-0**이다. S01/S02/S03/S04 제품 변경은
 `.omo` 증거·계획·ledger와 구별한다. 후보 시점 user-owned dirty는 `.gitignore`(수정),
 `MARSLAB_STALE_RESIDUE_AUDIT.md`, `MarsLab.pdf`, `MarsLab_refactoring.md`,
 `package-lock.json`(미추적)이며 모두 보존했고 커밋에 포함하지 않았다.
 
 ## 문서 유지보수와 rename 공개
 
-기존 `MARSLAB_S01_S02_CHANGE_REPORT.md`는 S03 SHA/섹션을 담을 수 없는 stale
+기존 `MARSLAB_S01_S03_CHANGE_REPORT.md`는 S04 SHA/섹션을 담을 수 없는 stale
 이름이므로 이 문서로 **rename**한다. Git 기준 old path는 삭제, new path는 추가로
-보일 수 있으며 내용은 S01/S02 검증을 보존하고 S03을 누적한다. 이 rename/content
-커밋은 사용자 요청 범위의 문서 유지보수이며 코드·테스트·계획·ledger·evidence는
-수정하지 않는다.
+보일 수 있으며 내용은 기존 S01/S02/S03 검증을 보존하고 S04를 누적한다. 이
+rename/content 커밋은 사용자 요청 범위의 문서 유지보수이며 코드·테스트·계획·
+ledger/evidence는 수정하지 않는다.
 
 ## Git 재현 명령
 
@@ -286,11 +395,17 @@ deletions**이며 상태는 **추가 13, 수정 28, 삭제 0**이다. S03 자체
 BASE=22fe45f9146e63e929ceb7163da9458aa0c98f7a
 S02_PARENT=0358d0a6d12041483b3d2cb3dcc96c9b2093bdd7
 CANDIDATE=91abd42dda5712711ee0f0b711316c94c7185e6f
+S04_PARENT=2f76557e6962f1cadffeaa876c34d9d00a9b8a93
+S04_CANDIDATE=d7fa4a3094bb175124d1709c489d7861cff29064
 git rev-parse "$BASE" "$S02_PARENT" "$CANDIDATE"
+git rev-parse "$S04_PARENT" "$S04_CANDIDATE"
 git log --oneline --decorate --stat "$BASE..$CANDIDATE"
 git diff --name-status "$BASE" "$CANDIDATE"
 git diff --diff-filter=D --name-only "$BASE" "$CANDIDATE"
 git diff --name-status "$S02_PARENT" "$CANDIDATE"
+git diff --name-status "$S04_PARENT" "$S04_CANDIDATE"
+git diff --diff-filter=D --name-only "$S04_PARENT" "$S04_CANDIDATE"
+git diff --submodule=short "$S04_PARENT" "$S04_CANDIDATE" -- assets/m2020-urdf-models
 git diff --check "$BASE..$CANDIDATE"
 git show --stat --oneline 8f08606 360226d a48868a 01e1e0e f405362 0358d0a 91abd42
 ```
