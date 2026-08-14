@@ -550,12 +550,13 @@ ledger는 이 보고서 작업에서 변경하지 않았다.
 수동 QA의 전체 터미널 명령은 다음과 같다.
 
 ```bash
-sed -n '1,460p' MARSLAB_S01_S05_CHANGE_REPORT.md && git diff --name-status 689fab86d86f9e6ec03661a255c5909afa0a82a6..ddd28245092b693f1e544a53110d7e9dffb70087
+sed -n '1,620p' MARSLAB_S01_S05_CHANGE_REPORT.md && git diff --name-status 689fab86d86f9e6ec03661a255c5909afa0a82a6..ddd28245092b693f1e544a53110d7e9dffb70087
 ```
 
-PASS observable은 S01→S05 순서와 각 단계의 단일 section, S05 15개 파일 목록과
-Git diff 목록 일치, typed RunPlan behavior/validation 및 pending user QA가
-한국어로 보이는 것이다. FAIL은 누락·중복·오경로·부정확한 line/SHA/count/evidence다.
+PASS observable은 EOF까지 출력된 S01→S05 순서와 각 단계의 단일 section, S05
+15개 파일 목록과 Git diff 목록 일치, typed RunPlan behavior/validation, 그리고
+한국어로 보이는 `명시적 APPROVE S05` pending user QA이다. FAIL은 누락·중복·오경로·
+부정확한 line/SHA/count/evidence 또는 620행 안에 pending QA가 보이지 않는 경우다.
 문서 rename 후 old prefix의 SHA-256은 rename 전 파일과 동일하며, 새 문서에서
 기존 S01/S04 heading과 모든 S01–S04 본문을 자동 비교해 보존한다. old path는
 삭제, new path는 추가로 커밋한다.
