@@ -49,7 +49,7 @@ S01/S02의 승인된 내용은 그대로 상속하고, S03 후보 이후 이 문
 | 파일(현재 위치) | 현재 심볼/구간 | 역할 |
 |---|---|---|
 | `scripts/verify_refactor_ledger.py` | `ValidationReport` 38–48행, `validate` 88–164행, CLI 167–185행 | 계획 단계 수, manifest/ledger 순서, SHA-256 증거, 승인 문자열과 다음 단계 자격을 검증하고 `APPROVE`/`REJECT`와 JSON을 출력한다. |
-| `tests/refactor/test_no_utils_dependencies.py` | 24–100행의 5개 테스트 | S01 CLI 세 플래그, Rover USD 경로, 제거된 trajectory의 사전-Kit 실패, 금지 문자열 및 변환 모듈 import 부재를 검증한다. 테스트 안의 문자열은 제거 동작을 고정하기 위한 fixture이며 제품 의존성이 아니다. |
+| `tests/refactor/test_no_utils_dependencies.py` | 25–102행의 5개 테스트 | S01 CLI 세 플래그, Rover USD 경로, 제거된 trajectory의 사전-Kit 실패, 금지 문자열 및 변환 모듈 import 부재를 검증한다. 테스트 안의 문자열은 제거 동작을 고정하기 위한 fixture이며 제품 의존성이 아니다. |
 | `tests/refactor/test_verify_refactor_ledger.py` | `_write_fixture` 13–36행, 두 테스트 63–88행 | 유효한 승인 ledger는 통과하고 변조된 증거 hash는 거부되는지 검증한다. |
 
 ## S02 변경(문서·주석·테스트)
@@ -64,14 +64,13 @@ S02는 기존 파일을 삭제하지 않고 stale truth를 정리했다. S01과 
 | `README.md` | Scene/Rover Inputs 152–168행 | **제품 문서**: 네 개 참조 Scene, Rover bundle, companion URDF와 중첩 PhysicsScene 정책을 설명했다. |
 | `README.md` | Architecture 367–387행, License/Assets 391–403행, Roadmap 419–425행, Tests 448–474행 | **제품 문서**: authoring/변환이 런타임 밖임을 명시하고 자산 권리 주장을 유보했으며 공급 Scene 기준 테스트 명령과 `AGENTS.md` 링크만 남겼다. 기존 `docs/colored_pointcloud.md`, `CLAUDE*`, `work_log` 링크는 삭제했다(파일 삭제가 아니라 README 링크 삭제). |
 | `configs/default.yaml` | 파일 주석 4–12행 | **설정 주석**: terrain/scene 블록 부재 사유와 공급 Scene USDZ `--usda` 예를 갱신했다. |
-| `configs/rover_m2020.yaml` | `spawn` 22–33행 및 S01 연속 | **설정 주석**: trajectory/절대 Utils 경로와 변환 플래그를 제거했다. 실제 `usd_path`는 S05 전까지 유지한다. |
+| `configs/rover_m2020.yaml` | 현재 `spawn` 14–18행 및 S01 연속 (S02 당시 legacy `usd_path`는 S03에서 제거) | **설정 주석**: trajectory/절대 Utils 경로와 변환 플래그를 제거했다. S02 시점의 `usd_path` 계획은 S03 schema에서 제거되었고 S05에서 CLI ownership으로 전환한다. |
 | `marslab/config/loader.py` | 현재 compatibility exports 1–3행 (`propagate_seeds_in_dict`는 S03에서 제거) | **코드 주석/구조**: “USDA-external passthrough”를 “supplied-scene passthrough”로 바꾼 뒤 S03에서 raw seed helper를 제거하고 typed loader export만 남겼다. |
 | `marslab/config/schema/robot.py` | 현재 compatibility aliases/exports 1–34행 (`DepthSensorConfig`는 rover_sensors로 이동) | **코드 주석/구조**: Isaac 설치 내부 파일 경로 인용을 공개 single-view depth schema/API 설명으로 대체한 후 S03에서 Rover 모델 별칭만 제공한다. |
-| `marslab/config/schema/root.py` | 현재 `MarsLabConfig` alias 1–5행, S01/S02 설명은 historical | **코드 주석/구조**: 공급 Scene USDZ 표현을 반영한 historical root 설명은 S03에서 ScenarioConfig compatibility alias로 축소되었다. |
 | `marslab/config/schema/ros2_bridge.py` | 현재 compatibility exports 1–3행 (`Ros2BridgeConfig`는 rover_ros2로 이동) | **코드 주석/구조**: ROS2 camera helper의 개인 Isaac 설치 경로·라인 인용을 공개 API 설명으로 바꾼 뒤 S03에서 Rover ROS2 모델 re-export만 남겼다. |
 | `marslab/isaac_python.sh` | 배경 설명 22–29행, Usage 42–47행 | **런처 주석**: `<Isaac-Sim-install>` 인용을 `$ISAAC_SIM_PATH`로 바꾸고 실제 Scene USDZ·scenario·rover 실행 예를 적었다. 셸 동작은 변경하지 않았다. |
 | `marslab/main.py` | 모듈 설명 1–30행, CLI parser 407–447행, S01 연속 구간 | **코드+주석**: USDA terrain 문구를 Scene USDZ로 정리하고 S01 포맷 변경을 포함했다. |
-| `marslab/ros2_bridge/sensor_graph.py` | `build_sensor_graph` 설명 138–145행, `_DEPTH_SENSOR_SCHEMA_ATTRS` 224–233행 | **코드 주석**: depth sensor의 개인 schema 경로 인용을 공개 API/속성명 설명으로 바꿨다. graph wiring은 유지했다. |
+| `marslab/ros2_bridge/sensor_graph.py` | `build_sensor_graph` 설명 138–145행, `_DEPTH_SENSOR_SCHEMA_ATTRS` 220–228행 | **코드 주석**: depth sensor의 개인 schema 경로 인용을 공개 API/속성명 설명으로 바꿨다. graph wiring은 유지했다. |
 | `marslab/ros2_bridge/sensor_graph_builder.py` | 모듈 설명 1–16행, `_build_create_nodes` 47–79행, `_build_set_values` 228–369행 | **코드 주석**: 개인 Isaac 설치 경로·OGN 내부 파일 인용과 `resetSimulationTimeOnStop` 근거 주석을 제거하고 공개 ROS2 helper 설명을 남겼다. 노드/값 연결은 유지했다. |
 | `marslab/ros2_bridge/tf_nameoverrides.py` | 모듈 설명 1–29행, `apply_nameoverride` 51–77행, S01 연속 | **코드 주석**: 공개 API 근거로 정리했다. |
 | `marslab/runtime/atmosphere_boot.py` | 모듈 설명 1–19행, `boot_atmosphere` 103–118행, 계산부 177–179행 | **코드 주석+포맷**: 공급 Scene USDZ 표현으로 갱신하고 한 줄 `os.path.join`을 포맷했다. 계산 결과는 동일하다. |
@@ -135,8 +134,8 @@ Isaac Sim/ROS2가 필요한 실제 GUI·physics·topic 실행은 S01/S02 CPU 검
 S01/S02 행동 영향은 (1) runtime이 MarsLab-Utils/외부 `gt_publisher`/TUM
 trajectory에 의존하지 않음, (2) S01에서 제거된 `trajectory_start`가 Kit 전에
 실패함, (3) Scene은 공급 USDZ를 사용하고 terrain authoring은 수행하지 않음,
-(4) S02 당시 Rover YAML의 `usd_path`는 S05 전환까지 유지하도록 의도되었다는
-것이다. S03에서 schema 경계가 이 필드를 제거했지만, S05 전환 전 실제 asset은
+(4) S02 당시 Rover YAML의 `usd_path`는 S05 CLI ownership 전환을 목표로 한
+historical 계획이었고 S03 schema 경계에서 제거되었다. S05 전환 전 실제 asset은
 아래 `_PRE_S05_ROVER_USD_PATH` bounded adapter로만 보존한다. ROS TF, sensor
 graph, QoS 및 atmosphere 계산의 실행 로직은 S02에서 바꾸지 않고 근거 주석만
 공개 API 기준으로 정리했다.
