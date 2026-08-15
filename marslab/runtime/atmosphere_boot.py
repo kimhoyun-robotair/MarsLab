@@ -131,36 +131,25 @@ def boot_atmosphere(
         ValueError: If a required config section is absent.
         FileNotFoundError: Propagated from the YAML loader.
     """
-    abs_config_path = os.path.abspath(config_path)
-    cfg = load_scenario_config(abs_config_path)
-    _LOG.info("Loaded config: %s", abs_config_path)
-    mars_values = json.loads(cfg.mars_env.model_dump_json())
-    if sun_azimuth_deg is not None:
-        mars_values["sun_azimuth_deg"] = sun_azimuth_deg
-    if sun_elevation_deg is not None:
-        mars_values["sun_elevation_deg"] = sun_elevation_deg
-    mars_env = MarsEnvConfig.model_validate_json(json.dumps(mars_values, allow_nan=True))
-    resolved_config = ScenarioConfig(
-        declaring_path=cfg.declaring_path,
-        mars_env=mars_env,
-        rendering=cfg.rendering,
-    )
-    return prepare_atmosphere(resolved_config, repo_root=repo_root)
-
-
-def prepare_atmosphere(
-    config: ScenarioConfig,
-    *,
-    repo_root: str = REPO_ROOT,
-) -> AtmosphereBootResult:
-    """Pre-compute atmosphere state from an already resolved scenario."""
+    # Late imports keep module-level cost small for unit tests that only
+    # exercise config paths.
     from marslab.environment.diffuse_fraction import compute_diffuse_fraction_1d_approx
     from marslab.environment.light_intensity import compute_direct_intensity
     from marslab.environment.sky_dome import compute_sky_dome_params
     from marslab.environment.sun_position import compute_sun_position
 
-    mars_env_model = config.mars_env
-    rendering_cfg = config.rendering
+    abs_config_path = os.path.abspath(config_path)
+    cfg = load_scenario_config(abs_config_path)
+    _LOG.info("Loaded config: %s", abs_config_path)
+
+    mars_env_model = cfg.mars_env
+    rendering_cfg = cfg.rendering
+    mars_values = json.loads(mars_env_model.model_dump_json())
+    if sun_azimuth_deg is not None:
+        mars_values["sun_azimuth_deg"] = sun_azimuth_deg
+    if sun_elevation_deg is not None:
+        mars_values["sun_elevation_deg"] = sun_elevation_deg
+    mars_env_model = MarsEnvConfig.model_validate_json(json.dumps(mars_values, allow_nan=True))
 
     sun_pos = compute_sun_position(
         azimuth_deg=mars_env_model.sun_azimuth_deg,
@@ -197,8 +186,8 @@ def prepare_atmosphere(
     )
 
     return AtmosphereBootResult(
-        config_path=str(config.declaring_path),
-        config=config,
+        config_path=abs_config_path,
+        config=cfg,
         mars_cfg=mars_env_model,
         rendering_cfg=rendering_cfg,
         atmosphere_init=atmosphere_init,
@@ -211,5 +200,4 @@ __all__ = [
     "AtmosphereInit",
     "AtmosphereBootResult",
     "boot_atmosphere",
-    "prepare_atmosphere",
 ]

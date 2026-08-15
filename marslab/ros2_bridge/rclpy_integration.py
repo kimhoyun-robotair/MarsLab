@@ -30,8 +30,8 @@ from marslab.ros2_bridge.wheel_odometry_publisher import create_wheel_odometry_p
 
 
 def init_rclpy_side(
-    ros2_cfg: Ros2BridgeConfig,
-    sensor_frames: Iterable[Tuple[str, list[float], list[float]]],
+    ros2_cfg: Dict[str, Any],
+    sensor_frames: Iterable[Tuple[str, Any]],
     init_pos_world: np.ndarray,
     init_quat_world: np.ndarray,
     node_name: str = "marslab_stage3_runtime",
@@ -48,7 +48,7 @@ def init_rclpy_side(
             pairs for static sensor TFs.
         init_pos_world: Rover initial world position, shape ``(3,)``.
         init_quat_world: Rover initial world orientation (scalar-first).
-        node_name: rclpy node name; namespaced by ``ros2_cfg.namespace``.
+        node_name: rclpy node name; namespaced by ``ros2_cfg["namespace"]``.
         urdf_path: Absolute filesystem path to the rover URDF, used by
             :func:`publish_robot_description` to populate
             ``/<ns>/robot_description``. Lives on the rover top-level
@@ -68,8 +68,10 @@ def init_rclpy_side(
     if not rclpy.ok():
         rclpy.init(args=None)
 
-    ns = ros2_cfg.namespace
-    topics = ros2_cfg.topics
+    validated_bridge = Ros2BridgeConfig.model_validate(ros2_cfg)
+
+    ns = str(ros2_cfg["namespace"])
+    topics = dict(ros2_cfg["topics"])
     qos_bundle = _resolve_qos_bundle(ros2_cfg)
 
     node = rclpy.create_node(
@@ -84,13 +86,13 @@ def init_rclpy_side(
     )
 
     twist_state: Dict[str, float] = {"v": 0.0, "w": 0.0}
-    cmd_vel_topic = _ns_topic(ns, topics.cmd_vel)
+    cmd_vel_topic = _ns_topic(ns, topics["cmd_vel"])
     # ``cmd_vel_queue_size`` is a schema field
     # (``Ros2BridgeConfig.cmd_vel_queue_size``) rather than a Python
     # default inside ``create_cmd_vel_subscriber``.  Falls back to the
     # historical constant (10) when the YAML key is absent so existing
     # scenarios keep loading unchanged.
-    cmd_vel_queue_size = int(ros2_cfg.cmd_vel_queue_size)
+    cmd_vel_queue_size = int(ros2_cfg.get("cmd_vel_queue_size", 10))
     # Pass the resolved QoSProfile so the subscription reliability
     # matches the upstream controller's expectations.
     cmd_vel_sub = create_cmd_vel_subscriber(
@@ -107,7 +109,7 @@ def init_rclpy_side(
     # link when ``rename_root_to_base_link=True``.  Override via the
     # rover YAML when the downstream consumer expects a different
     # parent (e.g. ``Body_Chassis`` when the URDF rewrite is disabled).
-    sensor_parent_frame_id = ros2_cfg.sensor_parent_frame_id
+    sensor_parent_frame_id = str(validated_bridge.sensor_parent_frame_id)
     static_broadcaster = publish_static_sensor_tfs(
         node,
         sensor_frames,
@@ -122,8 +124,14 @@ def init_rclpy_side(
     # YAML topic map; a missing key raises ``KeyError`` immediately so
     # a typo cannot fall through to a Python fallback.
     robot_description_ctx = None
-    if ros2_cfg.publish_robot_description and urdf_path:
-        rd_topic = _ns_topic(ns, topics.robot_description)
+    if ros2_cfg.get("publish_robot_description", True) and urdf_path:
+        if "robot_description" not in topics:
+            raise KeyError(
+                "ros2.topics.robot_description must be declared in the rover YAML "
+                "(e.g. 'robot_description: \"robot_description\"'); the publisher "
+                "refuses to fall back to a Python default."
+            )
+        rd_topic = _ns_topic(ns, topics["robot_description"])
         # ``rename_root_to_base_link`` is a schema field
         # (``Ros2BridgeConfig.rename_root_to_base_link``).  Default
         # ``True`` rewrites the URDF root link to ``base_link`` so the
@@ -131,7 +139,7 @@ def init_rclpy_side(
         # publishes a frame the URDF agrees with.  Set ``False`` when
         # the robot_state_publisher workflow reads frame names directly
         # from the URDF (no rewrite required).
-        rename_root = ros2_cfg.rename_root_to_base_link
+        rename_root = bool(validated_bridge.rename_root_to_base_link)
         robot_description_ctx = publish_robot_description(
             node,
             urdf_path,
@@ -142,8 +150,8 @@ def init_rclpy_side(
     # GT trajectory publisher: PhysX articulation pose verbatim on
     # ``/<ns>/GT_Trajectory`` (was ``/<ns>/odom`` pre-refactor).  This
     # topic is the GT for ATE comparison and never carries TF authority.
-    gt_topic = _ns_topic(ns, topics.gt_trajectory)
-    odom_pub_cfg = ros2_cfg.odom_publisher
+    gt_topic = _ns_topic(ns, topics["gt_trajectory"])
+    odom_pub_cfg = ros2_cfg.get("odom_publisher", {}) if isinstance(ros2_cfg, dict) else {}
     # GT publisher emits ABSOLUTE world pose (REP-105 `map` frame) so it
     # matches the world-frame reference trajectory used by PathFollower
     # and serves as the ATE reference directly without alignment offset.
@@ -156,9 +164,9 @@ def init_rclpy_side(
         topic=gt_topic,
         init_pos_world=_gt_init_pos_abs,
         init_quat_world=_gt_init_quat_abs,
-        queue_size=int(odom_pub_cfg.queue_size),
-        frame_id=odom_pub_cfg.gt_frame_id,
-        child_frame_id=odom_pub_cfg.gt_child_frame_id,
+        queue_size=int(odom_pub_cfg.get("queue_size", 10)),
+        frame_id=str(odom_pub_cfg.get("gt_frame_id", "map")),
+        child_frame_id=str(odom_pub_cfg.get("gt_child_frame_id", "base_link_gt")),
         odom_qos=qos_bundle["odom"],
         tf_qos=qos_bundle["tf"],
         publish_tf=False,
@@ -169,8 +177,8 @@ def init_rclpy_side(
     # legacy ``--no-rover`` path keeps working.
     wheel_odom_ctx = None
     if wheel_odom_params is not None:
-        wheel_odom_topic = _ns_topic(ns, topics.odom)
-        publish_wheel_odom_tf = ros2_cfg.publish_odom_tf
+        wheel_odom_topic = _ns_topic(ns, topics["odom"])
+        publish_wheel_odom_tf = bool(validated_bridge.publish_odom_tf)
         wheel_odom_ctx = create_wheel_odometry_publisher(
             node=node,
             topic=wheel_odom_topic,
@@ -186,11 +194,11 @@ def init_rclpy_side(
                 if wheel_odom_params.get("seed") is not None
                 else None
             ),
-            queue_size=int(odom_pub_cfg.queue_size),
+            queue_size=int(odom_pub_cfg.get("queue_size", 10)),
             odom_qos=qos_bundle["odom"],
             tf_qos=qos_bundle["tf"],
-            frame_id=odom_pub_cfg.frame_id,
-            child_frame_id=odom_pub_cfg.child_frame_id,
+            frame_id=str(odom_pub_cfg.get("frame_id", "odom")),
+            child_frame_id=str(odom_pub_cfg.get("child_frame_id", "base_link")),
             publish_tf=publish_wheel_odom_tf,
             pose_diag=wheel_odom_params.get("pose_diag"),
             twist_diag=wheel_odom_params.get("twist_diag"),
@@ -208,7 +216,7 @@ def init_rclpy_side(
             # OmniGraph PubIMU node, which also publishes to topics["imu"].
             # Downstream SLAM stacks that need repeatable noisy IMU should
             # subscribe to /<ns>/imu_noisy; /<ns>/imu remains the raw OmniGraph stream.
-            imu_topic = _ns_topic(ns, topics.imu_noisy)
+            imu_topic = _ns_topic(ns, topics.get("imu_noisy", topics["imu"] + "_noisy"))
             imu_noise_ctx = create_imu_noise_publisher(
                 node=node,
                 topic=imu_topic,
@@ -232,7 +240,7 @@ def init_rclpy_side(
     )
 
 
-def _resolve_qos_bundle(ros2_cfg: Ros2BridgeConfig) -> Dict[str, Any]:
+def _resolve_qos_bundle(ros2_cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Build the four rclpy ``QoSProfile`` instances from YAML.
 
     Returns a dict with keys ``cmd_vel`` / ``odom`` / ``sensor`` /
@@ -250,11 +258,13 @@ def _resolve_qos_bundle(ros2_cfg: Ros2BridgeConfig) -> Dict[str, Any]:
         to_rclpy_qos,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
+    defaults = Ros2BridgeConfig.model_validate(ros2_cfg)
+
     return {
-        "cmd_vel": to_rclpy_qos(ros2_cfg.cmd_vel_qos),
-        "odom": to_rclpy_qos(ros2_cfg.odom_qos),
-        "sensor": to_rclpy_qos(ros2_cfg.sensor_qos),
-        "tf": to_rclpy_qos(ros2_cfg.tf_qos),
+        "cmd_vel": to_rclpy_qos(defaults.cmd_vel_qos),
+        "odom": to_rclpy_qos(defaults.odom_qos),
+        "sensor": to_rclpy_qos(defaults.sensor_qos),
+        "tf": to_rclpy_qos(defaults.tf_qos),
     }
 
 

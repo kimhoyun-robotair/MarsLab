@@ -8,8 +8,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from marslab.config import load_rover_config
-from marslab.runtime.run_plan import RunMode, RunPlanRequest, build_run_plan
+from marslab.main import _PRE_S05_ROVER_USD_PATH, _abs_repo_path, _load_rover_cfg
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROVER_YAML = REPO_ROOT / "configs" / "rover_m2020.yaml"
@@ -30,28 +29,22 @@ def test_legacy_cli_accepts_current_s01_interface() -> None:
     # When: an operator asks argparse for the current interface.
     result = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
 
-    # Then: parsing succeeds and every S05 input flag is advertised.
+    # Then: parsing succeeds and the three retained input flags are advertised.
     assert result.returncode == 0, result.stderr
-    assert all(
-        flag in result.stdout for flag in ("--usda", "--rover-usd", "--scenario", "--rover-yaml")
-    )
+    assert all(flag in result.stdout for flag in ("--usda", "--scenario", "--rover-yaml"))
 
 
-def test_rover_usd_is_resolved_from_the_explicit_run_plan_input() -> None:
-    # Given: canonical runtime inputs with Rover USD declared separately from YAML.
-    request = RunPlanRequest(
-        scene_path="assets/scene/jezero_plain/jezero_plain.usdz",
-        rover_usd_path="assets/robots/rover/m2020.usd",
-        scenario_path="configs/default.yaml",
-        rover_yaml_path="configs/rover_m2020.yaml",
-    )
+def test_rover_yaml_still_resolves_rover_usd() -> None:
+    # Given: the canonical Rover YAML.
+    config = _load_rover_cfg(str(ROVER_YAML))
 
-    # When: the shared builder resolves the immutable validation plan.
-    plan = build_run_plan(request, RunMode.VALIDATE, cwd=REPO_ROOT)
+    # When: its Rover USD input is resolved through the current resolver.
+    resolved = Path(_abs_repo_path(_PRE_S05_ROVER_USD_PATH))
 
-    # Then: the supplied Rover USD is canonical and the Rover YAML remains typed config only.
-    assert plan.rover.spawn.mode == "dem_center"
-    assert plan.resolved_inputs.rover_usd == REPO_ROOT / "assets/robots/rover/m2020.usd"
+    # Then: it points at the checked-in Rover USD until S05 changes ownership.
+    assert config.spawn.mode == "dem_center"
+    assert resolved == REPO_ROOT / "assets" / "robots" / "rover" / "m2020.usd"
+    assert resolved.is_file()
 
 
 def test_removed_trajectory_start_fails_before_kit(tmp_path: Path) -> None:
@@ -63,7 +56,7 @@ def test_removed_trajectory_start_fails_before_kit(tmp_path: Path) -> None:
 
     # When/Then: the offline Rover-config boundary rejects it by name.
     with pytest.raises(ValidationError, match="trajectory_start"):
-        load_rover_config(rover_yaml)
+        _load_rover_cfg(str(rover_yaml))
 
 
 def test_production_runtime_has_no_forbidden_dependencies() -> None:

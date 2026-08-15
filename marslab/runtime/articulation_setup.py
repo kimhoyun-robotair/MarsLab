@@ -25,7 +25,6 @@ from typing import Any, Dict, List, Sequence, Tuple
 
 import numpy as np
 
-from marslab.config.schema.rover import ControlConfig
 from marslab.quaternion import rpy_to_quat
 
 logger = logging.getLogger(__name__)
@@ -74,7 +73,7 @@ def _resolve_joint_position_targets(
 def apply_initial_joint_positions(
     articulation: Any,
     dof_names: Sequence[str],
-    control_cfg: ControlConfig,
+    control_cfg: Dict[str, Any],
 ) -> None:
     """Apply ``rover.control.initial_joint_positions`` to the articulation.
 
@@ -97,7 +96,7 @@ def apply_initial_joint_positions(
         simulation; the failure is logged at ``WARNING`` level because
         the next physics step retries.
     """
-    initial_positions: Dict[str, float] = {}
+    initial_positions = control_cfg.get("initial_joint_positions") or {}
     indices, targets = _resolve_joint_position_targets(initial_positions, dof_names)
     if not indices:
         return

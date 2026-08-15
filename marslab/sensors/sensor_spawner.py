@@ -34,19 +34,9 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Optional, assert_never
+from typing import Any, Dict, Iterable, Optional
 
 import numpy as np
-
-from marslab.config.schema.rover_ros2 import Ros2BridgeConfig
-from marslab.config.schema.rover_sensors import (
-    DisabledSensorConfig,
-    EnabledCameraConfig,
-    EnabledImuConfig,
-    EnabledLidar2DConfig,
-    EnabledLidar3DConfig,
-    SensorsConfig,
-)
 
 _MARS_GRAVITY_MS2 = 3.72
 _MARS_GRAVITY_TOL_STRICT = 0.05  # attach-time hard assertion
@@ -149,7 +139,7 @@ def _assert_mars_gravity(
         )
 
 
-def _resolve_lidar_profile(lidar_cfg: EnabledLidar2DConfig | EnabledLidar3DConfig) -> str:
+def _resolve_lidar_profile(lidar_cfg: Dict[str, Any]) -> str:
     """Pick the ``LidarRtx.config_file_name`` value from a LiDAR YAML block.
 
     Preference order:
@@ -164,10 +154,10 @@ def _resolve_lidar_profile(lidar_cfg: EnabledLidar2DConfig | EnabledLidar3DConfi
             validators forbid this earlier in the pipeline, so this is a
             safety net for direct dict-driven callers.
     """
-    if lidar_cfg.profile_json_path is not None:
-        return str(lidar_cfg.profile_json_path)
-    if lidar_cfg.profile_name is not None:
-        return lidar_cfg.profile_name
+    if lidar_cfg.get("profile_json_path"):
+        return str(lidar_cfg["profile_json_path"])
+    if lidar_cfg.get("profile_name"):
+        return str(lidar_cfg["profile_name"])
     raise KeyError(
         "LiDAR config requires one of ``profile_name`` (preferred), "
         "or ``profile_json_path`` (escape hatch)."
@@ -211,7 +201,7 @@ def _resolve_omnilidar_prim_path(stage: Any, prim_path: str) -> str:
 def _apply_lidar_runtime_overrides(
     stage: Any,
     prim_path: str,
-    lidar_cfg: EnabledLidar2DConfig | EnabledLidar3DConfig,
+    lidar_cfg: Dict[str, Any],
 ) -> None:
     """Override ``OmniSensorGenericLidarCoreAPI`` attributes from the YAML.
 
@@ -269,11 +259,11 @@ def _apply_lidar_runtime_overrides(
     if not hasattr(prim, "GetAttribute"):
         return
 
-    prim.GetAttribute("omni:sensor:Core:nearRangeM").Set(float(lidar_cfg.range_min))
-    prim.GetAttribute("omni:sensor:Core:farRangeM").Set(float(lidar_cfg.range_max))
-    prim.GetAttribute("omni:sensor:Core:scanRateBaseHz").Set(int(lidar_cfg.rotation_rate_hz))
+    prim.GetAttribute("omni:sensor:Core:nearRangeM").Set(float(lidar_cfg["range_min"]))
+    prim.GetAttribute("omni:sensor:Core:farRangeM").Set(float(lidar_cfg["range_max"]))
+    prim.GetAttribute("omni:sensor:Core:scanRateBaseHz").Set(int(lidar_cfg["rotation_rate_hz"]))
 
-    h_fov = float(lidar_cfg.horizontal_fov_deg)
+    h_fov = float(lidar_cfg["horizontal_fov_deg"])
     if h_fov >= 360.0:
         prim.GetAttribute("omni:sensor:Core:validStartAzimuthDeg").Set(0.0)
         prim.GetAttribute("omni:sensor:Core:validEndAzimuthDeg").Set(360.0)
@@ -289,14 +279,7 @@ def _apply_lidar_runtime_overrides(
     # scale.  When the YAML key is absent (lidar_2d's planar scan)
     # this branch is a no-op; ``Lidar2DConfig`` does not declare
     # ``vertical_fov_deg`` so the dict lookup returns None.
-    v_fov_raw: float | None
-    match lidar_cfg:
-        case EnabledLidar3DConfig():
-            v_fov_raw = lidar_cfg.vertical_fov_deg
-        case EnabledLidar2DConfig():
-            v_fov_raw = None
-        case unreachable_lidar_override:
-            assert_never(unreachable_lidar_override)
+    v_fov_raw = lidar_cfg.get("vertical_fov_deg")
     if v_fov_raw is None:
         return
     elev_attr = prim.GetAttribute("omni:sensor:Core:emitterState:s001:elevationDeg")
@@ -354,7 +337,7 @@ class SensorHandles:
             for the 3D Velodyne-style rotary LiDAR.
         lidar_2d: Live :class:`isaacsim.sensors.rtx.LidarRtx` handle
             for the 2D LaserScan LiDAR, or ``None`` if
-            ``sensors_cfg.lidar_2d`` is disabled.
+            ``sensors_cfg["lidar_2d"]`` is absent.
         imu: Live :class:`isaacsim.sensors.physics.IMUSensor` handle.
         camera_prim_path: Full USD prim path of the camera -- either
             ``{rigid_body_path}/camera`` or, if the camera has
@@ -443,8 +426,8 @@ class SensorHandles:
 
 def spawn_sensors(
     stage: Any,
-    sensors_cfg: SensorsConfig,
-    ros2_cfg: Ros2BridgeConfig,
+    sensors_cfg: Dict[str, Any],
+    ros2_cfg: Dict[str, Any],
     rigid_body_path: str,
 ) -> SensorHandles:
     """Spawn the rover's camera, 3D LiDAR, optional 2D LiDAR, and IMU.
@@ -471,7 +454,7 @@ def spawn_sensors(
       its own bundled USD asset.
     * 2D LiDAR is only spawned if ``sensors_cfg.get("lidar_2d")`` is
       truthy, mirroring the optional-block guard.
-    * IMU frequency is sourced from ``ros2_cfg.rates.imu`` so the
+    * IMU frequency is sourced from ``ros2_cfg["rates"]["imu"]`` so the
       sensor's internal integration aligns with the ROS2 publish rate.
 
     Args:
@@ -502,27 +485,8 @@ def spawn_sensors(
     from isaacsim.sensors.rtx import LidarRtx
     from pxr import Gf, UsdGeom
 
-    match sensors_cfg.camera:
-        case EnabledCameraConfig() as camera_cfg:
-            pass
-        case DisabledSensorConfig():
-            raise RuntimeError("camera must be enabled for the live sensor stack")
-        case unreachable_camera:
-            assert_never(unreachable_camera)
-    match sensors_cfg.lidar_3d:
-        case EnabledLidar3DConfig() as lidar_cfg:
-            pass
-        case DisabledSensorConfig():
-            raise RuntimeError("3-D lidar must be enabled for the live sensor stack")
-        case unreachable_lidar_3d:
-            assert_never(unreachable_lidar_3d)
-    match sensors_cfg.imu:
-        case EnabledImuConfig() as imu_cfg:
-            pass
-        case DisabledSensorConfig():
-            raise RuntimeError("IMU must be enabled for the live sensor stack")
-        case unreachable_imu:
-            assert_never(unreachable_imu)
+    camera_cfg, imu_cfg = sensors_cfg["camera"], sensors_cfg["imu"]
+    lidar_cfg = sensors_cfg["lidar_3d"]
 
     # Camera orientation strategy: ANY xformOp modification on the Camera
     # prim itself corrupts the RTX depth pipeline (vertical striping).
@@ -530,7 +494,7 @@ def spawn_sensors(
     # Fix: place translation + orientation on a PARENT Xform prim. The Camera
     # prim has no xformOps of its own, but inherits the correct world-space
     # transform from the parent chain.
-    cam_orient_deg = camera_cfg.local_orientation_rpy_deg
+    cam_orient_deg = camera_cfg.get("local_orientation_rpy_deg", [0.0, 0.0, 0.0])
     has_cam_orient = any(abs(v) > 0.01 for v in cam_orient_deg)
 
     if has_cam_orient:
@@ -539,7 +503,7 @@ def spawn_sensors(
         camera_xform = UsdGeom.Xform.Define(stage, camera_xform_path)
         camera_xform.ClearXformOpOrder()
         cx_translate = camera_xform.AddTranslateOp()
-        cx_translate.Set(Gf.Vec3d(*[float(x) for x in camera_cfg.local_translation]))
+        cx_translate.Set(Gf.Vec3d(*[float(x) for x in camera_cfg["local_translation"]]))
         cx_orient = camera_xform.AddOrientOp()
         cx_orient.Set(Gf.Quatf(float(cam_qw), float(cam_qx), float(cam_qy), float(cam_qz)))
         camera_prim_path = f"{camera_xform_path}/{_SENSOR_PRIM_NAMES['camera']}"
@@ -549,16 +513,18 @@ def spawn_sensors(
 
     camera = Camera(
         prim_path=camera_prim_path,
-        resolution=camera_cfg.resolution,
+        resolution=tuple(camera_cfg["resolution"]),
         # Translation/orientation on parent Xform if oriented, else on Camera.
         translation=(
-            None if has_cam_orient else np.asarray(camera_cfg.local_translation, dtype=np.float32)
+            None
+            if has_cam_orient
+            else np.asarray(camera_cfg["local_translation"], dtype=np.float32)
         ),
     )
     camera.initialize()
-    camera.set_focal_length(float(camera_cfg.focal_length) / 10.0)
+    camera.set_focal_length(float(camera_cfg["focal_length"]) / 10.0)
     camera.set_clipping_range(
-        float(camera_cfg.clipping_range[0]), float(camera_cfg.clipping_range[1])
+        float(camera_cfg["clipping_range"][0]), float(camera_cfg["clipping_range"][1])
     )
 
     lidar_prim_path = f"{rigid_body_path}/{_SENSOR_PRIM_NAMES['lidar_3d']}"
@@ -580,15 +546,15 @@ def spawn_sensors(
     lidar_3d_kwargs: Dict[str, Any] = {
         "prim_path": lidar_prim_path,
         "config_file_name": lidar_3d_profile,
-        "translation": np.asarray(lidar_cfg.local_translation, dtype=np.float32),
+        "translation": np.asarray(lidar_cfg["local_translation"], dtype=np.float32),
     }
-    if lidar_cfg.usd_profile is not None:
+    if lidar_cfg.get("usd_profile"):
         # ``LidarRtx`` exposes ``name`` for the bundled USD asset selector
         # in Isaac Sim 5.x; pass it through only when the YAML overrides it
         # so unrelated runtimes do not regress on the default.
-        lidar_3d_kwargs["name"] = lidar_cfg.usd_profile
-    if lidar_cfg.variant is not None:
-        lidar_3d_kwargs["variant"] = lidar_cfg.variant
+        lidar_3d_kwargs["name"] = str(lidar_cfg["usd_profile"])
+    if lidar_cfg.get("variant"):
+        lidar_3d_kwargs["variant"] = str(lidar_cfg["variant"])
     lidar_3d = LidarRtx(**lidar_3d_kwargs)
     lidar_prim_path = _resolve_omnilidar_prim_path(stage, lidar_prim_path)
     _apply_lidar_runtime_overrides(stage, lidar_prim_path, lidar_cfg)
@@ -597,16 +563,9 @@ def spawn_sensors(
     # 2D LiDAR (LaserScan) -- optional, mirrors the 3D LiDAR pipeline.
     # ``config_file_name`` receives the Isaac-Sim bundled profile *name*
     # only (e.g. "Example_Rotary_2D"), never a filesystem path.
-    lidar_2d_cfg: EnabledLidar2DConfig | None = None
+    lidar_2d_cfg = sensors_cfg.get("lidar_2d")
     lidar_2d: Optional[Any] = None
     lidar_2d_prim_path: Optional[str] = None
-    match sensors_cfg.lidar_2d:
-        case DisabledSensorConfig():
-            lidar_2d_cfg = None
-        case EnabledLidar2DConfig() as enabled_lidar_2d:
-            lidar_2d_cfg = enabled_lidar_2d
-        case unreachable_lidar_2d:
-            assert_never(unreachable_lidar_2d)
     if lidar_2d_cfg is not None:
         lidar_2d_prim_path = f"{rigid_body_path}/{_SENSOR_PRIM_NAMES['lidar_2d']}"
         # Same OmniSensorGenericLidarCoreAPI override pattern as the 3D
@@ -617,17 +576,16 @@ def spawn_sensors(
         lidar_2d_kwargs: Dict[str, Any] = {
             "prim_path": lidar_2d_prim_path,
             "config_file_name": lidar_2d_profile,
-            "translation": np.asarray(lidar_2d_cfg.local_translation, dtype=np.float32),
+            "translation": np.asarray(lidar_2d_cfg["local_translation"], dtype=np.float32),
         }
-        if lidar_2d_cfg.usd_profile is not None:
-            lidar_2d_kwargs["name"] = lidar_2d_cfg.usd_profile
-        if lidar_2d_cfg.variant is not None:
-            lidar_2d_kwargs["variant"] = lidar_2d_cfg.variant
-        spawned_lidar_2d = LidarRtx(**lidar_2d_kwargs)
+        if lidar_2d_cfg.get("usd_profile"):
+            lidar_2d_kwargs["name"] = str(lidar_2d_cfg["usd_profile"])
+        if lidar_2d_cfg.get("variant"):
+            lidar_2d_kwargs["variant"] = str(lidar_2d_cfg["variant"])
+        lidar_2d = LidarRtx(**lidar_2d_kwargs)
         lidar_2d_prim_path = _resolve_omnilidar_prim_path(stage, lidar_2d_prim_path)
         _apply_lidar_runtime_overrides(stage, lidar_2d_prim_path, lidar_2d_cfg)
-        spawned_lidar_2d.initialize()
-        lidar_2d = spawned_lidar_2d
+        lidar_2d.initialize()
         _LOG.info(
             "2D LiDAR attached at %s profile=%r",
             lidar_2d_prim_path,
@@ -642,9 +600,9 @@ def spawn_sensors(
     # ------------------------------------------------------------------
     _assert_mars_gravity(stage)
 
-    imu_orient_deg = imu_cfg.local_orientation_rpy_deg
+    imu_orient_deg = imu_cfg.get("local_orientation_rpy_deg", [0.0, 0.0, 0.0])
     has_imu_orient = any(abs(v) > 0.01 for v in imu_orient_deg)
-    imu_translation = np.asarray(imu_cfg.local_translation, dtype=np.float32)
+    imu_translation = np.asarray(imu_cfg["local_translation"], dtype=np.float32)
 
     if has_imu_orient:
         imu_qw, imu_qx, imu_qy, imu_qz = _rpy_deg_to_quat_wxyz(imu_orient_deg)
@@ -652,7 +610,7 @@ def spawn_sensors(
         imu_xform = UsdGeom.Xform.Define(stage, imu_xform_path)
         imu_xform.ClearXformOpOrder()
         ix_translate = imu_xform.AddTranslateOp()
-        ix_translate.Set(Gf.Vec3d(*[float(x) for x in imu_cfg.local_translation]))
+        ix_translate.Set(Gf.Vec3d(*[float(x) for x in imu_cfg["local_translation"]]))
         ix_orient = imu_xform.AddOrientOp()
         ix_orient.Set(Gf.Quatf(float(imu_qw), float(imu_qx), float(imu_qy), float(imu_qz)))
         imu_prim_path = f"{imu_xform_path}/{_SENSOR_PRIM_NAMES['imu']}"
@@ -665,7 +623,7 @@ def spawn_sensors(
     imu = IMUSensor(
         prim_path=imu_prim_path,
         translation=imu_translation_arg,
-        frequency=int(ros2_cfg.rates.imu),
+        frequency=int(ros2_cfg["rates"]["imu"]),
     )
     imu.initialize()
 

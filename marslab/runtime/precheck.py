@@ -25,8 +25,6 @@ def check_rover_usd(usd_abs: str) -> None:
     """
     if not os.path.isfile(usd_abs):
         raise FileNotFoundError(f"Rover USD missing: {usd_abs}")
-    if not os.access(usd_abs, os.R_OK):
-        raise PermissionError(f"Rover USD is not readable: {usd_abs}")
 
 
 def check_rover_block(rover_cfg: Optional[Dict[str, Any]]) -> None:
