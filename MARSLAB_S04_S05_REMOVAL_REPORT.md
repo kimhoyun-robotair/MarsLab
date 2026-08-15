@@ -105,6 +105,10 @@ S04와 S05를 합치면 제거 전 기준으로 28개 tracked 경로에 `+2,748/
 - `package-lock.json`
 - `assets/m2020-urdf-models` submodule의 기존 gitlink
 
+`.omo/evidence/marslab-reference-runtime-refactor/` 아래의 S04·S05 검증 기록은 제품
+구현이 아니라 변경 이력과 승인 감사 자료이므로 삭제하지 않고 `invalidated` 상태로
+보존했다. 이 기록은 앞으로 S04·S05 구현이 존재한다는 근거로 재사용할 수 없다.
+
 submodule 작업 디렉터리가 초기화되어 있는지는 로컬 checkout 상태이며 S04·S05의
 tracked diff가 아니다. 따라서 데이터 삭제를 피하기 위해 deinitialize하지 않았다.
 
@@ -135,4 +139,5 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH= python3 -m pytest tests/refactor -q
 - S01–S03 구현과 `MARSLAB_S01_S03_CHANGE_REPORT.md`는 유지된다.
 - S04 자산 정밀 validator와 Rover manifest는 MarsLab에서 제거됐다.
 - S05 RunPlan/ResolvedInputs 및 typed runtime consumer 변경은 제거됐다.
+- 기존 S04 승인과 S05 후보 증거는 ledger에서 무효화했으며 재사용할 수 없다.
 - 이후 통합 YAML과 최소 runtime 실패 처리의 책임 경계는 새 계획에서 다시 결정한다.
