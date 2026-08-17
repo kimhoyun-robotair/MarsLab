@@ -134,7 +134,7 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 | 단계 | 내부 작업 | 승인 토큰 | 변경 파일/심볼 및 누적 `+/-` LOC | 에이전트 명령·exit·증거 | 사용자 전용 QA/관찰 | 다음 unlock |
 |---|---|---|---|---|---|---|
 | G1 | Tasks 1–7, integrated config/schema | `APPROVE G1` (원문: `좋아 Approve G1`) | integrated config/schema · **`+284/-71`** | `<command>` · `<exit>` · `<evidence>` | **`G1 config facade PASS`**; stage commit: `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` (`refactor(config): add canonical runtime configuration`, 12 committed paths) | **Task8 (G2)** unlocked |
-| G2 | Tasks 8–10, CLI/Python 3.11 launcher | `APPROVE G2` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: launcher/Kit boot | G3 |
+| G2 | Tasks 8–10, CLI/Python 3.11 launcher | `APPROVE G2` | product delta `+46/-103` (net `-57`) | non-Isaac contract checks PASS; evidence below | Isaac/Kit boot remains user-only | **Task11 (G3) unlocked** |
 | G3 | Tasks 11–15, lifecycle/main loop | `APPROVE G3` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: boot/physics/control/cleanup | G4 |
 | G4 | Tasks 16–23, Camera/IMU/3D LiDAR and 2D deletion | `APPROVE G4` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: retained sensor outputs | G5 |
 | G5 | Tasks 24–28, ROS/TF/GT/Wheel integration | `APPROVE G5` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: topics, QoS, single TF owners | G6 |
@@ -170,7 +170,7 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 | 단계 | 승인 토큰 | 시각 | 사용자 관찰 요약 | reviewed SHA | unlock |
 |---|---|---|---|---|---|
 | G1 | `APPROVE G1` | 2026-08-17 18:25:11 KST (+09:00) | `G1 config facade PASS`; cumulative **`+284/-71`** | `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` — `refactor(config): add canonical runtime configuration`; **12 committed paths** | **Task8 (G2) unlocked** |
-| G2 | PENDING USER | — | — | — | — |
+| G2 | `좋아 이해했어. Approve G2` → `APPROVE G2` | — | G2 non-Isaac contract checks PASS; product `+46/-103` (net `-57`) | `c0d3e09584469085a795d9941c4624a2082224c6` — `refactor(runtime): simplify config-driven startup`; 5 committed paths | **Task11 (G3) unlocked** |
 | G3 | PENDING USER | — | — | — | — |
 | G4 | PENDING USER | — | — | — | — |
 | G5 | PENDING USER | — | — | — | — |
@@ -804,7 +804,8 @@ sensor, ROS topic/TF/QoS, cleanup 또는 기타 runtime 성공을 주장하지 �
   Task 8 checks가 만든 현재 residue만 대상으로 했다: `find marslab -type f -name '*.pyc' -delete` 및
   `find marslab -depth -type d -name '__pycache__' -empty -delete`.
   최종 `.pyc`와 empty `__pycache__` count는 모두 `0`이며, tests/scripts/
-  processes/ports를 만들지 않았다. G2 approval은 아직 **PENDING USER**다.
+  processes/ports를 만들지 않았다. G2 approval is recorded below; Isaac/Kit
+  runtime remains user-only.
 
 ## Task 9 — Isaac launcher 위생과 Python 3.11 실행 메타데이터
 
@@ -887,8 +888,8 @@ sensor, ROS topic/TF/QoS, cleanup 또는 기타 runtime 성공을 주장하지 �
   기존 unrelated `tests/refactor/__pycache__` 아래 `pyc=9`, dir=1을
   관찰했으며 이를 Task 9 residue로 귀속하지 않는다. 이 append에서 수정한
   것은 report와 `task-9/report/` evidence뿐이다.
-  G2 approval은 여전히 **PENDING USER**이고, 이 Task 9 기록은 runtime
-  Kit/physics/sensors/ROS topic·TF/QoS 성공을 주장하지 않는다.
+  G2 approval is recorded below; this Task 9 record does not claim runtime
+  Kit/physics/sensors/ROS topic·TF/QoS success.
 
 ## Task 10 — typed runtime preparation phase
 
@@ -916,3 +917,17 @@ sensor, ROS topic/TF/QoS, cleanup 또는 기타 runtime 성공을 주장하지 �
   malformed YAML은 public loader 책임으로 두었다. G2에서는 non-Isaac
   preparation/launcher contract check만 요청한다. 실제 Isaac Sim/Kit
   runtime 검증은 Task 10 범위가 아니며 후속 gate의 사용자 소유다.
+
+## G2 승인 — Tasks 8–10 CLI/Python 3.11 launcher
+
+- **승인 원문:** `좋아 이해했어. Approve G2`.
+- **정규화 토큰:** **`APPROVE G2`**.
+- **승인된 implementation commit:**
+  **`c0d3e09584469085a795d9941c4624a2082224c6`** —
+  `refactor(runtime): simplify config-driven startup`.
+- **정확한 committed paths (5):**
+  `MARSLAB_REFACTORING_CHANGE_REPORT.md`, `marslab/isaac_python.sh`,
+  `marslab/main.py`, `marslab/runtime/prepare.py`, `pyproject.toml`.
+- **제품 delta (report/evidence 제외):** **`+46/-103`**, net **`-57`**.
+- **다음 unlock:** **Task11 (G3 Tasks 11–15) — unlocked**. Isaac/Kit runtime
+  관찰은 계속 사용자 전용이다.
