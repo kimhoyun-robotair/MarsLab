@@ -170,7 +170,7 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 | 단계 | 승인 토큰 | 시각 | 사용자 관찰 요약 | reviewed SHA | unlock |
 |---|---|---|---|---|---|
 | G1 | `APPROVE G1` | 2026-08-17 18:25:11 KST (+09:00) | `G1 config facade PASS`; cumulative **`+284/-71`** | `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` — `refactor(config): add canonical runtime configuration`; **12 committed paths** | **Task8 (G2) unlocked** |
-| G2 | `좋아 이해했어. Approve G2` → `APPROVE G2` | — | G2 non-Isaac contract checks PASS; product `+46/-103` (net `-57`) | `c0d3e09584469085a795d9941c4624a2082224c6` — `refactor(runtime): simplify config-driven startup`; 5 committed paths | **Task11 (G3) unlocked** |
+| G2 | `좋아 이해했어. Approve G2` → `APPROVE G2` | `2026-08-17T19:54:41+09:00` | G2 non-Isaac contract checks PASS; product `+46/-103` (net `-57`) | `c0d3e09584469085a795d9941c4624a2082224c6` — `refactor(runtime): simplify config-driven startup`; 5 committed paths | **Task11 (G3) unlocked** |
 | G3 | PENDING USER | — | — | — | — |
 | G4 | PENDING USER | — | — | — | — |
 | G5 | PENDING USER | — | — | — | — |
