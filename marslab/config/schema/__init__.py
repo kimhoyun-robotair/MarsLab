@@ -1,3 +1,4 @@
+from marslab.config.schema.root import MarsLabConfig, SceneConfig
 from marslab.config.schema.rover import (
     ChassisConfig,
     ControlConfig,
@@ -16,10 +17,10 @@ from marslab.config.schema.rover_sensors import (
     CameraConfig,
     DepthSensorConfig,
     IMUConfig,
-    Lidar2DConfig,
     Lidar3DConfig,
     SensorsConfig,
 )
+from marslab.config.schema.runtime import RuntimeConfig, WheelOdomConfig
 from marslab.config.schema.scenario import (
     DynamicAtmosphereConfig,
     FogConfig,
@@ -35,7 +36,6 @@ from marslab.config.schema.scenario import (
     TauSineConfig,
 )
 
-MarsLabConfig = ScenarioConfig
 RobotConfig = RoverConfig
 SkidSteerDriveConfig = ControlConfig
 
@@ -47,7 +47,6 @@ __all__ = [
     "DynamicAtmosphereConfig",
     "FogConfig",
     "IMUConfig",
-    "Lidar2DConfig",
     "Lidar3DConfig",
     "MarsEnvConfig",
     "MarsLabConfig",
@@ -59,6 +58,8 @@ __all__ = [
     "RobotConfig",
     "Ros2BridgeConfig",
     "RoverConfig",
+    "RuntimeConfig",
+    "SceneConfig",
     "ScenarioConfig",
     "SensorsConfig",
     "SkyDomeConfig",
@@ -70,5 +71,6 @@ __all__ = [
     "TauRampConfig",
     "TauSineConfig",
     "WheelOdometryConfig",
+    "WheelOdomConfig",
     "WheelsConfig",
 ]

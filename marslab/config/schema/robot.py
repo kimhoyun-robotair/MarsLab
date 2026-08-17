@@ -10,7 +10,6 @@ from marslab.config.schema.rover_sensors import (
     CameraConfig,
     DepthSensorConfig,
     IMUConfig,
-    Lidar2DConfig,
     Lidar3DConfig,
     SensorsConfig,
 )
@@ -23,7 +22,6 @@ __all__ = [
     "ChassisConfig",
     "DepthSensorConfig",
     "IMUConfig",
-    "Lidar2DConfig",
     "Lidar3DConfig",
     "OdomPublisherConfig",
     "RobotConfig",

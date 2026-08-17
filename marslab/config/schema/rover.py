@@ -114,7 +114,7 @@ class WheelOdometryConfig(StrictConfigModel):
 
 
 class RoverConfig(StrictConfigModel):
-    declaring_path: Path
+    usd_path: Path
     urdf_source_path: Path
     prim_path: NonEmptyString
     spawn: SpawnConfig

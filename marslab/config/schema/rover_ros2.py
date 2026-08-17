@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from marslab.config.schema.common import (
     NonEmptyString,
@@ -22,7 +22,6 @@ class RosTopicsConfig(StrictConfigModel):
     points: NonEmptyString
     camera_info: NonEmptyString
     lidar: NonEmptyString
-    scan: NonEmptyString
     joint_states: NonEmptyString
 
 
@@ -34,7 +33,6 @@ class RosRatesConfig(StrictConfigModel):
     points: PositiveFloat
     camera_info: PositiveFloat
     lidar: PositiveFloat
-    scan: PositiveFloat
     joint_states: PositiveFloat
 
 
@@ -59,15 +57,12 @@ class Ros2BridgeConfig(StrictConfigModel):
     rates: RosRatesConfig
     odom_publisher: OdomPublisherConfig
     sensor_parent_frame_id: NonEmptyString
-    publish_odom_tf: bool
     graph_path: NonEmptyString = "/World/Stage3ROS2Graph"
     cmd_vel_queue_size: PositiveInt = Field(default=10, le=1000)
     publish_pointcloud2: bool = True
     publish_camera_info: bool = True
     publish_robot_description: bool = True
     publish_joint_states: bool = True
-    enable_isaac_nameoverride: bool = False
-    rename_root_to_base_link: bool = False
     cmd_vel_qos: QoSProfileConfig = QoSProfileConfig(
         reliability="reliable", durability="volatile", depth=10
     )
@@ -80,6 +75,17 @@ class Ros2BridgeConfig(StrictConfigModel):
     tf_qos: QoSProfileConfig = QoSProfileConfig(
         reliability="reliable", durability="transient_local", depth=100
     )
+
+    @model_validator(mode="after")
+    def check_distinct_odom_topics(self) -> "Ros2BridgeConfig":
+        namespace = self.namespace.strip("/")
+        resolved_topics = tuple(
+            "/".join(part for part in (namespace, topic.strip("/")) if part)
+            for topic in (self.topics.odom, self.topics.gt_trajectory)
+        )
+        if resolved_topics[0] == resolved_topics[1]:
+            raise ValueError("resolved odom and gt_trajectory topics must be distinct")
+        return self
 
 
 __all__ = ["OdomPublisherConfig", "QoSProfileConfig", "Ros2BridgeConfig"]

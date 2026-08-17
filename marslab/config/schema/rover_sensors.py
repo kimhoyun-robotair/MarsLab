@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
@@ -12,10 +11,6 @@ from marslab.config.schema.common import (
     StrictConfigModel,
     Vec3,
 )
-
-
-class DisabledSensorConfig(StrictConfigModel):
-    enabled: Literal[False]
 
 
 class DepthSensorConfig(StrictConfigModel):
@@ -35,9 +30,7 @@ class DepthSensorConfig(StrictConfigModel):
         return self
 
 
-class EnabledCameraConfig(StrictConfigModel):
-    enabled: Literal[True]
-    parent_link: NonEmptyString
+class CameraConfig(StrictConfigModel):
     local_translation: Vec3
     local_orientation_rpy_deg: Vec3
     resolution: tuple[PositiveInt, PositiveInt]
@@ -46,15 +39,13 @@ class EnabledCameraConfig(StrictConfigModel):
     depth_sensor: DepthSensorConfig
 
     @model_validator(mode="after")
-    def check_clipping_range(self) -> "EnabledCameraConfig":
+    def check_clipping_range(self) -> "CameraConfig":
         if self.clipping_range[1] <= self.clipping_range[0]:
             raise ValueError("camera clipping far plane must exceed near plane")
         return self
 
 
-class EnabledLidar2DConfig(StrictConfigModel):
-    enabled: Literal[True]
-    parent_link: NonEmptyString
+class Lidar3DConfig(StrictConfigModel):
     local_translation: Vec3
     local_orientation_rpy_deg: Vec3
     range_min: PositiveFloat
@@ -65,9 +56,10 @@ class EnabledLidar2DConfig(StrictConfigModel):
     profile_json_path: Path | None
     usd_profile: NonEmptyString | None
     variant: NonEmptyString | None = None
+    vertical_fov_deg: PositiveFloat = Field(le=180.0)
 
     @model_validator(mode="after")
-    def check_range_and_profile(self) -> "EnabledLidar2DConfig":
+    def check_range_and_profile(self) -> "Lidar3DConfig":
         if self.range_max <= self.range_min:
             raise ValueError("lidar range_max must exceed range_min")
         if (self.profile_name is None) == (self.profile_json_path is None):
@@ -75,55 +67,24 @@ class EnabledLidar2DConfig(StrictConfigModel):
         return self
 
 
-class EnabledLidar3DConfig(EnabledLidar2DConfig):
-    vertical_fov_deg: PositiveFloat = Field(le=180.0)
-
-
-class EnabledImuConfig(StrictConfigModel):
-    enabled: Literal[True]
-    parent_link: NonEmptyString
+class IMUConfig(StrictConfigModel):
     local_translation: Vec3
     local_orientation_rpy_deg: Vec3
     sigma_lin_acc: NonNegativeFloat
     sigma_ang_vel: NonNegativeFloat
 
 
-CameraConfig = Annotated[
-    EnabledCameraConfig | DisabledSensorConfig,
-    Field(discriminator="enabled"),
-]
-Lidar3DConfig = Annotated[
-    EnabledLidar3DConfig | DisabledSensorConfig,
-    Field(discriminator="enabled"),
-]
-Lidar2DConfig = Annotated[
-    EnabledLidar2DConfig | DisabledSensorConfig,
-    Field(discriminator="enabled"),
-]
-IMUConfig = Annotated[
-    EnabledImuConfig | DisabledSensorConfig,
-    Field(discriminator="enabled"),
-]
-
-
 class SensorsConfig(StrictConfigModel):
     seed: int | None
     camera: CameraConfig
     lidar_3d: Lidar3DConfig
-    lidar_2d: Lidar2DConfig
     imu: IMUConfig
 
 
 __all__ = [
     "CameraConfig",
     "DepthSensorConfig",
-    "DisabledSensorConfig",
-    "EnabledCameraConfig",
-    "EnabledImuConfig",
-    "EnabledLidar2DConfig",
-    "EnabledLidar3DConfig",
     "IMUConfig",
-    "Lidar2DConfig",
     "Lidar3DConfig",
     "SensorsConfig",
 ]
