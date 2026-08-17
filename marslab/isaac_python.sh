@@ -40,12 +40,14 @@
 # wrapper does the purge in the parent shell immediately before exec.
 #
 # Usage:
-#   marslab/isaac_python.sh marslab/main.py --usda assets/scene/jezero_plain/jezero_plain.usdz \
-#     --scenario configs/default.yaml --rover-yaml configs/rover_m2020.yaml --no-ros2
+#   marslab/isaac_python.sh marslab/main.py --config configs/config.yaml
 #
 # The wrapper invokes $ISAAC_SIM_PATH/python.sh.
 
-set -e
+set -euo pipefail
+
+_WRAPPER_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+_REPOSITORY_ROOT="$(cd -- "$_WRAPPER_DIR/.." && pwd -P)"
 
 # -----------------------------------------------------------------------------
 # Strip a colon-separated PATH-like variable of entries starting with a prefix.
@@ -74,16 +76,18 @@ _purge_colon_path() {
     export "$varname=$new_val"
 }
 
-_BAD_PREFIX="/opt/ros/jazzy"
-_purge_colon_path LD_LIBRARY_PATH   "$_BAD_PREFIX"
-_purge_colon_path PYTHONPATH        "$_BAD_PREFIX"
-_purge_colon_path CMAKE_PREFIX_PATH "$_BAD_PREFIX"
-_purge_colon_path PKG_CONFIG_PATH   "$_BAD_PREFIX"
-_purge_colon_path PATH              "$_BAD_PREFIX"
+_SYSTEM_ROS_PREFIX="/opt/ros"
+_purge_colon_path LD_LIBRARY_PATH   "$_SYSTEM_ROS_PREFIX"
+_purge_colon_path PYTHONPATH        "$_SYSTEM_ROS_PREFIX"
+_purge_colon_path CMAKE_PREFIX_PATH "$_SYSTEM_ROS_PREFIX"
+_purge_colon_path PKG_CONFIG_PATH   "$_SYSTEM_ROS_PREFIX"
+_purge_colon_path PATH              "$_SYSTEM_ROS_PREFIX"
 
 # Ament / ROS 2 scalar variables -- unset entirely.
 unset AMENT_PREFIX_PATH
+unset AMENT_CURRENT_PREFIX
 unset COLCON_PREFIX_PATH
+unset COLCON_CURRENT_PREFIX
 unset ROS_DISTRO
 unset ROS_VERSION
 unset ROS_PYTHON_VERSION
@@ -91,9 +95,11 @@ unset ROS_AUTOMATIC_DISCOVERY_RANGE
 unset RMW_IMPLEMENTATION
 unset ROS_LOCALHOST_ONLY
 
+export PYTHONPATH="$_REPOSITORY_ROOT"
+
 # Resolve Isaac Sim python.sh. Let the user override the location via
 # ISAAC_SIM_PATH when installing outside ~/isaacsim.
-ISAAC_SIM_PATH="${ISAAC_SIM_PATH:-$HOME/isaacsim}"
+ISAAC_SIM_PATH="${ISAAC_SIM_PATH:-${HOME:-}/isaacsim}"
 ISAAC_PY="$ISAAC_SIM_PATH/python.sh"
 if [[ ! -x "$ISAAC_PY" ]]; then
     echo "[isaac_python] ERROR: Isaac Sim python.sh not found at $ISAAC_PY" >&2
@@ -122,17 +128,5 @@ if [[ ! -d "$_BUNDLED_ROS2_LIB" ]]; then
     exit 1
 fi
 export LD_LIBRARY_PATH="${_BUNDLED_ROS2_LIB}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-
-# Preflight echo so the user can confirm the purge actually happened
-# when they read the tee log. All lines go to stderr so they do not
-# collide with marslab/main.py stdout.
-{
-    echo "[isaac_python] LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-<unset>}"
-    echo "[isaac_python] PYTHONPATH=${PYTHONPATH:-<unset>}"
-    echo "[isaac_python] AMENT_PREFIX_PATH=${AMENT_PREFIX_PATH:-<unset>}"
-    echo "[isaac_python] ROS_DISTRO=${ROS_DISTRO:-<unset>}"
-    echo "[isaac_python] ISAAC_SIM_PATH=$ISAAC_SIM_PATH"
-    echo "[isaac_python] exec: $ISAAC_PY $*"
-} >&2
 
 exec "$ISAAC_PY" "$@"

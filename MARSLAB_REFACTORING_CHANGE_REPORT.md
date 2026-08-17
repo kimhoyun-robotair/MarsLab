@@ -133,7 +133,7 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 
 | 단계 | 내부 작업 | 승인 토큰 | 변경 파일/심볼 및 누적 `+/-` LOC | 에이전트 명령·exit·증거 | 사용자 전용 QA/관찰 | 다음 unlock |
 |---|---|---|---|---|---|---|
-| G1 | Tasks 1–7, integrated config/schema | `APPROVE G1` (원문: `좋아 Approve G1`) | integrated config/schema · **`+284/-71`** | `<command>` · `<exit>` · `<evidence>` | **`G1 config facade PASS`**; commit status: `pending stage commit` | **Task8 (G2)** |
+| G1 | Tasks 1–7, integrated config/schema | `APPROVE G1` (원문: `좋아 Approve G1`) | integrated config/schema · **`+284/-71`** | `<command>` · `<exit>` · `<evidence>` | **`G1 config facade PASS`**; stage commit: `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` (`refactor(config): add canonical runtime configuration`, 12 committed paths) | **Task8 (G2)** unlocked |
 | G2 | Tasks 8–10, CLI/Python 3.11 launcher | `APPROVE G2` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: launcher/Kit boot | G3 |
 | G3 | Tasks 11–15, lifecycle/main loop | `APPROVE G3` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: boot/physics/control/cleanup | G4 |
 | G4 | Tasks 16–23, Camera/IMU/3D LiDAR and 2D deletion | `APPROVE G4` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: retained sensor outputs | G5 |
@@ -169,7 +169,7 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 
 | 단계 | 승인 토큰 | 시각 | 사용자 관찰 요약 | reviewed SHA | unlock |
 |---|---|---|---|---|---|
-| G1 | `APPROVE G1` | 2026-08-17 18:25:11 KST (+09:00) | `G1 config facade PASS`; cumulative **`+284/-71`** | SHA not claimed; **`pending stage commit`** | **Task8 (G2)** |
+| G1 | `APPROVE G1` | 2026-08-17 18:25:11 KST (+09:00) | `G1 config facade PASS`; cumulative **`+284/-71`** | `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` — `refactor(config): add canonical runtime configuration`; **12 committed paths** | **Task8 (G2) unlocked** |
 | G2 | PENDING USER | — | — | — | — |
 | G3 | PENDING USER | — | — | — | — |
 | G4 | PENDING USER | — | — | — | — |
@@ -708,7 +708,8 @@ sensor, ROS topic/TF/QoS, cleanup 또는 기타 runtime 성공을 주장하지 �
 - **승인 시각:** `2026-08-17 18:25:11 KST (+09:00)` (Asia/Seoul).
 - **사용자 관찰:** **`G1 config facade PASS`**.
 - **검증 누적:** Tasks 1–7 product delta **`+284/-71`**.
-- **commit status:** **`pending stage commit`**; reviewed SHA는 아직 기록하지 않는다.
+- **G1 stage commit:** **`8e25e38e4937ce4cdc1a3a8fb7b591448bad0168`** —
+  `refactor(config): add canonical runtime configuration`; **12 committed paths**.
 - **G1 변경/생성 파일:**
   `MARSLAB_REFACTORING_CHANGE_REPORT.md` (stage report),
   `configs/config.yaml` (canonical YAML, 신규),
@@ -741,4 +742,177 @@ sensor, ROS topic/TF/QoS, cleanup 또는 기타 runtime 성공을 주장하지 �
   boot·physics·sensor·OmniGraph·topic/TF/QoS·AtmospherePanel·cleanup은 아직
   후속 Tasks/Gates 또는 사용자 전용 QA다. Legacy split functions remain only
   in `yaml_loader` by design; no runtime claim is made here.
-- **다음 unlock:** **Task8 (G2 Tasks 8–10)**.
+- **다음 unlock:** **Task8 (G2 Tasks 8–10)** — **unlocked**.
+
+## Task 8 — config-only CLI argument parser
+
+- **라우팅:** **LOW/Luna** (`lazycodex-worker-low`). 이 단계의 제품 변경은
+  `marslab/main.py`의 `main()` parser block(lines 409–414) 하나로 한정했다.
+  `ArgumentParser`는 `allow_abbrev=False`를 사용하고, 정확히
+  `parser.add_argument("--config", required=True, help="Path to the integrated config YAML.")`
+  하나만 선언한 뒤 `parser.parse_args()`를 호출한다. parser는 경로를
+  반환하기만 하며 YAML을 읽지 않는다.
+- **제품 delta:** `git diff --numstat -- marslab/main.py`의 live 결과는
+  `3 77 marslab/main.py`, 즉 **`+3/-77`**이다. G1 Tasks 1–7의 승인된
+  **`+284/-71`**에 더하면 G1+Task8 제품 누적은 정확히
+  **`+287/-148`**이다. 보고서와 evidence는 이 제품 수치에 포함하지 않는다.
+- **정확한 parser semantics:** AST scan은 `add_argument` 한 건
+  `[(413, ['--config'], True)]`, `parse_args` line `414`를 확인했다. parser
+  region(lines 409–414)에는 11개 문서화된 legacy flags
+  (`--usda`, `--scene`, `--rover-usd`, `--scenario`, `--rover-yaml`,
+  `--headless`, `--no-ros2`, `--no-atmosphere`, `--z-offset`,
+  `--sun-azimuth-deg`, `--sun-elevation-deg`)와 파일 read token이 없다.
+  `--config configs/config.yaml`은 exit `0`으로 path string을 그대로
+  반환하고 파일을 열지 않으며, 누락 `--config`, legacy `--usda`, extra
+  positional, `run` subcommand, abbreviated `--con`은 각각 argparse exit
+  `2`로 거부된다.
+- **검증 명령/증거:** AST manual-QA invocation은 다음이며 출력은
+  `[['--config']]`이다.
+
+  ```bash
+  python3 -c 'import ast, pathlib; t=ast.parse(pathlib.Path("marslab/main.py").read_text()); calls=[n for n in ast.walk(t) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr=="add_argument"]; print([[a.value for a in c.args if isinstance(a, ast.Constant) and isinstance(a.value,str)] for c in calls])'
+  ```
+
+  `python3 -m compileall -q marslab/main.py`, `ruff check marslab/main.py`,
+  `black --check marslab/main.py`, and `git diff --check` all exited `0`.
+  Independent verifier artifact는
+  `.omo/evidence/marslab-runtime-refactor-v2/task-8/adversarial-verify/AdversarialVerify.md`
+  (`verdict: confirmed`)이며 worker 기록은
+  `.omo/evidence/marslab-runtime-refactor-v2/task-8/DoneClaim.md`와
+  `.omo/evidence/marslab-runtime-refactor-v2/task-8/post-checks.txt`다.
+- **Manual QA:** `sed -n '/^## Task 8/,$p' MARSLAB_REFACTORING_CHANGE_REPORT.md`
+  실행 결과 이 section의 exact `main.py` parser symbols, `+3/-77`, cumulative
+  `+287/-148`, parser semantics/checks, Task 15 limitation, cleanup, and
+  no-runtime statement가 모두 보이면 **PASS**다. Append 전 pin은
+  `.omo/evidence/marslab-runtime-refactor-v2/task-8/report/pre-edit-pin.md`에
+  기록했으며, 당시 report checksum은
+  `562a29b4e0142ee32dc5093328378439be4a4671880b6c25d98b4db990f4e660`,
+  745 lines, `^## Task 8` scan exit `1`/empty였다.
+- **Task 15 limitation:** parser만 전환했으므로 `main()` downstream은 아직
+  `args.usda`, `args.rover_yaml`, `args.scenario`, `args.sun_*`,
+  `args.z_offset`, `args.headless`, `args.no_atmosphere` 등을 참조한다.
+  이 legacy consumer migration은 Task 15의 책임이며 Task 8에서 우회·호환
+  alias를 추가하지 않았다.
+- **UltraQA:** `malformed_input`, `dirty_worktree`, `stale_state`,
+  `misleading_success_output`는 각각 PASS로 독립 재검증했다. 해당 parser
+  시나리오는 bounded offline 검사이며 prompt injection, cancellation,
+  hung/long, flaky/repeated interruption은 N/A다. **Isaac Sim, Kit, ROS 2,
+  physics, sensors, OmniGraph, topics/TF/QoS, cleanup runtime은 실행하지
+  않았고 성공을 주장하지 않는다.**
+- **Cleanup:** Task 8 checks가 생성한 `marslab` cache를 explicit safe
+  commands로 삭제했다. Task 7 종료 evidence의 `cache_count=0` 이후 이번
+  Task 8 checks가 만든 현재 residue만 대상으로 했다: `find marslab -type f -name '*.pyc' -delete` 및
+  `find marslab -depth -type d -name '__pycache__' -empty -delete`.
+  최종 `.pyc`와 empty `__pycache__` count는 모두 `0`이며, tests/scripts/
+  processes/ports를 만들지 않았다. G2 approval은 아직 **PENDING USER**다.
+
+## Task 9 — Isaac launcher 위생과 Python 3.11 실행 메타데이터
+
+- **라우팅:** **MEDIUM/Terra** (`lazycodex-worker-medium`). 제품 변경은 정확히
+  `marslab/isaac_python.sh`와 `pyproject.toml` 두 파일에 한정됐다. 실제 Isaac
+  Sim/Kit/ROS 2 실행은 사용자 검증 범위이며 이 기록에서 실행하거나 성공을
+  주장하지 않는다.
+- **제품 delta:** live `git diff --numstat -- marslab/isaac_python.sh pyproject.toml`
+  결과는 각각 `16 22`와 `4 4`다. 따라서 Task 9는 **`+20/-26`**이다. Task 8까지
+  누적 **`+287/-148`**에 더하면 G2 누적은 정확히 **`+307/-174`**다. 보고서와
+  evidence는 이 product 수치에 포함하지 않는다.
+
+| 파일 | Task 9 계약 | `+LOC` | `-LOC` |
+|---|---|---:|---:|
+| `marslab/isaac_python.sh` | wrapper 위치 기반 repository-root, ROS/ament/colcon 위생, root-only `PYTHONPATH`, Isaac `exec "$@"` | 16 | 22 |
+| `pyproject.toml` | Python 3.11 package/Black/Ruff/mypy metadata, no project script | 4 | 4 |
+| **Task 9 합계** | 두 파일, launcher/process 경계와 Python 3.11 계약 | **20** | **26** |
+
+### Task 9 실행·검증 기록
+
+- `marslab/isaac_python.sh`는 `BASH_SOURCE[0]`로 wrapper directory와 repository
+  root를 계산해 caller cwd에 의존하지 않는다. 상속된 `PYTHONPATH`를 버리고
+  repository root만 `export PYTHONPATH="$_REPOSITORY_ROOT"`로 전달하며,
+  `/opt/ros` 경로를 `LD_LIBRARY_PATH`, `PYTHONPATH`, `CMAKE_PREFIX_PATH`,
+  `PKG_CONFIG_PATH`, `PATH`에서 제거하고 ROS/ament/colcon 상태 변수를 unset한다.
+  Isaac `python.sh`가 실행 가능하지 않으면 nonzero로 종료하고, 실행 경계는
+  literal `exec "$ISAAC_PY" "$@"`로 caller 인자를 변경 없이 전달한다.
+- `ISAAC_SIM_PATH=/definitely/missing/marslab-isaac marslab/isaac_python.sh marslab/main.py --config configs/config.yaml`와
+  동일한 빈 인자 invocation은 모두 exit `1`, stdout empty, concise한 두 줄
+  missing-`python.sh`/설치 안내 stderr만 관찰했다. `/tmp`에서 절대 경로 wrapper의
+  root 계산과 `$@` 전달 토큰도 재확인했다. 어느 시나리오도 Isaac을 boot하지 않았다.
+- `pyproject.toml` metadata probe는 `requires-python == ">=3.11"`, Black
+  `['py311']`, Ruff `py311`, mypy `3.11`을 확인했고 `project.scripts`와
+  `marslab.cli`는 존재하지 않는다. Python 3.12 전용 syntax/API나 host-Python
+  re-exec 경로는 추가되지 않았다.
+- `bash -n marslab/isaac_python.sh`, exact TOML assertions, launcher static
+  sanitation/root/exec scan, missing-path normal/empty-args probes, other-cwd
+  scan, `black --check --config pyproject.toml marslab/__init__.py`,
+  `ruff check --config pyproject.toml marslab/__init__.py`, 그리고
+  `git diff --check -- marslab/isaac_python.sh pyproject.toml`가 모두 exit `0`
+  (missing-path probes만 의도된 exit `1`)였다. 원문 worker artifact는
+  `.omo/evidence/marslab-runtime-refactor-v2/task-9-marslab-runtime-refactor-v2.txt`,
+  독립 확인은
+  `.omo/evidence/marslab-runtime-refactor-v2/task-9/adversarial-verify/AdversarialVerify.md`
+  (`verdict: confirmed`)다.
+- Root verifier는 현재 product source/delta와 모든 적용 가능한 launcher/
+  metadata 조건을 **confirmed**로 판정했다. 다만 worker가 independent root
+  verification 전에 orchestrator-owned plan의 Task 9 checkbox와 ledger의
+  `task-completed` record를 조기에 변경했다. 따라서 이 report append는
+  plan/ledger를 수정하지 않았다. 이후 parent executor가
+  `.omo/evidence/marslab-runtime-refactor-v2/task-9/root-adversarial-verify/AdversarialVerify.md`,
+  `task-9/adversarial-verify/AdversarialVerify.md`,
+  `task-9/report/adversarial-verify/AdversarialVerify.md`를 함께 확인하고
+  ledger의 `task-completion-reconciled` record를 기록했으므로 parent
+  reconciliation은 **COMPLETED**다. 조기 mutation은 여전히 orchestration
+  scope violation으로 보존하지만, 현재 completion binding은 독립
+  product/root/report evidence에 의해 유효하다.
+- Manual QA exact invocation은
+  `sed -n '/^## Task 9/,$p' MARSLAB_REFACTORING_CHANGE_REPORT.md`다. 이
+  명령에서 Task 9 heading, 두 파일의 `+16/-22`·`+4/-4`, 합계 `+20/-26`,
+  누적 `+307/-174`, MEDIUM/Terra attribution, launcher sanitation/root/
+  `exec "$@"`/missing-path behavior, Python 3.11 metadata, evidence 경로,
+  premature plan/ledger note와 no-runtime claim이 모두 보이면 **PASS**다.
+
+### Task 9 UltraQA와 cleanup
+
+- `malformed_input`: nonexistent Isaac root normal/empty-args가 exit `1`로
+  pre-exec reject되고 stderr/stdout observables가 정확히 일치해 **PASS**.
+- `dirty_worktree`: live owned-file diff가 launcher와 `pyproject.toml` 두 경로만
+  가리키고 unrelated dirty paths는 보존되어 **PASS**.
+- `stale_state`: source를 재독해 SHA-256와 static predicates를 현재
+  worktree에서 재생성해 **PASS**.
+- `misleading_success_output`: missing-path에서 stdout/성공 문구/env dump가
+  없고 concise error만 남아 **PASS**. `prompt_injection`, cancel/resume,
+  hung/long, flaky/repeated interruption은 bounded offline launcher surface에
+  해당하지 않아 **N/A**다.
+- 검증 중 Isaac/ROS process, port, temporary script, fake launcher/shim,
+  test, cache 또는 browser context를 만들지 않았다. `marslab/` product tree의
+  scoped cache scan은 `pyc=0`, `__pycache__ dir=0`이다. Repo-wide scan은
+  기존 unrelated `tests/refactor/__pycache__` 아래 `pyc=9`, dir=1을
+  관찰했으며 이를 Task 9 residue로 귀속하지 않는다. 이 append에서 수정한
+  것은 report와 `task-9/report/` evidence뿐이다.
+  G2 approval은 여전히 **PENDING USER**이고, 이 Task 9 기록은 runtime
+  Kit/physics/sensors/ROS topic·TF/QoS 성공을 주장하지 않는다.
+
+## Task 10 — typed runtime preparation phase
+
+- **변경/목적:** 새 모듈 `marslab/runtime/prepare.py`의
+  `prepare_config(config_path)`가 config·Scene USDZ·Rover USD의 regular-file
+  조건을 부팅 전에 값싸게 확인하고 typed immutable `MarsLabConfig`를
+  반환한다. 유효 입력에서 공개 `marslab.config.load_config`는 정확히 한 번
+  호출된다. USD 내용·joint·prim 검사는 없으며 Isaac/Omni/pxr/rclpy import와
+  `SimulationApp` boot도 없다.
+- **제품 LOC:** 모듈 전체는 **`+23/-0` physical lines**(nonblank/noncomment
+  `15`)이다. Task 9 누적 `+307/-174`에 더한 제품 누적은 정확히
+  **`+330/-174`**다. 제품 LOC이며 이 보고서/evidence 문서 LOC는 제외한다.
+- **검증 방법/결과:**
+  `.omo/evidence/marslab-runtime-refactor-v2/task-10/task-10-marslab-runtime-refactor-v2.txt`
+  의 canonical invocation은 exit `0`으로 `MarsLabConfig`와 두 절대 regular
+  file 경로를 출력했고 missing/non-regular config·Scene·Rover는
+  `FileNotFoundError`로 거부했다. 독립
+  `.omo/evidence/marslab-runtime-refactor-v2/task-10/adversarial-verify/AdversarialVerify.md`
+  (`verdict: confirmed`)가 loader 호출 수 `1`, frozen 반환값, 금지 import와
+  content validation 부재를 정적·동적 probe로 재확인했다. compileall(3.11
+  포함), Ruff, Black, mypy, `git diff --check`는 모두 exit `0`이다.
+- **범위/제외 및 G2:** product test·YAML fixture·runtime process는 만들거나
+  실행하지 않았다. `dirty_worktree`, `stale_state`,
+  `misleading_success_output`는 scoped diff/hash와 독립 재실행으로 확인했고,
+  malformed YAML은 public loader 책임으로 두었다. G2에서는 non-Isaac
+  preparation/launcher contract check만 요청한다. 실제 Isaac Sim/Kit
+  runtime 검증은 Task 10 범위가 아니며 후속 gate의 사용자 소유다.

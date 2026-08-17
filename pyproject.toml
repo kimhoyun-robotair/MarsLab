@@ -2,7 +2,7 @@
 name = "marslab"
 version = "0.1.0"
 description = "Standardized Mars simulation platform for planetary robotics research"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 dependencies = [
     "pydantic>=2.0",
@@ -32,11 +32,11 @@ include = ["marslab*"]
 
 [tool.black]
 line-length = 100
-target-version = ["py312"]
+target-version = ["py311"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py311"
 
 [tool.ruff.lint]
 # Reviewer 2 #18 (2026-04-24): E/F/W/I baseline + B (bugbear) + SIM (simplify).
@@ -53,7 +53,7 @@ known-first-party = ["marslab"]
 # pure-Python offline modules only.  Full-repo strict mode is deferred to
 # v2.0 because Isaac Sim USD handles rely on runtime typing and would
 # require custom stub packages to pass strict mypy.
-python_version = "3.12"
+python_version = "3.11"
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true

@@ -407,84 +407,10 @@ def _build_wheel_odom_params(
 def main() -> int:
     """Boot Isaac Sim, load the legacy-flag scene input, and run the rover loop."""
     parser = argparse.ArgumentParser(
-        description=(
-            "MarsLab: Isaac Sim Mars rover simulation. Loads a supplied Scene USDZ "
-            "through legacy --usda, spawns the M2020 rover, runs dynamic atmosphere + ROS2."
-        ),
+        description="MarsLab: Isaac Sim Mars rover simulation.",
+        allow_abbrev=False,
     )
-    parser.add_argument(
-        "--usda",
-        required=True,
-        help="Path to the supplied Scene USDZ package (legacy --usda flag).",
-    )
-    parser.add_argument(
-        "--scenario",
-        default=_DEFAULT_SCENARIO,
-        help=(
-            "Scenario YAML supplying mars_env + rendering + dynamic_atmosphere "
-            f"blocks (default: {_DEFAULT_SCENARIO}). The scenario's terrain block "
-            "is loaded but its elevation grid is discarded -- the live stage uses "
-            "the supplied --usda scene mesh instead."
-        ),
-    )
-    parser.add_argument(
-        "--rover-yaml",
-        default="configs/rover_m2020.yaml",
-        help="Rover YAML config (repo-relative path or absolute).",
-    )
-    parser.add_argument(
-        "--z-offset",
-        type=float,
-        default=_DEFAULT_Z_OFFSET,
-        help=(
-            "Spawn elevation offset above the DEM-center surface (meters). "
-            f"Default {_DEFAULT_Z_OFFSET} m."
-        ),
-    )
-    parser.add_argument(
-        "--headless",
-        action="store_true",
-        help="Boot Isaac Sim without the GUI viewport.",
-    )
-    parser.add_argument(
-        "--no-ros2",
-        action="store_true",
-        help="Skip rclpy bridge (camera/lidar still spawn but nothing publishes).",
-    )
-    parser.add_argument(
-        "--no-atmosphere",
-        action="store_true",
-        help=(
-            "Skip the MarsLab atmosphere/lighting stack (sun sweep + sky dome + "
-            "fog + AtmospherePanel). A fallback DistantLight is added so the "
-            "camera is not black. Use when only the terrain + rover + ROS2 path "
-            "needs validation, or when the dynamic sun causes viewport jitter."
-        ),
-    )
-    parser.add_argument(
-        "--sun-azimuth-deg",
-        type=float,
-        default=None,
-        dest="sun_azimuth_deg",
-        help=(
-            "Override mars_env.sun_azimuth_deg from the scenario YAML. "
-            "Passed directly into boot_atmosphere so all downstream sun "
-            "computations (direct intensity, sky dome) use the overridden value. "
-            "Example: --sun-azimuth-deg 135 (morning sun from east-southeast)."
-        ),
-    )
-    parser.add_argument(
-        "--sun-elevation-deg",
-        type=float,
-        default=None,
-        dest="sun_elevation_deg",
-        help=(
-            "Override mars_env.sun_elevation_deg from the scenario YAML. "
-            "Passed directly into boot_atmosphere so all downstream sun "
-            "computations (direct intensity, sky dome) use the overridden value. "
-            "Example: --sun-elevation-deg 40."
-        ),
-    )
+    parser.add_argument("--config", required=True, help="Path to the integrated config YAML.")
     args = parser.parse_args()
 
     logging.basicConfig(
