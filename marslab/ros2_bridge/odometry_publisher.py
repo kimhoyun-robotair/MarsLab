@@ -99,15 +99,11 @@ def create_odometry_publisher(
             :func:`publish_odometry` broadcasts ``odom -> base_link``
             on ``/tf``.  When ``False`` the broadcaster is **not**
             constructed, ``ctx.tf_broadcaster`` stays ``None``, and
-            :func:`publish_odometry` skips ``sendTransform`` -- this is
-            the mode where the OmniGraph
-            ``ROS2PublishTransformTree`` becomes the sole TF authority
-            for ``odom -> base_link``.  Never run this ``True`` while a
-            ``ros2 run topic_tools relay /tf_raw /tf`` external relay is
-            active: that yields two parents for ``base_link`` in the TF
-            tree.  ``tf2_ros`` is imported lazily inside the ``True``
-            branch so a node without ``tf2_ros`` on PYTHONPATH still
-            works in the ``False`` mode.
+            :func:`publish_odometry` skips ``sendTransform`` so an
+            external odometry stack can own ``odom -> base_link``.
+            ``tf2_ros`` is imported lazily inside the ``True`` branch
+            so a node without ``tf2_ros`` on PYTHONPATH still works in
+            the ``False`` mode.
 
     Returns:
         :class:`OdometryPublisherContext` to be reused by

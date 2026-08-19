@@ -62,7 +62,6 @@ class Ros2BridgeConfig(StrictConfigModel):
     publish_pointcloud2: bool = True
     publish_camera_info: bool = True
     publish_robot_description: bool = True
-    publish_joint_states: bool = True
     cmd_vel_qos: QoSProfileConfig = QoSProfileConfig(
         reliability="reliable", durability="volatile", depth=10
     )

@@ -32,7 +32,6 @@ from typing import Any, Dict, List, Sequence, Tuple
 _SENSOR_FRAME_BINDINGS: Tuple[Tuple[str, str], ...] = (
     ("camera_link", "camera"),
     ("lidar_link", "lidar_3d"),
-    ("scan_frame", "lidar_2d"),
     ("imu_link", "imu"),
 )
 
@@ -59,8 +58,8 @@ def build_sensor_frames(
         Ordered list of dicts, one per declared sensor, with keys:
 
         * ``child_frame`` -- TF child frame id (e.g. ``"camera_link"``).
-        * ``local_translation`` -- ``[x, y, z]`` offset in the rolled
-          base_link body frame, copied verbatim from the sensor block.
+        * ``local_translation`` -- ``[x, y, z]`` offset in the REP-103
+          ``Body_Chassis`` frame, copied verbatim from the sensor block.
         * ``local_orientation_rpy_deg`` -- ``[roll, pitch, yaw]``
           (degrees, ZYX intrinsic); defaults to ``[0.0, 0.0, 0.0]``
           when the sensor block omits it.
@@ -91,14 +90,9 @@ def sensor_frames_to_tuples(
 
     :func:`marslab.ros2_bridge.tf_broadcaster.publish_static_sensor_tfs`
     consumes ``(child_frame, xyz, rpy_deg)`` tuples so the ROS broadcast
-    quaternion matches the USD prim orient set by
-    ``marslab.sensors.sensor_spawner`` (camera/IMU YAML
-    ``local_orientation_rpy_deg = [180, 0, 0]``).  The 3-tuple shape
-    is required for the camera_link -> camera_optical_frame chain to
-    land RGB-D PointCloud2 in the correct REP-103 axis -- a 2-tuple
-    (identity rotation) leaves camera_link inheriting the
-    Body_Chassis graphics-style axis and the depth_pcl frame ends up
-    pointing at the sky in RViz.
+    quaternion matches the USD prim orientation set by
+    ``marslab.sensors.sensor_spawner``. The 3-tuple shape preserves
+    each configured mount orientation in the REP-103 frame chain.
     """
     return [
         (

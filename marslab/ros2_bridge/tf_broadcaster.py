@@ -1,23 +1,14 @@
 """Static TF publisher for sensor frames.
 
-The Isaac-Sim OmniGraph ``ROS2PublishTransformTree`` node publishes
-only the articulation joint chain -- sensor prims (camera, LiDAR, IMU)
-are created by MarsLab in Isaac Sim after URDF import, so their frames
-never appear on ``/tf_raw``.  SLAM stacks need these frames.
+Sensor prims (camera, LiDAR, IMU) are created by MarsLab in Isaac Sim
+after URDF import, so the external robot-state-publisher articulation
+chain does not include their static offsets.  SLAM stacks need these frames.
 This module publishes a one-shot ``/tf_static`` batch covering every
 sensor declared in the rover YAML.
 
-Body-frame convention
----------------------
-
-The published ``base_link`` frame is X-rolled (RPY ≈ [180°, 0°, 0°])
-relative to ``odom``.  This compensates for the NASA JPL m2020 URDF's
-non-standard link frame author convention.  YAML ``local_translation``
-for sensors is authored in this rolled body frame: ``+Z_yaml = -Z_world``
-(down) and ``+Y_yaml = -Y_world`` (right).  This broadcaster emits the
-YAML values identity (no Y/Z flip) -- the X-roll on the spawn parent
-provides the single canonical chain rotation; a second flip here would
-double-correct.  See ``docs/frame_conventions.md`` for full background.
+Sensor translations and orientations are authored in the REP-103
+``Body_Chassis`` frame and published unchanged. The companion launch
+provides the sole identity ``base_link -> Body_Chassis`` connector.
 """
 
 from __future__ import annotations
@@ -31,15 +22,8 @@ from typing import Any, Iterable, List, Optional, Sequence, Tuple, Union
 # * 3-tuple ``(child_frame_id, xyz, rpy_deg)`` -- applies
 #   ``local_orientation_rpy_deg`` from the rover YAML into the
 #   broadcast quaternion so the ROS frame chain matches the USD prim
-#   orientation set by ``marslab.sensors.sensor_spawner``.  Required
-#   for the camera_optical_frame -> camera_link conversion to land in
-#   the correct REP-103 axis (camera prim is X-rolled in USD via
-#   ``yaml sensors.camera.local_orientation_rpy_deg = [180, 0, 0]``;
-#   without the matching ROS rotation the depth_pcl PointCloud
-#   surfaces in RViz pointing at the sky -- NVIDIA Forum reports
-#   ``Incorrect orientation of data from depth_pcl``,
-#   ``Adjust camera orientation in Isaac Sim for correct view of
-#   pointcloud in rviz`` document the same mechanism).
+#   orientation set by ``marslab.sensors.sensor_spawner`` in the
+#   REP-103 ``Body_Chassis`` chain.
 SensorFrameSpec = Union[
     Tuple[str, Sequence[float]],
     Tuple[str, Sequence[float], Sequence[float]],
@@ -49,7 +33,7 @@ SensorFrameSpec = Union[
 
 def build_static_sensor_transforms(
     sensor_frames: Iterable[SensorFrameSpec],
-    parent_frame_id: str = "base_link",
+    parent_frame_id: str = "Body_Chassis",
 ) -> List[Any]:
     """Return a list of ``TransformStamped`` messages for static TF.
 
@@ -166,7 +150,7 @@ def build_camera_optical_frame_transform(
 def publish_static_sensor_tfs(
     node: Any,
     sensor_frames: Iterable[SensorFrameSpec],
-    parent_frame_id: str = "base_link",
+    parent_frame_id: str = "Body_Chassis",
     *,
     qos: Optional[Any] = None,
 ) -> Any:

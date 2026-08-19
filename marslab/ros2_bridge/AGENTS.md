@@ -13,7 +13,7 @@ to ROS 2. It is a runtime-only boundary, not an import requirement for CPU tests
 | Translate QoS | `qos.py` | One validated config maps to rclpy profiles and Isaac JSON. |
 | Initialize optional rclpy | `rclpy_integration.py` | Called only after Isaac startup. |
 | Publish TF/odometry | `tf_broadcaster.py`, `odometry_publisher.py` | Respect single-owner transform rule. |
-| Pure bridge math/naming | `odometry_math.py`, `tf_nameoverrides.py` | Keep these CPU-testable. |
+| Pure bridge math | `odometry_math.py` | Keep it CPU-testable. |
 | Publish description | `robot_description_publisher.py` | Companion to the external state publisher launch. |
 | Configure QoS | `../config/schema/ros2_bridge.py` | Source of bridge config shape. |
 
@@ -31,9 +31,9 @@ to ROS 2. It is a runtime-only boundary, not an import requirement for CPU tests
 
 ## ANTI-PATTERNS
 
-- Default TF authority is JointState plus external `robot_state_publisher`.
-  Legacy `PubTF` requires explicit opt-in and publishes `/tf_raw`; never combine
-  these authorities.
+- Isaac publishes joint states and the external `robot_state_publisher` owns the
+  articulation chain below `Body_Chassis`. The companion launch owns the sole
+  identity `base_link` to `Body_Chassis` connector.
 - Do not source system ROS into the Isaac Python process.
 - Do not revive deprecated sensor Path A imports (`camera`, `imu`, `lidar`).
 

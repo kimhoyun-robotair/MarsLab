@@ -7,8 +7,8 @@ Mutable ramp / atmosphere state is carried in :class:`ControlState` /
 delegated to :func:`marslab.ros2_bridge.odometry_publisher.publish_odometry`
 via the :class:`~marslab.ros2_bridge.odometry_publisher.OdometryPublisherContext`
 carried on :attr:`LoopContext.odom_ctx` -- a single source of truth that
-honours the ``publish_tf`` gate so OmniGraph ``PubTF`` and the rclpy
-``TransformBroadcaster`` never publish to the same ``/tf`` topic.
+honours the ``publish_tf`` gate so exactly one component owns
+``odom -> base_link`` on ``/tf``.
 Isaac Sim / ``rclpy`` symbols enter via the context only -- the module
 itself is offline-importable (no Isaac Sim imports at module scope).
 A normal exit after at least one iteration or ``KeyboardInterrupt`` returns

@@ -131,7 +131,6 @@ def init_rclpy_side(
             node,
             urdf_path,
             topic=rd_topic,
-            rename_root_to_base_link=False,
         )
 
     # GT trajectory publisher: PhysX articulation pose verbatim on

@@ -25,7 +25,6 @@ from marslab.sensors.sensor_spawner import SensorHandles
 SpawnPosition = tuple[float, float, float]
 _TERRAIN_PRIM_PATH: Final = "/World/Terrain"
 _LEGACY_CLI_Z_OFFSET: Final = 0.0
-_ODOM_ANCHOR_PRIM_PATH: Final = "/World/odom_anchor"
 _FALLBACK_LIGHT_PATH: Final = "/World/FallbackSun"
 _LOG = logging.getLogger(__name__)
 
@@ -315,13 +314,11 @@ def assemble_pre_reset(
         camera_config = sensors_config["camera"]
         sensor_graph = build_sensor_graph(
             ros2_cfg=ros2_config,
-            camera_prim_path=sensor_handles.camera_prim_path,
-            camera_resolution=tuple(camera_config["resolution"]),
-            lidar_3d_prim_path=sensor_handles.lidar_3d_prim_path,
-            imu_prim_path=sensor_handles.imu_prim_path,
+            camera_acquisition=sensor_handles.camera_acquisition,
+            lidar_3d_acquisition=sensor_handles.lidar_3d_acquisition,
+            imu_acquisition=sensor_handles.imu_acquisition,
             depth_sensor_cfg=camera_config.get("depth_sensor"),
             articulation_root_prim_path=f"{spawned_rover.chassis_path}/Body_Chassis",
-            parent_anchor_prim_path=_ODOM_ANCHOR_PRIM_PATH,
         )
 
     configure_drives(stage, spawned_rover.chassis_path, control_config)

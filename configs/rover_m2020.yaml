@@ -101,7 +101,6 @@ ros2:
     points: "depth/points"       # RGB-D PointCloud2 (RealSense-style)
     camera_info: "rgb/camera_info"  # CameraInfo (intrinsics K/P/R/D)
     lidar: "lidar/points"
-    scan: "scan"                 # 2D LaserScan for SLAM
     joint_states: "joint_states" # sensor_msgs/JointState for robot_state_publisher
   rates:
     # IMU is locked to 30 Hz to match the effective PhysX physics tick
@@ -116,7 +115,6 @@ ros2:
     points: 30               # depth-derived PointCloud2 matches the depth rate
     camera_info: 30      # CameraInfo published in lock-step with rgb/depth
     lidar: 30          # For ROS2 Point Cloud Topic Publishing Rate, Not same as the RTX LiDAR rotation rate (see ``lidar_3d.rotation_rate_hz`` below).
-    scan: 30         # For ROS2 LaserScan Topic Publishing Rate, Not same as the RTX LiDAR rotation rate (see ``lidar_2d.rotation_rate_hz`` below).
     joint_states: 50             # OG ROS2PublishJointState tick rate (matches odom)
   # Frame names threaded through ``create_odometry_publisher`` so the
   # SLAM stack YAML shares one source of truth.
@@ -133,9 +131,7 @@ ros2:
   # ``marslab.ros2_bridge.tf_broadcaster.publish_static_sensor_tfs``.
   # Default ``Body_Chassis`` matches the URDF root link name so the
   # rclpy-published sensor offsets attach to the
-  # robot_state_publisher-published articulation chain.  Override
-  # to ``base_link`` if running the legacy ``rename_root_to_base_link=True``
-  # rewrite path (or any third-party stack that hardcodes ``base_link``).
+  # robot_state_publisher-published articulation chain.
   sensor_parent_frame_id: "Body_Chassis"
   # Enable rclpy-side TF broadcast of ``odom -> base_link``
   # using the PhysX articulation root pose as ground-truth odometry.
@@ -221,28 +217,6 @@ sensors:
     usd_profile: null
     # Variant inside the OS1.usd asset (128-channel @ 10 Hz, 1024 horizontal samples).
     variant: "OS1_REV6_128ch10hz1024res"
-
-  # 2D LaserScan sensor for SLAM.  Clones the RTX Lidar
-  # pipeline used by ``lidar_3d``; only the bundled profile and mount
-  # height differ (0.25 m below the 3D lidar).  Numerics mirror the
-  # Isaac Sim bundled ``Example_Rotary_2D`` JSON (single beam at -2 deg
-  # elevation, 360 deg horizontal, 0.25 deg step, 30 Hz rotation).
-  lidar_2d:
-    enabled: true
-    parent_link: "Body_Chassis"
-    local_translation: [1.4, 0.0, 0.7]
-    # URDF body frame is REP-103 (Z-up) post rc1b rewrite, so /rover/scan
-    # publishes in the canonical ROS axis with identity rpy.
-    local_orientation_rpy_deg: [0.0, 0.0, 0.0]
-    range_min: 0.5
-    range_max: 20.0
-    horizontal_fov_deg: 200.0
-    rotation_rate_hz: 30.0
-    profile_name: "Example_Rotary_2D" # Isaac Sim Bundled RTX LiDAR profile (single-beam 2D)
-    # Swap the LiDAR USD model by changing this key (e.g. ``Velodyne_VLP16``).
-    # ``null`` falls back to ``profile_name``.
-    profile_json_path: null
-    usd_profile: null
 
   imu:
     enabled: true

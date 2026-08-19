@@ -3,15 +3,9 @@
 Composes a single action graph that drives:
 
 * ``/clock`` from Isaac Sim simulation time.
-* Articulation joint TF on a dedicated ``/tf_raw`` topic, kept
-  separate from the rclpy ``odom -> base_link`` broadcaster on ``/tf``
-  in :mod:`marslab.ros2_bridge.odometry_publisher`.  Sharing one
-  ``/tf`` was tried and rolled back because the two publishers
-  produced duplicated / out-of-phase frames in RViz and SLAM.  The
-  split is enforced by user policy: never merge OmniGraph PubTF and
-  rclpy TransformBroadcaster onto the same ``/tf`` topic.
+* Articulation joint states for the external ``robot_state_publisher``.
 * IMU (``sensor_msgs/Imu``).
-* Camera RGB + Depth via independent render products.
+* Camera RGB, depth, point cloud, and CameraInfo from one pre-created render product.
 * 3-D LiDAR point cloud.
 
 Node names are kept stable across releases so external tooling
@@ -82,20 +76,32 @@ def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
     # small (rclpy lives behind sensor_graph too).
     from marslab.config.schema.rover_ros2 import (
         Ros2BridgeConfig,
+        RosRatesConfig,
+        RosTopicsConfig,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
-    return Ros2BridgeConfig.model_validate(ros2_cfg)
+    schema_ros2_cfg = {
+        key: value for key, value in ros2_cfg.items() if key in Ros2BridgeConfig.model_fields
+    }
+    schema_ros2_cfg["topics"] = {
+        key: value
+        for key, value in dict(ros2_cfg["topics"]).items()
+        if key in RosTopicsConfig.model_fields
+    }
+    schema_ros2_cfg["rates"] = {
+        key: value
+        for key, value in dict(ros2_cfg["rates"]).items()
+        if key in RosRatesConfig.model_fields
+    }
+    return Ros2BridgeConfig.model_validate(schema_ros2_cfg)
 
 
 def build_sensor_graph(
     ros2_cfg: Dict[str, Any],
-    camera_prim_path: str,
-    camera_resolution: Tuple[int, int],
-    lidar_3d_prim_path: str,
-    imu_prim_path: str,
+    camera_acquisition: Any,
+    lidar_3d_acquisition: Any,
+    imu_acquisition: Any,
     articulation_root_prim_path: str,
-    parent_anchor_prim_path: str,
-    lidar_2d_prim_path: Optional[str] = None,
     depth_sensor_cfg: Optional[Dict[str, Any]] = None,
 ) -> SensorGraphHandle:
     """Build the rover ROS2 OmniGraph.
@@ -108,26 +114,11 @@ def build_sensor_graph(
             it (non-empty, ``/``-prefixed, no whitespace).  When absent
             the module constant is used so existing scenario YAMLs keep
             loading unchanged.
-        camera_prim_path: USD path of the Camera prim.
-        camera_resolution: ``(width, height)`` tuple.
-        lidar_3d_prim_path: USD path of the 3-D RTX LiDAR prim.
-        imu_prim_path: USD path of the IMU prim.
+        camera_acquisition: Existing Task 18 camera acquisition handle.
+        lidar_3d_acquisition: Existing Task 19 LiDAR acquisition handle.
+        imu_acquisition: Existing Task 20 IMU acquisition handle.
         articulation_root_prim_path: USD path of the rover articulation
-            root prim (typically ``spawned.prim_path`` returned by
-            :func:`marslab.robots.rover.spawn_rover`).  Forwarded to
-            ``PubTF.inputs:targetPrims`` so the non-Raw
-            ``ROS2PublishTransformTree`` auto-walks the articulation
-            chain.  See ``OgnROS2PublishTransformTree.rst:45``.
-        parent_anchor_prim_path: USD path of the stationary ``odom``
-            anchor prim (typically
-            :data:`marslab.ros2_bridge.tf_nameoverrides.DEFAULT_ODOM_ANCHOR_PATH`).
-            Forwarded to ``PubTF.inputs:parentPrim`` so the published
-            chain reads ``odom -> base_link -> ...`` (REP-105) instead
-            of ``world -> base_link -> ...``.
-        lidar_2d_prim_path: Optional USD path of the 2-D RTX LiDAR prim.
-            When provided and ``topics["scan"]`` is set in ``ros2_cfg``,
-            a ``RPLidar2D``/``Lidar2DHelper`` pair is added with
-            ``type="laser_scan"``.
+            root prim, forwarded to ``PubJointState.inputs:targetPrim``.
         depth_sensor_cfg: Optional ``rover.sensors.camera.depth_sensor``
             block.  When ``enabled=True`` the orchestrator applies the
             ``OmniSensorDepthSensorSingleViewAPI`` schema to the camera
@@ -150,42 +141,25 @@ def build_sensor_graph(
     options = _resolve_ros2_bridge_options(ros2_cfg)
     graph_path = options.graph_path
     sensor_preset, tf_preset = _build_qos_presets(options)
-    include_2d = lidar_2d_prim_path is not None and "scan" in topics
-    include_pcl = options.publish_pointcloud2 and "points" in topics
-    include_caminfo = options.publish_camera_info and "camera_info" in topics
-    publish_joint_states = bool(options.publish_joint_states)
+    camera_render_product_path = str(
+        camera_acquisition.render_product.node.get_attribute("outputs:renderProductPath").get()
+    )
 
     keys = og.Controller.Keys
     graph_handle, _, _, _ = og.Controller.edit(
         {"graph_path": graph_path, "evaluator_name": "execution"},
         {
-            keys.CREATE_NODES: _build_create_nodes(
-                include_lidar_2d=include_2d,
-                include_pointcloud2=include_pcl,
-                include_camera_info=include_caminfo,
-                publish_joint_states=publish_joint_states,
-            ),
-            keys.CONNECT: _build_connections(
-                include_lidar_2d=include_2d,
-                include_pointcloud2=include_pcl,
-                include_camera_info=include_caminfo,
-                publish_joint_states=publish_joint_states,
-            ),
+            keys.CREATE_NODES: _build_create_nodes(),
+            keys.CONNECT: _build_connections(),
             keys.SET_VALUES: _build_set_values(
                 ns=ns,
                 topics=topics,
-                imu_prim_path=imu_prim_path,
-                camera_prim_path=camera_prim_path,
-                camera_resolution=camera_resolution,
-                lidar_3d_prim_path=lidar_3d_prim_path,
+                imu_prim_path=imu_acquisition.imu_prim_path,
+                camera_render_product_path=camera_render_product_path,
+                lidar_3d_render_product_path=lidar_3d_acquisition.render_product_path,
                 articulation_root_prim_path=articulation_root_prim_path,
-                parent_anchor_prim_path=parent_anchor_prim_path,
-                lidar_2d_prim_path=lidar_2d_prim_path if include_2d else None,
                 sensor_qos_preset=sensor_preset,
                 tf_qos_preset=tf_preset,
-                include_pointcloud2=include_pcl,
-                include_camera_info=include_caminfo,
-                publish_joint_states=publish_joint_states,
             ),
         },
     )
@@ -198,7 +172,7 @@ def build_sensor_graph(
     # :class:`marslab.config.schema.robot.DepthSensorConfig`.
     if depth_sensor_cfg is not None and bool(depth_sensor_cfg.get("enabled")):
         try:
-            _apply_depth_sensor_schema(graph_path, depth_sensor_cfg)
+            _apply_depth_sensor_schema(camera_render_product_path, depth_sensor_cfg)
         except (
             RuntimeError,
             AttributeError,
@@ -228,18 +202,17 @@ _DEPTH_SENSOR_SCHEMA_ATTRS: Dict[str, str] = {
 }
 
 
-def _apply_depth_sensor_schema(graph_path: str, depth_sensor_cfg: Dict[str, Any]) -> None:
+def _apply_depth_sensor_schema(
+    camera_render_product_path: str,
+    depth_sensor_cfg: Dict[str, Any],
+) -> None:
     """Apply ``OmniSensorDepthSensorSingleViewAPI`` to the shared render product.
 
-    Reads the actual render product prim path from the ``RPCamera``
-    node's ``outputs:renderProductPath`` attribute (resolved by the
-    OmniGraph during :func:`og.Controller.edit`), then applies the
-    depth-sensor schema and writes every YAML-driven attribute through
-    the canonical ``omni:rtx:post:depthSensor:*`` names.
+    Applies the depth-sensor schema to the camera spawner's existing render
+    product and writes every YAML-driven attribute through its canonical names.
 
     Args:
-        graph_path: USD path of the rover action graph (``RPCamera``
-            lives at ``{graph_path}/RPCamera``).
+        camera_render_product_path: Existing camera render-product path.
         depth_sensor_cfg: ``rover.sensors.camera.depth_sensor`` block
             (validated upstream as
             :class:`marslab.config.schema.robot.DepthSensorConfig`).
@@ -249,23 +222,14 @@ def _apply_depth_sensor_schema(graph_path: str, depth_sensor_cfg: Dict[str, Any]
     try/except so a missing API surfaces as a warning, not a runtime
     crash.
     """
-    import omni.graph.core as og  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
     from isaacsim.core.utils.prims import (
         get_prim_at_path,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
-    rp_path_attr = og.Controller.attribute(f"{graph_path}/RPCamera.outputs:renderProductPath")
-    rp_prim_path = rp_path_attr.get()
-    if not rp_prim_path:
-        raise RuntimeError(
-            f"RPCamera.outputs:renderProductPath at {graph_path}/RPCamera resolved "
-            "to an empty value; cannot apply OmniSensorDepthSensorSingleViewAPI"
-        )
-
-    rp_prim = get_prim_at_path(str(rp_prim_path))
+    rp_prim = get_prim_at_path(camera_render_product_path)
     if rp_prim is None or not rp_prim.IsValid():
         raise RuntimeError(
-            f"Render product prim at {rp_prim_path!r} is invalid; cannot apply "
+            f"Render product prim at {camera_render_product_path!r} is invalid; cannot apply "
             "OmniSensorDepthSensorSingleViewAPI"
         )
 

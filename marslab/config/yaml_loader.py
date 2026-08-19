@@ -88,12 +88,11 @@ def load_rover_config(path: str | Path) -> RoverConfig:
         data["urdf_source_path"] = _anchor_path(urdf_path, declaring_path)
     sensors = data.get("sensors")
     if isinstance(sensors, dict):
-        for sensor_name in ("lidar_3d", "lidar_2d"):
-            sensor = sensors.get(sensor_name)
-            if isinstance(sensor, dict):
-                profile_path = sensor.get("profile_json_path")
-                if isinstance(profile_path, str):
-                    sensor["profile_json_path"] = _anchor_path(profile_path, declaring_path)
+        lidar_3d = sensors.get("lidar_3d")
+        if isinstance(lidar_3d, dict):
+            profile_path = lidar_3d.get("profile_json_path")
+            if isinstance(profile_path, str):
+                lidar_3d["profile_json_path"] = _anchor_path(profile_path, declaring_path)
     data["declaring_path"] = str(declaring_path)
     return RoverConfig.model_validate_json(json.dumps(data, allow_nan=True))
 

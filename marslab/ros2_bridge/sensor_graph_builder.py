@@ -8,19 +8,13 @@ These helpers return simple Python data structures (lists of tuples)
 that the orchestrator then feeds into
 ``og.Controller.edit(..., {CREATE_NODES, CONNECT, SET_VALUES})``.
 
-Single render-product wiring.  An earlier layout used two
-``IsaacCreateRenderProduct`` nodes for the same camera prim
-(``RPCamera`` for RGB, ``RPDepth`` for depth) which produced two
-separate SDG pipelines and yielded RGB/depth timestamp skew that broke
-RTAB-Map / depth_image_proc fusion. Isaac Sim's ROS 2 camera-helper API fans a
-single render product out to every camera helper (RGB, Depth, PointCloud2,
-CameraInfo) so they share one render pass and one timestamp. This module
-follows that pattern.
+The camera and LiDAR spawners own acquisition.  This graph only publishes from
+their existing render-product paths; every camera publisher shares one path.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 def _ns_topic(ns: str, name: str) -> str:
@@ -44,139 +38,44 @@ def _validate_prim_path(name: str, value: str) -> None:
         )
 
 
-def _build_create_nodes(
-    include_lidar_2d: bool = False,
-    include_pointcloud2: bool = False,
-    include_camera_info: bool = False,
-    publish_joint_states: bool = True,
-) -> List[Tuple[str, str]]:
+def _build_create_nodes() -> List[Tuple[str, str]]:
     """List of ``(node_name, node_type)`` tuples for the rover graph.
 
-    Args:
-        include_lidar_2d: When True, appends the ``RPLidar2D`` +
-            ``Lidar2DHelper`` pair so a 2-D RTX LiDAR sensor can publish
-            ``sensor_msgs/LaserScan``.
-        include_pointcloud2: When True, appends a second
-            ``isaacsim.ros2.bridge.ROS2CameraHelper`` node (``CamPCL``)
-            wired off the single shared camera render product
-            (``RPCamera``) with ``inputs:type='depth_pcl'`` so the RGB-D
-            camera publishes a ``sensor_msgs/PointCloud2`` topic at the
-            depth-camera rate. The public ROS2CameraHelper API routes the
-            ``depth_pcl`` token through ``ROS2PublishPointCloud`` with
-            ``DistanceToImagePlane`` as the source render variable.
-        include_camera_info: When True, appends a
-            ``isaacsim.ros2.bridge.ROS2CameraInfoHelper`` node
-            (``CamInfo``) fed off the same shared ``RPCamera`` render
-            product so the camera publishes ``sensor_msgs/CameraInfo``
-            (intrinsics K / P / R / D, width, height) alongside
-            ``rgb/image_raw``. The public ROS2CameraInfoHelper API derives
-            projection matrices from the USD ``Camera`` prim's focal length,
-            aperture, and clipping range, so YAML never duplicates them.
-        publish_joint_states: When True (default), wire
-            ``isaacsim.ros2.bridge.ROS2PublishJointState`` (``PubJointState``)
-            so the rover articulation publishes
-            ``sensor_msgs/JointState`` on ``<ns>/joint_states``.  A
-            ROS-side ``robot_state_publisher`` consuming this topic and
-            the latched ``/robot_description`` produces the full link
-            tree TF on the canonical ``/tf`` topic, replacing the
-            ``ROS2PublishTransformTree`` (``PubTF``) +
-            ``topic_tools relay`` workflow.  Set False to wire
-            ``PubTF`` directly onto ``/tf_raw`` instead (used by v0.7
-            scenarios that still expect ``/tf_raw``).  The two nodes
-            are mutually exclusive -- running both would yield two
-            authorities for the same kinematic chain.  Citations:
-            ``OgnROS2PublishJointState.rst:43`` (targetPrim relationship),
-            ``isaacsim/.../tests/test_joint_state.py:61-72`` (canonical
-            OnTick / ReadSimTime / articulation_root wiring).
+    The articulation always publishes ``sensor_msgs/JointState`` on
+    ``<ns>/joint_states`` for the external ``robot_state_publisher``.
     """
     nodes: List[Tuple[str, str]] = [
         ("OnTick", "omni.graph.action.OnPlaybackTick"),
         ("ReadSimTime", "isaacsim.core.nodes.IsaacReadSimulationTime"),
         ("PubClock", "isaacsim.ros2.bridge.ROS2PublishClock"),
     ]
-    if publish_joint_states:
-        # ROS-standard pattern: Isaac Sim publishes joint state, ROS
-        # ``robot_state_publisher`` reads URDF + joint_state and emits
-        # the full /tf tree.  Single TF authority -- no relay required.
-        nodes.append(("PubJointState", "isaacsim.ros2.bridge.ROS2PublishJointState"))
-    else:
-        # Direct ``PubTF`` wiring on ``/tf_raw``.  Auto-enumerates the
-        # articulation chain via ``inputs:targetPrims``.  Citations:
-        # ``OgnROS2PublishTransformTree.rst:21,45``; canonical wiring
-        # at ``isaacsim/.../tests/test_pose_tree.py:72``.
-        nodes.append(("PubTF", "isaacsim.ros2.bridge.ROS2PublishTransformTree"))
+    nodes.append(("PubJointState", "isaacsim.ros2.bridge.ROS2PublishJointState"))
     nodes += [
         ("ReadIMU", "isaacsim.sensors.physics.IsaacReadIMU"),
         ("PubIMU", "isaacsim.ros2.bridge.ROS2PublishImu"),
-        # Single shared camera render product: RGB, Depth, PointCloud2,
-        # and CameraInfo all consume ``RPCamera`` so the render pass
-        # runs once per tick and every helper sees the same timestamp.
-        # See module docstring for the prior dual-render-product
-        # rationale and why it was retired.
-        ("RPCamera", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
         ("CamRGB", "isaacsim.ros2.bridge.ROS2CameraHelper"),
         ("CamDepth", "isaacsim.ros2.bridge.ROS2CameraHelper"),
-        ("RPLidar3D", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
+        ("CamPCL", "isaacsim.ros2.bridge.ROS2CameraHelper"),
+        ("CamInfo", "isaacsim.ros2.bridge.ROS2CameraInfoHelper"),
         ("Lidar3DHelper", "isaacsim.ros2.bridge.ROS2RtxLidarHelper"),
     ]
-    if include_pointcloud2:
-        # ``CamPCL`` reuses the shared ``RPCamera`` render product, no
-        # new ``IsaacCreateRenderProduct``.  The OmniGraph allows
-        # multiple ``ROS2CameraHelper`` consumers per render product.
-        nodes.append(("CamPCL", "isaacsim.ros2.bridge.ROS2CameraHelper"))
-    if include_camera_info:
-        # ``CamInfo`` reuses the shared ``RPCamera`` render product --
-        # no extra ``IsaacCreateRenderProduct``.  The helper extracts
-        # intrinsics from the underlying USD camera prim every tick.
-        nodes.append(("CamInfo", "isaacsim.ros2.bridge.ROS2CameraInfoHelper"))
-    if include_lidar_2d:
-        nodes += [
-            ("RPLidar2D", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
-            ("Lidar2DHelper", "isaacsim.ros2.bridge.ROS2RtxLidarHelper"),
-        ]
     return nodes
 
 
-def _build_connections(
-    include_lidar_2d: bool = False,
-    include_pointcloud2: bool = False,
-    include_camera_info: bool = False,
-    publish_joint_states: bool = True,
-) -> List[Tuple[str, str]]:
+def _build_connections() -> List[Tuple[str, str]]:
     """List of ``(src_attr, dst_attr)`` pairs describing graph edges.
 
-    All four camera helpers (RGB, Depth, optional PointCloud2, optional
-    CameraInfo) consume the single shared ``RPCamera`` render product.
-    The OmniGraph triggers each helper off ``RPCamera.outputs:execOut``
-    (when applicable) so the helpers fan out from one render pass.
-    See the module docstring for the rationale (NVIDIA canonical
-    single-render-product pattern; eliminates RGB/depth timestamp skew).
+    All camera helpers consume the shared render product made by the camera
+    spawner.  They run from one tick and use the same render-product path.
 
-    Args:
-        include_lidar_2d: Append 2-D LiDAR edges when the
-            ``Lidar2DHelper`` pair is present.
-        include_pointcloud2: Append the ``CamPCL`` edges so the
-            depth-derived PointCloud2 helper triggers off the shared
-            ``RPCamera`` render product.
-        include_camera_info: Append the ``CamInfo`` edges so the
-            CameraInfo helper triggers off ``OnTick`` and shares the
-            same ``RPCamera`` (RGB) render product.
-        publish_joint_states: Mirrors the same flag on
-            :func:`_build_create_nodes`.  When True, wire
-            ``PubJointState.inputs:execIn`` from ``OnTick`` and
-            ``PubJointState.inputs:timeStamp`` from ``ReadSimTime``
-            (canonical pattern from
-            ``isaacsim/.../tests/test_joint_state.py:71-72``).  When
-            False, restore the legacy ``PubTF`` edges.
     """
     edges: List[Tuple[str, str]] = [
         ("OnTick.outputs:tick", "PubClock.inputs:execIn"),
         ("ReadSimTime.outputs:simulationTime", "PubClock.inputs:timeStamp"),
     ]
-    pub_node = "PubJointState" if publish_joint_states else "PubTF"
     edges += [
-        ("OnTick.outputs:tick", f"{pub_node}.inputs:execIn"),
-        ("ReadSimTime.outputs:simulationTime", f"{pub_node}.inputs:timeStamp"),
+        ("OnTick.outputs:tick", "PubJointState.inputs:execIn"),
+        ("ReadSimTime.outputs:simulationTime", "PubJointState.inputs:timeStamp"),
     ]
     edges += [
         ("OnTick.outputs:tick", "ReadIMU.inputs:execIn"),
@@ -185,43 +84,12 @@ def _build_connections(
         ("ReadIMU.outputs:linAcc", "PubIMU.inputs:linearAcceleration"),
         ("ReadIMU.outputs:orientation", "PubIMU.inputs:orientation"),
         ("ReadSimTime.outputs:simulationTime", "PubIMU.inputs:timeStamp"),
-        # Single shared camera render product: ``RPCamera`` triggers
-        # both RGB and Depth helpers off the same execOut pulse so they
-        # publish in lock-step on the same render pass.
-        ("OnTick.outputs:tick", "RPCamera.inputs:execIn"),
-        ("RPCamera.outputs:execOut", "CamRGB.inputs:execIn"),
-        ("RPCamera.outputs:renderProductPath", "CamRGB.inputs:renderProductPath"),
-        ("RPCamera.outputs:execOut", "CamDepth.inputs:execIn"),
-        ("RPCamera.outputs:renderProductPath", "CamDepth.inputs:renderProductPath"),
-        ("OnTick.outputs:tick", "RPLidar3D.inputs:execIn"),
-        ("RPLidar3D.outputs:execOut", "Lidar3DHelper.inputs:execIn"),
-        ("RPLidar3D.outputs:renderProductPath", "Lidar3DHelper.inputs:renderProductPath"),
+        ("OnTick.outputs:tick", "CamRGB.inputs:execIn"),
+        ("OnTick.outputs:tick", "CamDepth.inputs:execIn"),
+        ("OnTick.outputs:tick", "CamPCL.inputs:execIn"),
+        ("OnTick.outputs:tick", "CamInfo.inputs:execIn"),
+        ("OnTick.outputs:tick", "Lidar3DHelper.inputs:execIn"),
     ]
-    if include_pointcloud2:
-        # Trigger ``CamPCL`` off ``OnTick`` and reuse the shared
-        # ``RPCamera`` render product so RGB / Depth / PointCloud2 stay
-        # frame-locked.  The OmniGraph allows multiple
-        # ``ROS2CameraHelper`` consumers per render product.
-        edges += [
-            ("OnTick.outputs:tick", "CamPCL.inputs:execIn"),
-            ("RPCamera.outputs:renderProductPath", "CamPCL.inputs:renderProductPath"),
-        ]
-    if include_camera_info:
-        # Trigger ``CamInfo`` off the same ``OnTick`` pulse and reuse
-        # ``RPCamera`` (RGB) render product so intrinsics ship in
-        # lock-step with ``rgb/image_raw``.  ``image_proc`` /
-        # ``depth_image_proc`` / RTAB-Map all expect timestamp-aligned
-        # ``CameraInfo`` per RGB frame.
-        edges += [
-            ("OnTick.outputs:tick", "CamInfo.inputs:execIn"),
-            ("RPCamera.outputs:renderProductPath", "CamInfo.inputs:renderProductPath"),
-        ]
-    if include_lidar_2d:
-        edges += [
-            ("OnTick.outputs:tick", "RPLidar2D.inputs:execIn"),
-            ("RPLidar2D.outputs:execOut", "Lidar2DHelper.inputs:execIn"),
-            ("RPLidar2D.outputs:renderProductPath", "Lidar2DHelper.inputs:renderProductPath"),
-        ]
     return edges
 
 
@@ -229,42 +97,18 @@ def _build_set_values(
     ns: str,
     topics: Dict[str, str],
     imu_prim_path: str,
-    camera_prim_path: str,
-    camera_resolution: Tuple[int, int],
-    lidar_3d_prim_path: str,
+    camera_render_product_path: str,
+    lidar_3d_render_product_path: str,
     *,
     articulation_root_prim_path: str,
-    parent_anchor_prim_path: str,
-    lidar_2d_prim_path: Optional[str] = None,
     sensor_qos_preset: str = "SensorData",
     tf_qos_preset: str = "SystemDefault",
-    include_pointcloud2: bool = False,
-    include_camera_info: bool = False,
-    publish_joint_states: bool = True,
 ) -> List[Tuple[str, Any]]:
     """List of ``(attr, value)`` pairs applied via SET_VALUES.
 
-    The articulation joint TF is published on ``/tf_raw`` while the
-    rclpy side publishes ``odom -> base_link`` on the canonical ``/tf``.
-    The two topics are deliberately kept separate: empirically, sharing
-    one ``/tf`` between an OmniGraph ``PubTF`` and an rclpy
-    ``TransformBroadcaster`` produces duplicated frames in RViz and
-    consumers' TF buffers (the two backends serialise identical frames
-    out of phase, and downstream consumers see ``/tf`` jitter that
-    breaks SLAM / localisation).  The two topics are kept separate
-    by user policy; do not propose merging them again unless the
-    user explicitly asks.
-
-    Consumers that need the joint chain (RViz ``RobotModel`` display,
-    debug tools) can run a one-line ``tf2_ros static_transform_publisher``
-    style relay or subscribe to ``/tf_raw`` directly.
-
-    When ``lidar_2d_prim_path`` is provided **and** ``topics["scan"]`` is
-    defined, the 2-D LiDAR pair is appended (``laser_scan`` type).
-
     The ``inputs:qosProfile`` string input of every Isaac Sim ROS2
     bridge helper (``PubIMU``, ``CamRGB``, ``CamDepth``,
-    ``Lidar3DHelper``, ``Lidar2DHelper``, ``PubTF``) is wired from
+    ``Lidar3DHelper``, ``PubJointState``) is wired from
     ``sensor_qos_preset`` / ``tf_qos_preset``.  Callers MUST pass the
     JSON-encoded form produced by
     :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json`; the bare
@@ -277,21 +121,10 @@ def _build_set_values(
 
     Args:
         articulation_root_prim_path: USD path of the rover articulation
-            root prim (e.g. ``/World/Rover``).  Required: forwarded to
-            ``PubTF.inputs:targetPrims`` so the non-Raw
-            ``ROS2PublishTransformTree`` auto-walks every joint and
-            publishes the entire link chain.  Validated via
+            root prim (e.g. ``/World/Rover``), forwarded to
+            ``PubJointState.inputs:targetPrim``. Validated via
             :func:`_validate_prim_path` so a typo never reaches
             ``usdrt.Sdf.Path``.
-        parent_anchor_prim_path: USD path of the stationary ``odom``
-            anchor prim created by
-            :func:`marslab.ros2_bridge.tf_nameoverrides.create_odom_anchor`.
-            Forwarded to ``PubTF.inputs:parentPrim`` so the non-Raw
-            publisher emits ``odom -> base_link -> ...`` instead of the
-            default ``world -> base_link -> ...``.  Validated via
-            :func:`_validate_prim_path`.  Citation:
-            ``OgnROS2PublishTransformTree.rst:41``;
-            ``test_pose_tree.py:154-156, :215-229``.
         sensor_qos_preset: JSON-encoded QoS dict for IMU / camera /
             LiDAR helpers.  Build via
             :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json`.
@@ -300,25 +133,8 @@ def _build_set_values(
         tf_qos_preset: JSON-encoded QoS dict for the TF publisher.
             Default ``"SystemDefault"`` carries the same offline-only
             caveat as ``sensor_qos_preset``.
-        include_pointcloud2: When True **and** ``topics["points"]`` is
-            present, append the ``CamPCL`` value bindings
-            (``inputs:type='depth_pcl'``, topic name from
-            ``topics["points"]``, ``frameId='camera_optical_frame'`` to
-            share the existing depth helper TF, and the same sensor QoS
-            preset as the other camera helpers).
-        include_camera_info: When True **and** ``topics["camera_info"]``
-            is present, append the ``CamInfo`` value bindings
-            (topic name from ``topics["camera_info"]``,
-            ``frameId='camera_optical_frame'`` to match the RGB / Depth /
-            PointCloud2 headers, and the same sensor QoS preset as the
-            other camera helpers).  ``ROS2CameraInfoHelper`` derives
-            K / P / R / D + width / height from the underlying
-            ``RPCamera`` render product, so no width / height is
-            forwarded here -- the CameraInfo helper reads the same
-            render product the RGB helper reads.
     """
     _validate_prim_path("articulation_root_prim_path", articulation_root_prim_path)
-    _validate_prim_path("parent_anchor_prim_path", parent_anchor_prim_path)
     # Lazy import: ``usdrt`` ships with Isaac Sim, not the system
     # Python.  Importing at module top would break the offline unit
     # tests under ``tests/unit/``.  The tests monkeypatch
@@ -330,62 +146,21 @@ def _build_set_values(
     values: List[Tuple[str, Any]] = [
         ("PubClock.inputs:topicName", "/clock"),
     ]
-    if publish_joint_states:
-        # ``ROS2PublishJointState.inputs:targetPrim`` is a single-prim
-        # ``target`` relationship pointing at the articulation root --
-        # the node auto-enumerates the articulation joints, queries
-        # PhysX for position / velocity / effort each tick, and emits
-        # one ``sensor_msgs/JointState`` per tick.  Source:
-        # ``OgnROS2PublishJointState.rst:43`` (Target Prim, target rel)
-        # + canonical wiring at ``isaacsim/.../tests/test_joint_state.py:66``.
-        # Topic name comes from ``rover.ros2.topics.joint_states``
-        # (default ``joint_states``).  ROS-side ``robot_state_publisher``
-        # consumes this + the latched URDF and emits the full link-tree
-        # TF on the canonical ``/tf`` topic, replacing the legacy
-        # ``PubTF``-on-``/tf_raw`` + ``topic_tools relay`` workflow.
-        joint_state_topic = topics.get("joint_states", "joint_states")
-        values += [
-            ("PubJointState.inputs:topicName", _ns_topic(ns, joint_state_topic)),
-            ("PubJointState.inputs:qosProfile", tf_qos_preset),
-            ("PubJointState.inputs:targetPrim", [usdrt.Sdf.Path(articulation_root_prim_path)]),
-        ]
-    else:
-        # Direct PubTF wiring publishes the articulation chain on
-        # ``/tf_raw`` with ``odom -> base_link -> ...`` framing.
-        # Used by v0.7 scenarios that rely on
-        # ``topic_tools relay /tf_raw /tf`` instead of the
-        # robot_state_publisher path.
-        values += [
-            ("PubTF.inputs:topicName", "/tf_raw"),
-            ("PubTF.inputs:qosProfile", tf_qos_preset),
-            # ``targetPrims`` is a ``target`` list input
-            # (``OgnROS2PublishTransformTree.rst:45-46``).  Wrapping with
-            # ``usdrt.Sdf.Path`` matches the canonical sample at
-            # ``test_pose_tree.py:77-84``.
-            ("PubTF.inputs:targetPrims", [usdrt.Sdf.Path(articulation_root_prim_path)]),
-            # ``parentPrim`` is a single-prim ``target`` relationship
-            # (``OgnROS2PublishTransformTree.rst:41``).  Wiring it to a
-            # stationary ``odom`` anchor with
-            # ``isaac:nameOverride="odom"`` makes the published chain
-            # read ``odom -> base_link -> ...`` (REP-105 canonical).
-            ("PubTF.inputs:parentPrim", [usdrt.Sdf.Path(parent_anchor_prim_path)]),
-        ]
+    joint_state_topic = topics["joint_states"]
+    values += [
+        ("PubJointState.inputs:topicName", _ns_topic(ns, joint_state_topic)),
+        ("PubJointState.inputs:qosProfile", tf_qos_preset),
+        ("PubJointState.inputs:targetPrim", [usdrt.Sdf.Path(articulation_root_prim_path)]),
+    ]
     values += [
         ("ReadIMU.inputs:imuPrim", [imu_prim_path]),
         ("PubIMU.inputs:topicName", _ns_topic(ns, topics["imu"])),
         ("PubIMU.inputs:frameId", "imu_link"),
         ("PubIMU.inputs:qosProfile", sensor_qos_preset),
-        # Single shared camera render product.  Width / height are
-        # bound once on ``RPCamera`` and inherited by every helper
-        # consumer (RGB, Depth, PointCloud2, CameraInfo).  This is the
-        # NVIDIA canonical pattern (see module docstring) and prevents
-        # the RGB/depth timestamp skew the dual-render-product layout
-        # exhibited.
-        ("RPCamera.inputs:cameraPrim", [camera_prim_path]),
-        ("RPCamera.inputs:width", int(camera_resolution[0])),
-        ("RPCamera.inputs:height", int(camera_resolution[1])),
         ("CamRGB.inputs:resetSimulationTimeOnStop", True),
         ("CamDepth.inputs:resetSimulationTimeOnStop", True),
+        ("CamPCL.inputs:resetSimulationTimeOnStop", True),
+        ("CamInfo.inputs:resetSimulationTimeOnStop", True),
         ("Lidar3DHelper.inputs:resetSimulationTimeOnStop", True),
         # Camera RGB / Depth / PointCloud2 messages carry coordinates
         # in the **optical frame convention** (Z forward, X right, Y
@@ -400,16 +175,26 @@ def _build_set_values(
         ("CamRGB.inputs:topicName", _ns_topic(ns, topics["rgb"])),
         ("CamRGB.inputs:frameId", "camera_optical_frame"),
         ("CamRGB.inputs:qosProfile", sensor_qos_preset),
+        ("CamRGB.inputs:renderProductPath", camera_render_product_path),
         ("CamDepth.inputs:type", "depth"),
         ("CamDepth.inputs:topicName", _ns_topic(ns, topics["depth"])),
         ("CamDepth.inputs:frameId", "camera_optical_frame"),
         ("CamDepth.inputs:qosProfile", sensor_qos_preset),
-        ("RPLidar3D.inputs:cameraPrim", [lidar_3d_prim_path]),
+        ("CamDepth.inputs:renderProductPath", camera_render_product_path),
+        ("CamPCL.inputs:type", "depth_pcl"),
+        ("CamPCL.inputs:topicName", _ns_topic(ns, topics["points"])),
+        ("CamPCL.inputs:frameId", "camera_optical_frame"),
+        ("CamPCL.inputs:qosProfile", sensor_qos_preset),
+        ("CamPCL.inputs:renderProductPath", camera_render_product_path),
+        ("CamInfo.inputs:topicName", _ns_topic(ns, topics["camera_info"])),
+        ("CamInfo.inputs:frameId", "camera_optical_frame"),
+        ("CamInfo.inputs:qosProfile", sensor_qos_preset),
+        ("CamInfo.inputs:renderProductPath", camera_render_product_path),
         ("Lidar3DHelper.inputs:topicName", _ns_topic(ns, topics["lidar"])),
         ("Lidar3DHelper.inputs:frameId", "lidar_link"),
         ("Lidar3DHelper.inputs:type", "point_cloud"),
         # NOTE: ``inputs:fullScan`` defaults to ``False`` on
-        # ``ROS2RtxLidarHelper``, which means a partial scan (only the
+        # ``ROS2RtxLidarHelper``, which means a partial sweep (only the
         # angular slice covered since the previous tick) is published
         # every simulation frame.  This is fine when the YAML
         # ``rotation_rate_hz`` roughly matches the sim tick rate (e.g.
@@ -426,43 +211,8 @@ def _build_set_values(
         # See ``README.md`` (SLAM integration notes) for the matching
         # ``configs/rover_m2020.yaml`` knob (``lidar_3d.rotation_rate_hz``).
         ("Lidar3DHelper.inputs:qosProfile", sensor_qos_preset),
+        ("Lidar3DHelper.inputs:renderProductPath", lidar_3d_render_product_path),
     ]
-    if include_pointcloud2 and "points" in topics:
-        values += [
-            ("CamPCL.inputs:type", "depth_pcl"),
-            ("CamPCL.inputs:topicName", _ns_topic(ns, topics["points"])),
-            # Point cloud in optical frame convention.  RViz expects
-            # the frame_id label to match the data's coordinate
-            # handedness; ``camera_optical_frame`` is the REP-105
-            # child of camera_link broadcast via
-            # ``tf_broadcaster.publish_static_sensor_tfs``.
-            ("CamPCL.inputs:frameId", "camera_optical_frame"),
-            ("CamPCL.inputs:qosProfile", sensor_qos_preset),
-            ("CamPCL.inputs:resetSimulationTimeOnStop", True),
-        ]
-    if include_camera_info and "camera_info" in topics:
-        # ``ROS2CameraInfoHelper`` only exposes topicName / frameId /
-        # qosProfile + the stereo-pair inputs; intrinsics are derived
-        # from the render product internally
-        # (OgnROS2CameraInfoHelper.rst:32-52).  ``frameId`` matches the
-        # RGB / Depth / PointCloud2 headers (REP-105 optical frame) so
-        # ``image_proc`` / ``depth_image_proc`` / RTAB-Map / ORB-SLAM3
-        # see consistent geometry.
-        values += [
-            ("CamInfo.inputs:topicName", _ns_topic(ns, topics["camera_info"])),
-            ("CamInfo.inputs:frameId", "camera_optical_frame"),
-            ("CamInfo.inputs:qosProfile", sensor_qos_preset),
-            ("CamInfo.inputs:resetSimulationTimeOnStop", True),
-        ]
-    if lidar_2d_prim_path is not None and "scan" in topics:
-        values += [
-            ("RPLidar2D.inputs:cameraPrim", [lidar_2d_prim_path]),
-            ("Lidar2DHelper.inputs:topicName", _ns_topic(ns, topics["scan"])),
-            ("Lidar2DHelper.inputs:frameId", "scan_frame"),
-            ("Lidar2DHelper.inputs:type", "laser_scan"),
-            ("Lidar2DHelper.inputs:qosProfile", sensor_qos_preset),
-            ("Lidar2DHelper.inputs:resetSimulationTimeOnStop", True),
-        ]
     return values
 
 

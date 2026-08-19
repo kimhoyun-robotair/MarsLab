@@ -149,6 +149,11 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 | Task | 단계 | 실제 role/model | 파일 | 심볼/구간 | `+LOC` | `-LOC` | 명령/exit | evidence | 사용자 QA 상태 |
 |---:|---|---|---|---|---:|---:|---|---|---|
 | 1 | G1 | LOW/Luna (`lazycodex-worker-low`) | `MARSLAB_REFACTORING_CHANGE_REPORT.md` | 기준선·계약·G1–G7 템플릿 | `178` | `0` | see task-1 evidence | `.omo/evidence/marslab-runtime-refactor-v2/task-1/` | PENDING USER; Isaac 미실행 |
+| 16 | G4 | LOW/Luna (`lazycodex-worker-low`) | 신규 product file 없음; `marslab/config/schema/rover_sensors.py`, `configs/config.yaml`, `marslab/sensors/sensor_spawner.py` 현재 상태 재검증 | retained Camera/IMU/Lidar3D schema와 chassis parent contract (기존 `8e25e38` 상태) | `0` | `0` | canonical loader/model/source probe · `0`; compile/Ruff/basedpyright/diff checks · `0` | `.omo/evidence/marslab-runtime-refactor-v2/task-16/` 및 `adversarial-verify/final.md` | PENDING USER; G4 미승인 |
+| 18 | G4 | LOW/Luna (`lazycodex-worker-low`) | `marslab/sensors/camera_spawner.py` 신규, `marslab/sensors/sensor_spawner.py` 추출 위임 | typed `CameraConfig`, Camera prim/RP/annotator acquisition, legacy `SensorHandles` projection | `132` | `40` | source/diff/AST/import/trace·quality gates · `0` (basedpyright는 외부 stub 진단만) | `.omo/evidence/marslab-runtime-refactor-v2/task-18/` 및 `adversarial-verify/final.md` | PENDING USER; G4 미승인 |
+| 20 | G4 | LOW/Luna (`lazycodex-worker-low`) | `marslab/sensors/imu_spawner.py` 신규, `marslab/sensors/sensor_spawner.py` coordinator 축소 | typed `IMUConfig`·deferred Isaac 5.1 `IMUSensor`; Camera/3D/IMU 단일 위임; 2D surface 제거 | `196` | `587` | live numstat·source/AST/import/fake-trace·quality gates · `0` (basedpyright/pytest는 분류된 비녹색) | `.omo/evidence/marslab-runtime-refactor-v2/task-20/` 및 `adversarial-verify/final.md` | PENDING USER; G4 미승인 |
+| 21 | G4 | MEDIUM/Terra (heavy; `lazycodex-worker-medium`) | `marslab/ros2_bridge/sensor_graph.py`, `sensor_graph_builder.py`, `marslab/runtime/assembly.py`, `marslab/sensors/sensor_spawner.py` | ROS-on retained Camera RGB/depth/depth-PCL/CameraInfo, IMU, 3-D LiDAR graph; existing acquisition identity/path reuse; 2-D branch deferred to Task22 | `59` | `193` | fake PIN→RED→GREEN graph/assembly probes, deferred import, compile/Ruff/Black/diff checks · `0`; basedpyright external stubs 분류 | `.omo/evidence/marslab-runtime-refactor-v2/task-21/` 및 `adversarial-verify/AdversarialVerify.md` | PENDING USER; G4 미승인 |
+| 22 | G4 | MEDIUM/Terra (heavy; `lazycodex-worker-medium`) | `marslab/ros2_bridge/sensor_graph.py`, `sensor_graph_builder.py` | 2-D LiDAR ROS API/switch/node/edge/scan-value surface atomically removed; Task21 retained six publishers and acquisition identities preserved; canonical raw ROS strict-schema subset filter present; Task22-only `+/-` delta is not independently recoverable from the shared worktree | `—` | `—` | process-local fake public invocation, residue/preimage scan, Python 3.11 compile, Ruff/Black/diff checks · `0`; basedpyright external stubs 분류 | `.omo/evidence/marslab-runtime-refactor-v2/task-22/report/DoneClaim.md`, `adversarial-verify/AdversarialVerify.md` | PENDING USER; G4 미승인 |
 
 이 표는 이후 Task 2–36에서 exact file/symbol과 실제 `git diff --numstat`의
 `+/-`를 행 단위로 누적한다. evidence와 report 외 파일은 이 Task 1에서 바꾸지
@@ -1112,3 +1117,447 @@ report/evidence LOC를 제외한다.
   **`f23986e4fc7c76d50eb205cbe1866338595c0bb5`** —
   `refactor(runtime): coordinate retained assembly`.
 - **다음 unlock:** **Task16 (G4) unlocked**.
+
+## Task 16 — 센서 schema parent link 제거의 현재 상태 충족 (no-op)
+
+- **라우팅/소유:** **LOW/Luna** (`lazycodex-worker-low`). 이 기록은 Task16
+  보고서와 evidence만 소유하며 product·plan·ledger는 수정하지 않았다.
+- **no-op 판정:** Task16의 acceptance state는 기존 commit
+  `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` (`refactor(config): add canonical
+  runtime configuration`)에 이미 들어 있었다. 따라서 이번 작업은 삭제를
+  새로 수행한 것이 아니라 현재 source/evidence를 재검증했으며 product delta는
+  **`+0/-0`**이다.
+- **현재 계약:** `CameraConfig`, `Lidar3DConfig`, `IMUConfig`는
+  `local_translation`/`local_orientation_rpy_deg`를 유지하고 `parent_link`가
+  없다. `SensorsConfig`와 canonical `configs/config.yaml`의 sensor keys는
+  Camera·IMU·3D LiDAR·seed이며 canonical config에는 `parent_link`와
+  `lidar_2d`가 없다. strict Pydantic injection은 `parent_link`를
+  `extra_forbidden`으로 거부한다. Sensor spawner는 발견된
+  chassis rigid body인 단일 `rigid_body_path: str`를 parent로 사용하고 retained
+  sensor의 local transform을 유지한다.
+- **잔여 분류:** 필수 전체 scan의 `sensor_spawner.py` 38 matches는 Task17이
+  소유한 legacy 2D/scan 경로다. schema와 canonical config의 owned-file scan은
+  exit `1`/empty output이며, 이 Task16 기록에서 해당 spawner 삭제를 주장하지
+  않는다.
+
+### Task 16 검증 및 수동 QA
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| canonical loader와 retained field inventory | `python3` production `load_config('configs/config.yaml')` + four model field assertions · exit `0`, `FORBIDDEN_SCHEMA_FIELDS_ABSENT PASS` | `.omo/evidence/marslab-runtime-refactor-v2/task-16/canonical-loader.txt` |
+| strict forbidden-input rejection | `CameraConfig.model_validate`에 `parent_link` 주입 · exit `0`, `MALFORMED_FORBIDDEN_FIELD_REJECTED PASS`, `extra_forbidden` at `('parent_link',)` | `.omo/evidence/marslab-runtime-refactor-v2/task-16/forbidden-input.txt` |
+| residue classification | required `rg` scan · exit `0` with only out-of-scope spawner matches; owned-only scan · exit `1`/empty | `.omo/evidence/marslab-runtime-refactor-v2/task-16/residue-scan.txt` |
+| sole chassis parent and retained transforms | direct source-contract probe · exit `0`, `SPAWNER_PARENT_CONTRACT PASS` | `.omo/evidence/marslab-runtime-refactor-v2/task-16/spawner-contract.txt` |
+| touched-source quality | `py_compile`, Ruff, basedpyright, `git diff --check` · each exit `0` | `.omo/evidence/marslab-runtime-refactor-v2/task-16/quality-checks.txt` |
+
+- **독립 확인:** `.omo/evidence/marslab-runtime-refactor-v2/task-16/adversarial-verify/final.md`
+  의 direct loader/model/source probe가 exit `0`과
+  `TASK16_ADVERSARIAL_VERIFY PASS`를 기록하고 verdict를 `confirmed`로
+  고정했다. reviewed commit은 `c3d2cdff21de63a27c4b07aeff7064a590d5a0e0`이며,
+  현재 reviewed source hash와 clean owned-path status도 같은 artifact에 있다.
+- **ULTRAQA:** `malformed_input`, `dirty_worktree`, `stale_state`,
+  `misleading_success_output`는 PASS. `prompt_injection`, `cancel_resume`,
+  `hung_or_long_commands`, `flaky_tests`, `repeated_interruptions`는 이
+  bounded offline/report surface에 해당 이벤트가 없어 N/A다. 기존 legacy
+  pytest collection API ImportError는 `test-harness-note.txt`에 기록했으며
+  no-op 범위를 넘어 수정하지 않았다.
+- **수동 QA / gate:** `sed -n '/^## Task 16/,$p' MARSLAB_REFACTORING_CHANGE_REPORT.md`
+  로 이 항목을 terminal-render해 exact criteria, **`+0/-0`**, LOW/Luna,
+  evidence, no-new-deletion wording, 다음 **Task17**을 확인한다. **G4는
+  여전히 PENDING USER**이며 `APPROVE G4` 또는 runtime PASS를 추론하지 않는다.
+
+## Task 17 — legacy 2D LiDAR profile anchoring 제거 및 3D 경로 보존
+
+- **라우팅/소유:** **LOW / Luna** (`lazycodex-worker-low`). 변경된 product
+  파일은 `marslab/config/yaml_loader.py` 하나이며, report/evidence 외의
+  unrelated worktree 변경은 건드리지 않았다.
+- **정확한 product delta:** 현재 `git diff --numstat --
+  marslab/config/yaml_loader.py marslab/config configs/config.yaml`는
+  `5 6 marslab/config/yaml_loader.py`로 **`+5/-6` (net `-1` LOC)**이다.
+  기존 `load_rover_config`의 `("lidar_3d", "lidar_2d")` 순회에서 retired
+  `lidar_2d` profile anchoring만 제거했고, 지원되는
+  `lidar_3d.profile_json_path`는 declaring YAML 기준 anchoring을 유지했다.
+  schema export와 `configs/config.yaml`에는 product delta가 없다.
+- **계약/잔여:** 현재 `rg -n -i 'lidar_2d|lidar2d|scan' marslab/config
+  configs/config.yaml`는 exit `1`/빈 출력으로 owned config/schema residue가
+  0이다. strict `MarsLabConfig.model_validate`는 주입된
+  `rover.sensors.lidar_2d`와 `rover.ros2.topics.scan`을 각각 정확한 위치에서
+  `extra_forbidden`으로 거부한다. 계획의 `profile_path` 표기는 오기이며
+  production field는 `profile_json_path`다. 호환 alias는 추가하지 않았다.
+
+### Task 17 검증 및 수동 QA
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| legacy 2D traversal RED/green | in-memory mapping을 production `load_rover_config`에 전달 · preimage는 2D/3D 모두 anchor, 현재는 2D 값 `profiles/lidar2d.json` 유지·3D는 absolute | `.omo/evidence/marslab-runtime-refactor-v2/task-17/red_2d_traversal.txt`, `.omo/evidence/marslab-runtime-refactor-v2/task-17/post_traversal_scope.txt` |
+| retained 3D path | relative `lidar_3d.profile_json_path`를 선언 YAML 기준으로 로드 · `absolute=True`, `exists=True`, expected file | `.omo/evidence/marslab-runtime-refactor-v2/task-17/post_3d_anchor.txt` |
+| canonical load / corrected manual QA | `marslab/isaac_python.sh` Python 3.11 `load_config('configs/config.yaml')` · exit `0`, `None OS1`; corrected `profile_json_path` probe `True OS1` | `.omo/evidence/marslab-runtime-refactor-v2/task-17/baseline_canonical_load.txt`, `.omo/evidence/marslab-runtime-refactor-v2/task-17/manual_qa_corrected.txt` |
+| strict retired-input rejection | `MarsLabConfig.model_validate` with injected 2D/scan keys · both rejected at `rover.sensors.lidar_2d` and `rover.ros2.topics.scan` | `.omo/evidence/marslab-runtime-refactor-v2/task-17/malformed_input_rejection.txt` |
+| residue/export/static gates | required `rg` scan exit `1`/empty; imports, Python 3.11 compile, Ruff, Black, mypy, `git diff --check` exit `0` | `.omo/evidence/marslab-runtime-refactor-v2/task-17/residue_post.txt`, `.omo/evidence/marslab-runtime-refactor-v2/task-17/schema_export_import.txt`, `.omo/evidence/marslab-runtime-refactor-v2/task-17/py_compile.result`, `.omo/evidence/marslab-runtime-refactor-v2/task-17/ruff.result`, `.omo/evidence/marslab-runtime-refactor-v2/task-17/black.result`, `.omo/evidence/marslab-runtime-refactor-v2/task-17/mypy.result`, `.omo/evidence/marslab-runtime-refactor-v2/task-17/diff_check.result` |
+
+- **독립 확인:** `.omo/evidence/marslab-runtime-refactor-v2/task-17/adversarial-verify/final.md`
+  는 direct source/loader/schema probe를 재실행해 **`confirmed` / APPROVE**로
+  판정했다. 같은 확인에서 authoritative numstat `+5/-6`, current residue 0,
+  strict rejection, 3D anchoring 보존을 고정했다. 독립 code review도
+  `CLEAR`/`APPROVE`이며 blocker가 없다.
+- **증거 정정:** executor DoneClaim의 `+5/-5`/net-zero 표기는 실제
+  `git diff --numstat`와 불일치한다. 이 보고서는 authoritative **`+5/-6`**만
+  기록한다. task snippet의 `profile_path` 실패는 production schema에 없는
+  이름 때문이며, 실제 `profile_json_path` corrected probe는 PASS다.
+- **ULTRAQA/cleanup:** stale state, dirty scope, misleading success output은
+  적용 PASS(오류 표기는 위와 같이 명시); malformed input과 generated/cache
+  cleanup도 PASS다. prompt injection, cancel/resume, flaky, hung/long,
+  repeated interruption, network/auth/server lifecycle은 이 결정적 offline
+  loader task에 surface가 없어 N/A다. cleanup receipt는
+  `.omo/evidence/marslab-runtime-refactor-v2/task-17/cleanup_receipt.txt`다.
+- **수동 QA / gate:** `sed -n '/^## Task 17/,$p' MARSLAB_REFACTORING_CHANGE_REPORT.md`
+  로 terminal render해 exact criteria, **`+5/-6`**, LOW/Luna, evidence,
+  typo/alias 및 stale·dirty·misleading 적용 결과를 확인한다(PASS). **G4는
+  여전히 PENDING USER**이며 다음 작업은 **Task18**이다.
+
+## Task 18 — Camera spawner 추출 및 ROS-independent acquisition 경계
+
+- **라우팅/소유:** **LOW/Luna** (`lazycodex-worker-low`). 새
+  `marslab/sensors/camera_spawner.py`가 typed `CameraConfig` 경계로 Camera
+  생성을 소유하고, `marslab/sensors/sensor_spawner.py`는 한 번 위임한 뒤
+  기존 `camera`와 `camera_prim_path`만 `SensorHandles`에 투영한다. IMU,
+  LiDAR, ROS, config, graph 및 enable/disabled 분기는 이 Task18 범위에서
+  수정하지 않았다.
+- **정확한 product delta:** live authoritative numstat은 신규 파일에
+  `git diff --no-index --numstat /dev/null marslab/sensors/camera_spawner.py`
+  를 적용해 `+124/-0` (명령의 no-index 차이 exit `1`은 신규 파일 신호)로
+  확인했고, tracked coordinator는 `git diff --numstat --
+  marslab/sensors/sensor_spawner.py`의 `+8/-40`이다. 따라서 Task18 합계는
+  **`+132/-40` (net `+92`)**이며 report/evidence LOC는 제외한다.
+- **Camera 계약:** 기존 constructor → `initialize()` → focal-length →
+  clipping 순서를 zero-orientation trace와 직접 비교해 보존했다. 비영(非零)
+  orientation은 기존 parent-Xform 패턴을 유지한다. 새 경계는 Camera prim
+  정확히 하나, ROS와 독립된 acquisition render product 정확히 하나를 만들고
+  같은 render product에 `rgb`와 `distance_to_image_plane` annotator를 각각
+  한 번 attach한다. 반환 `CameraSpawnHandles`는 frozen/slotted typed handle로
+  고정되며 기존 경로 필드는 그대로 소비된다.
+- **경계/잔여 위험:** Isaac/Omni/pxr import는 `spawn_camera()` 호출 시점으로
+  지연되어 offline import가 가능하다. 새 모듈 AST에는 IMU/LiDAR/ROS/enable
+  로직이 없다. 기존 ROS OmniGraph의 `RPCamera` render-product 노드는 같은
+  Camera prim에 대한 별도 pipeline으로 남아 있으며, RP 통합은 **Task22의
+  bounded risk**이지 Task18 실패가 아니다.
+- **LOC/정적 품질:** `camera_spawner.py`는 **95 pure LOC / 124 physical
+  LOC**다. Ruff, Black, Python 3.11 `py_compile`, AST 및 `git diff --check`는
+  PASS했다. basedpyright의 진단은 offline 환경에서 제공되지 않는
+  Isaac/Omni/pxr import·stub에 한정되며 새 public handle API에 `Any`를
+  추가하지 않았다.
+
+### Task 18 검증 및 수동 QA
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| legacy Camera 의미/순서 pin | fake Isaac trace에서 constructor, `initialize`, focal, clipping prefix가 기존과 동일 · oriented branch도 parent Xform 유지 | `.omo/evidence/marslab-runtime-refactor-v2/task-18/PIN-RED.md`, `post-camera-only.log`, `trace-compare.log`, `adversarial-verify/final.md` |
+| 단일 Camera/RP와 annotator 공유 | dynamic count `Camera=1`, `render_product=1`, `rgb.attach=1`, `distance_to_image_plane.attach=1`; 두 attach가 동일 RP | `.omo/evidence/marslab-runtime-refactor-v2/task-18/post-camera-only.log`, `post-trace.log`, `trace-compare.log` |
+| typed/frozen handle와 coordinator projection | `CameraConfig.model_validate`, 단일 `spawn_camera(stage, camera_cfg, rigid_body_path)` 호출, mutation은 `FrozenInstanceError` · 기존 path fields 유지 | `.omo/evidence/marslab-runtime-refactor-v2/task-18/ast-scan.log`, `adversarial-verify/final.md` |
+| offline import/deferred runtime imports | `env PYTHONDONTWRITEBYTECODE=1 marslab/isaac_python.sh -c 'import marslab.sensors.camera_spawner as m; print(m.__all__)'` · exit `0`, `['CameraSpawnHandles', 'spawn_camera']`; Isaac/Omni/pxr modules 미로드 | `.omo/evidence/marslab-runtime-refactor-v2/task-18/manual-import.log`, `adversarial-verify/final.md` |
+| source/tool gates | AST, Ruff, Black, Python 3.11 `py_compile`, `git diff --check` · 각 exit `0`; basedpyright는 외부 runtime stub 진단으로 분류 | `.omo/evidence/marslab-runtime-refactor-v2/task-18/ast-scan.log`, `ruff.log`, `black.log`, `py_compile.log`, `diff-check.log`, `basedpyright.log` |
+
+- **독립 확인:** `.omo/evidence/marslab-runtime-refactor-v2/task-18/adversarial-verify/final.md`
+  는 `APPROVE — AdversarialVerify PASS`/`confirmed`로 고정했으며, exact
+  criteria C1–C10과 `95 pure / 124 physical LOC`를 재확인했다. 실제 GPU/Isaac
+  생성은 실행하지 않았고 사용자 runtime QA로 추론하지 않는다.
+- **ULTRAQA/cleanup:** stale/dirty/misleading/generated 상태 검토를 적용했다.
+  compile/import 중 생긴 변경 모듈 bytecode는 임시 경로에서 정리했고, 저장소
+  cache·test·script·YAML·source, SimulationApp/process/port는 추가·기동하지
+  않았다. 별도 runtime/auth/network/cancel/hung surface는 이 offline
+  extraction 검증 범위가 아니므로 결과를 발명하지 않는다.
+- **수동 QA / gate:**
+  `sed -n '/^## Task 18/,$p' MARSLAB_REFACTORING_CHANGE_REPORT.md`로 이
+  항목을 terminal-render하고 `git diff --check --
+  MARSLAB_REFACTORING_CHANGE_REPORT.md marslab/sensors/sensor_spawner.py`
+  를 재실행해 PASS를 확인한다. **G4는 여전히 PENDING USER**이며 다음 unlock은
+  **Task19**다.
+
+## Task 19 — typed RTX 3D LiDAR spawner 추출 및 ROS-independent point-cloud 경계
+
+- **라우팅/소유:** **LOW/Luna** (`lazycodex-worker-low`). 새
+  `marslab/sensors/lidar_3d_spawner.py`가 typed `Lidar3DConfig` 경계에서 RTX
+  3D LiDAR 생성·초기화·point-cloud acquisition을 소유하고,
+  `marslab/sensors/sensor_spawner.py`는 한 번 위임한 뒤 coordinator가 읽기
+  handle을 투영한다. Camera, IMU, 2D LiDAR, ROS graph, schema, YAML,
+  enable/experimental 경계는 이 Task19에서 확장하지 않았다.
+- **정확한 authoritative product delta:** live untracked-aware numstat은 새
+  파일 `git diff --no-index --numstat /dev/null
+  marslab/sensors/lidar_3d_spawner.py`의 **`192 0`** (no-index exit `1`은
+  신규 파일 차이의 정상 신호)과 tracked coordinator
+  `git diff --numstat -- marslab/sensors/sensor_spawner.py`의
+  **`18 74`**를 기록했다. 따라서 Task19 합계는 **`+210/-74` (net +136)**다.
+  새 모듈은 **192 physical / 148 pure LOC**이며 report/evidence와 unrelated
+  dirty paths는 product delta에서 제외했다.
+- **보존된 Isaac 계약:** `LidarRtx` profile name/JSON path는
+  `config_file_name`으로 그대로 전달되고, float32 translation 및 non-zero
+  orientation, optional USD profile/variant, near/far/rate/FOV/elevation
+  overrides, prim resolution → override → `initialize()` 순서를 보존한다.
+  runtime에는 LiDAR sensor 하나, render-product handle 하나, point-cloud
+  annotator 하나만 연결하며 spawn 시 eager `get_data()`/copy를 수행하지 않고
+  `read_point_cloud()` 호출 때만 읽는다.
+- **coordinator/오프라인 경계:** `SensorHandles.read_lidar_3d_point_cloud()`는
+  새 acquisition handle을 사용하고 수동으로 만든 legacy handle에는 기존
+  fallback을 유지한다. `omni`/`isaacsim`/`pxr` import는 호출 내부로 지연되어
+  Python 3.11 wrapper offline import가 가능하며 public API는
+  `['Lidar3DSpawnHandles', 'spawn_lidar_3d']`다. 새 모듈에는 Camera/IMU/2D
+  LiDAR/ROS/experimental/enable branch가 없다.
+
+### Task 19 검증 및 수동 QA
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| live product numstat (untracked 포함) | `git diff --numstat -- marslab/sensors/sensor_spawner.py` → `18 74`; `git diff --no-index --numstat /dev/null marslab/sensors/lidar_3d_spawner.py` → `192 0`, expected exit `1`; derived `+210/-74` | `.omo/evidence/marslab-runtime-refactor-v2/task-19/report/live-numstat.log` |
+| profile/transform/override/order 보존 | fake Isaac trace에서 supplied profile name/JSON, float32 translation·WXYZ orientation, USD profile/variant, six override writes, `initialize` order가 확인됨 | `.omo/evidence/marslab-runtime-refactor-v2/task-19/profile-overrides-trace.log`, `post-fake-trace.log`, `adversarial-verify/final.md` |
+| 단일 runtime sensor/RP/annotator 및 on-demand read | counts가 constructor/initialize/render-product/annotator/read 각각 `1`; read 전 eager `get_data()` `0`, 명시적 read 후 `1`, point-cloud shape `(1, 3)` | `.omo/evidence/marslab-runtime-refactor-v2/task-19/counts.log`, `post-fake-trace.log`, `adversarial-verify/final.md` |
+| typed coordinator compatibility | `Lidar3DConfig.model_validate`와 단일 `spawn_lidar_3d(...)` call, coordinator read binary assertion 및 legacy fallback 확인 | `.omo/evidence/marslab-runtime-refactor-v2/task-19/post-coordinator-fake-trace.log`, `adversarial-verify/final.md` |
+| offline deferred import / forbidden scope | `env PYTHONDONTWRITEBYTECODE=1 marslab/isaac_python.sh -c 'import marslab.sensors.lidar_3d_spawner as m; print(m.__all__)'` → exit `0`, exact API; AST/text scan에서 eager Isaac import·Camera/IMU/2D/ROS/experimental/enable 없음 | `.omo/evidence/marslab-runtime-refactor-v2/task-19/manual-import.log`, `ast-scan.log`, `adversarial-verify/final.md` |
+| source/tool gates | Python 3.11 `py_compile`, Ruff, Black, `git diff --check` 모두 PASS; basedpyright는 외부 Isaac SDK/stub 및 pre-existing coordinator 진단으로 분류 | `.omo/evidence/marslab-runtime-refactor-v2/task-19/py_compile.log`, `ruff.log`, `black.log`, `diff-check.log`, `basedpyright.log` |
+| malformed profile boundary | invalid typed profile configuration이 Pydantic 경계에서 거부됨 | `.omo/evidence/marslab-runtime-refactor-v2/task-19/malformed-config.log` |
+
+- **독립 확인:** `.omo/evidence/marslab-runtime-refactor-v2/task-19/adversarial-verify/final.md`는
+  `APPROVE`/`confirmed`로 고정되었고, profile·transform·override 순서,
+  정확히 한 개의 sensor/RP/annotator, on-demand read, coordinator projection,
+  offline import, 금지 범위를 독립 source/AST/import/fake-runtime probe로
+  재실행했다. 새 source의 pure LOC는 148로 250 LOC 상한 아래다.
+- **검증 한계/분류:** `tests/refactor`는 이미 제거된
+  `marslab.config.load_rover_config`를 가져오는 out-of-scope 테스트 때문에
+  collection 단계에서 중단되며 Task19가 tests/fixture를 추가하거나 이 API를
+  복원하지 않았다. basedpyright의 missing Isaac runtime import/stub 진단과
+  legacy coordinator diagnostics도 pre-existing/external로 분류한다. 실제
+  GPU/SimulationApp/Isaac runtime은 실행하지 않았고 사용자 G4 표면으로 남긴다.
+- **ULTRAQA/cleanup:** stale state, dirty-worktree attribution,
+  misleading-success output, generated bytecode/cache cleanup을 적용해 PASS했다.
+  이 bounded offline extraction에는 prompt injection, auth/network/ports,
+  cancel/resume, hung/long, flaky/retry, repeated interruption surface가 없어
+  결과를 발명하지 않고 N/A로 분류했다. 임시 bytecode와 probe process는
+  정리했으며 SimulationApp/Isaac process는 시작하지 않았다
+  (`cleanup.log`).
+- **수동 QA / gate:** `sed -n '/^## Task 19/,$p'
+  MARSLAB_REFACTORING_CHANGE_REPORT.md`의 terminal render와 report/source
+  `git diff --check`가 PASS인지 확인했다. **G4는 여전히 PENDING USER**이고,
+  Task20 IMU 추출이 다음 작업이다. `APPROVE G4` 또는 사용자 Isaac runtime
+  PASS를 추론하지 않는다.
+
+## Task 20 — IMU spawner 추출 및 sensor coordinator 축소
+
+- **라우팅/소유:** **LOW/Luna** (`lazycodex-worker-low`). 새
+  `marslab/sensors/imu_spawner.py`가 typed `IMUConfig` 경계에서 Isaac Sim 5.1
+  `isaacsim.sensors.physics.IMUSensor` 생성·초기화를 소유하고,
+  `marslab/sensors/sensor_spawner.py`는 Camera·3D LiDAR·IMU를 각각 한 번씩
+  위임하는 좁은 coordinator로 축소했다. 이 report-only 기록은 product source를
+  추가로 수정하지 않았다.
+- **정확한 authoritative product delta:** live untracked-aware numstat은 새
+  `imu_spawner.py`의 `git diff --no-index --numstat /dev/null ...`에서
+  **`+137/-0`** (no-index exit `1`은 신규 파일 차이의 정상 신호), tracked
+  coordinator에서 **`+59/-587`**이다. 따라서 Task20 합계는 **`+196/-587`
+  (net `-391`)**이다. 새 모듈은 **137 physical / 109 pure LOC**,
+  coordinator는 **117 physical / 99 pure LOC**이며 report/evidence와 unrelated
+  dirty paths는 product delta에서 제외했다.
+- **보존된 IMU 계약:** `IMUConfig`를 typed 입력으로 받고 Isaac import는
+  `spawn_imu()` 호출 내부로 지연한다. 기존 Mars gravity assertion(3.72 ± 0.05),
+  parent-Xform orientation 및 local translation, frequency의 `int(...)` 변환,
+  정확히 한 번의 `IMUSensor` constructor와 `initialize()` 호출을 보존한다.
+  `SensorHandles.read_imu()`의 on-demand read, 동일 prim path,
+  `use_latest_data=True`/`read_gravity=True`, 여섯 acceleration/angular-velocity
+  필드와 read-time gravity warning도 유지된다.
+- **coordinator surface:** 모든 retained sensor는 enable/disabled 분기 없이
+  Camera·3D LiDAR·IMU spawner를 한 번씩 호출한다. coordinator와 새 IMU 모듈에서
+  2D LiDAR constants/handles/prim·profile creation/branches/helpers를 제거했고,
+  experimental/deprecated/duplicate/eager/ROS sensor creation surface는 없다.
+  `imu.py` 신규 deprecated module도 만들지 않았다.
+
+### Task 20 검증 및 수동 QA
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| live product numstat (untracked 포함) | `git diff --numstat -- marslab/sensors/sensor_spawner.py` → `59 587`; `git diff --no-index --numstat /dev/null marslab/sensors/imu_spawner.py` → `137 0`, expected exit `1`; derived `+196/-587` | `.omo/evidence/marslab-runtime-refactor-v2/task-20/report/live-numstat.log` |
+| source/evidence availability 및 LOC | `wc -l`/nonblank count → IMU `137/109`, coordinator `117/99`; authoritative implementation/adversarial logs non-empty | `.omo/evidence/marslab-runtime-refactor-v2/task-20/report/source-evidence-check.log` |
+| typed/deferred IMU API와 금지 surface | AST/signature scan → `__all__ == ['IMUSpawnHandles', 'spawn_imu']`, one constructor/initialize, no module-scope Isaac import, coordinator delegates Camera/3D/IMU once, zero 2D/experimental/enable | `.omo/evidence/marslab-runtime-refactor-v2/task-20/ast-api-scan.log` |
+| IMU behavior boundary | fake Isaac orientation/config trace → parent Xform ordering, configured translation/orientation, float32 zero translation, frequency `30.9 → 30`, one constructor/initialize; malformed/unknown `IMUConfig` rejected | `.omo/evidence/marslab-runtime-refactor-v2/task-20/orientation-and-config.log`, `fake-trace.log` |
+| offline import | `env PYTHONDONTWRITEBYTECODE=1 marslab/isaac_python.sh -c 'import marslab.sensors.imu_spawner as m; print(m.__all__)'` → exit `0`, Isaac/Omni/pxr/rclpy not loaded | `.omo/evidence/marslab-runtime-refactor-v2/task-20/manual-import.log` |
+| quality gates | Python compile, Ruff, Black, `git diff --check` → exit `0`; basedpyright exit `1` only for external Isaac/pxr stubs and existing coordinator diagnostics; pytest exit `2` at out-of-scope legacy collection import | `.omo/evidence/marslab-runtime-refactor-v2/task-20/py_compile.log`, `ruff.log`, `black.log`, `diff-check.log`, `basedpyright.log`, `pytest-refactor.log` |
+| independent implementation verdict | adversarial recheck directly compared live source/hashes and fake probes; verdict `confirmed` with all Task20 criteria satisfied | `.omo/evidence/marslab-runtime-refactor-v2/task-20/adversarial-verify/final.md` |
+
+- **독립 확인:** `adversarial-verify/final.md`는 live hash, AST/text, Python 3.11
+  offline import, typed boundary, fake Isaac/coordinator/read trace, gravity source
+  semantics, LOC/numstat, quality gates를 재실행해 **`confirmed`**로 고정했다.
+  이는 실제 GPU/SimulationApp/ROS runtime 실행이나 사용자 표면 PASS를 의미하지
+  않는다.
+- **진단 분류:** basedpyright의 exit 1은 CPU-only 환경의 외부 Isaac/Omni/pxr
+  import·attribute/stub 진단과 기존 coordinator typing 경고로 분류했다.
+  `pytest-refactor.log`의 exit 2는 이미 제거된
+  `marslab.config.load_rover_config`를 가져오는 out-of-scope legacy test의
+  collection 실패이며 Task20 source/test를 추가하거나 API를 복원하지 않았다.
+- **ULTRAQA/cleanup:** `malformed_input`, `stale_state`, `dirty_worktree`,
+  `misleading_success_output`, `generated_artifacts`는 PASS다. prompt injection,
+  cancel/resume, hung/long, flaky, repeated interruption은 이 bounded
+  offline/report surface에 이벤트가 없어 N/A로 분류했다. 임시 probe·bytecode·
+  venv를 정리했고 Isaac/ROS process·port·SimulationApp은 시작하지 않았다
+  (`cleanup.log`).
+- **수동 QA / gate:** `sed -n '/^## Task 20/,$p'
+  MARSLAB_REFACTORING_CHANGE_REPORT.md`로 이 항목을 terminal-render하고
+  report/source `git diff --check`를 재실행했다. **G4는 여전히 PENDING USER**이며
+  다음 작업은 **Task21**이다. `APPROVE G4` 또는 사용자 Isaac runtime PASS를
+  추론하지 않는다.
+
+## Task 21 — retained ROS sensor graph와 acquisition identity 연결
+
+- **라우팅/소유:** **MEDIUM / Terra (heavy)** (`lazycodex-worker-medium`). 보고서와
+  report evidence만 갱신했으며 product source 및 기존 Task21 evidence는 수정하지
+  않았다. 초기 call-graph RED에서 `spawn_sensors()`가 Task18 Camera와 Task20
+  IMU acquisition handle을 버려 assembly가 graph에 identity를 전달할 수 없음을
+  확인했다. 사용자 승인 최소 범위 확장으로 `SensorHandles`에
+  `camera_acquisition`, `lidar_3d_acquisition`, `imu_acquisition`을 보존하고,
+  ROS-on assembly가 이 세 객체를 그대로 한 번 전달하도록 연결했다.
+- **정확한 Task21 delta:** clean-at-start에서 검토한 hunk 기준으로
+  `sensor_graph.py +22/-40`, `sensor_graph_builder.py +27/-145`,
+  `assembly.py +3/-4`, coordinator projection `sensor_spawner.py +7/-4`이다.
+  합계는 **`+59/-193` (net `-134`)**이며, Task20과 공유하는 coordinator의
+  전체 dirty `numstat`를 Task21 delta로 재사용하지 않았다.
+- **Graph 계약:** ROS graph가 만들어질 때 Camera RGB, depth, depth PointCloud2,
+  CameraInfo, IMU, 3-D LiDAR publisher를 enable flag 없이 유지한다. Camera의
+  네 publisher는 Camera spawner가 이미 만든 **동일한 render-product path**를
+  받고, LiDAR helper는 기존 LiDAR acquisition의 path를, IMU publisher는 기존
+  IMU acquisition의 prim identity를 사용한다. retained Camera/LiDAR render
+  product 재생성은 없다. ROS disabled assembly는 graph-builder 호출 **0회**,
+  enabled assembly는 **1회**이며 세 acquisition 객체 identity가 모두 보존된다.
+- **2-D 경계 및 LOC:** `RPLidar2D` temporary branch만 Task22까지 남긴다. 현재
+  pure LOC는 `sensor_graph.py=235`, `sensor_graph_builder.py=265`,
+  `sensor_spawner.py=103`, `assembly.py=293`이며, 모듈 250 pure-LOC 수치는
+  이 Task에서 절대 gate로 적용하지 않는 사용자 승인 정책을 따른다.
+
+### Task 21 검증 및 수동 QA
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| retained graph PIN→RED→GREEN | process-local fake `build_sensor_graph`에서 필수 노드·endpoint를 검증; CamInfo 제거 RED는 `exit 1`, GREEN은 missing/unresolved 모두 빈 집합 | `.omo/evidence/marslab-runtime-refactor-v2/task-21/DoneClaim.md`, `adversarial-verify/AdversarialVerify.md` |
+| path/identity와 ROS gate | fake `assemble_pre_reset`를 `ros2_enabled=False/True`로 각각 호출; graph build `0/1`, Camera/LiDAR/IMU identity `True` | `.omo/evidence/marslab-runtime-refactor-v2/task-21/adversarial-verify/AdversarialVerify.md` |
+| retained publisher surface | source/fake payload에서 `CamRGB`, `CamDepth`, `CamPCL`, `CamInfo`, `PubIMU`, `Lidar3DHelper` 존재; retained `IsaacCreateRenderProduct` 0, 임시 `RPLidar2D`만 보존 | `.omo/evidence/marslab-runtime-refactor-v2/task-21/DoneClaim.md` |
+| offline/static gates | deferred import exit `0`; Python 3.11 compile, Ruff, Black, `git diff --check` exit `0`; basedpyright exit `1`은 외부 Isaac/Omni/pxr/usdrt stub 진단으로 분류 | `.omo/evidence/marslab-runtime-refactor-v2/task-21/DoneClaim.md`, `adversarial-verify/AdversarialVerify.md` |
+| reviewed arithmetic/source binding | clean-start hunk arithmetic `22+27+3+7=59`, `40+145+4+4=193`, net `-134`; source/evidence non-empty 및 report render/diff-check 확인 | `.omo/evidence/marslab-runtime-refactor-v2/task-21/report/DoneClaim.md`, `live-numstat.log`, `manual-render.log`, `diff-check.log` |
+
+- **독립 확인:** `.omo/evidence/marslab-runtime-refactor-v2/task-21/adversarial-verify/AdversarialVerify.md`는
+  `verdict: confirmed`, `recommendation: APPROVE`, blockers 없음으로 고정했고,
+  malformed endpoint RED, public builder GREEN, Task22 임시 2-D branch, assembly
+  identity/gate, deferred import 및 정적 검사를 직접 재실행했다.
+- **진단·실행 한계:** basedpyright의 비녹색은 `omni.graph.core`,
+  `isaacsim.core.utils.prims`, `usdrt`, `isaacsim.sensors.physics`,
+  `omni.isaac.sensor` 외부 runtime stub 부재다. 실제 Isaac Sim/ROS/OmniGraph
+  runtime은 시작하지 않았으므로 사용자 G4 표면 PASS를 추론하지 않는다.
+- **ULTRAQA/cleanup:** malformed/stale topology, dirty scope,
+  misleading-success, generated cache cleanup은 PASS로 기록되어 있다. 이
+  bounded offline/report 검증에는 prompt injection, cancel/resume, hung/long,
+  flaky, repeated interruption surface가 없어 N/A다. 기존 unrelated dirty path는
+  보존했고, Task21 report 검증은 product process·port·임시 파일을 만들지 않았다.
+- **수동 QA / gate:** `sed -n '/^## Task 21/,$p'
+  MARSLAB_REFACTORING_CHANGE_REPORT.md`로 terminal render와 exact
+  **`+59/-193` (net `-134`)**, MEDIUM/Terra heavy, path/identity/gate,
+  adversarial verdict를 확인한다. **G4는 여전히 PENDING USER**이며 다음은
+  **Task22**다. `APPROVE G4` 또는 사용자 Isaac runtime PASS를 추론하지 않는다.
+
+## Task 22 — 2-D LiDAR ROS graph surface 원자적 제거
+
+- **라우팅/소유:** **MEDIUM / Terra (heavy)** (`lazycodex-worker-medium`). 이번
+  Task의 product 범위는 `marslab/ros2_bridge/sensor_graph.py`와
+  `marslab/ros2_bridge/sensor_graph_builder.py` 두 파일뿐이다. Task21이 보존한
+  Camera RGB/depth/depth-PCL/CameraInfo, IMU, 3-D LiDAR의 여섯 publisher와
+  acquisition product/identity/endpoint를 그대로 유지하고, graph 내부에서
+  render product를 새로 만들지 않는다.
+- **원자적 삭제:** public `lidar_2d_prim_path` 인자와 `include_2d` 선택,
+  builder의 `include_lidar_2d` switch/인자, `RPLidar2D`·`Lidar2DHelper` node,
+  tick/exec/render-product edges, camera prim·`/rover/scan`·`scan_frame`·
+  `laser_scan`·sensor QoS·reset 값이 두 graph 파일에서 함께 사라졌다. 현재
+  두 파일의 2-D residue 검색은 빈 출력이며, retained camera 네 helper는 동일한
+  caller render-product path, 3-D helper는 기존 3-D path, IMU는 기존 prim identity를
+  받는다. `IsaacCreateRenderProduct` 재생성은 없다.
+- **canonical raw ROS 경계:** canonical YAML의 legacy free-form `topics`/`rates`
+  키를 strict `Ros2BridgeConfig` subset으로 먼저 필터링하는 경계가 현재 source에
+  존재한다. 이 경계 필터 덕분에 raw `configs/rover_m2020.yaml` public invocation이
+  graph edit까지 도달하며, 2-D dispatch나 compatibility shim은 남기지 않는다.
+- **LOC 보고 한계:** 현재 두 owned graph 파일은 `wc -l` 기준 **620 physical LOC**
+  (`sensor_graph.py=299`, `sensor_graph_builder.py=321`)이다. HEAD 대비 현재
+  shared-worktree scoped diff는 **`+71/-236` (net `-165`)**이나 이는 Task21과
+  Task22의 누적 변경을 함께 포함하므로 Task22 단독 delta로 귀속하지 않는다.
+  Task22 전용 pre-edit snapshot/patch가 durable하게 남아 있지 않아 Task22-only
+  `+/-` 또는 net LOC를 권위 수치로 제시하지 않는다.
+
+### Task 22 검증 및 수동 QA
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| canonical raw ROS public build | process-local fake `omni.graph.core.Controller`/`usdrt`로 `configs/rover_m2020.yaml`의 raw `ros2` block을 public `build_sensor_graph`에 전달; retained six, endpoint, product identity를 assert | `.omo/evidence/marslab-runtime-refactor-v2/task-22/adversarial-verify/AdversarialVerify.md` (`manual-qa=PASS`, `unresolved=[]`) |
+| atomic 2-D removal | `rg -n 'lidar_2d|lidar2d|Lidar2D|scan|RPLidar2D' marslab/ros2_bridge/sensor_graph.py marslab/ros2_bridge/sensor_graph_builder.py` | 빈 출력·exit `1`; 같은 artifact의 preimage RED/GREEN 기록 |
+| retained topology / no RP recreation | fake payload reconciliation; camera products 4개가 동일 path, 3-D path/IMU identity 보존, `IsaacCreateRenderProduct` 생성 0 | `.omo/evidence/marslab-runtime-refactor-v2/task-22/adversarial-verify/AdversarialVerify.md` |
+| offline/static quality | `python3.11 -m py_compile`·`black --check`·`ruff check`·`git diff --check` | 모두 exit `0`; basedpyright exit `1`은 `omni.graph.core`, `isaacsim.core.utils.prims`, `usdrt` 외부 import 진단으로 분류 |
+| source/evidence accounting | current owned-file `wc -l` `620`; HEAD→current scoped cumulative diff `+71/-236` (Task21+22 combined, not Task22-only); report tail render and whitespace diff check | `.omo/evidence/marslab-runtime-refactor-v2/task-22/report/DoneClaim.md` |
+
+- **독립 확인:** `.omo/evidence/marslab-runtime-refactor-v2/task-22/adversarial-verify/AdversarialVerify.md`는
+  current source와 `git show HEAD:<owned-file>` preimage를 직접 대조해
+  **CONFIRMED** verdict, retained endpoints/products/identities, malformed detector,
+  residue scan, deferred import 및 정적 gate를 재실행했다. 실제 Isaac Sim/ROS/Kit
+  runtime은 실행하지 않았고, 따라서 사용자 G4 surface PASS를 추론하지 않는다.
+- **ULTRAQA/cleanup:** stale state, dirty worktree, malformed topology,
+  misleading-success, generated artifacts/cleanup은 adversarial review에서 PASS다.
+  `.venv`는 정확한 경로에 대해 `gio trash`로 recoverable move 되었고 원 inode와
+  source path metadata는 `.omo/evidence/marslab-runtime-refactor-v2/task-22/cleanup-venv-receipt.md`와
+  `cleanup-venv-independent-verification.md`에 고정되어 있다. 원 경로 부재,
+  Trash inode 존재, status hash 보존, process prefix scan `none`을 재확인했다.
+  임시 fake module/script/process/port는 남기지 않았다.
+- **수동 QA / gate:**
+  `sed -n '/^## Task 22/,$p' MARSLAB_REFACTORING_CHANGE_REPORT.md`와
+  `git diff --check -- MARSLAB_REFACTORING_CHANGE_REPORT.md`를 재실행한다.
+  **G4는 여전히 PENDING USER**이며 다음 작업은 **Task23**이다. `APPROVE G4`나
+  실제 Isaac runtime PASS를 추론하지 않는다.
+
+## Task 23 — 2-D TF 및 legacy base-link 우회 경로 제거
+
+- **라우팅/소유:** **MEDIUM / Terra (heavy)** (`lazycodex-worker-medium`). Task23은
+  `sensor_frames.py`, `tf_broadcaster.py`, `sensor_graph.py`,
+  `sensor_graph_builder.py`, `runtime/assembly.py`, 관련 schema/YAML, rclpy/URDF
+  경계, `launch/rover_state_publisher.launch.py`, `docs/frame_conventions.md`를
+  함께 정리하고 `marslab/ros2_bridge/tf_nameoverrides.py`를 삭제했다. 현재
+  report는 Task23 전용 pre-edit snapshot이 없으므로 Task23-only `+/-` LOC를
+  발명하지 않는다.
+- **최종 TF 계약:** 2-D `scan_frame`/`lidar_2d` frame map과
+  `apply_nameoverride`, `create_odom_anchor`, `DEFAULT_ODOM_ANCHOR_PATH`,
+  `isaac:nameOverride`, `/World/odom_anchor`, `/tf_raw`,
+  `rename_root_to_base_link`, `enable_isaac_nameoverride`,
+  `parent_anchor_prim_path` 및 관련 active documentation을 제거했다. 현재
+  retained frame map은 `camera_link`, `lidar_link`, `imu_link` 세 개이며 모두
+  `Body_Chassis` 아래에 있다. `base_link`와 실제 USD/URDF root `Body_Chassis`는
+  유지되고, companion launch에는 all-zero identity `base_link → Body_Chassis`
+  static connector가 정확히 하나, `robot_state_publisher`가 정확히 하나 남는다.
+- **문서/경계 정합:** `docs/frame_conventions.md`와 센서 TF docstring은
+  identity REP-103 `Body_Chassis` 계약으로 정정했다. 단, `docs/`는
+  `.gitignore:55`에 의해 무시되므로 G4 stage commit에서
+  `docs/frame_conventions.md`를 force-stage해야 한다. 실제 Isaac/ROS TF tree는
+  실행하지 않았고 **PENDING USER (G5)**다.
+- **재현 가능한 LOC/검사:** 현재 report에서 Task23 전용 LOC를 산출하지 않는다.
+  broad Task23 static scope의 basedpyright는 **50 errors / 861 warnings**로
+  비녹색이며, unavailable Isaac/Omni/ROS/usdrt imports와 inherited local generic
+  annotation debt가 함께 있다. narrow graph core check의 3 missing-import
+  진단도 green gate로 취급하지 않는다. Python compile, Ruff, Black,
+  `git diff --check`, frame-map/launch topology probe는 PASS다.
+
+### Task 23 검증 및 수동 QA
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| stale report PIN/RED | `rg -n '^## Task 23|^\\| 23 \\|' MARSLAB_REFACTORING_CHANGE_REPORT.md` before edit | empty output; expected RED captured in report-update DoneClaim |
+| frame-map and connector contract | process-local Python probe injects a `lidar_2d` block, parses launch AST, and counts identity connector | `frame-map has no scan/lidar_2d: True`; `base_link->Body_Chassis identity count == 1`; `legacy token scan == 0`; exit `0` — `.omo/evidence/marslab-runtime-refactor-v2/task-23/manual-qa.txt`, `post-fix-manual-qa.txt` |
+| forbidden residue | exact-token `rg` across active `marslab`, `configs`, `launch`, `docs`, `tests`, `.github`, `pyproject.toml` | no active matches; `tf_nameoverrides.py` absent — `.omo/evidence/marslab-runtime-refactor-v2/task-23/adversarial-verify/AdversarialVerify.md` |
+| static quality | in-memory Python compile, `ruff check`, `black --check`, `git diff --check` | exit `0`; basedpyright remains explicitly non-green as classified above — `.omo/evidence/marslab-runtime-refactor-v2/task-23/` |
+| independent gate | read-only post-fix adversarial source/preimage/topology audit | verdict **`confirmed`**, no Task23 blocker — `.omo/evidence/marslab-runtime-refactor-v2/task-23/adversarial-verify/AdversarialVerify.md` |
+
+- **ULTRAQA/cleanup:** stale state, dirty worktree, malformed input, misleading
+  success, and generated-artifact cleanup were directly probed and recorded.
+  Prompt injection, cancel/resume, hung/long, flaky, and repeated interruption
+  surfaces are N/A for this bounded deterministic offline/report task. Temporary
+  pre-edit scan, generated bytecode, process, port, fixture, and temp directory
+  cleanup is recorded in `.omo/evidence/marslab-runtime-refactor-v2/task-23/cleanup-receipt.txt`.
+- **수동 QA / gate:**
+  `rg -n 'Task 23|base_link|Body_Chassis|tf_nameoverrides|PENDING USER' MARSLAB_REFACTORING_CHANGE_REPORT.md`
+  must exit `0` and show this entry, the retained identity contract, deleted helper,
+  and pending G5 runtime. **G4는 여전히 PENDING USER**이며 Task23의 실제 TF tree
+  관찰이나 `APPROVE G4`를 추론하지 않는다.

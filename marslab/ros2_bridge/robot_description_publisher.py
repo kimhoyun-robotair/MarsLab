@@ -45,7 +45,6 @@ __all__ = [
     "RobotDescriptionContext",
     "publish_robot_description",
     "rewrite_mesh_paths_to_file_uri",
-    "rewrite_urdf_root_to_base_link",
 ]
 
 
@@ -56,9 +55,6 @@ __all__ = [
 # what makes :func:`rewrite_mesh_paths_to_file_uri` idempotent.
 _MESH_PATH_RE = re.compile(r'<mesh\s+filename="(?!file://|http://|package://)\.?/?meshes/([^"]+)"')
 
-
-# Root-rename regexes.  See :func:`rewrite_urdf_root_to_base_link` for
-# the full rationale.
 
 # Match the entire ``<joint name="JointRoot" type="floating">...</joint>``
 # block.  The block is anchored on BOTH ``name="JointRoot"`` and
@@ -93,13 +89,6 @@ _GROUND_LINK_RE = re.compile(
     r'<link\s+name="ground">.*?</link>\s*',
     flags=re.DOTALL,
 )
-
-# Match ``Body_Chassis`` only when bounded on both sides by whitespace
-# or ``"`` (so a future ``Body_ChassisExtension`` link is not silently
-# mangled).  The JPL m2020 URDF currently has 46 occurrences across
-# link declarations and joint parent/child references; the global
-# substitution renames them all.
-_BODY_CHASSIS_RE = re.compile(r'(["\s])Body_Chassis(["\s])')
 
 
 @dataclass
@@ -166,52 +155,6 @@ def rewrite_mesh_paths_to_file_uri(urdf_text: str, urdf_dir: str) -> str:
     return _MESH_PATH_RE.sub(_replace, urdf_text)
 
 
-def rewrite_urdf_root_to_base_link(urdf_text: str) -> str:
-    """Bring the JPL m2020 URDF in line with the REP-105 ``base_link`` root.
-
-    Three text-level edits, applied in order:
-
-    1. Strip the entire ``<joint name="JointRoot" type="floating">...</joint>``
-       block.  The joint's ``<parent link="ground"/>`` reference would
-       otherwise dangle after step 2, and urdf_parser/src/model.cpp:253
-       rejects dangling joint parents
-       ("Failed to build tree: parent link [ground] of joint [JointRoot]
-       not found").  After deletion, ``base_link`` (renamed in step 3)
-       becomes the natural URDF tree root because no other joint has
-       ``parent link="ground"`` in the m2020 URDF.
-    2. Strip the ``<link name="ground">...</link>`` block (URDF-import
-       placeholder, not a real kinematic body).  Done after step 1 so
-       step 1's regex anchor never depends on whether step 2 ran first.
-    3. Rename every ``Body_Chassis`` reference (link declaration +
-       parent / child links on every joint) to ``base_link`` so the
-       URDF agrees with the OG-side TF tree (the rover articulation
-       root carries ``isaac:nameOverride="base_link"``).
-
-    The function is **idempotent** by construction: a second pass finds
-    no JointRoot block, no ``ground`` link block, and no
-    ``Body_Chassis`` token -- all three regexes degenerate to no-ops.
-
-    Args:
-        urdf_text: Raw URDF XML as a string.  Operated on as text via
-            regex (no XML parsing) so attribute order, whitespace, and
-            comments are preserved exactly.
-
-    Returns:
-        The rewritten URDF string.
-
-    Notes:
-        Without this rewrite, RViz reports
-        "RobotModel: No transform from [Body_Chassis] to [odom]" and
-        renders nothing because the URDF root link name disagrees with
-        the OmniGraph-published frame_id.  Citation: JPL URDF root
-        layout at ``assets/m2020-urdf-models/rover/m2020.urdf:6,1029-1033``.
-    """
-    out = _JOINT_ROOT_BLOCK_RE.sub("", urdf_text)
-    out = _GROUND_LINK_RE.sub("", out)
-    out = _BODY_CHASSIS_RE.sub(r"\1base_link\2", out)
-    return out
-
-
 def _build_default_qos() -> Any:
     """Construct ``TRANSIENT_LOCAL + RELIABLE + KEEP_LAST(1)`` QoS.
 
@@ -241,7 +184,6 @@ def publish_robot_description(
     *,
     topic: str = "/robot_description",
     qos: Optional[Any] = None,
-    rename_root_to_base_link: bool = True,
 ) -> RobotDescriptionContext:
     """Read the URDF, rewrite mesh paths, publish once on a latched topic.
 
@@ -257,13 +199,6 @@ def publish_robot_description(
             function builds the canonical RViz profile
             (``RELIABLE`` + ``TRANSIENT_LOCAL`` + ``KEEP_LAST(1)``) so a
             late-joining RViz subscriber still latches the URDF.
-        rename_root_to_base_link: When ``True`` (default for backwards
-            compatibility with the OmniGraph PubTF + nameOverride
-            workflow) the URDF root link ``Body_Chassis`` is rewritten
-            to ``base_link``.  Pass ``False`` to keep the URDF link
-            names verbatim so the published URDF matches the OmniGraph
-            ``ROS2PublishJointState`` joint owners (single source of
-            truth for ``robot_state_publisher`` consumption).
 
     Returns:
         :class:`RobotDescriptionContext` so the caller can keep the
@@ -290,16 +225,7 @@ def publish_robot_description(
         raw_urdf = fh.read()
 
     urdf_dir = os.path.dirname(abs_urdf_path)
-    # Optional rewrite of the URDF root link from ``Body_Chassis`` to
-    # ``base_link``.  Required for the legacy OmniGraph PubTF +
-    # ``isaac:nameOverride='base_link'`` workflow because the
-    # OmniGraph-published frame_id had to agree with the URDF root.
-    # The robot_state_publisher workflow does not require renaming --
-    # the SLAM stack's ``base_frame`` accepts any frame name via launch param
-    # -- so callers passing ``rename_root_to_base_link=False`` get the
-    # URDF verbatim, which is the single-source-of-truth path.
-    urdf_text = rewrite_urdf_root_to_base_link(raw_urdf) if rename_root_to_base_link else raw_urdf
-    urdf_text = rewrite_mesh_paths_to_file_uri(urdf_text, urdf_dir)
+    urdf_text = rewrite_mesh_paths_to_file_uri(raw_urdf, urdf_dir)
 
     resolved_qos = qos if qos is not None else _build_default_qos()
     publisher = node.create_publisher(String, topic, resolved_qos)

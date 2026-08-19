@@ -438,7 +438,7 @@ def _spawn_rover_usd(
     """Attach the USD reference, set the spawn pose, and locate the rigid body.
 
     Loads the rover USD under ``prim_path``, writes the world-frame
-    translation + X-roll orientation onto the root Xform, then walks the
+    translation + configured orientation onto the root Xform, then walks the
     chassis to find the prim that actually carries ``RigidBodyAPI``.
 
     Args:
@@ -446,8 +446,8 @@ def _spawn_rover_usd(
         prim_path: Destination stage path (e.g. ``/World/Rover``).
         usd_abs: Absolute filesystem path to the rover USD file.
         spawn_xyz: World-frame spawn position (m).
-        spawn_orientation_rpy: ``(roll, pitch, yaw)`` in radians.  See
-            ``docs/frame_conventions.md`` for the M2020 X-roll rationale.
+        spawn_orientation_rpy: ``(roll, pitch, yaw)`` in radians from
+            the canonical REP-103 configuration.
 
     Returns:
         Path of the moving ``RigidBodyAPI`` prim under
@@ -580,17 +580,6 @@ def spawn_rover(
     Returns:
         :class:`SpawnedRover` with discovered prim paths.
 
-    Note:
-        The caller is responsible for invoking ``apply_nameoverride``
-        and ``create_odom_anchor`` from
-        :mod:`marslab.ros2_bridge.tf_nameoverrides` after spawn if
-        ROS2 TF integration is required.  The recommended sequence is::
-
-            result = spawn_rover(stage, ...)
-            apply_nameoverride(stage, result.rigid_body_path, "base_link")
-            create_odom_anchor(
-                stage, DEFAULT_ODOM_ANCHOR_PATH, spawn_xyz, frame_name="odom"
-            )
     """
     prim_path = str(rover_cfg["prim_path"])
     spawn_block = rover_cfg["spawn"]

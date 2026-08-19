@@ -1,7 +1,7 @@
 """Standalone launch file for ``robot_state_publisher`` + MarsLab's URDF + ``/joint_states``.
 
 The MarsLab Stage-3 OmniGraph publishes ``sensor_msgs/JointState`` on
-``/<ns>/joint_states`` (see ``Ros2BridgeConfig.publish_joint_states``).
+``/<ns>/joint_states``.
 This launch file pairs that topic with a ``robot_state_publisher``
 instance that consumes the rover URDF as a ROS parameter (NOT a topic
 -- ``robot_description`` is a parameter on the
