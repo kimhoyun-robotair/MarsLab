@@ -135,7 +135,7 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 |---|---|---|---|---|---|---|
 | G1 | Tasks 1–7, integrated config/schema | `APPROVE G1` (원문: `좋아 Approve G1`) | integrated config/schema · **`+284/-71`** | `<command>` · `<exit>` · `<evidence>` | **`G1 config facade PASS`**; stage commit: `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` (`refactor(config): add canonical runtime configuration`, 12 committed paths) | **Task8 (G2)** unlocked |
 | G2 | Tasks 8–10, CLI/Python 3.11 launcher | `APPROVE G2` | product delta `+46/-103` (net `-57`) | non-Isaac contract checks PASS; evidence below | Isaac/Kit boot remains user-only | **Task11 (G3) unlocked** |
-| G3 | Tasks 11–15, lifecycle/main loop | `APPROVE G3` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: boot/physics/control/cleanup | G4 |
+| G3 | Tasks 11–15, lifecycle/main loop | `APPROVE G3` | Tasks 11–15 product subtotal **`+921/-871` (net `+50`)**; Task15 final **`+199/-842` (net `-643`)** | static/offline checks PASS; user runtime PASS evidence below | **runtime PASS; 승인 토큰은 아직 PENDING USER**; exact next gate **`APPROVE G3`** | G4 |
 | G4 | Tasks 16–23, Camera/IMU/3D LiDAR and 2D deletion | `APPROVE G4` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: retained sensor outputs | G5 |
 | G5 | Tasks 24–28, ROS/TF/GT/Wheel integration | `APPROVE G5` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: topics, QoS, single TF owners | G6 |
 | G6 | Tasks 29–34, repository cleanup/documentation | `APPROVE G6` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: diff/docs inspection | G7 |
@@ -931,3 +931,172 @@ sensor, ROS topic/TF/QoS, cleanup 또는 기타 runtime 성공을 주장하지 �
 - **제품 delta (report/evidence 제외):** **`+46/-103`**, net **`-57`**.
 - **다음 unlock:** **Task11 (G3 Tasks 11–15) — unlocked**. Isaac/Kit runtime
   관찰은 계속 사용자 전용이다.
+
+## Task 11 — typed Isaac boot boundary
+
+- **라우팅:** **LOW/Luna** (`lazycodex-worker-low`). 제품 변경은
+  `marslab/sim/boot.py` 한 파일뿐이다. `boot_simulation_app()`는 typed
+  `RuntimeConfig`를 받아 `runtime.headless`를 `SimulationApp` 설정에
+  소비하고, `runtime.ros2_enabled`일 때만 지연 import한
+  `isaacsim.ros2.bridge`를 정확히 한 번 enable한다. Isaac import는 호출
+  시점까지 지연되며, 첫 `update()` 뒤 동일한 live handle을 반환한다.
+  Scene/Rover/sensor/world assembly, lifecycle, RunPlan은 추가하지 않았다.
+- **제품 delta:** `marslab/sim/boot.py`의 live diff는 **`+26/-29`**, net
+  **`-3`** (29 pure LOC)이다. 제품 LOC이며 report/evidence LOC는 제외한다.
+  직전 누적 **`+330/-174`**에서 **`+356/-203`**이 됐다.
+- **검증:** inline fake-module QA의 exact observable은
+  `{'pure_import_did_not_load_isaacsim': True, 'headless': [True, False], 'renderer': ['RaytracedLighting', 'RaytracedLighting'], 'bridge_calls': ['isaacsim.ros2.bridge'], 'updates': [1, 1], 'identity': [True, True]}`이다. 따라서 ROS-off는 bridge call 0회, ROS-on은 1회, 각 handle은
+  1회 update되고 반환 identity가 보존된다. 오프라인 import/AST deferred-
+  import·RuntimeConfig/read/update 정적 확인, Python 3.11 compileall,
+  Ruff, Black, mypy, `git diff --check`가 모두 PASS했다.
+- **범위 제한:** 실제 Isaac boot/physics는 **G3 사용자 소유**이며 여기서
+  성공을 주장하지 않는다. 현재 `main.py`의 구 호출은 의도적으로 남겨 두고
+  **Task 15에서 prepare→boot rewiring**한다. ULTRAQA는
+  `dirty_worktree`, `stale_state`, `misleading_success_output` PASS이며,
+  malformed input·concurrency/auth/network/ports/process lifetime은 이
+  순수 boot boundary에 해당하지 않아 N/A다. `prompt_injection`은 untrusted
+  instruction ingestion이 없고, `cancel_resume`은 resumable flow가 없으며,
+  `hung_or_long_commands`는 bounded command만, `flaky_tests`는 tests를
+  실행·변경하지 않았고, `repeated_interruptions`는 interrupt/retry 동작이
+  없어 각각 N/A다.
+
+## Task 12 — pre-reset assembly 추출
+
+- **작업 난이도/모델:** **MEDIUM / Terra** (`lazycodex-worker-medium`).
+- **재설계 및 범위:** 초기 reverse-dependency 검증은
+  `PreResetDependencies`/project-callback injection을 발견해 **REJECT**됐다.
+  사용자 승인으로 해당 주입과 250 pure-LOC 절대 gate를 제거하고,
+  `marslab/runtime/assembly.py`가 concrete MarsLab 호출과 지연 Isaac import를
+  직접 소유하도록 수리해 최종 verifier **confirmed/APPROVE**를 받았다. 최종
+  소스에는 `marslab.main` 참조가 0건이다.
+- **내부 상수 경계:** public `terrain_prim_path`, `cli_z_offset`,
+  `parent_anchor_prim_path` 인자를 제거하고 `/World/Terrain`, legacy `0.0`
+  z-fallback, `/World/odom_anchor`를 assembly 내부가 소유한다. `tf_nameoverrides`
+  참조도 없으며, stale caller/import 제거는 **Task 15**에서 수행한다.
+- **보존한 동작:** Scene → atmosphere/render 또는 fallback → 세 spawn 모드
+  (`dem_center`, `dem_relative`, `absolute`) → Rover → 필수 Camera·IMU·3D LiDAR
+  → ROS-조건부 graph → DriveAPI → `Articulation(prim_paths_expr=...)` → 단일
+  `world.reset` 순서와 unsupported-mode 오류를 유지했다. 2D LiDAR 토큰/전달은 없다.
+- **정리/LOC:** 최종 live delta는 **`+350/-0` physical lines, 294 pure LOC**이며
+  누적은 **`+356/-203` → `+706/-203`**이다(report/evidence LOC 제외).
+  294 pure LOC는 cohesive한 단일 pre-reset 책임으로 검토됐고, 길이는 warning이지
+  pass/fail gate가 아니다. `_sample_dem_elevation`의 redundant guard는 제거됐다.
+  `main.py`의 임시 중복은 Task 15에서 제거한다.
+- **검증/인계:** 실제 `python3 -c` fake-consumer가 세 XYZ 모드, ROS on/off,
+  fallback, Articulation identity/순서, 단일 reset, no-2D를 관찰했고 AST/offline
+  import/compile/Ruff/Black/mypy/diff checks가 PASS했다(`task-12/internal-constants/DoneClaim.md`,
+  `internal-constants/adversarial-verify/AdversarialVerify.md`). 실제 Isaac/Kit 실행은
+  **G3 사용자 소유**다.
+
+## Task 13 — post-reset initialization 추출
+
+- **라우팅/승인:** **MEDIUM / Terra** (`lazycodex-worker-medium`). 사용자 승인으로
+  `PostResetDependencies`·project callback 주입과 absolute 250-pure-LOC gate를 제거하고
+  `post_reset.py` sibling split을 적용했다. `assembly.py`는 pre-reset 전용이며 길이는
+  cohesive 책임에 대한 warning일 뿐 pass/fail gate가 아니다.
+- **구현 경계:** concrete MarsLab calls를 모듈이 소유하고 Isaac/rclpy-only imports는
+  deferred한다. 최종 소스에는 `PostResetDependencies`/project callback/`marslab.main`
+  참조가 없으며, **Task13 당시** `assemble_post_reset` public API는 typed
+  config/handles/results를 담은 정확히 여덟 keyword-only 입력 (`world`,
+  `simulation_app`, `pre_reset`, `rover`, `atmosphere_init`, `headless`,
+  `atmosphere_enabled`, `ros2_enabled`)을 받고 loop용 articulation·index·atmosphere·
+  optional panel/bridge results만 반환했다. `wheel_odom_publish_tf` 입력은
+  Task15 최종 rclpy 회귀 수리에서 추가됐다.
+- **제품 LOC/누적:** Task delta는 **`+219/-0` physical lines, 188 pure LOC**이며 제품
+  누적은 **`+706/-203` → `+925/-203`**이다. report/evidence LOC는 제품 수치에서 제외한다.
+  `main.py`의 legacy post-reset block은 **Task 15 rewiring** 전까지 임시 중복으로 남는다.
+- **보존한 순서/QA:** articulation initialize/root pin/DOF copy/drive-steer resolve·zero·initial
+  positions → rendered **10**회 →
+  stopped timeline play 시에만 **5**회 추가 → PD/atmosphere → eligible panel과 app update
+  **5**회 → odom → ROS frames/seeds/wheel/noise/bridge 순서를 유지했다. A/B/C/D fake QA가
+  ROS-off, stopped/running, seed child 0/1·seed-none, zero/nonzero noise, panel-constructor
+  failure와 정확한 **10/5/5** 및 continuation을 PASS했다.
+- **경계/검증:** no 2D-LiDAR, reset, loop, cleanup, publisher internals, lifecycle manager를
+  추가하지 않았다. offline import·compileall·Ruff·Black·isolated mypy·AST/order/count/
+  boundary scan·`git diff --check`가 PASS했고 full mypy의 기존 sibling diagnostics 3건 외
+  `post_reset.py` 진단은 없다. 실제 Isaac/Kit/ROS 실행은 주장하지 않으며 **G3 사용자 소유**다.
+- **ULTRAQA/cleanup:** dirty-worktree attribution, live hash rebinding/stale-state,
+  misleading-success, generated-cache cleanup은 PASS; malformed typed config, prompt injection,
+  auth/network/ports, concurrency, cancel/resume, hung/long, flaky/retry, repeated interruption,
+  archive/symlink traversal은 이 동기 오프라인 seam에 surface가 없어 N/A이며 잔여 process/port/
+  temp script/cache는 없다.
+
+## Task 14 — concrete lifecycle cleanup boundary
+
+- **라우팅/범위:** **MEDIUM / Terra**. 새 `marslab/runtime/lifecycle.py`만 추가했다.
+  초기 검증에서 graph/sensor/annotator/render-product/panel/timeline/world cleanup은
+  기존 concrete API가 없어 **REJECT**됐고, 사용자 승인으로 speculative callbacks와
+  관련 기획/코드를 제거했다. 추측한 Isaac cleanup은 남기지 않았다.
+- **동작:** `run_phase()`는 정확히 `return run_main_loop(ctx)`다. 정리 순서는
+  `bridge.node.destroy_node()` → `rclpy.shutdown()` → `simulation_app.close()`이며,
+  ordinary getter/invocation failures는 기록한 뒤 후속 정리를 계속한다. primary
+  runtime error 또는 nonzero status가 권위이고 cleanup-only failure는 status `1`이다.
+  `BaseException`은 삼키지 않고 전파한다.
+- **LOC/경계:** 제품 delta는 **`+127/-0`, pure LOC 93**, 누적은
+  **`+925/-203` → `+1052/-203`**이다(report/evidence 제외). `main.py`의 임시 중복은
+  **Task 15 rewiring**에서 제거한다.
+- **검증:** concrete fake QA와 최종 독립 verifier(`confirmed`)가 순서, getter/호출
+  실패 연속성, primary/status authority, stale callback 제거를 확인했다. AST/import/
+  compile/Ruff/Black/scoped mypy/diff/size/cache checks도 PASS이며 full mypy의 기존
+  sibling diagnostics 3건 제한은 유지된다.
+- **ULTRAQA/인계:** malformed/missing/getter/invocation/multiple failures, stale/dirty/
+  misleading/repeated interruption은 PASS; prompt injection, cancel/resume, hung/long,
+  flaky tests는 N/A다. 실제 Isaac/Kit cleanup과 Task 15 wiring은 **사용자 G3** 소유다.
+
+## Task 15 — typed main/loop orchestration, rclpy 회귀 및 runtime observability repair
+
+- **라우팅/소유:** **MEDIUM / Terra**. call-only `main.py`/`loop_context.py` wiring을
+  유지하면서 최종 수리는 `main.py`, `runtime/post_reset.py`,
+  `ros2_bridge/rclpy_integration.py`, `runtime/lifecycle.py`, `runtime/main_loop.py`에
+  한정했다. Task13/14가 이미 계상한 `post_reset.py`/`lifecycle.py` 초기 추가분은
+  Task15에서 중복 계산하지 않는다.
+- **rclpy 회귀 원인/수리:** commit `8e25e38`이 canonical `Ros2BridgeConfig`에서
+  `rename_root_to_base_link`와 `publish_odom_tf`를 제거했지만 `init_rclpy_side`가
+  두 stale read를 남겨 `AttributeError`를 냈다(RED:
+  `.omo/evidence/marslab-runtime-refactor-v2/task-15/rclpy-stale-config-fix/red-schema-access.txt`).
+  최종 chain은 `main.py → assemble_post_reset → init_rclpy_side`이며 정책은
+  root rename **false**, GT `publish_tf` **false**, `wheel_odom.publish_tf`만 전달이다.
+- **관측성 수리:** `main.py`는 setup 예외를 traceback과 함께 기록·재전파하고,
+  `lifecycle.py`는 run/각 cleanup 예외를 기록하며 status 권위를 보존한다.
+  `main_loop.py`는 첫 step 전 정지/zero-iteration을 명시적으로 보고한다.
+  로그의 `rosidl_generator_py`/`lark`는 known caught DEBUG일 뿐이며 dependency/shim을
+  추가하거나 실패로 분류하지 않는다. 과거 자동종료 기록은 stale history로 남기고
+  최종 사용자 관찰과 혼동하지 않는다.
+- **현재 파일 LOC/numstat:** 아래 `+/-`는 tracked 파일의 현재
+  `git diff --numstat`이며, untracked 파일은 동일한 `git diff --no-index --numstat
+  /dev/null <file>`로 확인했다. physical line은 `wc -l` 결과다.
+
+| 파일 | 심볼/책임 | 현재 diff `+LOC/-LOC` · Task15 incremental | 현재 physical LOC |
+|---|---|---:|---:|
+| `marslab/main.py` | typed entrypoint, setup error/status wiring | `+91/-697` | `116` |
+| `marslab/runtime/loop_context.py` | concrete callback context | `+76/-124` | `112` |
+| `marslab/runtime/post_reset.py` | `wheel_odom_publish_tf` typed forwarding (Task13 초기 `+219` 이후 수리 `+2/-0`) | `+221/-0` · **`+2/-0`** | `221` |
+| `marslab/ros2_bridge/rclpy_integration.py` | stale field 제거, root/GT false, wheel TF 전달 | `+3/-17` | `257` |
+| `marslab/runtime/lifecycle.py` | run/cleanup traceback/status observability (Task14 초기 `+127` 이후 수리 `+14/-0`) | `+141/-0` · **`+14/-0`** | `141` |
+| `marslab/runtime/main_loop.py` | zero-iteration/first-step observability | `+13/-4` | `786` |
+| **Task15 최종 합계** | 위 수리 포함, 기존 Task15 wiring 포함 | **`+199/-842`** | — |
+
+단계별 additive churn 기준 누적은 기존 Task14 `+1052/-203`에 Task15
+`+199/-842`를 더한 **`+1251/-1045` (net `+206`)**이다. 이는 one-shot
+baseline `e6a1c580` → current worktree product diff **`+1250/-1044`
+(net `+206`)**와 구별한다(단계 간 한 줄 교체가 add/delete churn에 중복 반영됨).
+G3 Tasks11–15 subtotal은 **`+921/-871` (net `+50`)**이며, 모든 수치는
+report/evidence LOC를 제외한다.
+- **사용자 runtime 관찰(사용자 소유):** 공식 canonical command
+  `marslab/isaac_python.sh marslab/main.py --config configs/config.yaml` 실행은
+  자동 종료 없이 정상 지속됐다. 보존된 `/home/hoyunkim/MarsLab/log.txt`는 678 lines;
+  `rclpy loaded` line 507, `Atmosphere control panel created` line 659,
+  known caught `lark` DEBUG lines 660–668이며 setup/run/zero-iteration/`AttributeError`/
+  shutdown marker가 없다. 이는 사용자가 본 real Isaac surface이며 agent가 Isaac을
+  실행했다는 주장이 아니다.
+- **에이전트 정적/경계 검증:** canonical RED/green fake-rclpy, Python 3.11 compile,
+  Ruff, Black, isolated mypy, stale-read scan, lifecycle/main-loop fake failure matrix가
+  PASS/confirmed다. 사용자 log read-only marker/hash 검사는
+  `.omo/evidence/marslab-runtime-refactor-v2/task-15/user-runtime-final/adversarial-verify/inspection-transcript.md`,
+  최종 verdict는
+  `.omo/evidence/marslab-runtime-refactor-v2/task-15/user-runtime-final/adversarial-verify/final.md`에 있다.
+- **cleanup/UltraQA:** probe·lark shim·split logs·temporary caches는 제거했고 user
+  `log.txt`는 보존했다(영수증: `.omo/evidence/marslab-runtime-refactor-v2/task-15/ros-split-isolation/final-cleanup-receipt.md`).
+  stale_state/dirty_worktree/misleading_success_output는 적용 PASS; malformed,
+  prompt-injection, cancel/resume, hung/long, flaky/retry, repeated-interruption은
+  이 보고서/정적 seam에 surface가 없어 N/A다. 다음 gate는 정확히 **`APPROVE G3`**다.

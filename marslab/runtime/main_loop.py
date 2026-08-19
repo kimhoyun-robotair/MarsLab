@@ -11,8 +11,9 @@ honours the ``publish_tf`` gate so OmniGraph ``PubTF`` and the rclpy
 ``TransformBroadcaster`` never publish to the same ``/tf`` topic.
 Isaac Sim / ``rclpy`` symbols enter via the context only -- the module
 itself is offline-importable (no Isaac Sim imports at module scope).
-Normal exit or ``KeyboardInterrupt`` returns ``0``; the caller owns
-``simulation_app.close()``. ``marslab/main.py`` is the live Stage 3
+A normal exit after at least one iteration or ``KeyboardInterrupt`` returns
+``0``. An app that is already stopped at loop entry returns ``1``. The caller
+owns ``simulation_app.close()``. ``marslab/main.py`` is the live Stage 3
 runtime entry point.
 """
 
@@ -444,8 +445,9 @@ def run_main_loop(ctx: LoopContext) -> int:
             ``world.reset()``.
 
     Returns:
-        ``0`` on normal exit or ``KeyboardInterrupt``. The caller owns the
-        ``simulation_app.close()`` call.
+        ``0`` on normal exit after at least one iteration or
+        ``KeyboardInterrupt``; ``1`` when the app is already stopped at loop
+        entry. The caller owns the ``simulation_app.close()`` call.
 
     Raises:
         Exception: Any exception other than :class:`KeyboardInterrupt`
@@ -464,8 +466,10 @@ def run_main_loop(ctx: LoopContext) -> int:
     drive_ramp_enabled = ctx.max_wheel_accel_rate > 0
     steer_ramp_enabled = ctx.steer_ramp_rate > 0
 
+    iterations = 0
     try:
         while ctx.simulation_app.is_running():
+            iterations += 1
             if ctx.spin_once is not None:
                 ctx.spin_once()
 
@@ -539,6 +543,11 @@ def run_main_loop(ctx: LoopContext) -> int:
             ctx.world.step(render=True)
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt -- shutting down.")
+        return 0
+
+    if iterations == 0:
+        logger.error("Simulation App was not running before the first simulation step.")
+        return 1
 
     return 0
 

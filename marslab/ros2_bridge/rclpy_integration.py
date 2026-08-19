@@ -39,6 +39,7 @@ def init_rclpy_side(
     urdf_path: Optional[str] = None,
     wheel_odom_params: Optional[Dict[str, Any]] = None,
     imu_noise_params: Optional[Dict[str, Any]] = None,
+    wheel_odom_publish_tf: bool,
 ) -> BridgeContext:
     """Boot rclpy and wire cmd_vel / static TF / odom publishers.
 
@@ -103,12 +104,6 @@ def init_rclpy_side(
         qos=qos_bundle["cmd_vel"],
     )
 
-    # ``sensor_parent_frame_id`` is a schema field
-    # (``Ros2BridgeConfig.sensor_parent_frame_id``).  Default
-    # ``"base_link"`` aligns the static sensor TFs with the URDF root
-    # link when ``rename_root_to_base_link=True``.  Override via the
-    # rover YAML when the downstream consumer expects a different
-    # parent (e.g. ``Body_Chassis`` when the URDF rewrite is disabled).
     sensor_parent_frame_id = str(validated_bridge.sensor_parent_frame_id)
     static_broadcaster = publish_static_sensor_tfs(
         node,
@@ -132,19 +127,11 @@ def init_rclpy_side(
                 "refuses to fall back to a Python default."
             )
         rd_topic = _ns_topic(ns, topics["robot_description"])
-        # ``rename_root_to_base_link`` is a schema field
-        # (``Ros2BridgeConfig.rename_root_to_base_link``).  Default
-        # ``True`` rewrites the URDF root link to ``base_link`` so the
-        # OmniGraph PubTF + ``isaac:nameOverride='base_link'`` path
-        # publishes a frame the URDF agrees with.  Set ``False`` when
-        # the robot_state_publisher workflow reads frame names directly
-        # from the URDF (no rewrite required).
-        rename_root = bool(validated_bridge.rename_root_to_base_link)
         robot_description_ctx = publish_robot_description(
             node,
             urdf_path,
             topic=rd_topic,
-            rename_root_to_base_link=rename_root,
+            rename_root_to_base_link=False,
         )
 
     # GT trajectory publisher: PhysX articulation pose verbatim on
@@ -178,7 +165,6 @@ def init_rclpy_side(
     wheel_odom_ctx = None
     if wheel_odom_params is not None:
         wheel_odom_topic = _ns_topic(ns, topics["odom"])
-        publish_wheel_odom_tf = bool(validated_bridge.publish_odom_tf)
         wheel_odom_ctx = create_wheel_odometry_publisher(
             node=node,
             topic=wheel_odom_topic,
@@ -199,7 +185,7 @@ def init_rclpy_side(
             tf_qos=qos_bundle["tf"],
             frame_id=str(odom_pub_cfg.get("frame_id", "odom")),
             child_frame_id=str(odom_pub_cfg.get("child_frame_id", "base_link")),
-            publish_tf=publish_wheel_odom_tf,
+            publish_tf=wheel_odom_publish_tf,
             pose_diag=wheel_odom_params.get("pose_diag"),
             twist_diag=wheel_odom_params.get("twist_diag"),
         )

@@ -1,46 +1,43 @@
-"""SimulationApp boot helper.
+"""Deferred Isaac Sim application bootstrap.
 
-``boot_simulation_app`` centralises the Kit / SimulationApp bootstrap so
-the rest of the runtime can focus on scenario construction. Must be
-called before any ``omni.*`` / ``isaacsim.*`` / ``rclpy`` imports —
-those only resolve after Kit is alive.
+Consumes typed runtime settings, creates the app, optionally enables ROS2,
+and performs the first update before returning the live handle.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from importlib import import_module
+from typing import Final, Protocol
 
-DEFAULT_ROS2_BRIDGE_EXTENSION = "isaacsim.ros2.bridge"
+from marslab.config.schema.runtime import RuntimeConfig
+
+DEFAULT_ROS2_BRIDGE_EXTENSION: Final[str] = "isaacsim.ros2.bridge"
+
+
+class SimulationAppHandle(Protocol):
+    def update(self) -> None: ...
+
+    def close(self) -> None: ...
 
 
 def boot_simulation_app(
-    headless: bool = False,
+    runtime: RuntimeConfig,
     renderer: str = "RaytracedLighting",
-    ros2_bridge_extension: str = DEFAULT_ROS2_BRIDGE_EXTENSION,
-) -> Any:
-    """Instantiate ``SimulationApp`` and enable the ROS2 bridge extension.
+) -> SimulationAppHandle:
+    """Create a live SimulationApp and perform its first update."""
+    headless = runtime.headless
+    ros2_enabled = runtime.ros2_enabled
+    isaacsim_module = import_module("isaacsim")
+    simulation_app: SimulationAppHandle = isaacsim_module.__dict__["SimulationApp"](
+        {"headless": headless, "renderer": renderer},
+    )
 
-    Args:
-        headless: Pass ``True`` for CI / remote runs without a Kit
-            viewport; ``False`` keeps the Kit window.
-        renderer: Isaac Sim renderer name.  ``"RaytracedLighting"``
-            matches the runtime default.
-        ros2_bridge_extension: Extension id to ``enable_extension``
-            after the app has booted.  Override only for tests.
+    if ros2_enabled:
+        extension_module = import_module("isaacsim.core.utils.extensions")
+        extension_module.__dict__["enable_extension"](DEFAULT_ROS2_BRIDGE_EXTENSION)
 
-    Returns:
-        The live ``SimulationApp`` instance.  Callers should keep a
-        reference and call ``.close()`` at shutdown.
-    """
-    from isaacsim import SimulationApp
-
-    simulation_app = SimulationApp({"headless": bool(headless), "renderer": renderer})
-
-    from isaacsim.core.utils.extensions import enable_extension
-
-    enable_extension(ros2_bridge_extension)
     simulation_app.update()
     return simulation_app
 
 
-__all__ = ["boot_simulation_app", "DEFAULT_ROS2_BRIDGE_EXTENSION"]
+__all__ = ["DEFAULT_ROS2_BRIDGE_EXTENSION", "SimulationAppHandle", "boot_simulation_app"]
