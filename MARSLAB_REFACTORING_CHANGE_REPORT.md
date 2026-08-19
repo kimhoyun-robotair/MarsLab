@@ -135,7 +135,7 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 |---|---|---|---|---|---|---|
 | G1 | Tasks 1–7, integrated config/schema | `APPROVE G1` (원문: `좋아 Approve G1`) | integrated config/schema · **`+284/-71`** | `<command>` · `<exit>` · `<evidence>` | **`G1 config facade PASS`**; stage commit: `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` (`refactor(config): add canonical runtime configuration`, 12 committed paths) | **Task8 (G2)** unlocked |
 | G2 | Tasks 8–10, CLI/Python 3.11 launcher | `APPROVE G2` | product delta `+46/-103` (net `-57`) | non-Isaac contract checks PASS; evidence below | Isaac/Kit boot remains user-only | **Task11 (G3) unlocked** |
-| G3 | Tasks 11–15, lifecycle/main loop | `APPROVE G3` | Tasks 11–15 product subtotal **`+921/-871` (net `+50`)**; Task15 final **`+199/-842` (net `-643`)** | static/offline checks PASS; user runtime PASS evidence below | **runtime PASS; 승인 토큰은 아직 PENDING USER**; exact next gate **`APPROVE G3`** | G4 |
+| G3 | Tasks 11–15, lifecycle/main loop | `APPROVE G3` | Tasks 11–15 product subtotal **`+921/-871` (net `+50`)**; Task15 final **`+199/-842` (net `-643`)** | static/offline checks PASS; user runtime PASS evidence below | **runtime PASS; 사용자 승인 기록 완료**; exact token **`APPROVE G3`** | **Task16 (G4) unlocked** |
 | G4 | Tasks 16–23, Camera/IMU/3D LiDAR and 2D deletion | `APPROVE G4` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: retained sensor outputs | G5 |
 | G5 | Tasks 24–28, ROS/TF/GT/Wheel integration | `APPROVE G5` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: topics, QoS, single TF owners | G6 |
 | G6 | Tasks 29–34, repository cleanup/documentation | `APPROVE G6` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: diff/docs inspection | G7 |
@@ -171,7 +171,7 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 |---|---|---|---|---|---|
 | G1 | `APPROVE G1` | 2026-08-17 18:25:11 KST (+09:00) | `G1 config facade PASS`; cumulative **`+284/-71`** | `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` — `refactor(config): add canonical runtime configuration`; **12 committed paths** | **Task8 (G2) unlocked** |
 | G2 | `좋아 이해했어. Approve G2` → `APPROVE G2` | `2026-08-17T19:54:41+09:00` | G2 non-Isaac contract checks PASS; product `+46/-103` (net `-57`) | `c0d3e09584469085a795d9941c4624a2082224c6` — `refactor(runtime): simplify config-driven startup`; 5 committed paths | **Task11 (G3) unlocked** |
-| G3 | PENDING USER | — | — | — | — |
+| G3 | `APPROVE G3` | 2026-08-19 14:01:03 KST (+09:00) | canonical full ROS Isaac command sustained normally, no automatic shutdown | `f23986e4fc7c76d50eb205cbe1866338595c0bb5` — `refactor(runtime): coordinate retained assembly` | **Task16 (G4) unlocked** |
 | G4 | PENDING USER | — | — | — | — |
 | G5 | PENDING USER | — | — | — | — |
 | G6 | PENDING USER | — | — | — | — |
@@ -1099,4 +1099,16 @@ report/evidence LOC를 제외한다.
   `log.txt`는 보존했다(영수증: `.omo/evidence/marslab-runtime-refactor-v2/task-15/ros-split-isolation/final-cleanup-receipt.md`).
   stale_state/dirty_worktree/misleading_success_output는 적용 PASS; malformed,
   prompt-injection, cancel/resume, hung/long, flaky/retry, repeated-interruption은
-  이 보고서/정적 seam에 surface가 없어 N/A다. 다음 gate는 정확히 **`APPROVE G3`**다.
+  이 보고서/정적 seam에 surface가 없어 N/A다. G3 승인 토큰은 정확히 **`APPROVE G3`**로
+  기록했으며 다음 작업은 **Task16 (G4)**다.
+
+## G3 승인 — Tasks 11–15 lifecycle/main loop
+
+- **승인 원문:** 사용자 입력 `Approve G3`.
+- **정규화 토큰:** **`APPROVE G3`**.
+- **승인 시각:** `2026-08-19 14:01:03 KST (+09:00)` (Asia/Seoul; this turn).
+- **사용자 관찰:** **canonical full ROS Isaac command sustained normally, no automatic shutdown**.
+- **검토된 implementation commit:**
+  **`f23986e4fc7c76d50eb205cbe1866338595c0bb5`** —
+  `refactor(runtime): coordinate retained assembly`.
+- **다음 unlock:** **Task16 (G4) unlocked**.
