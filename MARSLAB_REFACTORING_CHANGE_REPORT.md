@@ -136,10 +136,10 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 | G1 | Tasks 1–7, integrated config/schema | `APPROVE G1` (원문: `좋아 Approve G1`) | integrated config/schema · **`+284/-71`** | `<command>` · `<exit>` · `<evidence>` | **`G1 config facade PASS`**; stage commit: `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` (`refactor(config): add canonical runtime configuration`, 12 committed paths) | **Task8 (G2)** unlocked |
 | G2 | Tasks 8–10, CLI/Python 3.11 launcher | `APPROVE G2` | product delta `+46/-103` (net `-57`) | non-Isaac contract checks PASS; evidence below | Isaac/Kit boot remains user-only | **Task11 (G3) unlocked** |
 | G3 | Tasks 11–15, lifecycle/main loop | `APPROVE G3` | Tasks 11–15 product subtotal **`+921/-871` (net `+50`)**; Task15 final **`+199/-842` (net `-643`)** | static/offline checks PASS; user runtime PASS evidence below | **runtime PASS; 사용자 승인 기록 완료**; exact token **`APPROVE G3`** | **Task16 (G4) unlocked** |
-| G4 | Tasks 16–23, Camera/IMU/3D LiDAR and 2D deletion | `APPROVE G4` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: retained sensor outputs | G5 |
-| G5 | Tasks 24–28, ROS/TF/GT/Wheel integration | `APPROVE G5` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: topics, QoS, single TF owners | G6 |
-| G6 | Tasks 29–34, repository cleanup/documentation | `APPROVE G6` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: diff/docs inspection | G7 |
-| G7 | Tasks 35–36, final static gate and U1–U3 handoff | `APPROVE RUNTIME-V2` | `<path>` · `<symbol>` · `+<n>/-<n>` | `<command>` · `<exit>` · `<evidence>` | `PENDING USER`: exact Isaac/ROS U1–U3 results | F1–F4 |
+| G4 | Tasks 16–23, Camera/IMU/3D LiDAR and 2D deletion | `APPROVE G4` | `marslab/ros2_bridge/sensor_graph.py::build_sensor_graph`; `marslab/sensors/camera_spawner.py::spawn_camera` · product `+15/-8` (report append `+222/-0`) | `git show --numstat 2129290c` · exit `0` · `.omo/evidence/marslab-runtime-refactor-v2/gates/G4/approval/` | **APPROVED** at `2026-08-20T09:46:19+09:00`; user accepted the post-fix G4 scope and supplied no detailed sensor metrics | **Task24 (G5) unlocked** |
+| G5 | Tasks 24–28, ROS/TF/GT/Wheel integration | `APPROVE G5` | `marslab/ros2_bridge/rclpy_publishers.py::create_*_setup`; `marslab/ros2_bridge/rclpy_integration.py::init_rclpy_side`; `marslab/ros2_bridge/wheel_odometry_publisher.py::create_wheel_odometry_publisher` · product `+464/-588` (report append `+235/-0`) | `git show --numstat 0d9dc2a` plus exact approval tuple · exit `0` · `.omo/evidence/marslab-runtime-refactor-v2/gates/G5/approval/` and approval-record commit `3b83742a` | **APPROVED** at ledger stage time `2026-08-20T12:04:00+09:00` (approval-record timestamp `2026-08-20T12:33:18+09:00`); raw observation: `all TF and topics successfully subscribed` | **Task29 (G6) unlocked** |
+| G6 | Tasks 29–34, repository cleanup/documentation | `APPROVE G6` | `README.md`; `launch/rover_state_publisher.launch.py`; `marslab/**/AGENTS.md`; `docs/**` · product `+1029/-4476` (report append `+624/-0`) | `git show --numstat 0a9c432` and report/document render · exit `0` · `.omo/evidence/marslab-runtime-refactor-v2/gates/G6/candidate-0a9c/` plus Task29–34 evidence | **APPROVED** at `2026-08-20T17:00:00+09:00`; exact token `APPROVE G6`; user diff/document inspection accepted | **Task35 (G7) unlocked** |
+| G7 | Tasks 35–36, final static gate and U1–U3 handoff | `APPROVE RUNTIME-V2` | `marslab/runtime/assembly.py`; `marslab/ros2_bridge/sensor_graph_builder.py`; `pyproject.toml` · reviewed product `+9/-4` in exact stage commit `13161d1c`; report/handoff `+132/-0` | `git show --numstat 13161d1c` and U1–U3 handoff/archive render · exit `0` · `.omo/evidence/marslab-runtime-refactor-v2/gates/G7/commit/`, `task-35/`, `task-36/` | **APPROVED** at `2026-08-20T21:00:00+09:00`: earlier exact token `APPROVE RUNTIME-V2`; SHA-bound response `아까 확인하지 않았더냐. 모두 pass`; normalized all applicable U1–U3 items PASS and teardown complete | **F1–F4 unlocked** |
 
 각 단계 기록에는 승인 시각, 사용자가 본 결과, reviewed SHA, 다음 작업을 함께
 추가한다. 승인 전 상태는 `PENDING USER`다.
@@ -177,10 +177,10 @@ ROS transport는 실제 consumer가 있을 때만 수행하며 중복 센서를 
 | G1 | `APPROVE G1` | 2026-08-17 18:25:11 KST (+09:00) | `G1 config facade PASS`; cumulative **`+284/-71`** | `8e25e38e4937ce4cdc1a3a8fb7b591448bad0168` — `refactor(config): add canonical runtime configuration`; **12 committed paths** | **Task8 (G2) unlocked** |
 | G2 | `좋아 이해했어. Approve G2` → `APPROVE G2` | `2026-08-17T19:54:41+09:00` | G2 non-Isaac contract checks PASS; product `+46/-103` (net `-57`) | `c0d3e09584469085a795d9941c4624a2082224c6` — `refactor(runtime): simplify config-driven startup`; 5 committed paths | **Task11 (G3) unlocked** |
 | G3 | `APPROVE G3` | 2026-08-19 14:01:03 KST (+09:00) | canonical full ROS Isaac command sustained normally, no automatic shutdown | `f23986e4fc7c76d50eb205cbe1866338595c0bb5` — `refactor(runtime): coordinate retained assembly` | **Task16 (G4) unlocked** |
-| G4 | PENDING USER | — | — | — | — |
-| G5 | PENDING USER | — | — | — | — |
-| G6 | PENDING USER | — | — | — | — |
-| G7 | PENDING USER (`APPROVE RUNTIME-V2`) | — | — | — | — |
+| G4 | `APPROVE G4` | `2026-08-20T09:46:19+09:00` | post-fix G4 scope accepted; no detailed sensor metrics inferred | `2129290c1aa927fd5038ea7950c60539718ab551` | **Task24 (G5) unlocked** |
+| G5 | `APPROVE G5` | ledger stage `2026-08-20T12:04:00+09:00`; approval record `2026-08-20T12:33:18+09:00` | raw: `모든 TF, topic의 정상 subscribe 확인 -> APPROVE G5`; summary: `all TF and topics successfully subscribed` | product `0d9dc2a2ab6ca3335b3d30f2bae09e118e3393a9`; approval record `3b83742a352468d675fa0dc9441ac1a25ba19208` | **Task29 (G6) unlocked** |
+| G6 | `APPROVE G6` | `2026-08-20T17:00:00+09:00` | exact token received; user accepted the diff/document inspection | `0a9c4321df3b980d3998aff768b67e42fd420352` | **Task35 (G7) unlocked** |
+| G7 | `APPROVE RUNTIME-V2` | `2026-08-20T21:00:00+09:00` | SHA-bound prompt: `SHA 13161d1c5cb0dddf26305818580be5c6cf0f6beb 기준 U1-U3의 모든 해당 항목 PASS, teardown 완료.`; response: `아까 확인하지 않았더냐. 모두 pass` | `13161d1c5cb0dddf26305818580be5c6cf0f6beb` | **F1–F4 unlocked** |
 
 ## Task 2 — 통합 YAML key/consumer 계약
 
@@ -3043,3 +3043,45 @@ Archive 검증 후 exact `/tmp/marslab-runtime-v2-qa/` directory를 제거했고
 `1cd6f033ab2c51bcbddffd933734e6d8b533e36b0980cfc3d888a4b29a4f7b5e`는
 변경되지 않았다. Product/plan/ledger/commit/F-wave는 이 finalization에서
 수정하지 않았다.
+
+## 승인 기록 repair — G4–G7 exact tuple reconciliation
+
+앞의 stage template와 승인 로그에 남아 있던 G4–G7 placeholder 행을 evidence
+ledger의 exact stage-approved records와 대조하여 위 표에 최종 tuple로
+교체했다. 이 repair가 추가한 사실은 승인 token, 시각, 사용자가 제공한
+관찰 원문/요약, reviewed SHA, unlock, 그리고 재현 가능한 evidence 경로뿐이다.
+
+### SHA와 승인 record의 경계
+
+- G4는 `APPROVE G4`를 `2129290c1aa927fd5038ea7950c60539718ab551`에 묶는다.
+  `git show --numstat`의 product delta는 `+15/-8`이며 report append는
+  `+222/-0`이다. 사용자의 관찰은 post-fix G4 scope accepted이며 상세 sensor
+  metric은 제공되지 않았다는 ledger 문구를 그대로 보존한다.
+- G5의 reviewed **product** SHA는
+  `0d9dc2a2ab6ca3335b3d30f2bae09e118e3393a9`이다. 승인 기록만 담은
+  docs-only child commit은 `3b83742a352468d675fa0dc9441ac1a25ba19208`이며,
+  이는 product reviewed SHA를 대체하지 않는다. 원문 관찰은
+  `모든 TF, topic의 정상 subscribe 확인 -> APPROVE G5`이고, 기록된 요약은
+  `all TF and topics successfully subscribed`이다.
+- G6는 exact token `APPROVE G6`와 reviewed SHA
+  `0a9c4321df3b980d3998aff768b67e42fd420352`에 묶인다. product delta는
+  `+1029/-4476`; report append `+624/-0`은 product total에 섞지 않았다.
+- G7의 exact reviewed stage SHA는
+  `13161d1c5cb0dddf26305818580be5c6cf0f6beb`으로 고정된다. 이 stage의
+  product delta는 `+9/-4`, report/handoff append는 `+132/-0`이다. 이전
+  `APPROVE RUNTIME-V2` token과 최신 SHA-bound prompt/response
+  (`아까 확인하지 않았더냐. 모두 pass`)를 함께 기록하며, normalized
+  attestation은 모든 해당 U1–U3 항목 PASS 및 teardown 완료다. 이 repair의
+  후속 approval-record child는 report/evidence-only이며 reviewed G7 stage SHA를
+  다시 쓰지 않는다.
+
+### Caveat와 historical PENDING 보존
+
+G7 ledger의 SHA-bound user attestation을 approval matrix에서 PASS로
+정규화했지만, Task36 runtime-audit synthesis의 wire-level, QoS, `/clock`,
+시각 증거, historical teardown transcript 누락과 known warning 설명은
+그대로 보존한다. 따라서 이 표의 PASS는 사용자가 명시한 해당 항목과 teardown
+완료에 대한 승인 기록이지, agent가 Isaac/ROS payload를 재검증했다는 주장이
+아니다. 앞선 task/candidate/history 절의 `PENDING USER` 문구도 당시
+시점·제한을 보존하기 위해 삭제하지 않았다. 최종 승인 인덱스인 stage template와
+승인 로그의 G4–G7 행에는 더 이상 stale `PENDING USER` placeholder가 없다.
