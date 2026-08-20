@@ -1456,6 +1456,63 @@ report/evidence LOC를 제외한다.
   adversarial verdict를 확인한다. **G4는 여전히 PENDING USER**이며 다음은
   **Task22**다. `APPROVE G4` 또는 사용자 Isaac runtime PASS를 추론하지 않는다.
 
+### Task 21 runtime repair — HydraTexture `.path` 경계 재개방 확인 (G4 미승인)
+
+- **실패 관찰/재개방 사유:** 사용자가 실행한 canonical 명령
+  `marslab/isaac_python.sh marslab/main.py --config configs/config.yaml`에서
+  G4가 `Simulation setup failed`와 함께
+  `AttributeError: 'HydraTexture' object has no attribute 'node'`를
+  `marslab/ros2_bridge/sensor_graph.py:145`에서 내고, `Controller.edit` 전에
+  중단했다. 이 실패로 이전 G4 candidate SHA
+  `d97e89f8e86fe5614e38ae352c3c7bd826f7d174`는 무효화되었으며, 아래는 그
+  후속 uncommitted repair의 agent-side 확인이지 runtime PASS가 아니다. 이
+  재검증의 라우팅은 **MEDIUM / Terra (heavy)**다.
+- **현재 live diff (repair 두 파일만):**
+
+  | 파일 | `git diff --numstat` 현재값 |
+  |---|---:|
+  | `marslab/ros2_bridge/sensor_graph.py` | `+11/-7` |
+  | `marslab/sensors/camera_spawner.py` | `+4/-1` |
+  | **합계** | **`+15/-8`** |
+
+  이 수치는 현재 작업 트리의 repair diff이며, 기존 Task21의 역사적
+  `+59/-193`을 재배분하거나 Task21 cumulative arithmetic로 합산하지 않는다.
+- **정확한 경계 수정:** `camera_spawner.py`의 `_RenderProductHandle.path: str`,
+  `CameraSpawnHandles.render_product_path: str`, `spawn_camera()`의
+  `render_product.path` snapshot을 추가했다. annotator 수명/공유를 위해 live
+  `render_product`는 그대로 보존한다. `sensor_graph.py`는
+  `CameraSpawnHandles`/`Lidar3DSpawnHandles`/`IMUSpawnHandles`를 concrete
+  acquisition 타입으로 받고 `camera_acquisition.render_product_path`만
+  사용하며 빈 path를 graph edit 전에 거부한다. LiDAR의 기존 resolved
+  `render_product_path`와 graph topology는 바꾸지 않았다. 설치된 ROS OGN의
+  Camera/CameraInfo/RTX LiDAR `inputs:renderProductPath`는 모두 `token`이므로
+  graph에는 resolved string/token만 전달된다.
+
+### Runtime-fix 검증 및 수동 QA
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| PIN | Camera `render_product` 할당 `1`, RGB/depth attach `2`; LiDAR path 타입 `str` | `.omo/evidence/marslab-runtime-refactor-v2/gates/G4/runtime-fix/executor/DoneClaim.md` |
+| RED (설치 shape) | process-local fake public builder, path-only `HydraTexture`; `RED_PUBLIC_BUILDER=PASS`, `.node` `AttributeError`, `Controller.edit=0` | `.omo/evidence/marslab-runtime-refactor-v2/gates/G4/runtime-fix/h2-preimage.md`, `.omo/evidence/marslab-runtime-refactor-v2/gates/G4/runtime-fix/h3-graph-contract.md` |
+| GREEN (public builder) | `executor/DoneClaim.md` §GREEN의 verbatim `PYTHONDONTWRITEBYTECODE=1 python3 -c` process-local fake `omni.graph.core`/`usdrt` invocation; `GREEN_PUBLIC_BUILDER=PASS`, edit `1`, Camera path 4개 동일, LiDAR path 보존, `IsaacCreateRenderProduct` absent | `.omo/evidence/marslab-runtime-refactor-v2/gates/G4/runtime-fix/executor/DoneClaim.md` |
+| negative/manual QA | empty Camera path는 `ValueError`와 edit count 불변; `ruff`, `black --check`, Python 3.11 parse, `git diff --check` 모두 exit `0` | `.omo/evidence/marslab-runtime-refactor-v2/gates/G4/runtime-fix/adversarial-verify/AdversarialVerify.md` |
+
+- **독립 확인:** `AdversarialVerify.md`의 verdict는 **`confirmed` (confidence
+  0.96)**이며 installed Hydra/OGN contract, preimage, current source/diff,
+  RED/GREEN payload를 대조했다. 이는 agent-side boundary 확인일 뿐
+  Isaac/ROS runtime 승인이나 **`APPROVE G4`**가 아니다.
+- **ULTRAQA/cleanup:** stale state(이전 candidate 무효화와 현재 uncommitted
+  repair를 구분), dirty worktree 보존, misleading-success 방지, 생성물/프로세스/
+  포트 없음은 `.omo/evidence/marslab-runtime-refactor-v2/gates/G4/runtime-fix/`
+  증거와 `executor/DoneClaim.md`에 기록했다. 문서-only malformed input,
+  prompt injection, cancel/resume, hung/long, flaky, repeated interruption은
+  N/A다.
+- **수동 QA / gate:** 다음을 재실행해 이 subsection을 렌더링한다.
+  `sed -n '/^### Task 21 runtime repair/,/^## Task 22/p' MARSLAB_REFACTORING_CHANGE_REPORT.md`
+  및 `git diff --check -- MARSLAB_REFACTORING_CHANGE_REPORT.md`. 실제 post-fix
+  Isaac/ROS 재실행은 **PENDING USER**다. 사용자가 canonical 명령을 다시
+  실행하고 명시적으로 **`APPROVE G4`**를 보낸 경우에만 **Task24**를 unlock한다.
+
 ## Task 22 — 2-D LiDAR ROS graph surface 원자적 제거
 
 - **라우팅/소유:** **MEDIUM / Terra (heavy)** (`lazycodex-worker-medium`). 이번
@@ -1561,3 +1618,168 @@ report/evidence LOC를 제외한다.
   must exit `0` and show this entry, the retained identity contract, deleted helper,
   and pending G5 runtime. **G4는 여전히 PENDING USER**이며 Task23의 실제 TF tree
   관찰이나 `APPROVE G4`를 추론하지 않는다.
+
+## G4 candidate approval checkpoint — `d97e89f8e86fe5614e38ae352c3c7bd826f7d174`
+
+### 고정 범위와 commit 증거
+
+- 검토 대상은 정확히 commit **`d97e89f8e86fe5614e38ae352c3c7bd826f7d174`**,
+  subject `refactor(runtime): extract sensors and remove legacy TF paths`다.
+  이 candidate append 자체는 commit에 포함되지 않으며 product/plan/ledger/stage
+  파일을 수정하지 않는다.
+- commit의 22개 경로와 핵심 심볼은 다음과 같다: `MARSLAB_REFACTORING_CHANGE_REPORT.md`
+  (누적 report), `configs/rover_m2020.yaml` (`ros2.topics/rates.scan` 제거,
+  2D sensor block 제거), `docs/frame_conventions.md` (신규 frame 계약),
+  `launch/rover_state_publisher.launch.py` (단일 identity connector),
+  `marslab/config/schema/rover_ros2.py` (`Ros2BridgeConfig`),
+  `marslab/config/yaml_loader.py` (`load_rover_config` 3D profile anchoring),
+  `marslab/robots/rover.py` (`spawn_rover` legacy bypass 제거),
+  `marslab/ros2_bridge/AGENTS.md`, `odometry_publisher.py` (`odom→base_link`
+  외부 authority 경계), `rclpy_integration.py`, `robot_description_publisher.py`
+  (`rewrite_urdf_root_to_base_link` 제거), `sensor_graph.py`
+  (`build_sensor_graph`, retained acquisition handles),
+  `sensor_graph_builder.py` (retained nodes/edges; 2D surface 제거),
+  `tf_broadcaster.py`, 삭제 `tf_nameoverrides.py`, `marslab/runtime/assembly.py`,
+  `main_loop.py`, `sensor_frames.py`, 신규 `marslab/sensors/camera_spawner.py`
+  (`spawn_camera`), 신규 `imu_spawner.py` (`spawn_imu`), 신규
+  `lidar_3d_spawner.py` (`spawn_lidar_3d`), `sensor_spawner.py`
+  (Camera/IMU/3D coordinator).
+
+정확한 `git show --name-status` 결과(경로 상태 포함)는 다음과 같다.
+
+```text
+M  MARSLAB_REFACTORING_CHANGE_REPORT.md
+M  configs/rover_m2020.yaml
+A  docs/frame_conventions.md
+M  launch/rover_state_publisher.launch.py
+M  marslab/config/schema/rover_ros2.py
+M  marslab/config/yaml_loader.py
+M  marslab/robots/rover.py
+M  marslab/ros2_bridge/AGENTS.md
+M  marslab/ros2_bridge/odometry_publisher.py
+M  marslab/ros2_bridge/rclpy_integration.py
+M  marslab/ros2_bridge/robot_description_publisher.py
+M  marslab/ros2_bridge/sensor_graph.py
+M  marslab/ros2_bridge/sensor_graph_builder.py
+M  marslab/ros2_bridge/tf_broadcaster.py
+D  marslab/ros2_bridge/tf_nameoverrides.py
+M  marslab/runtime/assembly.py
+M  marslab/runtime/main_loop.py
+M  marslab/runtime/sensor_frames.py
+A  marslab/sensors/camera_spawner.py
+A  marslab/sensors/imu_spawner.py
+A  marslab/sensors/lidar_3d_spawner.py
+M  marslab/sensors/sensor_spawner.py
+```
+
+### commit `git show --numstat` (누적 G4)
+
+```text
+449  0   MARSLAB_REFACTORING_CHANGE_REPORT.md
+1    27  configs/rover_m2020.yaml
+28   0   docs/frame_conventions.md
+1    1   launch/rover_state_publisher.launch.py
+0    1   marslab/config/schema/rover_ros2.py
+5    6   marslab/config/yaml_loader.py
+3    14  marslab/robots/rover.py
+4    4   marslab/ros2_bridge/AGENTS.md
+5    9   marslab/ros2_bridge/odometry_publisher.py
+0    1   marslab/ros2_bridge/rclpy_integration.py
+1    75  marslab/ros2_bridge/robot_description_publisher.py
+43   79  marslab/ros2_bridge/sensor_graph.py
+45   295 marslab/ros2_bridge/sensor_graph_builder.py
+10   26  marslab/ros2_bridge/tf_broadcaster.py
+0    149 marslab/ros2_bridge/tf_nameoverrides.py
+3    6   marslab/runtime/assembly.py
+2    2   marslab/runtime/main_loop.py
+5    11  marslab/runtime/sensor_frames.py
+124  0   marslab/sensors/camera_spawner.py
+137  0   marslab/sensors/imu_spawner.py
+192  0   marslab/sensors/lidar_3d_spawner.py
+63   587 marslab/sensors/sensor_spawner.py
+```
+
+### durable per-task/per-file delta
+
+아래 수치는 각 task report의 live/untracked-aware evidence가 있는 경우에만
+기록했다. durable pre-edit snapshot이 없는 행은 **`null (evidence 없음)`**이며
+commit 누적 수치를 소급 배분하지 않는다.
+
+| Task | 파일별 durable `+/-` | 근거/상태 |
+|---:|---|---|
+| 16 | `marslab/config/schema/rover_sensors.py`: `+0/-0` (현재 상태 충족) | `task-16/report/DoneClaim.md`; adversarial `confirmed` |
+| 17 | `marslab/config/yaml_loader.py`: `+5/-6` | `task-17/report/DoneClaim.md`; static checks exit 0 |
+| 18 | `camera_spawner.py`: `+124/-0`; `sensor_spawner.py`: `+8/-40`; 합계 `+132/-40` | `task-18/report/DoneClaim.md`; Ruff/Black/py_compile/diff-check exit 0 |
+| 19 | `lidar_3d_spawner.py`: `+192/-0`; `sensor_spawner.py`: `+18/-74`; 합계 `+210/-74` | `task-19/report/DoneClaim.md`; live numstat artifact |
+| 20 | `imu_spawner.py`: `+137/-0`; `sensor_spawner.py`: `+59/-587`; 합계 `+196/-587` | `task-20/report/DoneClaim.md`; live numstat artifact |
+| 21 | `sensor_graph.py +22/-40`; `sensor_graph_builder.py +27/-145`; `assembly.py +3/-4`; `sensor_spawner.py +7/-4`; 합계 `+59/-193` | `task-21/report/DoneClaim.md`; reviewed hunk arithmetic |
+| 22 | owned graph files: **`null`** (Task21+22 shared preimage only; cumulative `+71/-236` not attributed) | `task-22/report/DoneClaim.md` explicitly withholds Task22-only delta |
+| 23 | all owned files: **`null`** (durable Task23 pre-edit snapshot 없음) | `task-23/report/DoneClaim.md`; no invented LOC |
+
+### 에이전트 checks와 evidence
+
+- Task16–23의 loader/schema/source probes, fake graph/trace probes, Python 3.11
+  compile, Ruff, Black, `git diff --check`, residue/endpoint/identity scans는 각
+  task evidence에서 확인되며 정상 gate의 binary exit는 `0`이다. 각 독립
+  adversarial artifact는 `verdict: confirmed`를 기록했다: `task-16/…/final.md`,
+  `task-17/adversarial-verify/final.md`, `task-18/adversarial-verify/final.md`,
+  `task-19/adversarial-verify/final.md`, `task-20/adversarial-verify/final.md`,
+  `task-21/adversarial-verify/AdversarialVerify.md`,
+  `task-22/adversarial-verify/AdversarialVerify.md`,
+  `task-23/adversarial-verify/AdversarialVerify.md`.
+- basedpyright의 비녹색 결과는 CPU-only workspace의 Isaac/Omni/pxr/usdrt/ROS
+  외부 stub 및 기존 annotation debt로 분류했으며 성공으로 위장하지 않는다
+  (Task18 5 errors, Task23 broad 50 errors/861 warnings). Task19의 pytest
+  collection ImportError도 out-of-scope legacy test로 evidence에 고정되어 있다.
+- commit 자체의 exact scope, compile, Ruff, Black, whitespace, staged-name 및
+  post-commit scope checks는 G4 commit `DoneClaim.md`에서 모두 exit `0`이다.
+
+### 사용자 전용 Isaac 실행과 기대 판정
+
+사용자가 실행할 **정확한 명령**은 다음 하나다.
+
+```bash
+marslab/isaac_python.sh marslab/main.py --config configs/config.yaml
+```
+
+다음 checklist는 사용자가 관찰·기록해야 하며, 현재 판정은 전부 **PENDING USER**다.
+
+- [ ] Camera가 정확히 한 번 spawn되고 RGB/Depth acquisition data를 생산한다.
+- [ ] IMU가 정확히 한 번 spawn되고 acquisition data를 생산한다.
+- [ ] 3D LiDAR가 정확히 한 번 spawn되고 point-cloud acquisition data를 생산한다.
+- [ ] ROS enabled일 때만 retained ROS graph가 build되고, disabled일 때 graph/rclpy가 없다.
+- [ ] 2D LiDAR와 LaserScan은 존재하지 않는다.
+- [ ] app은 사용자가 닫을 때까지 계속 실행된다(자동 종료하지 않는다).
+- [ ] 사용자가 닫은 뒤 cleanup이 정상적으로 완료된다.
+
+기대 판정은 위 모든 항목 관찰 시 **PASS**, 하나라도 실패/미관찰이면 **FAIL/PENDING**다.
+현재 실제 Isaac observation은 **PENDING USER**이며 agent는 PASS를 추론하지 않는다.
+정확한 runtime TF-tree 검증(`base_link`, `Body_Chassis`, sensor descendants,
+`odom→base_link`)은 **G5에서만** 수행한다.
+
+### UltraQA, remaining risk, unlock
+
+- stale state, dirty worktree, misleading success, generated artifacts는 task/commit
+  evidence에서 확인했고 unrelated dirty paths (`.gitignore`, audit/PDF/refactoring
+  docs, `package-lock.json`, `uv.lock`)를 보존했다. report append 전 candidate section
+  부재 pin은 `.omo/evidence/marslab-runtime-refactor-v2/gates/G4/candidate/phase1-report-pin.txt`다.
+- malformed-input/negative residue와 cleanup receipts는 각 task evidence에 있다.
+  prompt injection, cancel/resume, hung/long, flaky, repeated interruption은 이
+  bounded offline/report 작업에 해당 surface가 없어 **N/A**다.
+- 남은 위험: 사용자 Isaac/ROS runtime이 아직 실행·관찰되지 않았고, basedpyright
+  외부 stub/local annotation debt가 남아 있다. `docs/frame_conventions.md`는
+  이 commit에서 이미 `A`로 force-stage되어 있으므로 추가 stage 위험으로
+  재기록하지 않는다.
+- 다음 unlock은 사용자가 정확히 **`APPROVE G4`**를 보낸 뒤에만 **Task24**다.
+  그 전에는 G5 TF-tree나 Task24를 시작하지 않는다.
+
+## G4 사용자 승인 기록 — `APPROVE G4`
+
+- **승인 시각:** `2026-08-20T09:46:19+09:00` (KST 기록 시각)
+- **사용자 원문:** `ㅇㅋ APPROVE G4. G5 진입때까지...`
+- **정규화 승인 토큰:** `APPROVE G4`
+- **관찰/범위:** post-fix 재실행·논의 이후 사용자가 G4 범위를 수락해 승인했다. 이
+  기록은 추가 센서·토픽 수치나 Isaac/ROS 관찰을 발명하지 않으며, 앞선
+  agent-side HydraTexture 경계 확인과 사용자 승인 사실만 고정한다.
+- **Unlock:** 이 명시적 승인으로 **Task24가 unlock**된다. G5 진입 전까지의 후속
+  작업은 이 승인된 G4 범위를 기준으로 진행한다.

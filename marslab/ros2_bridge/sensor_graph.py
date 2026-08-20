@@ -38,6 +38,9 @@ from marslab.ros2_bridge.sensor_graph_builder import (
     _build_set_values,
     _ns_topic,
 )
+from marslab.sensors.camera_spawner import CameraSpawnHandles
+from marslab.sensors.imu_spawner import IMUSpawnHandles
+from marslab.sensors.lidar_3d_spawner import Lidar3DSpawnHandles
 
 # Canonical default for the rover ROS2 action-graph prim path.  Also
 # the default for ``Ros2BridgeConfig.graph_path`` -- keep the two in
@@ -98,9 +101,9 @@ def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
 
 def build_sensor_graph(
     ros2_cfg: Dict[str, Any],
-    camera_acquisition: Any,
-    lidar_3d_acquisition: Any,
-    imu_acquisition: Any,
+    camera_acquisition: CameraSpawnHandles,
+    lidar_3d_acquisition: Lidar3DSpawnHandles,
+    imu_acquisition: IMUSpawnHandles,
     articulation_root_prim_path: str,
     depth_sensor_cfg: Optional[Dict[str, Any]] = None,
 ) -> SensorGraphHandle:
@@ -114,7 +117,8 @@ def build_sensor_graph(
             it (non-empty, ``/``-prefixed, no whitespace).  When absent
             the module constant is used so existing scenario YAMLs keep
             loading unchanged.
-        camera_acquisition: Existing Task 18 camera acquisition handle.
+        camera_acquisition: Existing camera acquisition handle with its shared,
+            resolved render-product path.
         lidar_3d_acquisition: Existing Task 19 LiDAR acquisition handle.
         imu_acquisition: Existing Task 20 IMU acquisition handle.
         articulation_root_prim_path: USD path of the rover articulation
@@ -141,9 +145,9 @@ def build_sensor_graph(
     options = _resolve_ros2_bridge_options(ros2_cfg)
     graph_path = options.graph_path
     sensor_preset, tf_preset = _build_qos_presets(options)
-    camera_render_product_path = str(
-        camera_acquisition.render_product.node.get_attribute("outputs:renderProductPath").get()
-    )
+    camera_render_product_path = camera_acquisition.render_product_path
+    if not camera_render_product_path:
+        raise ValueError("Camera render-product path must be non-empty")
 
     keys = og.Controller.Keys
     graph_handle, _, _, _ = og.Controller.edit(

@@ -36,7 +36,8 @@ class _AnnotatorHandle(Protocol):
 
 
 class _RenderProductHandle(Protocol):
-    pass
+    @property
+    def path(self) -> str: ...
 
 
 def _rpy_deg_to_quat_wxyz(rpy_deg: Iterable[float]) -> tuple[float, float, float, float]:
@@ -65,6 +66,7 @@ class CameraSpawnHandles:
     camera: _CameraHandle
     camera_prim_path: str
     render_product: _RenderProductHandle
+    render_product_path: str
     rgb_annotator: _AnnotatorHandle
     depth_annotator: _AnnotatorHandle
 
@@ -116,6 +118,7 @@ def spawn_camera(
         camera=camera,
         camera_prim_path=camera_prim_path,
         render_product=render_product,
+        render_product_path=render_product.path,
         rgb_annotator=rgb_annotator,
         depth_annotator=depth_annotator,
     )
