@@ -3,7 +3,7 @@ name = "marslab"
 version = "0.1.0"
 description = "Standardized Mars simulation platform for planetary robotics research"
 requires-python = ">=3.11"
-license = "Apache-2.0"
+license = { text = "Apache-2.0" }
 dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
@@ -58,3 +58,7 @@ check_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 files = ["marslab/config", "marslab/environment"]
+
+[[tool.mypy.overrides]]
+module = ["launch"]
+follow_imports = "skip"

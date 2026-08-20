@@ -80,7 +80,7 @@ def _build_set_values(
 ) -> List[Tuple[str, Any]]:
     """List of ``(attr, value)`` pairs applied via SET_VALUES."""
     _validate_prim_path("articulation_root_prim_path", articulation_root_prim_path)
-    import usdrt  # type: ignore[import-not-found]  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
+    import usdrt  # pyright: ignore[reportMissingImports]  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
     values: List[Tuple[str, Any]] = [
         ("PubClock.inputs:topicName", "/clock"),

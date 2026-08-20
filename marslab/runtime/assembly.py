@@ -21,7 +21,6 @@ from marslab.sensors.sensor_spawner import SensorHandles
 
 SpawnPosition = tuple[float, float, float]
 _TERRAIN_PRIM_PATH: Final = "/World/Terrain"
-_LEGACY_CLI_Z_OFFSET: Final = 0.0
 _FALLBACK_LIGHT_PATH: Final = "/World/FallbackSun"
 _LOG = logging.getLogger(__name__)
 
@@ -215,7 +214,9 @@ def _resolve_spawn_position(
 ) -> tuple[SpawnPosition, SpawnPosition]:
     """Resolve the legacy DEM-relative rover pose before the first reset."""
     spawn = rover.spawn
-    z_offset = spawn.z_offset if spawn.z_offset is not None else _LEGACY_CLI_Z_OFFSET
+    z_offset = spawn.z_offset
+    if z_offset is None:
+        raise RuntimeError("rover.spawn.z_offset is required")
     dem_center_x, dem_center_y, _ = _sample_dem_elevation(stage, terrain_prim_path)
 
     match spawn.mode:

@@ -2911,3 +2911,135 @@ SHA 또는 full-total claim을 만들지 않는다.
 `.omo/evidence/marslab-runtime-refactor-v2/gates/G6/report-self-reference-fix/DoneClaim.md`에
 기록한다. 이 report-only sync도 plan/ledger/product/Task35를 변경하지
 않으며, G6는 사용자 `APPROVE G6` 전까지 **PENDING USER**다.
+
+## Task 36 — 사용자 전용 Isaac runtime handoff (USER-APPROVED LIMITED OBSERVATION)
+
+이 절은 G6 승인 뒤 Task35 agent gate를 기준으로 생성한 **사용자 실행용
+handoff**의 최종화다. 사용자가 정확한 `APPROVE RUNTIME-V2` token과
+`3가지 실험에 대해서 완료했고, 한번 네가 로그를 확인해봐. 나는 이상징후를
+확인한게 없어` 관찰을 제공했다. 이는 세 실험 완료와 사용자가 관찰한
+이상징후 부재만 승인하며, ROS terminal/TF/QoS/clock/payload/GUI/teardown
+transcript가 없는 사실은 바꾸지 않는다.
+
+### Task35 repair 및 static gate 최종 동기화
+
+Task35는 pinned HEAD
+`0fbfb9db3aa6d6036b349c68cba7ca36e163985c`에서 세 개의 의도된 dirty repair
+path를 보존하며 confirmed 되었다. 아래 표는 executor/독립 repair evidence를
+현재 worktree에서 다시 읽은 최종 요약이다.
+
+| path | repair | 최종 static observable |
+|---|---|---|
+| `marslab/runtime/assembly.py` | active `_LEGACY_CLI_Z_OFFSET` fallback 제거; typed `SpawnConfig.z_offset` 직접 소비 | canonical seam `(1.0, 2.0, 12.85)`; null Z는 `rover.spawn.z_offset is required`로 거부 |
+| `pyproject.toml` | wheel metadata license table을 `Apache-2.0`으로 복구 | wheel build, METADATA, disposable install/import 모두 exit 0 |
+| `marslab/ros2_bridge/sensor_graph_builder.py` | deferred Isaac-only `usdrt`에 line-scoped static suppression 적용 | exact 41-file mypy가 `Success: no issues found` |
+
+Task35의 exact 41-file `compileall`, `py_compile`, Ruff, mypy, Black은 모두
+exit 0이다. 전체 67 Python file Black은 변경하지 않은
+`marslab/environment/diffuse_fraction.py`와
+`marslab/ros2_bridge/imu_noise_publisher.py` 두 pre-existing finding만
+별도로 남겼다. `git diff --check`는 exit 0이며 현재 dirty product path는
+위 세 파일뿐이다. 원자료는
+`.omo/evidence/marslab-runtime-refactor-v2/task-35/commands.txt`,
+`DoneClaim.md`, `repairs-AdversarialVerify.md`다.
+
+### 현재 code/file/LOC totals
+
+다음 명령으로 현재 worktree를 직접 재계산했다.
+
+```bash
+find marslab launch scripts -type f -name '*.py' -print0 | xargs -0 wc -l
+git ls-files | wc -l
+```
+
+현재 runtime/developer Python surface는 **67 files / 7566 physical LOC**다
+(`marslab` 65, `launch` 1, `scripts` 1). 현재 tracked-file inventory는
+**104 paths**다. 250 LOC를
+넘는 현재 모듈은 `sun_position.py` 279, `convert_urdf_to_usd.py` 325,
+`robots/rover.py` 341, `runtime/assembly.py` 343,
+`runtime/main_loop.py` 529이다. 이 수치는 복잡도 신호이며 Task36에서
+모듈을 재구성하거나 실행 코드를 수정하지 않는다. 전체 출력은
+`.omo/evidence/marslab-runtime-refactor-v2/task-36/current-totals.txt`다.
+
+### U1–U3 mechanically derived copies
+
+`configs/config.yaml`의 pre-copy SHA-256은
+`1cd6f033ab2c51bcbddffd933734e6d8b533e36b0980cfc3d888a4b29a4f7b5e`다.
+세 복사본은 scene USDZ, rover USD/URDF, sky-dome 경로를 canonical config
+directory 기준 absolute path로 바꾼 뒤, 문서화된 `runtime` booleans만
+변경했다. 세 파일 모두 public `load_config`에서 `MarsLabConfig`로
+읽혔고, 네 absolute path가 실제 존재하며, structural diff는
+documented path/runtime 차이만 포함한다.
+
+| ID | absolute copy | runtime booleans | user surface |
+|---|---|---|---|
+| U1 | `/tmp/marslab-runtime-v2-qa/u1_gui_atmosphere_ros_off.yaml` | `headless=false`, `atmosphere_enabled=true`, `ros2_enabled=false` | GUI + atmosphere, ROS off |
+| U2 | `/tmp/marslab-runtime-v2-qa/u2_headless_no_atmosphere_ros_off.yaml` | `headless=true`, `atmosphere_enabled=false`, `ros2_enabled=false` | headless + atmosphere off, ROS off |
+| U3 | `/tmp/marslab-runtime-v2-qa/u3_gui_atmosphere_ros_on.yaml` | `headless=false`, `atmosphere_enabled=true`, `ros2_enabled=true` | GUI + atmosphere, ROS on |
+
+Exact commands and every expected observable/checklist are in
+`.omo/evidence/marslab-runtime-refactor-v2/task-36/UserRuntimeHandoff.md`.
+각 command는 repository root에서 다음 형식을 그대로 사용한다.
+
+```bash
+marslab/isaac_python.sh marslab/main.py --config <absolute-copy>
+```
+
+U1/U2에서는 ROS bridge와 companion을 실행하지 않고, U3에서는 별도 ROS
+terminal에서 companion launch를 실행한다. U1/U2의 Camera·IMU·3-D LiDAR
+관찰은 archived log-confirmed acquisition/raw-data surface로 한정하고,
+CameraInfo/PointCloud2/noisy-IMU/LiDAR ROS topics는 **N/A**다. U3 ROS-derived
+CameraInfo/PointCloud2, noisy IMU, LiDAR topic payload와 GT/Wheel topic/frame
+분리, TF/QoS/clock, GUI visual state, and teardown transcript는
+**EVIDENCE GAP — PENDING USER**로 남긴다. User approval는 이 gaps를
+통과한 runtime PASS로 재분류하지 않는다.
+
+### Task36 PIN/RED/GREEN 및 cleanup
+
+- PIN: canonical config/report/three repair SHA와 HEAD는
+  `task-36/pin-before.md`에 저장했다.
+- RED: malformed copy, stale canonical/current HEAD, dirty repair paths,
+  absolute-path/cwd, misleading preapproval, and generated-temp conditions를
+  bounded static probes로 분류했다.
+- GREEN: `copy-parse-and-diff.txt`가 세 copy의 public load, path existence,
+  runtime-only structural diff를 exit 0으로 기록했고, `copy-manifest.json`이
+  각 SHA와 booleans를 고정한다. agent runtime PASS/APPROVE claim은 없다.
+- `/tmp/marslab-runtime-v2-qa/`는 archive `cmp`/hash 확인 뒤 exact path만
+  제거한다. `runtime-logs/`에는 U1/U2/U3 YAML/log byte copies가 있고,
+  `kit-log-references.txt`에는 큰 Kit log의 absolute path/hash만 있다.
+
+Handoff render, archive manifest/cmp, approval record, cleanup absence, final
+canonical hash, and caveat scan are in
+`.omo/evidence/marslab-runtime-refactor-v2/task-36/`. Task36 is
+**USER-APPROVED (LIMITED OBSERVATION)**; documented wire-level and teardown
+gaps remain **PENDING USER**, and F1–F4 are not started by this task.
+
+### Task36 user approval/archive synthesis
+
+정확한 user token은 `APPROVE RUNTIME-V2`이며 handoff에서 한 번 기록됐다.
+사용자 관찰 원문은
+`3가지 실험에 대해서 완료했고, 한번 네가 로그를 확인해봐. 나는 이상징후를 확인한게 없어`다.
+이는 U1/U2/U3 완료와 사용자가 이상징후를 보지 못했다는 범위의
+**USER-APPROVED (LIMITED OBSERVATION)**다. U1/U2/U3 tee log와 세 YAML은
+`.omo/evidence/marslab-runtime-refactor-v2/task-36/runtime-logs/`에
+byte-identical archive로 저장했고, 각 source/archive `cmp`와 SHA는
+`archive-cmp.txt`, `runtime-logs/manifest-data.sha256`,
+`runtime-logs/manifest.sha256.txt`에 있다. Kit 로그는 크기 때문에 복사하지
+않고 `runtime-logs/kit-log-references.txt`에 absolute path와 SHA만 남겼다.
+
+로그 synthesis는 Isaac-side startup, stage/rover progression, Camera/IMU/
+3-D LiDAR setup, U1/U3 AtmospherePanel creation, U1/U2 ROS-off bridge absence를
+확인하지만 payload/rate, ROS terminal topic list/echo/hz, TF publisher count,
+QoS, `/clock`, GUI screenshot/dynamic interaction, and historical teardown
+transcript를 포함하지 않는다. U3 log의 known Lark diagnostic, MotionBVH
+motion-effects warning, unresolved visual-reference warnings는 archive와
+runtime-audit synthesis에 보존했으며 user no-anomaly statement로 숨기거나
+wire-level PASS로 재분류하지 않았다. 이 항목들은 계속 **EVIDENCE GAP —
+PENDING USER**다.
+
+Archive 검증 후 exact `/tmp/marslab-runtime-v2-qa/` directory를 제거했고,
+`cleanup-final.md`는 directory absence와 task-owned process/listener 부재를
+기록한다. Canonical config SHA
+`1cd6f033ab2c51bcbddffd933734e6d8b533e36b0980cfc3d888a4b29a4f7b5e`는
+변경되지 않았다. Product/plan/ledger/commit/F-wave는 이 finalization에서
+수정하지 않았다.
