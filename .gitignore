@@ -66,5 +66,5 @@ _workspace/
 _workspace_*/
 .omo/
 
-# 개발때만 임시로 gitinore
-assets/mars_assets/space_assets/*.usdz
+# Massive File
+assets/scene
