@@ -2018,3 +2018,272 @@ sequence `bridge.node.destroy_node() → rclpy.shutdown() → SimulationApp.clos
 Isaac/ROS launch is intentionally N/A for this bounded wiring task; no launch
 was performed.  Existing concurrent Task 27 source changes in `assembly.py`
 and `main.py` remain preserved and are not re-attributed here.
+
+## G5 candidate — Tasks 24–28 (reviewed commit `0d9dc2a2ab6ca3335b3d30f2bae09e118e3393a9`)
+
+### Phase 1–2: pin and exact commit read
+
+Phase 1의 pre-edit PIN은 `rg -n '^## G5 candidate' MARSLAB_REFACTORING_CHANGE_REPORT.md`
+가 exit `1`이어야 한다. 이 후보 섹션을 추가한 뒤에는 Phase 3 render 결과만
+판정에 사용한다. Phase 2는 `git rev-parse HEAD`,
+`git diff-tree --no-commit-id --name-status -r --find-renames --find-copies
+0d9dc2a2ab6ca3335b3d30f2bae09e118e3393a9`, `git show --numstat`를 실행해
+정확한 SHA·부모·19개 경로·commit delta를 읽는다.
+
+Reviewed SHA는 정확히
+`0d9dc2a2ab6ca3335b3d30f2bae09e118e3393a9` (parent
+`2129290c1aa927fd5038ea7950c60539718ab551`)이다. 이 커밋의 19-path
+M/A/D 목록은 다음과 같다.
+
+| 상태 | 경로 |
+|---|---|
+| M | `MARSLAB_REFACTORING_CHANGE_REPORT.md` |
+| M | `configs/config.yaml` |
+| A | `docs/odometry_ground_truth.md` |
+| M | `marslab/config/schema/rover.py` |
+| M | `marslab/main.py` |
+| M | `marslab/robots/rover.py` |
+| M | `marslab/ros2_bridge/__init__.py` |
+| M | `marslab/ros2_bridge/context.py` |
+| M | `marslab/ros2_bridge/odometry_publisher.py` |
+| M | `marslab/ros2_bridge/rclpy_integration.py` |
+| A | `marslab/ros2_bridge/rclpy_publishers.py` |
+| M | `marslab/ros2_bridge/robot_description_publisher.py` |
+| M | `marslab/ros2_bridge/wheel_odometry_publisher.py` |
+| M | `marslab/runtime/assembly.py` |
+| M | `marslab/runtime/loop_context.py` |
+| M | `marslab/runtime/main_loop.py` |
+| M | `marslab/runtime/post_reset.py` |
+| M | `marslab/runtime/precheck.py` |
+| M | `marslab/runtime/prepare.py` |
+
+커밋 자체의 합계는 `+699/-588` (report `+235/-0`, product/docs
+`+464/-588`)이고, 기준선 `e6a1c580657e81979a48de2435fa7306a54fc2c7`부터의
+누적 합계는 `+4358/-2870` (45 paths)이다. Task별 durable delta는 중복
+귀속을 피하도록 다음처럼 기록한다.
+
+| Task | role/model | durable product/docs delta | evidence basis |
+|---:|---|---:|---|
+| 24 | LOW/Luna | report `+65/-0`; product `+0/-0` | task-24 DoneClaim, verification-rerun |
+| 25 | MEDIUM/Terra | product/docs `+126/-183` (GT/Wheel + odometry doc); report `+60/-0` | task-25 report DoneClaim/live-numstat |
+| 26 | MEDIUM/Terra | product `+208/-210` (`rclpy_publishers.py` + integration split); report `+21/-0` | task-26 DoneClaim/Task26Report |
+| 27 | MEDIUM/Terra | product `+116/-181` (seven-file typed Rover handoff); report `+61/-0` | task-27 report DoneClaim/live-numstat |
+| 28 | MEDIUM/Terra | product `+14/-14` (`loop_context.py`); report `+27/-0` | task-28 DoneClaim/verification |
+
+Task product sums are `+464/-588`; report section lines sum to `+234` plus the
+commit's final newline, matching the exact `+699/-588` commit numstat. Per-task
+evidence reports compile/ruff/black/diff checks as green where in scope; Task 26
+reports basedpyright `0 errors, 122 warnings`, Task 28 `0 errors, 144 warnings`,
+and Task 27 full-module Kit imports retain pre-existing `omni`/`isaacsim`/`pxr`
+diagnostics. These are honest type-environment limitations, not runtime PASS.
+
+### Phase 3: terminal report render
+
+The exact manual render is:
+
+```bash
+sed -n '/^## G5 candidate/,/^## /p' MARSLAB_REFACTORING_CHANGE_REPORT.md
+rg -n '^## G5 candidate|^`0d9dc2a2ab6ca3335b3d30f2bae09e118e3393a9` \(parent|^커밋 자체의 합계는|^\*\*Gate status: PENDING USER\. Task 29 unlocks only after' MARSLAB_REFACTORING_CHANGE_REPORT.md
+python3 - <<'PY'
+from pathlib import Path
+import re
+text = Path('MARSLAB_REFACTORING_CHANGE_REPORT.md').read_text()
+candidate = text[text.index('## G5 candidate'):]
+sha = '0d9dc2a2ab6ca3335b3d30f2bae09e118e3393a9'
+lock = ('**Gate status: PENDING USER. ' +
+        'Task ' + '29 unlocks only after the exact user token')
+def validate(value):
+    lines = value.splitlines()
+    sha_rows = [i for i, line in enumerate(lines)
+                if line.startswith('Reviewed SHA는 정확히')]
+    assert len(sha_rows) == 1 and sha in lines[sha_rows[0] + 1]
+    assert sum(line.startswith('커밋 자체의 합계는') and '+699/-588' in line
+               for line in lines) == 1
+    assert sum(line.startswith('누적 합계는 `+4358/-2870`') for line in lines) == 1
+    lock_rows = [i for i, line in enumerate(lines) if line.startswith(lock)]
+    assert len(lock_rows) == 1 and lines[lock_rows[0] + 1].startswith('`APPROVE G5`;')
+    path_rows = [line for line in lines
+                 if re.match(r'^\| [MAD] \| `[^`]+` \|$', line)]
+    assert len(path_rows) == 19
+    assert sum(line.startswith('| M |') for line in path_rows) == 17
+    assert sum(line.startswith('| A |') for line in path_rows) == 2
+    expected_paths = {
+        ('M', 'MARSLAB_REFACTORING_CHANGE_REPORT.md'), ('M', 'configs/config.yaml'),
+        ('A', 'docs/odometry_ground_truth.md'), ('M', 'marslab/config/schema/rover.py'),
+        ('M', 'marslab/main.py'), ('M', 'marslab/robots/rover.py'),
+        ('M', 'marslab/ros2_bridge/__init__.py'), ('M', 'marslab/ros2_bridge/context.py'),
+        ('M', 'marslab/ros2_bridge/odometry_publisher.py'),
+        ('M', 'marslab/ros2_bridge/rclpy_integration.py'),
+        ('A', 'marslab/ros2_bridge/rclpy_publishers.py'),
+        ('M', 'marslab/ros2_bridge/robot_description_publisher.py'),
+        ('M', 'marslab/ros2_bridge/wheel_odometry_publisher.py'),
+        ('M', 'marslab/runtime/assembly.py'), ('M', 'marslab/runtime/loop_context.py'),
+        ('M', 'marslab/runtime/main_loop.py'), ('M', 'marslab/runtime/post_reset.py'),
+        ('M', 'marslab/runtime/precheck.py'), ('M', 'marslab/runtime/prepare.py'),
+    }
+    actual_paths = {(line.split('|')[1].strip(), line.split('|')[2].strip(' `'))
+                    for line in path_rows}
+    assert actual_paths == expected_paths
+    assert any('PENDING USER' in line for line in lines)
+validate(candidate)
+print('PASS: structural G5 candidate markers are present exactly once')
+missing_sha_lines = candidate.splitlines()
+sha_row = next(i for i, line in enumerate(missing_sha_lines)
+               if line.startswith('Reviewed SHA는 정확히'))
+missing_sha_lines[sha_row + 1] = '<removed>'
+missing_approval_lines = candidate.splitlines()
+lock_row = next(i for i, line in enumerate(missing_approval_lines)
+                if line.startswith(lock))
+missing_approval_lines[lock_row + 1] = '<removed>'
+evil_approval_lines = candidate.splitlines()
+evil_lock_row = next(i for i, line in enumerate(evil_approval_lines)
+                     if line.startswith(lock))
+evil_approval_lines[evil_lock_row + 1] = '`APPROVE G5`EVIL'
+missing_path_lines = candidate.splitlines()
+path_row = next(i for i, line in enumerate(missing_path_lines)
+                if re.match(r'^\| [MAD] \| `[^`]+` \|$', line))
+missing_path_lines.pop(path_row)
+wrong_path_lines = candidate.replace('| M | `configs/config.yaml` |',
+                                     '| M | `invented/wrong.yaml` |', 1)
+for label, bad in (
+    ('missing_lock', candidate.replace(lock, '', 1)),
+    ('missing_sha', '\n'.join(missing_sha_lines)),
+    ('missing_approval', '\n'.join(missing_approval_lines)),
+    ('evil_approval', '\n'.join(evil_approval_lines)),
+    ('missing_path', '\n'.join(missing_path_lines)),
+    ('wrong_path', wrong_path_lines),
+):
+    try:
+        validate(bad)
+    except AssertionError:
+        print(f'NEGATIVE_CONTROL={label}:PASS')
+    else:
+        raise SystemExit(f'negative control unexpectedly accepted: {label}')
+PY
+```
+
+Binary PASS markers are the exact SHA, 19 rows, `+699/-588`, cumulative
+`+4358/-2870`, `PENDING USER` runtime labels, and the structural Task 29 lock
+below. A render that omits any marker is FAIL and must not unlock Task 29.
+
+### Phase 4–5: integrity checks and user-only G5 gate
+
+Stale-state check compares `git rev-parse HEAD` with the reviewed SHA and reads
+the exact parent diff; dirty-state check preserves the known user paths
+`.gitignore`, `MARSLAB_STALE_RESIDUE_AUDIT.md`, `MarsLab.pdf`,
+`MarsLab_refactoring.md`, `package-lock.json`, and `uv.lock`. Misleading-success
+check rejects banners without command exit/output, generated-artifact check
+removes/flags only bytecode or temporary files, and malformed-authority checks
+reject duplicate `odom→base_link`, GT TF, or a second identity connector. Prompt
+injection, cancel/resume, hung/long, flaky/retry, and agent-side Isaac/ROS launch
+are N/A under the plan; no runtime observation is inferred.
+
+The companion invocation is grounded in the current standalone launch file (it
+declares `urdf_path`, `namespace`, `publish_frequency`, and exactly one
+`base_link→Body_Chassis` static publisher), not a package entry point:
+
+```bash
+REPO=/home/hoyunkim/MarsLab
+# Terminal A — Isaac Sim (user only)
+"$REPO/marslab/isaac_python.sh" "$REPO/marslab/main.py" --config "$REPO/configs/config.yaml"
+# Terminal B — separate system ROS 2 Jazzy companion (user only)
+ros2 launch "$REPO/launch/rover_state_publisher.launch.py" \
+  urdf_path:="$REPO/assets/m2020-urdf-models/rover/m2020.urdf" \
+  namespace:=rover publish_frequency:=50.0
+```
+
+If either command cannot start in the user's installed environment, record
+`FAIL (environment/invocation)` with the terminal output; do not invent a
+replacement command. While both are running, the user records PASS/FAIL (never
+agent-inferred) for this checklist:
+
+```bash
+ros2 topic list
+ros2 topic info -v /clock
+ros2 topic echo --once /clock
+ros2 topic info -v /rover/cmd_vel       # expect one subscription; send a Twist separately
+ros2 topic info -v /rover/imu
+ros2 topic info -v /rover/imu_noisy
+ros2 topic info -v /rover/rgb/image_raw
+ros2 topic info -v /rover/depth/image_raw
+ros2 topic info -v /rover/depth/points
+ros2 topic info -v /rover/rgb/camera_info
+ros2 topic info -v /rover/lidar/points
+ros2 topic info -v /rover/joint_states
+ros2 topic info -v /rover/robot_description
+ros2 topic info -v /rover/GT_Trajectory
+ros2 topic info -v /rover/odom
+ros2 topic echo --once /rover/imu
+ros2 topic echo --once /rover/imu_noisy
+ros2 topic echo --once /rover/rgb/image_raw
+ros2 topic echo --once /rover/depth/image_raw
+ros2 topic echo --once /rover/depth/points
+ros2 topic echo --once /rover/rgb/camera_info
+ros2 topic echo --once /rover/lidar/points
+ros2 topic echo --once /rover/joint_states
+ros2 topic echo --once /rover/robot_description
+ros2 topic echo --once /rover/GT_Trajectory
+ros2 topic echo --once /rover/odom
+ros2 topic hz /clock
+ros2 topic hz /rover/imu
+ros2 topic hz /rover/imu_noisy
+ros2 topic hz /rover/rgb/image_raw
+ros2 topic hz /rover/depth/image_raw
+ros2 topic hz /rover/depth/points
+ros2 topic hz /rover/rgb/camera_info
+ros2 topic hz /rover/lidar/points
+ros2 topic hz /rover/joint_states
+ros2 topic hz /rover/GT_Trajectory
+ros2 topic hz /rover/odom
+ros2 run tf2_tools view_frames
+ros2 run tf2_ros tf2_echo base_link Body_Chassis
+ros2 run tf2_ros tf2_echo Body_Chassis camera_link
+ros2 run tf2_ros tf2_echo camera_link camera_optical_frame
+ros2 run tf2_ros tf2_echo Body_Chassis imu_link
+ros2 run tf2_ros tf2_echo Body_Chassis lidar_link
+ros2 topic echo --once /tf_static
+ros2 topic info -v /tf
+ros2 topic info -v /tf_static
+ros2 topic list | rg -n 'scan|lidar_2d|tf_raw|nameoverride|odom_anchor' && echo 'FAIL: forbidden surface present' || echo 'PASS: forbidden surface absent'
+```
+
+Expected observations to mark explicitly: `/clock` uses advancing simulation
+time; cmd_vel has a subscriber; raw/noisy IMU, Camera RGB/depth/points/
+CameraInfo, 3-D LiDAR, joint_states, robot_description, GT and Wheel each have
+the declared single producer and nonzero data; rates are IMU 30 Hz, odom and
+joint_states 50 Hz, and Camera/depth/points/CameraInfo/LiDAR 30 Hz within normal
+runtime jitter. Message timestamps are monotonic and in the same simulation-time
+domain; GT is absolute `map/base_link_gt` and emits no TF; Wheel is
+`odom/base_link` and emits `odom→base_link` only when `wheel_odom.publish_tf` is
+true. QoS must match the authority table: sensor best-effort/volatile/keep-last
+5, odom reliable/volatile/keep-last 10, MarsLab sensor static TF reliable/
+transient-local/keep-last 100, companion `static_transform_publisher` default
+reliable/transient-local/keep-last 1 (launch has no QoS override), and robot
+description reliable/transient-local/keep-last 1; record actual `topic info -v`
+output and mark any mismatch FAIL.
+
+TF PASS requires exactly one identity `base_link→Body_Chassis` from the
+companion, external RSP articulation descendants below `Body_Chassis`, and
+MarsLab sensor frames below `Body_Chassis`; GT owns none, Wheel conditionally
+owns only `odom→base_link`, and there are no 2D/tf_raw/nameoverride/odom_anchor
+edges or duplicate authorities. Save `view_frames` output and all command logs;
+stop both terminals with Ctrl-C, verify no MarsLab/ROS processes remain, then
+remove only the temporary QA directory if one was created.
+
+**Gate status: PENDING USER. Task 29 unlocks only after the exact user token
+`APPROVE G5`; no command success, static check, or prior approval substitutes
+for it.**
+
+## G5 사용자 승인 기록 — Tasks 24–28 ROS/TF/GT/Wheel integration
+
+- **승인 시각:** `2026-08-20T12:33:18+09:00` (KST 기록 시각).
+- **사용자 원문:** `모든 TF, topic의 정상 subscribe 확인 -> APPROVE G5`.
+- **정규화 승인 토큰:** **`APPROVE G5`**.
+- **사용자 관찰 요약:** **all TF and topics successfully subscribed**.
+- **검토된 implementation commit:**
+  **`0d9dc2a2ab6ca3335b3d30f2bae09e118e3393a9`**.
+- **이전 조기 Task 29/30 rollback:** independent review `confirmed`; the
+  rollback record is `.omo/evidence/marslab-runtime-refactor-v2/gates/G5/rollback-early-task29-30/AdversarialVerify.md`.
+- **관찰 범위:** 사용자가 제공한 위 요약 외 per-topic rate/QoS 세부값은
+  기록하거나 추론하지 않는다.
+- **Unlock:** exact user token으로 **Task 29 unlock now valid**.
