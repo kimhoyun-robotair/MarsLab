@@ -253,7 +253,6 @@ def assemble_pre_reset(
     stage: StageHandle,
     scene_path: str,
     rover: RoverConfig,
-    rover_usd_path: str,
     render_config: RenderingConfig,
     atmosphere_init: AtmosphereInit,
     atmosphere_enabled: bool,
@@ -270,7 +269,6 @@ def assemble_pre_reset(
     from marslab.sensors.sensor_spawner import spawn_sensors  # noqa: PLC0415
 
     articulation_factory = import_module("isaacsim.core.prims").Articulation
-    rover_config = rover.model_dump(mode="python")
     sensors_config = rover.sensors.model_dump(mode="python")
     ros2_config = rover.ros2.model_dump(mode="python")
     control_config = rover.control.model_dump(mode="python")
@@ -301,7 +299,7 @@ def assemble_pre_reset(
         terrain_prim_path=_TERRAIN_PRIM_PATH,
         rover=rover,
     )
-    spawned_rover = spawn_rover(stage, rover_config, rover_usd_path, spawn_xyz)
+    spawned_rover = spawn_rover(stage, rover, spawn_xyz)
     sensor_handles = spawn_sensors(
         stage,
         sensors_config,

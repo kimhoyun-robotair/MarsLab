@@ -28,7 +28,7 @@ def build_loop_context(
     pre_reset: PreResetAssembly,
     post_reset: PostResetAssembly,
 ) -> LoopContext:
-    control = config.rover.control.model_dump(mode="python")
+    control_config = config.rover.control
     bridge = post_reset.bridge
     spin_once: Callable[[], None] | None = None
     if bridge is not None:
@@ -68,19 +68,19 @@ def build_loop_context(
         imu=pre_reset.sensors.imu,
         drive_indices=post_reset.drive_indices,
         steer_indices=post_reset.steer_indices,
-        wheelbase=float(control["wheelbase"]),
-        track_steer=float(control["track_steer"]),
-        track_middle=float(control["track_middle"]),
-        wheel_radius=float(control["wheel_radius"]),
-        v_max=float(control["max_linear_velocity"]),
-        w_max=float(control["max_angular_velocity"]),
+        wheelbase=float(control_config.wheelbase),
+        track_steer=float(control_config.track_steer),
+        track_middle=float(control_config.track_middle),
+        wheel_radius=float(control_config.wheel_radius),
+        v_max=float(control_config.max_linear_velocity),
+        w_max=float(control_config.max_angular_velocity),
         physics_dt=atmosphere_init.physics_dt,
-        negate_steer=bool(control["negate_steer"]),
-        debug_logging=bool(control["debug_logging"]),
-        max_wheel_accel_rate=float(control["max_wheel_accel_rate"]),
-        decel_multiplier=float(control["decel_multiplier"]),
-        max_steer_angle=float(control["max_steer_angle"]),
-        steer_ramp_rate=float(control["steer_ramp_rate"]),
+        negate_steer=control_config.negate_steer,
+        debug_logging=control_config.debug_logging,
+        max_wheel_accel_rate=float(control_config.max_wheel_accel_rate),
+        decel_multiplier=float(control_config.decel_multiplier),
+        max_steer_angle=float(control_config.max_steer_angle),
+        steer_ramp_rate=float(control_config.steer_ramp_rate),
         control=ControlState(
             current_drive_targets=np.zeros(len(post_reset.drive_indices), dtype=np.float32),
             current_steer_targets=np.zeros(len(post_reset.steer_indices), dtype=np.float32),
@@ -89,7 +89,7 @@ def build_loop_context(
         atmosphere=post_reset.atmosphere,
         odom_ctx=bridge.odom_ctx if bridge is not None else None,
         wheel_odom_ctx=bridge.wheel_odom_ctx if bridge is not None else None,
-        imu_noise_ctx=getattr(bridge, "imu_noise_ctx", None) if bridge is not None else None,
+        imu_noise_ctx=bridge.imu_noise_ctx if bridge is not None else None,
         render_config=config.rendering,
         ackermann_fn=import_module("marslab.robots.rover_control").ackermann_command,
         spin_once=spin_once,

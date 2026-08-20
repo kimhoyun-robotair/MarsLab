@@ -3,12 +3,11 @@
 Public entry point :func:`run_main_loop` consumes a :class:`LoopContext`
 bundling every object and scalar the inline loop closed over.
 Mutable ramp / atmosphere state is carried in :class:`ControlState` /
-:class:`AtmosphereLoopState` (mutated in place).  Odometry publishing is
-delegated to :func:`marslab.ros2_bridge.odometry_publisher.publish_odometry`
-via the :class:`~marslab.ros2_bridge.odometry_publisher.OdometryPublisherContext`
-carried on :attr:`LoopContext.odom_ctx` -- a single source of truth that
-honours the ``publish_tf`` gate so exactly one component owns
-``odom -> base_link`` on ``/tf``.
+:class:`AtmosphereLoopState` (mutated in place).  Ground-truth pose publishing
+is delegated to :func:`marslab.ros2_bridge.odometry_publisher.publish_ground_truth_pose`
+via the :class:`~marslab.ros2_bridge.odometry_publisher.GroundTruthPosePublisherContext`
+carried on :attr:`LoopContext.odom_ctx`.  Operational Wheel Odom owns the
+optional ``odom -> base_link`` transform gate.
 Isaac Sim / ``rclpy`` symbols enter via the context only -- the module
 itself is offline-importable (no Isaac Sim imports at module scope).
 A normal exit after at least one iteration or ``KeyboardInterrupt`` returns
@@ -30,7 +29,7 @@ if TYPE_CHECKING:
     # publisher module's ``rclpy`` / ``tf2_ros`` / ``nav_msgs`` imports
     # are themselves function-local.
     from marslab.ros2_bridge.imu_noise_publisher import ImuNoiseContext
-    from marslab.ros2_bridge.odometry_publisher import OdometryPublisherContext
+    from marslab.ros2_bridge.odometry_publisher import GroundTruthPosePublisherContext
     from marslab.ros2_bridge.wheel_odometry_publisher import WheelOdometryContext
 
 logger = logging.getLogger(__name__)
@@ -294,7 +293,7 @@ class LoopContext:
     steer_ramp_rate: float
     control: ControlState
     atmosphere: AtmosphereLoopState
-    odom_ctx: Optional["OdometryPublisherContext"]
+    odom_ctx: Optional["GroundTruthPosePublisherContext"]
     wheel_odom_ctx: Optional["WheelOdometryContext"]
     render_config: Any
     ackermann_fn: Callable[..., Any]
@@ -528,7 +527,7 @@ def run_main_loop(ctx: LoopContext) -> int:
                     )
 
             if odom_ctx is not None and odom_ctx.publisher is not None:
-                _publish_odometry(ctx, ctl.step_count)
+                _publish_ground_truth_pose(ctx, ctl.step_count)
 
             if ctx.wheel_odom_ctx is not None and ctx.wheel_odom_ctx.publisher is not None:
                 _publish_wheel_odometry(ctx, ctl.step_count)
@@ -600,16 +599,10 @@ def _debug_log_step(
         _log_once(logger, exc, "imu_frame_fetch_failed", ctx.control.step_count)
 
 
-def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
-    """Delegate odometry publish to the canonical ``publish_odometry``.
+def _publish_ground_truth_pose(ctx: LoopContext, step_count: int) -> None:
+    """Delegate GT pose publish to the canonical ground-truth publisher.
 
-    The previous inline implementation duplicated
-    :func:`marslab.ros2_bridge.odometry_publisher.publish_odometry` and
-    silently bypassed the ``tf_broadcaster is None`` gate, raising
-    ``AttributeError("'NoneType' object has no attribute 'sendTransform'")``
-    every step once the rclpy odom TF defaulted off. Routing through the
-    publisher makes that gate the single source of truth and keeps the
-    math (``compute_odom_delta`` / ``world_twist_to_body``) in one place.
+    The GT stream is topic-only and publishes the absolute Isaac-world pose.
 
     Velocity-fetch failure is preserved as the ``velocity_query_failed``
     grace-window log; the outer ``odom_publish_failed`` category covers
@@ -625,7 +618,7 @@ def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
     # ``rclpy``/``tf2_ros``/``nav_msgs`` to its own function bodies, but
     # importing it at module scope would still drag in the typing-only
     # references at unit-test time on a host without ROS 2.
-    from marslab.ros2_bridge.odometry_publisher import publish_odometry
+    from marslab.ros2_bridge.odometry_publisher import publish_ground_truth_pose
 
     try:
         rover_poses_odom = ctx.articulation.get_world_poses()
@@ -660,7 +653,7 @@ def _publish_odometry(ctx: LoopContext, step_count: int) -> None:
             lv = np.zeros(3, dtype=np.float32)
             av = np.zeros(3, dtype=np.float32)
 
-        publish_odometry(
+        publish_ground_truth_pose(
             odom_ctx,
             cur_pos_world=cur_pos,
             cur_quat_world=cur_quat,

@@ -95,10 +95,10 @@ def create_wheel_odometry_publisher(
         frame_id=frame_id,
         child_frame_id=child_frame_id,
         publish_tf=publish_tf,
-        pose_diag=(list(pose_diag) if pose_diag is not None
-                   else [1e-3, 1e-3, 1e6, 1e6, 1e6, 1e-2]),
-        twist_diag=(list(twist_diag) if twist_diag is not None
-                    else [1e-3, 1e-3, 1e6, 1e6, 1e6, 1e-2]),
+        pose_diag=(list(pose_diag) if pose_diag is not None else [1e-3, 1e-3, 1e6, 1e6, 1e6, 1e-2]),
+        twist_diag=(
+            list(twist_diag) if twist_diag is not None else [1e-3, 1e-3, 1e6, 1e6, 1e6, 1e-2]
+        ),
     )
 
 

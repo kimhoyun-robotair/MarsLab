@@ -1783,3 +1783,238 @@ marslab/isaac_python.sh marslab/main.py --config configs/config.yaml
   agent-side HydraTexture 경계 확인과 사용자 승인 사실만 고정한다.
 - **Unlock:** 이 명시적 승인으로 **Task24가 unlock**된다. G5 진입 전까지의 후속
   작업은 이 승인된 G4 범위를 기준으로 진행한다.
+
+## Task 24 — 보존 ROS 토픽 및 TF authority 표
+
+### 정확한 authority 표
+
+아래 표는 현재 `configs/config.yaml`과 실제 producer call site를 하나의
+권위로 묶는다. `enable gate`는 producer가 생성되는 조건이며, ROS가 꺼지면
+OmniGraph와 rclpy producer 모두 생성하지 않는다. QoS 표기는
+`reliability / durability / history(depth)` 순서이고, 별도 YAML 값이 없는
+현재 정본의 `Ros2BridgeConfig` 기본값을 적었다. `/tf_static`은 하나의 토픽이어도
+서로 겹치지 않는 transform edge마다 단 하나의 owner만 갖는다.
+
+| producer (구현 경계) | enable gate | topic | message | frame IDs | TF authority (단일 owner) | QoS |
+|---|---|---|---|---|---|---|
+| OmniGraph `PubClock` (`sensor_graph_builder.py`) | `runtime.ros2_enabled=true`로 graph 생성 | `/clock` | `rosgraph_msgs/msg/Clock` | 없음 | 없음 | OmniGraph `SystemDefault` (source에서 `qosProfile` 미설정) |
+| rclpy `create_cmd_vel_subscriber` (`rclpy_integration.py`) | ROS 2 enabled 및 node 초기화 | `/rover/cmd_vel` | `geometry_msgs/msg/Twist` | 없음 | 없음 | `cmd_vel_qos`: reliable / volatile / keep_last(10) |
+| OmniGraph `PubIMU` (raw) | ROS graph enabled; IMU acquisition은 ROS 독립적으로 항상 생성 | `/rover/imu` | `sensor_msgs/msg/Imu` | `imu_link` | MarsLab `publish_static_sensor_tfs`: `Body_Chassis→imu_link` | `sensor_qos`: best_effort / volatile / keep_last(5) |
+| rclpy `create_imu_noise_publisher` (noisy) | ROS enabled, `imu_noise_params` 존재 및 두 sigma 중 하나가 `>0` | `/rover/imu_noisy` | `sensor_msgs/msg/Imu` | `imu_link` | 위와 동일한 단일 MarsLab static sensor TF | `sensor_qos`: best_effort / volatile / keep_last(5) |
+| OmniGraph `CamRGB` | ROS graph enabled; Camera acquisition은 항상 생성 | `/rover/rgb/image_raw` | `sensor_msgs/msg/Image` | `camera_optical_frame` | MarsLab static sensor TF: `Body_Chassis→camera_link→camera_optical_frame` | `sensor_qos`: best_effort / volatile / keep_last(5) |
+| OmniGraph `CamDepth` | ROS graph enabled; Camera acquisition은 항상 생성 | `/rover/depth/image_raw` | `sensor_msgs/msg/Image` | `camera_optical_frame` | 위와 동일 | `sensor_qos`: best_effort / volatile / keep_last(5) |
+| OmniGraph `CamPCL` | ROS graph enabled; Camera acquisition은 항상 생성 | `/rover/depth/points` | `sensor_msgs/msg/PointCloud2` | `camera_optical_frame` | 위와 동일 | `sensor_qos`: best_effort / volatile / keep_last(5) |
+| OmniGraph `CamInfo` | ROS graph enabled; Camera acquisition은 항상 생성 | `/rover/rgb/camera_info` | `sensor_msgs/msg/CameraInfo` | `camera_optical_frame` | 위와 동일 | `sensor_qos`: best_effort / volatile / keep_last(5) |
+| OmniGraph `Lidar3DHelper` | ROS graph enabled; 3D LiDAR acquisition은 항상 생성 | `/rover/lidar/points` | `sensor_msgs/msg/PointCloud2` | `lidar_link` | MarsLab static sensor TF: `Body_Chassis→lidar_link` | `sensor_qos`: best_effort / volatile / keep_last(5) |
+| OmniGraph `PubJointState` | ROS graph enabled; rover articulation root 유효 | `/rover/joint_states` | `sensor_msgs/msg/JointState` | header frame ID 없음 | 외부 companion `robot_state_publisher`: `Body_Chassis→` articulation descendants | `tf_qos` (source가 명시): reliable / transient_local / keep_last(100) |
+| rclpy `publish_robot_description` | ROS enabled, `publish_robot_description=true`, `urdf_path` 존재 | `/rover/robot_description` | `std_msgs/msg/String` (URDF) | 없음 (URDF parameter 입력) | 외부 companion `robot_state_publisher`가 URDF articulation descendants 소유 | reliable / transient_local / keep_last(1) (publisher 내부 기본값) |
+| rclpy `publish_static_sensor_tfs` | ROS enabled 및 sensor frame 목록 | `/tf_static` | `tf2_msgs/msg/TFMessage` | `Body_Chassis→camera_link`, `Body_Chassis→lidar_link`, `Body_Chassis→imu_link`, `camera_link→camera_optical_frame` | **MarsLab만** retained sensor-frame edge 소유 | `tf_qos`: reliable / transient_local / keep_last(100) |
+| companion launch `static_transform_publisher` (identity) | companion launch 실행 시 정확히 한 node | `/tf_static` | `tf2_msgs/msg/TFMessage` | `base_link→Body_Chassis` (all-zero identity) | **companion launch만** identity edge 소유 | tf2 static 기본/`tf_qos`: reliable / transient_local / keep_last(100) |
+| rclpy `create_ground_truth_pose_publisher` (GT Pose) | ROS enabled; GT trajectory publisher는 항상 생성 | `/rover/GT_Trajectory` | `nav_msgs/msg/Odometry` | `map` / `base_link_gt` | **없음** — `publish_tf=False`; GT는 topic-only evaluation output | `odom_qos`: reliable / volatile / keep_last(10) |
+| rclpy `create_wheel_odometry_publisher` (Wheel Odom) | ROS enabled 및 `wheel_odom_params` 존재 | `/rover/odom` | `nav_msgs/msg/Odometry` | `odom` / `base_link` | `wheel_odom.publish_tf=true`일 때만 MarsLab의 유일한 `odom→base_link`; `false`이면 MarsLab TF 없음(외부 stack 단독) | `odom_qos`: reliable / volatile / keep_last(10) |
+
+### 중복 금지와 범위 고정
+
+- GT `map→base_link_gt`는 TF를 절대 발행하지 않는다. `nav_msgs/Odometry`의
+  topic payload만 평가용으로 유지하고 navigation 입력이나 Wheel Odom과 합치지
+  않는다.
+- `odom→base_link`의 MarsLab 후보는 Wheel Odom 하나뿐이다. `publish_tf=true`
+  일 때 그 publisher가 단독 owner이고, `false`일 때는 외부 stack 외에 MarsLab
+  broadcaster가 없다.
+- `base_link→Body_Chassis` identity는 companion launch의 static publisher 하나만
+  발행한다. 외부 `robot_state_publisher`는 그 아래 articulation descendants만,
+  MarsLab은 `Body_Chassis` 아래 retained sensor frames만 소유한다. 어떠한 edge도
+  두 broadcaster가 공유하지 않는다.
+- 2D LiDAR/LaserScan, `scan_frame`, `/tf_raw`, legacy nameOverride/anchor bypass는
+  이 표와 runtime source 어디에도 없다. OmniGraph 여섯 sensor output과 rclpy
+  auxiliary output은 각각 한 producer로 고정된다.
+
+### Task 24 검증 및 수동 QA
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| 실패 우선 PIN | pre-edit exact marker scan: `rg -q '^## Task 24|^### Task 24|^\\| Producer \\|' report` → exit `1`; source/config/launch inventory도 함께 캡처 | `.omo/evidence/marslab-runtime-refactor-v2/task-24/pre-edit-producer-authority-inventory.txt` |
+| source/config reconciliation | report table의 15 retained rows, source producer symbols, canonical topics/frames, launch identity를 Python probe로 대조; missing/duplicate/legacy set 모두 empty | `.omo/evidence/marslab-runtime-refactor-v2/task-24/DoneClaim.md` §자동 검증 |
+| malformed negative | 표에서 `GT ... publish_tf=False`를 임의로 `true`로 바꾼 in-memory copy와 duplicate `odom→base_link` owner를 probe; 둘 다 `AssertionError`/non-zero로 거부 | `.omo/evidence/marslab-runtime-refactor-v2/task-24/adversarial-verify/AdversarialVerify.md` |
+| manual terminal QA | `sed -n '/Task 24/,/Task 25/p' MARSLAB_REFACTORING_CHANGE_REPORT.md`; 모든 retained output/authority가 한 번씩 보이고 `2D`, `legacy`, `LaserScan`, `scan_frame` 표 항목은 0 | `.omo/evidence/marslab-runtime-refactor-v2/task-24/manual-qa.txt` |
+| static/diff gate | `python3.11 -m py_compile`, `ruff check`, `git diff --check -- MARSLAB_REFACTORING_CHANGE_REPORT.md` → exit `0`; `black --check`는 기존 `imu_noise_publisher.py` 재포맷 필요로 exit `1`이며 report-only 범위 밖으로 분류 | `.omo/evidence/marslab-runtime-refactor-v2/task-24/DoneClaim.md` |
+
+- **독립 gate-review:** `.omo/evidence/marslab-runtime-refactor-v2/task-24/adversarial-verify/AdversarialVerify.md`가 source/config/launch를 다시 읽고 표와 재조정했으며 `verdict: confirmed`, `recommendation: APPROVE`, blockers `[]`를 기록한다. 이는 agent-side 정적 authority 확인이며 Isaac/ROS 실행 PASS나 G5 승인을 뜻하지 않는다.
+- **ULTRAQA/cleanup:** stale source/report 상태, dirty worktree 경로, misleading-success(명령 exit와 실제 표 내용 불일치), generated bytecode/임시 파일을 검사했다. 본 문서-only 작업에서 prompt injection, cancel/resume, hung/long, flaky, repeated interruption 및 실제 Isaac runtime은 N/A/PENDING USER로 분류하며 성공으로 주장하지 않는다. cleanup receipt는 `.omo/evidence/marslab-runtime-refactor-v2/task-24/cleanup-receipt.txt`다.
+- **수동 gate 판정:** 위 `sed` 명령이 표를 렌더링하고 retained output마다 정확히 하나의 producer/authority를 보이며 2D·legacy entry가 없으면 PASS다. 현재 사용자 전용 G5 topic/QoS/TF-tree 관찰은 **PENDING USER**다.
+
+### Task 24 DoneClaim
+
+- 라우팅/소유: LOW/Luna (`lazycodex-worker-low`); 변경 파일은 이 report와 task-24 evidence만이다. product behavior, plan/ledger, commit은 수정하지 않았다.
+- 정확한 결과: `/clock`, cmd_vel, raw/noisy IMU, Camera RGB/depth/PointCloud2/CameraInfo, 3D LiDAR, joint states, robot description, static sensor TF, identity connector, GT Pose, Wheel Odom을 producer·gate·topic·message·frame·TF owner·QoS 열로 고정했다. GT는 `map/base_link_gt` topic-only, Wheel만 `odom/base_link` dynamic TF 후보, companion identity와 external RSP/MarsLab sensor descendants owner를 명시했다.
+- gate status: source/config/launch reconciliation 및 malformed negative 검증 PASS; 독립 gate-reviewer `confirmed`; 실제 Isaac/ROS G5 관찰은 PENDING USER.
+
+## Task 25 — 평가 전용 GT Pose와 operational Wheel Odom 분리
+
+### 범위·라우팅·현재 diff
+
+- **라우팅/role:** MEDIUM/Terra (`lazycodex-worker-medium`)로 승격했다. GT API 이름을
+  바꾸는 한 파일 수정이 아니라 export, bridge context, rclpy 초기화, main loop,
+  post-reset의 직접 consumer를 함께 닫아야 했기 때문이다.
+- **제품 diff(HEAD 대비 live preimage):** `+75/-183` LOC. 아래 여덟 파일은
+  canonical API 교체와 직접 consumer closure에 필요한 실제 변경 파일이며, 각 수치는
+  현재 `git diff --numstat`와 preimage의 exact 값이다. 다른 Task의 변경을 여기에
+  재귀속하지 않는다.
+
+| 파일 | 심볼/구간 | `+/- LOC` |
+|---|---|---:|
+| `marslab/ros2_bridge/odometry_publisher.py` | `GroundTruthPosePublisherContext`, `create_ground_truth_pose_publisher`, `publish_ground_truth_pose` | `+44/-113` |
+| `marslab/ros2_bridge/wheel_odometry_publisher.py` | Wheel public surface/math/timestamp preservation | `+4/-4` |
+| `marslab/ros2_bridge/__init__.py` | public exports | `+6/-6` |
+| `marslab/ros2_bridge/context.py` | `BridgeContext.odom_ctx` type | `+2/-2` |
+| `marslab/ros2_bridge/rclpy_integration.py` | GT publisher construction and removed reset/TF inputs | `+2/-16` |
+| `marslab/ros2_bridge/robot_description_publisher.py` | publisher-module cross-reference prose | `+3/-3` |
+| `marslab/runtime/main_loop.py` | canonical GT callback invocation | `+13/-20` |
+| `marslab/runtime/post_reset.py` | canonical GT context wiring | `+1/-19` |
+
+### 확정된 계약
+
+- GT public API는 `GroundTruthPosePublisherContext`,
+  `create_ground_truth_pose_publisher`, `publish_ground_truth_pose` 세 이름만
+  사용한다. `OdometryPublisherContext`, `create_odometry_publisher`,
+  `publish_odometry`, reset-pose 입력, `publish_tf` 옵션, compatibility alias/shim은
+  모두 제거했고 live consumer/export scan이 이를 확인했다.
+- GT는 현재 Isaac world pose를 그대로 `map`/`base_link_gt`로 내보내는
+  `nav_msgs/msg/Odometry` **topic-only** 평가 출력이다. reset/spawn 기준 rebasing이나
+  `TransformBroadcaster`/`sendTransform` 경로가 없다.
+- Wheel Odom은 operational encoder integration, slip/noise, timestamp, `odom`/
+  `base_link` topic을 그대로 유지한다. `wheel_odom.publish_tf=false/true`는 각각
+  0/1개의 `odom→base_link` TF만 선택한다. Wheel AST 비교는 preimage와 동등하다.
+
+### 검증·독립 gate
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| canonical GT absolute pose | fake ROS public seam에서 current `[13,25,36]`, clock `(7,11)`로 canonical create/publish 호출 → `map/base_link_gt`, 절대 position, stamp 확인 | `.omo/evidence/marslab-runtime-refactor-v2/task-25/report/DoneClaim.md` |
+| zero legacy/TF surface | `odometry_publisher.py` forbidden marker scan → broadcaster, send path, `publish_tf`, delta/rebase, old names, init pose 모두 `False` | `.omo/evidence/marslab-runtime-refactor-v2/task-25/source-scans.txt` |
+| consumer closure | `rg` call-site scan + six-module `py_compile` → old GT names/options 0, compile exit 0 | `.omo/evidence/marslab-runtime-refactor-v2/task-25/validation.txt` |
+| Wheel unchanged | fake Wheel gate false/true → one `odom/base_link` topic each, TF `0/1`; preimage AST equality `True` | `.omo/evidence/marslab-runtime-refactor-v2/task-25/manual-qa-output.txt`, `source-scans.txt` |
+| independent verifier | fresh canonical-only import, two absolute poses, residue scan, collision-negative, Wheel gate, AST comparison → `independent_verdict=confirmed` | `.omo/evidence/marslab-runtime-refactor-v2/task-25/report/adversarial-verify/AdversarialVerify.md`, `confirmed.txt` |
+
+- `python3 -m py_compile`, Ruff, Black, and basedpyright direct checks all exit `0` in
+  the task evidence. The broader refactor pytest collection failure is an unrelated
+  concurrent config-export state and is not used as a Task25 pass claim.
+- Isaac/ROS launch and live duplicate-TF graph execution are **N/A**: the task explicitly
+  required bounded fake-publisher QA and forbade launch execution. User G5 runtime
+  observation remains PENDING USER.
+
+### Task 25 DoneClaim
+
+`DoneClaim.md` is PASS and the independent gate-verifier is separately **confirmed**.
+The report-only append preserves the Task24 section and does not alter product, plan,
+ledger, or commit files.
+
+## Task 26 — retained rclpy 초기화 분리
+
+`init_rclpy_side`는 ROS-enabled boundary에서만 `rclpy`를 지연 import하고,
+입력 mapping을 한 번 `Ros2BridgeConfig`로 parse한 뒤 `rclpy_publishers.py`의
+좁은 setup helper에 전달한다. Node, cmd_vel callback, static sensor TF, robot
+description, topic-only GT Pose, Wheel Odom, noisy IMU는 각각 한 번만 만들어진다.
+반환된 node는 기존 lifecycle의 `destroy_node() → rclpy.shutdown()` 정리 순서를
+그대로 사용한다. Camera/raw IMU/3D LiDAR helper는 이 rclpy 경계에 없다.
+
+| 시나리오 | binary observable | artifact |
+|---|---|---|
+| ROS-disabled public import | fresh process에서 `from marslab.ros2_bridge import init_rclpy_side`; `sys.modules`의 `rclpy*` set가 empty | `.omo/evidence/marslab-runtime-refactor-v2/task-26/DoneClaim.md` |
+| ROS-enabled fake public seam | canonical `configs/config.yaml` 기반 fake rclpy가 `cmd_vel`, static TF, robot description, GT `/rover/GT_Trajectory`, Wheel `/rover/odom`, noisy IMU를 각각 한 번 생성하고 cleanup 순서를 기록 | `.omo/evidence/marslab-runtime-refactor-v2/task-26/DoneClaim.md` |
+| authority/config guard | AST call count는 retained factory별 `1`; `gt_trajectory == odom` malformed config는 schema boundary에서 거부; OmniGraph camera/raw IMU/3D LiDAR symbol은 helper에 없음 | `.omo/evidence/marslab-runtime-refactor-v2/task-26/DoneClaim.md` |
+
+정적 gate는 compile/Ruff/Black/diff check가 PASS이며 새 helper는 250 pure LOC
+미만이다. basedpyright는 ROS/Isaac dynamic binding의 warning만 있고 error는 0이다.
+Isaac/ROS launch는 범위 밖이며, 이 task의 direct fake-rclpy manual QA가 runtime
+creation seam을 관찰한다. 별도 read-only verifier도 같은 public seam을 재실행해
+`confirmed`를 기록했다.
+
+## Task 27 — Rover asset/spawn/control의 typed config 경계
+
+### 범위·현재 diff
+
+- **라우팅/role:** MEDIUM/Terra (`lazycodex-worker-medium`), matching the typed
+  cross-boundary consumer work.
+- **제품 diff(HEAD 대비 live preimage):** `+116/-181` LOC. Worker의 원래
+  `rover.py`/`precheck.py` 범위에서 시작했지만, typed value가 preboot에서 Isaac
+  boundary까지 실제로 흐르도록 필요한 narrow config fields와 handoff 파일을
+  확장했다. 아래 일곱 파일이 현재 diff의 정확한 expanded necessary set이다.
+
+| 파일 | 심볼/구간 | `+/- LOC` |
+|---|---|---:|
+| `configs/config.yaml` | canonical `rover.suspension` joint-name lists | `+2/-0` |
+| `marslab/config/schema/rover.py` | `SuspensionConfig`/`ControlConfig` name validators | `+31/-0` |
+| `marslab/robots/rover.py` | typed `RoverConfig` spawn/physics consumers; fallback removal | `+68/-138` |
+| `marslab/runtime/precheck.py` | `check_rover_config(RoverConfig)` path contract | `+12/-38` |
+| `marslab/runtime/prepare.py` | preboot `check_rover_config` invocation | `+2/-1` |
+| `marslab/runtime/assembly.py` | typed `spawn_rover(stage, rover, spawn_xyz)` handoff | `+1/-3` |
+| `marslab/main.py` | obsolete rover USD string argument removal | `+0/-1` |
+
+### typed Rover/precheck contract
+
+- `load_config("configs/config.yaml")` returns `MarsLabConfig` with a typed
+  `RoverConfig`; USD path, prim path `/World/Rover`, spawn transform, joint-name lists,
+  geometry/limits, damping, mass/inertia, and wheel/suspension values are consumed from
+  nested models rather than raw mappings, `.get()`, `model_validate()` at spawn, Python
+  fallbacks, or CLI values.
+- `SuspensionConfig` rejects empty/duplicate/overlapping rocker/bogie names and
+  `ControlConfig` rejects duplicate or cross-group drive/steer/suspension names.
+  Pydantic boundary validation rejects invalid `orientation_rpy` length and nonpositive
+  wheel geometry before Kit startup.
+- `prepare_config` calls `check_rover_config(config.rover)`, which checks only declared
+  rover USD and URDF **filesystem paths**. Missing paths fail with `FileNotFoundError`.
+  It deliberately performs **no Isaac asset-content inspection** and does not claim that
+  named joints exist in a loaded articulation; that remains user-side Isaac QA after
+  initialization.
+
+### 검증·독립 gate
+
+| 시나리오 | invocation / binary observable | artifact |
+|---|---|---|
+| canonical typed preboot boundary | `uv run --isolated --extra dev python -` loads canonical config, calls `check_rover_config`, and checks `sys.modules` → typed classes/paths/joints printed; no `omni`, `isaacsim`, `pxr` imports | `.omo/evidence/marslab-runtime-refactor-v2/task-27/report/DoneClaim.md` |
+| malformed name/list/scalar boundaries | temporary YAML copies with empty/duplicate/overlap names, short orientation list, and `wheel_radius: 0.0` → `pydantic.ValidationError` before boot | `.omo/evidence/marslab-runtime-refactor-v2/task-27/report/DoneClaim.md` |
+| missing path boundary | temporary missing `rover.usd_path` → `FileNotFoundError`; no USD contents read | `.omo/evidence/marslab-runtime-refactor-v2/task-27/report/DoneClaim.md` |
+| no raw/fallback consumer | `rg` over `marslab/robots/rover.py` and callers → no `rover_cfg`, `.get(`, `model_validate(`, former rocker/bogie literals; only typed spawn call remains | `.omo/evidence/marslab-runtime-refactor-v2/task-27/report/DoneClaim.md` |
+| independent verifier | fresh-process canonical load/precheck plus duplicate-drive malformed copy → `PASS ...` and `CONFIRMED ...` | `.omo/evidence/marslab-runtime-refactor-v2/task-27/report/adversarial-verify/AdversarialVerify.md`, `confirmed.txt` |
+
+- `python3.11 -m py_compile`, Black, Ruff, and `git diff --check` exit `0`. Full-module
+  basedpyright's unresolved `omni`/`isaacsim`/`pxr` diagnostics are pre-existing Kit
+  environment gaps; config/precheck/prepare subset has `0 errors, 1 warning`.
+- Asset-content inspection, articulation-index validation, and Isaac/ROS launch are
+  **N/A/PENDING USER** by contract. The task verifies only typed preboot values and path
+  checks; it does not invent runtime asset observations.
+
+### Task 27 DoneClaim
+
+`DoneClaim.md` is completed and the independent gate-verifier is separately
+**confirmed**. Temporary malformed YAML directories were cleaned up; no test, plan,
+ledger, commit, or unrelated source file was edited for this report append.
+
+## Task 28 — retained runtime wiring
+
+The final runtime chain remains a compact typed handoff: one `MarsLabConfig`
+crosses `main` into pre-reset, post-reset, and loop-context phases.  The loop
+now reads `ControlConfig` fields directly and retains the declared bridge
+`imu_noise_ctx` directly; it no longer converts the control model to a raw
+mapping or performs optional attribute lookup.
+
+Camera, 3-D LiDAR, and IMU acquisition are always created by the one retained
+sensor coordinator.  ROS-on attaches their existing handles to one OmniGraph;
+ROS-off creates no graph/rclpy bridge while still creating all three handles,
+including IMU at the typed `rover.ros2.rates.imu` frequency.  Post-reset keeps
+`AtmospherePanel` constrained to GUI+atmosphere and retains both independent
+GT and Wheel odometry callbacks.  Cleanup stays limited to the concrete reverse
+sequence `bridge.node.destroy_node() → rclpy.shutdown() → SimulationApp.close()`.
+
+| Scenario | Binary observable | Artifact |
+|---|---|---|
+| public pre-reset ROS on/off fake | retained Camera/3-D LiDAR/IMU acquisition identities are shared with the ROS graph once; ROS-off has no graph and still records IMU rate `30.0` | `.omo/evidence/marslab-runtime-refactor-v2/task-28/manual-qa.md` |
+| public loop context and cleanup fake | GT+Wheel+noisy IMU callbacks retained with ROS; ROS-off imports no rclpy while retaining IMU; cleanup reverse order exact | `.omo/evidence/marslab-runtime-refactor-v2/task-28/manual-qa.md` |
+| public post-reset and full-main phase fakes | GUI+atmosphere creates the panel; headless+ROS-off creates neither panel nor rclpy resource; top-level phase/cleanup events match | `.omo/evidence/marslab-runtime-refactor-v2/task-28/manual-qa.md` |
+| static and adversarial checks | Python 3.11 compile, Black, Ruff, and diff check pass; basedpyright reports 0 errors; malformed config and cleanup interruption are rejected/continued correctly | `.omo/evidence/marslab-runtime-refactor-v2/task-28/verification.md` |
+| independent verification | fresh process-local public fakes and current-worktree scans reproduce every runtime gate; verdict `confirmed` | `.omo/evidence/marslab-runtime-refactor-v2/task-28/adversarial-verify/AdversarialVerify.md` |
+
+Isaac/ROS launch is intentionally N/A for this bounded wiring task; no launch
+was performed.  Existing concurrent Task 27 source changes in `assembly.py`
+and `main.py` remain preserved and are not re-attributed here.

@@ -48,6 +48,20 @@ class WheelsConfig(StrictConfigModel):
 class SuspensionConfig(StrictConfigModel):
     rocker_damping: NonNegativeFloat
     bogie_damping: NonNegativeFloat
+    rocker_joint_names: tuple[NonEmptyString, ...] = Field(min_length=1)
+    bogie_joint_names: tuple[NonEmptyString, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def check_joint_names(self) -> "SuspensionConfig":
+        rocker_names = set(self.rocker_joint_names)
+        bogie_names = set(self.bogie_joint_names)
+        if len(rocker_names) != len(self.rocker_joint_names):
+            raise ValueError("rocker_joint_names must not contain duplicates")
+        if len(bogie_names) != len(self.bogie_joint_names):
+            raise ValueError("bogie_joint_names must not contain duplicates")
+        if rocker_names & bogie_names:
+            raise ValueError("rocker_joint_names and bogie_joint_names must not overlap")
+        return self
 
 
 class ControlConfig(StrictConfigModel):
@@ -73,6 +87,23 @@ class ControlConfig(StrictConfigModel):
     steer_ramp_rate: PositiveFloat
     decel_multiplier: PositiveFloat
     debug_logging: bool
+
+    @model_validator(mode="after")
+    def check_joint_names(self) -> "ControlConfig":
+        joint_groups = (
+            ("drive_joint_names", self.drive_joint_names),
+            ("steer_joint_names", self.steer_joint_names),
+            ("suspension_joint_names", self.suspension_joint_names),
+        )
+        seen_names: set[str] = set()
+        for group_name, joint_names in joint_groups:
+            group_names = set(joint_names)
+            if len(group_names) != len(joint_names):
+                raise ValueError(f"{group_name} must not contain duplicates")
+            if seen_names & group_names:
+                raise ValueError("drive, steer, and suspension joint names must not overlap")
+            seen_names.update(group_names)
+        return self
 
 
 class WheelOdometryConfig(StrictConfigModel):

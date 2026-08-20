@@ -8,59 +8,33 @@ tests and inside the Isaac Sim python context. Error messages live alongside
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional
+
+from marslab.config.schema.rover import RoverConfig
 
 
-def check_rover_usd(usd_abs: str) -> None:
+def check_rover_usd(usd_path: os.PathLike[str] | str) -> None:
     """Raise ``FileNotFoundError`` if the rover USD file is missing.
 
     Callers wrapping Isaac Sim startup may translate the exception into
     an exit code if they prefer a non-raising behaviour.
 
     Args:
-        usd_abs: Absolute filesystem path to the converted rover USD.
+        usd_path: Filesystem path to the converted rover USD.
 
     Raises:
-        FileNotFoundError: If ``usd_abs`` does not resolve to a file.
+        FileNotFoundError: If ``usd_path`` does not resolve to a file.
     """
-    if not os.path.isfile(usd_abs):
-        raise FileNotFoundError(f"Rover USD missing: {usd_abs}")
+    if not os.path.isfile(usd_path):
+        raise FileNotFoundError(f"Rover USD missing: {usd_path}")
 
 
-def check_rover_block(rover_cfg: Optional[Dict[str, Any]]) -> None:
-    """Raise ``ValueError`` if the scenario's rover config block is missing.
-
-    Stage 3 monolithic requires a rover block by default; pass
-    ``--no-rover`` to ``marslab/main.py`` for scene-only mode
-    (DEM + atmosphere + structures, no rover spawn / sensors / ROS2).
-
-    Args:
-        rover_cfg: The ``rover`` section from a loaded scenario dict.
-            ``None`` or an empty dict both fail this check.
-
-    Raises:
-        ValueError: If the rover block is absent or empty.
-    """
-    if not rover_cfg:
-        raise ValueError(
-            "Scenario config missing 'rover' block. "
-            "Stage 3 requires a 'rover' block (or pass --no-rover for scene-only)."
-        )
+def check_rover_config(rover: RoverConfig) -> None:
+    check_rover_usd(rover.usd_path)
+    if not rover.urdf_source_path.is_file():
+        raise FileNotFoundError(f"Rover URDF source missing: {rover.urdf_source_path}")
 
 
-def check_lidar_cfg(lidar_cfg: Optional[Dict[str, Any]]) -> None:
-    """Raise ``ValueError`` if the lidar sensor config block is missing.
-
-    Callers pre-resolve the ``lidar_3d`` / ``lidar`` alias and pass the
-    resolved block (or ``None``) to this helper.
-
-    Args:
-        lidar_cfg: The resolved lidar sensor config block, or ``None``
-            if neither key is present.
-
-    Raises:
-        ValueError: If ``lidar_cfg`` is ``None``.
-    """
+def check_lidar_cfg(lidar_cfg: dict[str, object] | None) -> None:
     if lidar_cfg is None:
         raise ValueError(
             "Scenario config missing sensors.lidar block "

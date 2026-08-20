@@ -3,10 +3,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from importlib import import_module
-from typing import NotRequired, Protocol, TypeAlias, TypedDict
+from typing import NotRequired, Protocol, TypedDict
 
 import numpy as np
-from numpy.typing import NDArray
 
 from marslab.config.schema.rover import RoverConfig
 from marslab.ros2_bridge.context import BridgeContext
@@ -15,10 +14,8 @@ from marslab.runtime.atmosphere_boot import AtmosphereInit
 from marslab.runtime.main_loop import AtmosphereLoopState
 
 SpawnPosition = tuple[float, float, float]
-Vector: TypeAlias = NDArray[np.float32]
 SensorFrames = list[tuple[str, list[float], list[float]]]
 _DOF_NAMES = "dof_names"
-_GET_WORLD_POSES = "get_world_poses"
 _LOG = logging.getLogger(__name__)
 
 
@@ -68,18 +65,6 @@ class PostResetAssembly:
     atmosphere: AtmosphereLoopState
     atmosphere_panel: AtmospherePanelHandle | None
     bridge: BridgeContext | None
-
-
-def _capture_odom_init_pose(articulation: ArticulationHandle) -> tuple[Vector, Vector]:
-    position = np.zeros(3, dtype=np.float32)
-    poses = getattr(articulation, _GET_WORLD_POSES)()
-    if poses is not None:
-        positions, _ = poses
-        if positions is not None:
-            array = positions[0] if positions.ndim == 2 else positions
-            position = np.asarray(array, dtype=np.float32).copy()
-    quaternion = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
-    return position, quaternion
 
 
 def _build_wheel_odom_params(
@@ -169,7 +154,6 @@ def assemble_post_reset(
         except Exception as exc:  # noqa: BLE001 - legacy GUI failure boundary
             _LOG.error("GUI panel unavailable (%s); continuing without it.", exc)
 
-    odom_init_pos, odom_init_quat = _capture_odom_init_pose(articulation)
     bridge = None
     if ros2_enabled:
         sensor_frames_module = import_module("marslab.runtime.sensor_frames")
@@ -200,8 +184,6 @@ def assemble_post_reset(
         bridge = rclpy_integration.init_rclpy_side(
             ros2_cfg=rover.ros2.model_dump(mode="python"),
             sensor_frames=sensor_frames,
-            init_pos_world=odom_init_pos,
-            init_quat_world=odom_init_quat,
             node_name="marslab_main_rover",
             urdf_path=str(rover.urdf_source_path),
             wheel_odom_params=wheel_odom_params,

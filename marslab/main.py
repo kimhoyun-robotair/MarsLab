@@ -69,7 +69,6 @@ def main() -> int:
                 stage=stage,
                 scene_path=str(config.scene.usdz_path),
                 rover=config.rover,
-                rover_usd_path=str(config.rover.usd_path),
                 render_config=config.rendering,
                 atmosphere_init=atmosphere,
                 atmosphere_enabled=config.runtime.atmosphere_enabled,

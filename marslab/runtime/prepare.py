@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from marslab.config import MarsLabConfig, load_config
+from marslab.runtime.precheck import check_rover_config
 
 
 def _require_file(path: Path, label: str) -> None:
@@ -19,5 +20,5 @@ def prepare_config(config_path: str | Path) -> MarsLabConfig:
 
     config = load_config(input_path)
     _require_file(config.scene.usdz_path, "Scene USDZ")
-    _require_file(config.rover.usd_path, "Rover USD")
+    check_rover_config(config.rover)
     return config

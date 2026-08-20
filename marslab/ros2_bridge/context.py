@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from marslab.ros2_bridge.imu_noise_publisher import ImuNoiseContext
-from marslab.ros2_bridge.odometry_publisher import OdometryPublisherContext
+from marslab.ros2_bridge.odometry_publisher import GroundTruthPosePublisherContext
 from marslab.ros2_bridge.wheel_odometry_publisher import WheelOdometryContext
 
 
@@ -33,7 +33,7 @@ class BridgeContext:
     node: Any
     cmd_vel_subscription: Any
     static_tf_broadcaster: Any
-    odom_ctx: OdometryPublisherContext
+    odom_ctx: GroundTruthPosePublisherContext
     twist_state: Dict[str, float]
     robot_description_ctx: Optional[Any] = None
     wheel_odom_ctx: Optional[WheelOdometryContext] = None

@@ -3,15 +3,15 @@
 Without this publisher RViz shows only the wireframe TF tree and no
 rover mesh.
 
-Design constraints adopted from
-``marslab/ros2_bridge/odometry_publisher.py``:
+Design constraints adopted from the ROS publisher modules:
 
 * ``rclpy`` imports are deferred to function bodies so the module is
   importable without a ROS 2 distro on PYTHONPATH.  Unit tests stub
   ``std_msgs`` / ``rclpy.qos`` via ``monkeypatch.setitem(sys.modules, ...)``
   exactly like ``tests/unit/test_tf_broadcaster.py:14-27``.
 * Returning a context dataclass (mirroring
-  :class:`OdometryPublisherContext` at ``odometry_publisher.py:37-52``)
+  :class:`GroundTruthPosePublisherContext` at
+  ``odometry_publisher.py``)
   keeps the publisher handle alive after ``init_rclpy_side`` returns; if
   the caller drops the handle, rclpy garbage-collects the publisher and
   the latched ``transient_local`` sample disappears.

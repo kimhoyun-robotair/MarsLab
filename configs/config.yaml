@@ -67,6 +67,8 @@ rover:
   suspension:
     rocker_damping: 75.0
     bogie_damping: 50.0
+    rocker_joint_names: [CENTER_DIFFERENTIAL, LEFT_DIFFERENTIAL, RIGHT_DIFFERENTIAL]
+    bogie_joint_names: [LEFT_BOGIE, RIGHT_BOGIE]
   ros2:
     namespace: rover
     topics:
