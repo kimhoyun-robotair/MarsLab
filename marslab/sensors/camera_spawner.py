@@ -1,8 +1,6 @@
-"""Isaac Sim camera creation and image acquisition.
-
-The camera prim and its single render product are created once for the rover.
-RGB and distance-to-image-plane annotators remain available to consumers.
-"""
+"""Create the rover camera and shared render product.
+RGB and depth handles remain available to independent consumers.
+Isaac imports are confined to the spawner call."""
 
 from __future__ import annotations
 

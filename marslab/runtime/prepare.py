@@ -1,4 +1,6 @@
-"""Prepare and validate the typed configuration before Isaac Sim starts."""
+"""Resolve and validate the canonical configuration before startup.
+Required scene inputs are checked before Kit creation.
+The phase stays offline-importable for launch diagnostics."""
 
 from __future__ import annotations
 

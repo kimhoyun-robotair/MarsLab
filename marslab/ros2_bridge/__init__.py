@@ -1,20 +1,6 @@
-"""ROS2 bridge package for MarsLab.
-
-Public surface
---------------
-
-* :func:`init_rclpy_side` -- Create the rclpy node + cmd_vel
-  subscriber + static sensor TF + odometry publisher in one call.
-  The only function needed by ``marslab/main.py``.
-* :func:`build_sensor_graph` -- OmniGraph construction (re-exported
-  from :mod:`marslab.ros2_bridge.sensor_graph`).
-* Pure math helpers in :mod:`marslab.ros2_bridge.odometry_math`.
-
-All public functions defer their ``rclpy`` imports until runtime,
-so the package can be imported in offline tests.  ``BridgeContext``
-and ``init_rclpy_side`` live in :mod:`marslab.ros2_bridge.context`
-and :mod:`marslab.ros2_bridge.rclpy_integration` respectively.
-"""
+"""Expose the public MarsLab ROS 2 bridge surface.
+Graph builders and publisher factories stay behind runtime boundaries.
+Importing the package does not initialize rclpy."""
 
 from __future__ import annotations
 

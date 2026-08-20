@@ -1,3 +1,7 @@
+"""Define the integrated scene and runtime configuration root.
+Strict immutable models compose the validated YAML tree.
+Nested domain schemas supply scene, rover, and scenario fields."""
+
 from pathlib import Path
 
 from marslab.config.schema.common import StrictConfigModel

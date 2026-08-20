@@ -1,3 +1,7 @@
+"""Export validated models used by runtime configuration consumers.
+Domain modules retain ownership of nested schema definitions.
+This package imports no Isaac or ROS runtime bindings."""
+
 from marslab.config.schema.root import MarsLabConfig, SceneConfig
 from marslab.config.schema.rover import (
     ChassisConfig,
@@ -28,16 +32,12 @@ from marslab.config.schema.scenario import (
     PathTracingConfig,
     RayTracingConfig,
     RenderingConfig,
-    ScenarioConfig,
     SkyDomeConfig,
     SunSweepConfig,
     TauConstantConfig,
     TauRampConfig,
     TauSineConfig,
 )
-
-RobotConfig = RoverConfig
-SkidSteerDriveConfig = ControlConfig
 
 __all__ = [
     "CameraConfig",
@@ -55,15 +55,12 @@ __all__ = [
     "QoSProfileConfig",
     "RayTracingConfig",
     "RenderingConfig",
-    "RobotConfig",
     "Ros2BridgeConfig",
     "RoverConfig",
     "RuntimeConfig",
     "SceneConfig",
-    "ScenarioConfig",
     "SensorsConfig",
     "SkyDomeConfig",
-    "SkidSteerDriveConfig",
     "SpawnConfig",
     "SunSweepConfig",
     "SuspensionConfig",

@@ -1,8 +1,6 @@
-"""Build the live loop context from typed config and completed runtime phases.
-
-Runtime-only imports occur after SimulationApp boot. The main entrypoint only
-passes the live handles and typed phase results to this boundary.
-"""
+"""Assemble the live loop context from completed runtime phases.
+Typed handles and callbacks cross into the stateful tick loop.
+Runtime-only imports occur after SimulationApp boot."""
 
 from __future__ import annotations
 

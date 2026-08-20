@@ -1,3 +1,7 @@
+"""Define process switches and the odometry TF authority flag.
+Models are strict and immutable after startup parsing.
+No simulator or ROS dependency crosses this boundary."""
+
 from marslab.config.schema.common import StrictConfigModel
 
 

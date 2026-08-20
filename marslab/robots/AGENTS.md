@@ -1,34 +1,33 @@
-# ROVER GUIDE
+# Rover guide
 
-## OVERVIEW
-
-`marslab.robots` separates Isaac/USD rover spawning and physics from pure NumPy
-Ackermann control. It consumes validated rover configuration at the Kit boundary.
-
-## WHERE TO LOOK
-
-| Task | Location | Notes |
-|---|---|---|
-| Spawn/reference rover USD | `rover.py` | Pose, rigid-body discovery, mass, friction, suspension. |
-| Configure articulation drives | `drive_api_setup.py` | DriveAPI before reset; tensor PD reinforcement after reset. |
-| Change steering logic | `rover_control.py` | Pure CPU-testable Ackermann computation. |
-
-## CONVENTIONS
-
-- Defer Isaac/USD imports and keep `rover_control.py` free of runtime bindings.
-- Preserve `Body_Chassis`/joint path expectations and pre-reset versus post-reset
-  drive ordering.
-- Treat missing rover prims as observable warnings/failures; never hide a lost
-  physics override. Validate config before Kit boot.
-
-## ANTI-PATTERNS
-
-- Do not invoke URDF conversion from the runtime spawn path.
-- Do not replace the supported `SpawnedRover` facade with direct global state.
-
-## CHECKS
+`marslab.robots` separates Isaac/USD rover spawning and physics from pure
+NumPy Ackermann control. The supported user launch is:
 
 ```bash
-pytest tests/unit/test_rover_module.py tests/unit/test_rover_physics_inject.py -q
-pytest tests/unit/test_drive_api_setup.py tests/unit/test_ackermann.py -q
+marslab/isaac_python.sh marslab/main.py --config configs/config.yaml
 ```
+
+## Contract
+
+- `rover.py` consumes the validated `rover` section and owns USD references,
+  pose, rigid-body discovery, mass, friction, damping, and suspension setup.
+- `drive_api_setup.py` applies drive APIs before reset and tensor PD reinforcement
+  after reset; preserve that ordering.
+- `rover_control.py` remains pure CPU-side Ackermann computation.
+- The USD/URDF root remains `Body_Chassis`. The companion launch owns the sole
+  identity `base_link`→`Body_Chassis` connector; do not make the rover spawner
+  publish a competing connector.
+
+## Rules
+
+- Defer Isaac, USD, and runtime binding imports. Validate required rover assets
+  before Kit creation.
+- Keep missing prims and lost physics overrides observable; do not hide a
+  failed configuration or silently substitute a global state.
+- Keep control limits, wheel geometry, suspension names, and seeded odometry
+  inputs sourced from `configs/config.yaml`.
+- Keep comments concise and explain a physics or ownership invariant only.
+
+Agent verification is limited to offline source/config reconciliation. User-only
+Isaac physics, articulation, rover pose, and odometry observations use the
+canonical command above and must not be inferred by an agent.

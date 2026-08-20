@@ -1,3 +1,7 @@
+"""Define validated ROS topics, rates, QoS, and frame settings.
+Validators keep ground-truth and operational odometry distinct.
+The schema stays independent of rclpy imports."""
+
 from typing import Literal
 
 from pydantic import Field, model_validator

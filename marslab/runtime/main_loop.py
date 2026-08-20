@@ -1,20 +1,6 @@
-"""Main-loop extraction for the monolithic Stage 3 runtime.
-
-Public entry point :func:`run_main_loop` consumes a :class:`LoopContext`
-bundling every object and scalar the inline loop closed over.
-Mutable ramp / atmosphere state is carried in :class:`ControlState` /
-:class:`AtmosphereLoopState` (mutated in place).  Ground-truth pose publishing
-is delegated to :func:`marslab.ros2_bridge.odometry_publisher.publish_ground_truth_pose`
-via the :class:`~marslab.ros2_bridge.odometry_publisher.GroundTruthPosePublisherContext`
-carried on :attr:`LoopContext.odom_ctx`.  Operational Wheel Odom owns the
-optional ``odom -> base_link`` transform gate.
-Isaac Sim / ``rclpy`` symbols enter via the context only -- the module
-itself is offline-importable (no Isaac Sim imports at module scope).
-A normal exit after at least one iteration or ``KeyboardInterrupt`` returns
-``0``. An app that is already stopped at loop entry returns ``1``. The caller
-owns ``simulation_app.close()``. ``marslab/main.py`` is the live Stage 3
-runtime entry point.
-"""
+"""Run the stateful simulation tick loop.
+Control, odometry, sensors, atmosphere, and diagnostics share one context.
+The loop remains importable without Isaac or ROS bindings."""
 
 from __future__ import annotations
 
@@ -25,24 +11,12 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 import numpy as np
 
 if TYPE_CHECKING:
-    # Type-only import: keeps the runtime offline-importable because the
-    # publisher module's ``rclpy`` / ``tf2_ros`` / ``nav_msgs`` imports
-    # are themselves function-local.
     from marslab.ros2_bridge.imu_noise_publisher import ImuNoiseContext
     from marslab.ros2_bridge.odometry_publisher import GroundTruthPosePublisherContext
     from marslab.ros2_bridge.wheel_odometry_publisher import WheelOdometryContext
 
 logger = logging.getLogger(__name__)
 
-#: Default number of physics steps during which per-step exceptions are
-#: promoted to ``logger.error`` output. Steps beyond this grace window
-#: intentionally silence the per-frame chatter to keep long runs readable.
-#:
-#: Honest caveat: a critical failure surfacing *after* step 120 (e.g.
-#: IMU gravity drift, articulation desync) is still not observable from
-#: this helper alone -- callers that need mid-run invariants must add
-#: dedicated periodic assertions (see
-#: ``tests/unit/test_imu_gravity_assertion.py``).
 _DEFAULT_GRACE_STEPS = 120
 
 
@@ -53,51 +27,14 @@ def _log_once(
     step_count: int,
     grace_steps: int = _DEFAULT_GRACE_STEPS,
 ) -> None:
-    """Log an exception during the grace period and stay silent afterwards.
-
-    Consolidates the shotgun-surgery ``except Exception: print(..., step<120)``
-    pattern previously duplicated across the main loop (joint target set,
-    articulation probe, IMU fetch, velocity query, odom publish).
-
-    Args:
-        target_logger: Module logger (typically ``logging.getLogger(__name__)``).
-            The ``target_`` prefix avoids shadowing the module-level
-            ``logger`` binding for clarity at call sites.
-        exc: The caught exception instance.
-        category: Short snake_case label identifying the failure site
-            (e.g. ``"joint_target_set_failed"``).
-        step_count: Current simulation step count. Used to gate logging via
-            ``grace_steps``.
-        grace_steps: Number of leading steps during which the failure is
-            emitted at ``ERROR`` level. After this many steps the helper
-            silently returns so that long runs are not flooded by a single
-            recurring failure. Defaults to :data:`_DEFAULT_GRACE_STEPS`.
-    """
+    """Log an exception during the grace period and stay silent afterwards."""
     if step_count < grace_steps:
         target_logger.error("%s (step=%d): %r", category, step_count, exc)
 
 
-# ---------------------------------------------------------------------------
-# State dataclasses — mutated in place by the loop body.
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class ControlState:
-    """Drive / steer ramp state mutated per physics step.
-
-    Attributes:
-        current_drive_targets: Per-wheel commanded drive velocity after ramp
-            limiting. Shape ``(n_drive,)`` float32.
-        current_steer_targets: Per-wheel commanded steer angle after ramp
-            limiting. Shape ``(n_steer,)`` float32.
-        step_count: Monotonic physics-step counter; the debug-log stride
-            uses ``step_count % 60 == 0`` as its emit condition.
-        latest_twist: Most recent ``(v, w)`` values seen on ``cmd_vel``.
-            Keys ``"v"`` and ``"w"`` -- kept as a dict for backward
-            compatibility with the GUI panel that reads/writes the same
-            mutable state.
-    """
+    """Drive / steer ramp state mutated per physics step."""
 
     current_drive_targets: np.ndarray
     current_steer_targets: np.ndarray
@@ -107,36 +44,7 @@ class ControlState:
 
 @dataclass
 class AtmosphereLoopState:
-    """Dynamic atmosphere + HDRI carry-over state.
-
-    Mirrors the fields the inline ``atmosphere_state`` dict exposed so the
-    GUI ``AtmospherePanel`` can keep reading/writing via
-    :attr:`atmosphere_dict`.  The dict is the authoritative store; the other
-    attributes are scalars the loop carries across steps.
-
-    ``sol_duration`` and ``solar_constant`` are required constructor
-    arguments: callers must source them from the pydantic
-    :class:`marslab.config.schema.MarsEnvConfig` rather than duplicate
-    the Mars physics constants (``88642.0`` s, ``589.0`` W/m^2) here.
-
-    Attributes:
-        atmosphere_dict: The live mutable dict shared with the GUI panel.
-            Keys: ``tau``, ``sun_mode``, ``sun_azimuth_deg``,
-            ``sun_elevation_deg``, ``time_of_sol``, ``direct_intensity``,
-            ``diffuse_fraction``.
-        sol_duration: Length of one Mars sol (seconds). Required —
-            canonical value in ``MarsEnvConfig.sol_duration_seconds``.
-        solar_constant: TOA solar constant ``S0`` (W/m^2). Required —
-            canonical value in ``MarsEnvConfig.solar_constant_mean``.
-        elapsed: Accumulated simulated sol-seconds used for the auto sweep.
-        dynamic_enabled: Mirrors ``DynamicAtmosphereConfig.enabled``.
-        time_scale: Sol-time acceleration factor.
-        sweep_start_az: Auto-sweep azimuth start (deg).
-        sweep_end_az: Auto-sweep azimuth end (deg).
-        sweep_max_el: Auto-sweep peak elevation (deg).
-        update_interval: Physics-steps between atmosphere refreshes.
-        hdri_dir: Absolute path to the sky HDRI directory.
-    """
+    """Dynamic atmosphere + HDRI carry-over state."""
 
     atmosphere_dict: Dict[str, Any]
     sol_duration: float
@@ -153,17 +61,7 @@ class AtmosphereLoopState:
 
 @dataclass
 class VehicleGeometry:
-    """Static rover kinematics consumed by the Ackermann controller.
-
-    Extracted from :class:`LoopContext`. These values are computed once
-    from URDF / scenario YAML and never mutate at runtime.
-
-    Attributes:
-        wheelbase: Distance between front and rear axles (m).
-        track_steer: Track width at the steering axles (m).
-        track_middle: Track width at the middle (driven) axles (m).
-        wheel_radius: Drive wheel radius (m).
-    """
+    """Static rover kinematics consumed by the Ackermann controller."""
 
     wheelbase: float
     track_steer: float
@@ -173,24 +71,7 @@ class VehicleGeometry:
 
 @dataclass
 class ControlLimits:
-    """Ramp-rate and saturation envelope for cmd_vel → joint targets.
-
-    Extracted from :class:`LoopContext`. These are controller-tunable
-    bounds separate from the static vehicle geometry.
-
-    Attributes:
-        v_max: Linear velocity saturation (m/s, symmetric).
-        w_max: Angular velocity saturation (rad/s, symmetric).
-        max_wheel_accel_rate: Drive wheel acceleration limit (rad/s^2).
-            A non-positive value disables the ramp.
-        decel_multiplier: Multiplier on ``max_wheel_accel_rate`` applied
-            when decelerating (``|target| < |current|``).
-        max_steer_angle: Steering-joint clamp (rad, symmetric).
-        steer_ramp_rate: Steering-joint ramp rate (rad/s). Non-positive
-            disables steering ramp.
-        negate_steer: If ``True``, flip the sign of commanded steering
-            angles before clamping (URDF-specific convention).
-    """
+    """Ramp-rate and saturation envelope for cmd_vel → joint targets."""
 
     v_max: float
     w_max: float
@@ -203,25 +84,7 @@ class ControlLimits:
 
 @dataclass
 class AtmosphereCallables:
-    """Optional atmosphere / rendering callbacks shared across the loop.
-
-    Extracted from :class:`LoopContext`. Every field defaults to ``None``
-    so ``--no-atmosphere`` / headless unit-test callers can construct
-    the context without stubbing the entire rendering pipeline.
-
-    Attributes:
-        update_sun_fn: Pushes new sun position/intensity into the stage.
-        update_sky_fn: Pushes new HDRI parameters into the sky dome.
-        configure_fog_fn: Re-applies the Beer's-law fog with a new tau.
-        compute_sun_fn: Manual-mode solar position resolver.
-        compute_sol_sun_fn: Auto-mode solar position resolver
-            (time-of-sol sweep).
-        compute_direct_intensity_fn: Direct (beam) irradiance
-            (Kasten-Young Beer's law).
-        compute_diffuse_fraction_fn: Diffuse fraction ``f_d(tau)``.
-        compute_sky_dome_fn: Butterscotch HDRI parameter resolver.
-        atmo_panel_update: GUI panel refresh hook.
-    """
+    """Optional atmosphere / rendering callbacks shared across the loop."""
 
     update_sun_fn: Optional[Callable[..., None]] = None
     update_sky_fn: Optional[Callable[..., None]] = None
@@ -236,40 +99,7 @@ class AtmosphereCallables:
 
 @dataclass
 class LoopContext:
-    """Everything :func:`run_main_loop` reads or mutates.
-
-    Grouped by lifecycle:
-
-    *   Isaac Sim singletons: ``simulation_app``, ``world``, ``stage``.
-    *   Robot handles: ``articulation``, ``imu``.
-    *   Joint index arrays: ``drive_indices``, ``steer_indices``.
-    *   Vehicle geometry & control limits: ``wheelbase``, ``track_steer``,
-        ``track_middle``, ``wheel_radius``, ``v_max``, ``w_max``, ramp rates.
-    *   Physics tick: ``physics_dt``.
-    *   Mutable state: ``control``, ``atmosphere``, ``odom_ctx``.
-    *   Callables: ``ackermann_fn``, ``spin_once``, ``update_sun_fn``,
-        ``update_sky_fn``, ``configure_fog_fn``, ``compute_sun_fn``,
-        ``compute_sol_sun_fn``, ``compute_direct_intensity_fn``,
-        ``compute_diffuse_fraction_fn``, ``compute_sky_dome_fn``,
-        ``atmo_panel_update``.
-
-    Decomposition
-    -------------
-    The flat dataclass exposes 35 fields (11 of them ``Callable``
-    hooks), which lends itself to a god-object reading. Three composed
-    sub-views give consumers a narrower surface:
-
-    * :class:`VehicleGeometry` -- static rover kinematics.
-    * :class:`ControlLimits` -- ramp / saturation envelope.
-    * :class:`AtmosphereCallables` -- optional rendering callbacks.
-
-    To keep backward compatibility with existing callers (and the
-    byte-level signature tests), the flat attributes remain on
-    :class:`LoopContext`; the sub-dataclass views are exposed as
-    read-only ``@property`` accessors that construct fresh instances on
-    demand.  New code should prefer ``ctx.geometry.wheel_radius`` etc.,
-    but ``ctx.wheel_radius`` stays valid.
-    """
+    """Everything :func:`run_main_loop` reads or mutates."""
 
     simulation_app: Any
     world: Any
@@ -308,8 +138,6 @@ class LoopContext:
     compute_diffuse_fraction_fn: Optional[Callable[..., float]] = None
     compute_sky_dome_fn: Optional[Callable[..., Any]] = None
     atmo_panel_update: Optional[Callable[[], None]] = None
-
-    # --- Sub-dataclass views ------------------------------------------------
 
     @property
     def geometry(self) -> VehicleGeometry:
@@ -350,11 +178,6 @@ class LoopContext:
         )
 
 
-# ---------------------------------------------------------------------------
-# Main loop.
-# ---------------------------------------------------------------------------
-
-
 def _apply_ramp(
     command: np.ndarray,
     current: np.ndarray,
@@ -362,20 +185,7 @@ def _apply_ramp(
     decel_multiplier: float,
     ramp_enabled: bool,
 ) -> np.ndarray:
-    """Shared drive-ramp kernel.
-
-    Args:
-        command: Target wheel velocities (rad/s).
-        current: Last ramped targets, updated in place and returned.
-        per_step_limit: Max per-tick change while accelerating.
-        decel_multiplier: Multiplier applied when decelerating (``|target| <
-            |current|``).
-        ramp_enabled: If ``False``, the command passes through unchanged.
-
-    Returns:
-        Updated ``current`` array (same object as the input for in-place
-        tracking).
-    """
+    """Shared drive-ramp kernel."""
     if not ramp_enabled:
         current[...] = command
         return current
@@ -391,26 +201,8 @@ def build_atmosphere_loop_state(
     atmo_init: Any,
     tau: float,
 ) -> AtmosphereLoopState:
-    """Factory: derive :class:`AtmosphereLoopState` from a boot snapshot.
-
-    Collapses the boilerplate Stage-3 callers used to write inline to
-    wire every ``DynamicAtmosphereConfig`` + ``AtmosphereInit``
-    field into a mutable loop state.  Keeps
-    ``marslab/main.py`` focused on Stage-3 orchestration.
-
-    Args:
-        atmo_init: :class:`marslab.runtime.atmosphere_boot.AtmosphereInit`
-            produced by :func:`boot_atmosphere`.
-        tau: Initial dust optical depth value (mirrored into the live
-            ``atmosphere_dict`` so the GUI panel sees it on startup).
-
-    Returns:
-        Fully populated :class:`AtmosphereLoopState` ready to pass into
-        a :class:`LoopContext`.
-    """
+    """Factory: derive :class:`AtmosphereLoopState` from a boot snapshot."""
     dyn = atmo_init.dynamic
-    # ``sol_duration_seconds`` is required by ``AtmospherePanel`` when
-    # toggled to Auto mode.
     atmosphere_dict: Dict[str, Any] = {
         "tau": tau,
         "sun_mode": "auto" if dyn.enabled else "manual",
@@ -436,23 +228,7 @@ def build_atmosphere_loop_state(
 
 
 def run_main_loop(ctx: LoopContext) -> int:
-    """Drive the Stage 3 monolithic runtime until the sim stops.
-
-    Args:
-        ctx: Pre-initialized :class:`LoopContext` assembled by the
-            :mod:`marslab.main` after Isaac Sim boot and
-            ``world.reset()``.
-
-    Returns:
-        ``0`` on normal exit after at least one iteration or
-        ``KeyboardInterrupt``; ``1`` when the app is already stopped at loop
-        entry. The caller owns the ``simulation_app.close()`` call.
-
-    Raises:
-        Exception: Any exception other than :class:`KeyboardInterrupt`
-            raised outside the per-step ``try`` blocks. The caller's
-            ``finally`` is expected to tear Isaac Sim down.
-    """
+    """Drive the Stage 3 monolithic runtime until the sim stops."""
     ctl = ctx.control
     atmo = ctx.atmosphere
     odom_ctx = ctx.odom_ctx
@@ -472,10 +248,6 @@ def run_main_loop(ctx: LoopContext) -> int:
             if ctx.spin_once is not None:
                 ctx.spin_once()
 
-            # Rover-step block. ``ctx.articulation is None`` is the
-            # ``--no-rover`` scene-only path (atmosphere + AtmospherePanel
-            # only); skipping here keeps the joint set / Ackermann math /
-            # debug log all gated behind the same flag.
             if ctx.articulation is not None:
                 v_raw = ctl.latest_twist["v"]
                 w_raw = ctl.latest_twist["w"]
@@ -600,24 +372,11 @@ def _debug_log_step(
 
 
 def _publish_ground_truth_pose(ctx: LoopContext, step_count: int) -> None:
-    """Delegate GT pose publish to the canonical ground-truth publisher.
-
-    The GT stream is topic-only and publishes the absolute Isaac-world pose.
-
-    Velocity-fetch failure is preserved as the ``velocity_query_failed``
-    grace-window log; the outer ``odom_publish_failed`` category covers
-    any unexpected exception so the runtime log line spelling stays
-    bit-equal with prior runs.
-    """
+    """Delegate GT pose publish to the canonical ground-truth publisher."""
     odom_ctx = ctx.odom_ctx
     if odom_ctx is None:
         return
 
-    # Function-local import keeps the offline-importable property of
-    # ``main_loop``: ``odometry_publisher`` itself defers
-    # ``rclpy``/``tf2_ros``/``nav_msgs`` to its own function bodies, but
-    # importing it at module scope would still drag in the typing-only
-    # references at unit-test time on a host without ROS 2.
     from marslab.ros2_bridge.odometry_publisher import publish_ground_truth_pose
 
     try:
@@ -634,11 +393,6 @@ def _publish_ground_truth_pose(ctx: LoopContext, step_count: int) -> None:
         cur_pos = _rp[0] if _rp.ndim == 2 else _rp
         cur_quat = _rq[0] if _rq.ndim == 2 else _rq
 
-        # Velocity query is best-effort.  When it fails the publisher
-        # still emits a well-formed Odometry with zero twist instead of
-        # skipping the message altogether (same external contract as the
-        # prior inline path -- which also defaulted twist fields to 0.0
-        # via the ROS message constructor when the inner try raised).
         try:
             lin_vel = ctx.articulation.get_linear_velocities()
             ang_vel = ctx.articulation.get_angular_velocities()
@@ -731,10 +485,6 @@ def _update_atmosphere(ctx: LoopContext) -> None:
         t = (atmo.elapsed % atmo.sol_duration) / atmo.sol_duration
         state["time_of_sol"] = t
         if ctx.compute_sol_sun_fn is not None:
-            # ``mode="linear"`` preserves the SunSweepConfig envelope
-            # semantics used by the live simulation. Upgrading to the
-            # spherical default requires plumbing ``latitude_deg`` /
-            # ``ls_deg`` through SunSweepConfig first.
             dyn_sun_pos = ctx.compute_sol_sun_fn(
                 time_of_sol_fraction=t,
                 start_azimuth_deg=atmo.sweep_start_az,

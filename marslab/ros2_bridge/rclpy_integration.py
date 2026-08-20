@@ -1,3 +1,7 @@
+"""Assemble the optional rclpy side of the runtime bridge.
+Factories return one context containing subscribers and publishers.
+Imports remain deferred for CPU-only configuration checks."""
+
 from __future__ import annotations
 
 from collections.abc import Iterable

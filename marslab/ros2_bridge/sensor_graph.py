@@ -1,31 +1,6 @@
-"""ROS2 OmniGraph orchestrator for the rover sensor stack.
-
-Composes a single action graph that drives:
-
-* ``/clock`` from Isaac Sim simulation time.
-* Articulation joint states for the external ``robot_state_publisher``.
-* IMU (``sensor_msgs/Imu``).
-* Camera RGB, depth, point cloud, and CameraInfo from one pre-created render product.
-* 3-D LiDAR point cloud.
-
-Node names are kept stable across releases so external tooling
-(``ros2 graph``, Kit's OmniGraph viewer) does not break when the
-graph is inspected.
-
-The list-building helpers (``_build_create_nodes`` /
-``_build_connections`` / ``_build_set_values``) live in
-:mod:`marslab.ros2_bridge.sensor_graph_builder` so they can be unit
-tested without Isaac Sim.  They are re-exported below so existing
-imports keep working.
-
-``GRAPH_PATH`` is the canonical default for the action-graph prim
-path.  It is also the default for ``Ros2BridgeConfig.graph_path``
-(see :mod:`marslab.config.schema.ros2_bridge`).  The module constant
-is kept as the canonical default so legacy imports
-(``from marslab.ros2_bridge import GRAPH_PATH``) still resolve, but
-``build_sensor_graph`` reads ``ros2_cfg["graph_path"]`` first and
-only falls back when the YAML key is absent.
-"""
+"""Orchestrate the rover sensor OmniGraph and ROS publishers.
+The graph reuses acquisition identities created by sensor spawners.
+Isaac graph imports occur only during graph construction."""
 
 from __future__ import annotations
 
@@ -42,9 +17,6 @@ from marslab.sensors.camera_spawner import CameraSpawnHandles
 from marslab.sensors.imu_spawner import IMUSpawnHandles
 from marslab.sensors.lidar_3d_spawner import Lidar3DSpawnHandles
 
-# Canonical default for the rover ROS2 action-graph prim path.  Also
-# the default for ``Ros2BridgeConfig.graph_path`` -- keep the two in
-# sync.
 GRAPH_PATH = "/World/Stage3ROS2Graph"
 
 
@@ -57,26 +29,7 @@ class SensorGraphHandle:
 
 
 def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
-    """Validate the schema-known subset of ``ros2_cfg`` ONCE.
-
-    The raw ``rover.ros2`` YAML dict carries free-form keys that are
-    NOT declared on :class:`Ros2BridgeConfig` (``namespace``,
-    ``topics``, ``rates``, ``odom_publisher``, etc.).  Filtering to
-    schema fields before validation lets the orchestrator pull
-    defaults from a single validated model without a
-    ``model_validate`` per attribute.
-
-    Args:
-        ros2_cfg: ``rover.ros2`` block (free-form dict for legacy
-            compatibility).
-
-    Returns:
-        A :class:`Ros2BridgeConfig` instance carrying the merged
-        view of schema-declared fields (YAML overrides + pydantic
-        defaults).
-    """
-    # Function-local import to keep ``__init__.py`` import surface
-    # small (rclpy lives behind sensor_graph too).
+    """Validate the schema-known subset of ``ros2_cfg`` ONCE."""
     from marslab.config.schema.rover_ros2 import (
         Ros2BridgeConfig,
         RosRatesConfig,
@@ -107,37 +60,7 @@ def build_sensor_graph(
     articulation_root_prim_path: str,
     depth_sensor_cfg: Optional[Dict[str, Any]] = None,
 ) -> SensorGraphHandle:
-    """Build the rover ROS2 OmniGraph.
-
-    Args:
-        ros2_cfg: ``rover.ros2`` block from the merged scenario config.
-            May include an optional ``graph_path`` key -- if present,
-            it overrides the module default :data:`GRAPH_PATH` and is
-            validated the same way :class:`Ros2BridgeConfig` validates
-            it (non-empty, ``/``-prefixed, no whitespace).  When absent
-            the module constant is used so existing scenario YAMLs keep
-            loading unchanged.
-        camera_acquisition: Existing camera acquisition handle with its shared,
-            resolved render-product path.
-        lidar_3d_acquisition: Existing Task 19 LiDAR acquisition handle.
-        imu_acquisition: Existing Task 20 IMU acquisition handle.
-        articulation_root_prim_path: USD path of the rover articulation
-            root prim, forwarded to ``PubJointState.inputs:targetPrim``.
-        depth_sensor_cfg: Optional ``rover.sensors.camera.depth_sensor``
-            block.  When ``enabled=True`` the orchestrator applies the
-            ``OmniSensorDepthSensorSingleViewAPI`` schema to the camera
-            render product so the depth output simulates a stereo
-            disparity camera (RealSense-style noise + occlusion holes +
-            confidence map) instead of the renderer's noiseless
-            ``DistanceToImagePlane`` AOV. The public single-view depth-sensor
-            API uses ``omni:rtx:post:depthSensor:<field>`` attribute names.
-            When the schema or the extension is unavailable at runtime
-            the apply step is a no-op and the graph falls back to the
-            renderer's raw depth.
-
-    Returns:
-        :class:`SensorGraphHandle`.
-    """
+    """Build the rover ROS2 OmniGraph."""
     import omni.graph.core as og  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
     ns = str(ros2_cfg["namespace"])
@@ -168,12 +91,6 @@ def build_sensor_graph(
         },
     )
 
-    # Optional depth-sensor schema apply on the shared camera render
-    # product.  Wrapped in try/except so a missing extension or an
-    # older Isaac Sim release falls back gracefully to the renderer's
-    # raw ``DistanceToImagePlane`` depth.  ``depth_sensor_cfg`` is the
-    # YAML block validated earlier as
-    # :class:`marslab.config.schema.robot.DepthSensorConfig`.
     if depth_sensor_cfg is not None and bool(depth_sensor_cfg.get("enabled")):
         try:
             _apply_depth_sensor_schema(camera_render_product_path, depth_sensor_cfg)
@@ -193,8 +110,6 @@ def build_sensor_graph(
     return SensorGraphHandle(graph_path=graph_path, graph=graph_handle)
 
 
-# ``omni:rtx:post:depthSensor:<field>`` USD attribute names for the
-# ``OmniSensorDepthSensorSingleViewAPI`` schema.  Pinned in one place so
 _DEPTH_SENSOR_SCHEMA_ATTRS: Dict[str, str] = {
     "baseline_mm": "omni:rtx:post:depthSensor:baselineMM",
     "min_distance_m": "omni:rtx:post:depthSensor:minDistance",
@@ -210,22 +125,7 @@ def _apply_depth_sensor_schema(
     camera_render_product_path: str,
     depth_sensor_cfg: Dict[str, Any],
 ) -> None:
-    """Apply ``OmniSensorDepthSensorSingleViewAPI`` to the shared render product.
-
-    Applies the depth-sensor schema to the camera spawner's existing render
-    product and writes every YAML-driven attribute through its canonical names.
-
-    Args:
-        camera_render_product_path: Existing camera render-product path.
-        depth_sensor_cfg: ``rover.sensors.camera.depth_sensor`` block
-            (validated upstream as
-            :class:`marslab.config.schema.robot.DepthSensorConfig`).
-
-    The function is intentionally tolerant of older Isaac Sim builds
-    that do not bundle the schema -- the caller wraps it in
-    try/except so a missing API surfaces as a warning, not a runtime
-    crash.
-    """
+    """Apply ``OmniSensorDepthSensorSingleViewAPI`` to the shared render product."""
     from isaacsim.core.utils.prims import (
         get_prim_at_path,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
@@ -238,8 +138,6 @@ def _apply_depth_sensor_schema(
         )
 
     rp_prim.ApplyAPI("OmniSensorDepthSensorSingleViewAPI")
-    # Always enable the depth sensor when the YAML enabled it -- the
-    # schema's default is False which would silently do nothing.
     enabled_attr = rp_prim.GetAttribute("omni:rtx:post:depthSensor:enabled")
     if enabled_attr:
         enabled_attr.Set(True)
@@ -254,13 +152,7 @@ def _apply_depth_sensor_schema(
 
 
 def _build_qos_presets(options: Any) -> Tuple[str, str]:
-    """Map a validated :class:`Ros2BridgeConfig` to OmniGraph QoS JSON strings.
-
-    The OmniGraph helpers (``ROS2PublishImu``, ``ROS2CameraHelper``,
-    ``ROS2RtxLidarHelper``, ``ROS2PublishRawTransformTree``) accept a
-    JSON-encoded QoS dict on ``inputs:qosProfile`` (see
-    :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json`).
-    """
+    """Map a validated :class:`Ros2BridgeConfig` to OmniGraph QoS JSON strings."""
     from marslab.ros2_bridge.qos import (
         to_omnigraph_qos_json,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope

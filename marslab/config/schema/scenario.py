@@ -1,3 +1,7 @@
+"""Define Mars environment and rendering scenario values.
+These pure models are consumed before Kit startup.
+Validation rules keep physical and visual inputs bounded."""
+
 from pathlib import Path
 from typing import Literal
 
@@ -113,15 +117,8 @@ class RenderingConfig(StrictConfigModel):
         return self
 
 
-class ScenarioConfig(StrictConfigModel):
-    declaring_path: Path
-    mars_env: MarsEnvConfig
-    rendering: RenderingConfig
-
-
 __all__ = [
     "DynamicAtmosphereConfig",
     "MarsEnvConfig",
     "RenderingConfig",
-    "ScenarioConfig",
 ]

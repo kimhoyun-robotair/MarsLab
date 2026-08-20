@@ -1,3 +1,7 @@
+"""Define validated camera, IMU, and 3-D LiDAR settings.
+Acquisition is mandatory and separate from ROS transport.
+Isaac handles are created only by runtime spawners."""
+
 from pathlib import Path
 
 from pydantic import Field, model_validator

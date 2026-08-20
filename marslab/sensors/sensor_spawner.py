@@ -1,4 +1,6 @@
-"""Coordinate the mandatory Camera, 3D LiDAR, and IMU spawners."""
+"""Coordinate mandatory camera, 3-D LiDAR, and IMU spawners.
+One SensorHandles value exposes stable acquisition readers.
+ROS graph construction remains a separate concern."""
 
 from __future__ import annotations
 

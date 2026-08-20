@@ -13,7 +13,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0",
     "black>=24.0",
     "ruff>=0.4",
     "mypy>=1.8",
@@ -59,7 +58,3 @@ check_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 files = ["marslab/config", "marslab/environment"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]

@@ -1,10 +1,6 @@
-"""Evaluation-only ground-truth pose publisher.
-
-This module publishes the articulation's absolute Isaac-world pose as a
-timestamped ``nav_msgs/Odometry`` message.  It is deliberately topic-only:
-the operational ``odom``/``base_link`` stream and its optional transform
-authority live in :mod:`marslab.ros2_bridge.wheel_odometry_publisher`.
-"""
+"""Publish absolute evaluation ground-truth pose messages.
+The stream is topic-only and does not own operational odometry TF.
+ROS message bindings load only when a publisher is created."""
 
 from __future__ import annotations
 
@@ -51,25 +47,7 @@ def create_ground_truth_pose_publisher(
     *,
     odom_qos: Any = None,
 ) -> GroundTruthPosePublisherContext:
-    """Create the topic-only ground-truth pose publisher.
-
-    Args:
-        node: ``rclpy`` node.
-        topic: Fully-qualified GT trajectory topic (e.g.
-            ``/rover/GT_Trajectory``).
-        queue_size: rclpy QoS depth.  Ignored when ``odom_qos`` is
-            provided (the QoSProfile carries its own depth).
-        frame_id: Ground-truth parent frame, normally ``map``.
-        child_frame_id: Ground-truth child frame, normally ``base_link_gt``.
-        odom_qos: Optional ``rclpy.qos.QoSProfile`` for the
-            ``nav_msgs/Odometry`` publisher.  When ``None`` the
-            publisher is created with the integer ``queue_size``
-            overload (rclpy default profile).
-
-    Returns:
-        :class:`GroundTruthPosePublisherContext` to be reused by
-        :func:`publish_ground_truth_pose` on every sim step.
-    """
+    """Create the topic-only ground-truth pose publisher."""
     from nav_msgs.msg import Odometry
 
     if odom_qos is not None:
@@ -92,18 +70,7 @@ def publish_ground_truth_pose(
     linear_vel_world: NDArray[np.float32],
     angular_vel_world: NDArray[np.float32],
 ) -> None:
-    """Publish one absolute Isaac-world pose as ``nav_msgs/Odometry``.
-
-    Args:
-        ctx: Context returned by :func:`create_ground_truth_pose_publisher`.
-        cur_pos_world: Current chassis position in world frame, shape ``(3,)``.
-        cur_quat_world: Current chassis orientation in world frame,
-            shape ``(4,)`` scalar-first.
-        linear_vel_world: World-frame linear velocity of the root body,
-            shape ``(3,)``.
-        angular_vel_world: World-frame angular velocity of the root body,
-            shape ``(3,)``.
-    """
+    """Publish one absolute Isaac-world pose as ``nav_msgs/Odometry``."""
     from nav_msgs.msg import Odometry
 
     cur_pos_world = np.asarray(cur_pos_world, dtype=np.float32)

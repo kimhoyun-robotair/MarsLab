@@ -1,22 +1,6 @@
-"""Atmosphere-only offline boot preparation (Isaac-Sim-free, terrain-free).
-
-Loads the scenario config and pre-computes every atmospheric parameter
-(sun position, direct intensity, diffuse fraction, sky dome params) before
-Isaac Sim is launched. Pure Python so the unit test suite can exercise it
-without a GPU.
-
-This module intentionally omits terrain loading. The passthrough pipeline
-consumes a supplied Scene USDZ package and has no dependency on
-``marslab.terrain.*`` at any scope.
-
-Returns a frozen :class:`AtmosphereBootResult` consumed downstream by the
-scene + loop stages.
-
-Sun position can be overridden at call time via ``sun_azimuth_deg`` and
-``sun_elevation_deg`` kwargs to :func:`boot_atmosphere`, which is how
-the CLI flags ``--sun-azimuth-deg`` / ``--sun-elevation-deg`` on
-``marslab/main.py`` inject experiment variants without duplicating YAMLs.
-"""
+"""Prepare the static atmosphere snapshot before scene creation.
+Solar and rendering calculations remain pure and terrain-free.
+Typed results flow into the live loop without rereading YAML."""
 
 from __future__ import annotations
 
@@ -26,9 +10,8 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+from marslab.config import MarsLabConfig, load_config
 from marslab.config.schema import DynamicAtmosphereConfig, MarsEnvConfig, RenderingConfig
-from marslab.config.schema.scenario import ScenarioConfig
-from marslab.config.yaml_loader import load_scenario_config
 
 _LOG = logging.getLogger(__name__)
 
@@ -37,27 +20,7 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 @dataclass(frozen=True)
 class AtmosphereInit:
-    """Frozen static atmosphere snapshot produced at boot time.
-
-    Consumed by :mod:`marslab.runtime.main_loop` (via
-    :func:`build_atmosphere_loop_state`) to seed the mutable per-frame
-    ``atmosphere_dict``. Ownership of the mutable state lives in the
-    loop module only.
-
-    Attributes:
-        tau: Dust optical depth used for the initial render.
-        solar_constant: W/m^2 Mars solar constant (config value).
-        sun_azimuth_deg: Static sun azimuth (degrees).
-        sun_elevation_deg: Static sun elevation (degrees).
-        sol_duration_seconds: Mars sol length in seconds.
-        physics_dt: Engine physics tick in seconds (60 Hz default).
-        direct_intensity: Direct solar irradiance (Beer's law) in W/m^2.
-        diffuse_fraction: COMIMART diffuse fraction [0, 1].
-        sky_params: Pre-computed sky dome parameters (color + intensity).
-        sun_pos: Pre-computed ``SunPosition`` (azimuth, elevation, zenith).
-        hdri_dir: Absolute path to the sky HDRI directory.
-        dynamic: Parsed :class:`DynamicAtmosphereConfig` for the loop.
-    """
+    """Frozen static atmosphere snapshot produced at boot time."""
 
     tau: float
     solar_constant: float
@@ -75,25 +38,10 @@ class AtmosphereInit:
 
 @dataclass(frozen=True)
 class AtmosphereBootResult:
-    """Frozen result of :func:`boot_atmosphere`.
-
-    Bundles the validated scenario model and the static atmosphere snapshot so
-    the scene/loop modules can run without re-reading YAML or reaching
-    into ``environment``. Terrain fields are intentionally absent — this
-    result is for the passthrough pipeline only.
-
-    Attributes:
-        config_path: Absolute path to the YAML that was loaded.
-        config: Validated scenario model.
-        mars_cfg: Validated Mars environment model.
-        rendering_cfg: Validated rendering model.
-        atmosphere_init: Pre-computed static atmosphere snapshot.
-        repo_root: Absolute repository root (used by scene for HDRI /
-            texture resolution).
-    """
+    """Frozen result of :func:`boot_atmosphere`."""
 
     config_path: str
-    config: ScenarioConfig
+    config: MarsLabConfig
     mars_cfg: MarsEnvConfig
     rendering_cfg: RenderingConfig
     atmosphere_init: AtmosphereInit
@@ -106,40 +54,14 @@ def boot_atmosphere(
     sun_azimuth_deg: float | None = None,
     sun_elevation_deg: float | None = None,
 ) -> AtmosphereBootResult:
-    """Load config and pre-compute the static atmosphere snapshot.
-
-    Does NOT load terrain data. Intended for the passthrough pipeline that
-    consumes supplied Scene USDZ packages.
-
-    Args:
-        config_path: Path to the scenario YAML config.
-        repo_root: Absolute repo root used to resolve relative asset
-            paths (texture_dir, HDRI dir). Defaults to the MarsLab repo
-            root derived from this module.
-        sun_azimuth_deg: When not None, overrides ``mars_env.sun_azimuth_deg``
-            from the YAML before any sun-position computation. Used by the
-            ``--sun-azimuth-deg`` CLI flag on ``marslab/main.py``.
-        sun_elevation_deg: When not None, overrides ``mars_env.sun_elevation_deg``
-            from the YAML before any sun-position computation. Used by the
-            ``--sun-elevation-deg`` CLI flag on ``marslab/main.py``.
-
-    Returns:
-        :class:`AtmosphereBootResult` with every value needed by the scene
-        and loop stages (config + atmosphere, no terrain).
-
-    Raises:
-        ValueError: If a required config section is absent.
-        FileNotFoundError: Propagated from the YAML loader.
-    """
-    # Late imports keep module-level cost small for unit tests that only
-    # exercise config paths.
+    """Load config and pre-compute the static atmosphere snapshot."""
     from marslab.environment.diffuse_fraction import compute_diffuse_fraction_1d_approx
     from marslab.environment.light_intensity import compute_direct_intensity
     from marslab.environment.sky_dome import compute_sky_dome_params
     from marslab.environment.sun_position import compute_sun_position
 
     abs_config_path = os.path.abspath(config_path)
-    cfg = load_scenario_config(abs_config_path)
+    cfg = load_config(abs_config_path)
     _LOG.info("Loaded config: %s", abs_config_path)
 
     mars_env_model = cfg.mars_env

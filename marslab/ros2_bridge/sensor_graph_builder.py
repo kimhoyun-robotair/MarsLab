@@ -1,16 +1,6 @@
-"""Pure (offline-testable) builders for the rover ROS2 OmniGraph.
-
-Extracted from :mod:`marslab.ros2_bridge.sensor_graph` so the
-orchestration (which touches ``omni.graph.core``) stays thin and the
-list-building logic can be unit-tested without Isaac Sim.
-
-These helpers return simple Python data structures (lists of tuples)
-that the orchestrator then feeds into
-``og.Controller.edit(..., {CREATE_NODES, CONNECT, SET_VALUES})``.
-
-The camera and LiDAR spawners own acquisition.  This graph only publishes from
-their existing render-product paths; every camera publisher shares one path.
-"""
+"""Build pure node, edge, and value data for the sensor graph.
+Helpers validate USD paths and preserve shared render-product wiring.
+No Isaac graph binding is imported at module load."""
 
 from __future__ import annotations
 
@@ -23,14 +13,7 @@ def _ns_topic(ns: str, name: str) -> str:
 
 
 def _validate_prim_path(name: str, value: str) -> None:
-    """Reject prim-path arguments that would crash ``usdrt.Sdf.Path``.
-
-    Rules: non-empty, must start with ``/`` (USD absolute prim path
-    convention), no internal whitespace.  Identical rules apply to
-    every prim-path kwarg consumed by the OmniGraph helpers so a typo
-    fails fast at the call site rather than surfacing as an opaque
-    USD error.
-    """
+    """Reject prim-path arguments that would crash ``usdrt.Sdf.Path``."""
     if not value or not value.startswith("/") or len(value.split()) != 1:
         raise ValueError(
             f"{name} must be a non-empty USD path starting with '/' and free "
@@ -39,11 +22,7 @@ def _validate_prim_path(name: str, value: str) -> None:
 
 
 def _build_create_nodes() -> List[Tuple[str, str]]:
-    """List of ``(node_name, node_type)`` tuples for the rover graph.
-
-    The articulation always publishes ``sensor_msgs/JointState`` on
-    ``<ns>/joint_states`` for the external ``robot_state_publisher``.
-    """
+    """List of ``(node_name, node_type)`` tuples for the rover graph."""
     nodes: List[Tuple[str, str]] = [
         ("OnTick", "omni.graph.action.OnPlaybackTick"),
         ("ReadSimTime", "isaacsim.core.nodes.IsaacReadSimulationTime"),
@@ -63,12 +42,7 @@ def _build_create_nodes() -> List[Tuple[str, str]]:
 
 
 def _build_connections() -> List[Tuple[str, str]]:
-    """List of ``(src_attr, dst_attr)`` pairs describing graph edges.
-
-    All camera helpers consume the shared render product made by the camera
-    spawner.  They run from one tick and use the same render-product path.
-
-    """
+    """List of ``(src_attr, dst_attr)`` pairs describing graph edges."""
     edges: List[Tuple[str, str]] = [
         ("OnTick.outputs:tick", "PubClock.inputs:execIn"),
         ("ReadSimTime.outputs:simulationTime", "PubClock.inputs:timeStamp"),
@@ -104,43 +78,8 @@ def _build_set_values(
     sensor_qos_preset: str = "SensorData",
     tf_qos_preset: str = "SystemDefault",
 ) -> List[Tuple[str, Any]]:
-    """List of ``(attr, value)`` pairs applied via SET_VALUES.
-
-    The ``inputs:qosProfile`` string input of every Isaac Sim ROS2
-    bridge helper (``PubIMU``, ``CamRGB``, ``CamDepth``,
-    ``Lidar3DHelper``, ``PubJointState``) is wired from
-    ``sensor_qos_preset`` / ``tf_qos_preset``.  Callers MUST pass the
-    JSON-encoded form produced by
-    :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json`; the bare
-    preset-name string defaults (``"SystemDefault"``, ``"SensorData"``)
-    are kept only for the offline test fixture and would emit
-    ``Parsing error: ... last read: 'S'`` to stderr at runtime if a
-    real OmniGraph C++ writer ever consumed them.  The orchestrator
-    (:mod:`marslab.ros2_bridge.sensor_graph`) always threads the JSON
-    form through.
-
-    Args:
-        articulation_root_prim_path: USD path of the rover articulation
-            root prim (e.g. ``/World/Rover``), forwarded to
-            ``PubJointState.inputs:targetPrim``. Validated via
-            :func:`_validate_prim_path` so a typo never reaches
-            ``usdrt.Sdf.Path``.
-        sensor_qos_preset: JSON-encoded QoS dict for IMU / camera /
-            LiDAR helpers.  Build via
-            :func:`marslab.ros2_bridge.qos.to_omnigraph_qos_json`.
-            Default ``"SensorData"`` is a bare preset-name string kept
-            only for offline test fixture compatibility.
-        tf_qos_preset: JSON-encoded QoS dict for the TF publisher.
-            Default ``"SystemDefault"`` carries the same offline-only
-            caveat as ``sensor_qos_preset``.
-    """
+    """List of ``(attr, value)`` pairs applied via SET_VALUES."""
     _validate_prim_path("articulation_root_prim_path", articulation_root_prim_path)
-    # Lazy import: ``usdrt`` ships with Isaac Sim, not the system
-    # Python.  Importing at module top would break the offline unit
-    # tests under ``tests/unit/``.  The tests monkeypatch
-    # ``sys.modules["usdrt"]`` with a fake module, mirroring the
-    # ``geometry_msgs`` pattern at
-    # ``tests/unit/test_tf_broadcaster.py:14-27``.
     import usdrt  # type: ignore[import-not-found]  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
     values: List[Tuple[str, Any]] = [
@@ -162,15 +101,6 @@ def _build_set_values(
         ("CamPCL.inputs:resetSimulationTimeOnStop", True),
         ("CamInfo.inputs:resetSimulationTimeOnStop", True),
         ("Lidar3DHelper.inputs:resetSimulationTimeOnStop", True),
-        # Camera RGB / Depth / PointCloud2 messages carry coordinates
-        # in the **optical frame convention** (Z forward, X right, Y
-        # down -- REP-105) because Isaac Sim's ``ROS2CameraHelper``
-        # outputs in that convention regardless of the camera prim's
-        # mount orientation.  The static TF
-        # ``camera_link -> camera_optical_frame`` is published by
-        # ``marslab.ros2_bridge.tf_broadcaster.publish_static_sensor_tfs``;
-        # frame_id here references that child frame so RViz /
-        # image_pipeline / depth_image_proc see correct geometry.
         ("CamRGB.inputs:type", "rgb"),
         ("CamRGB.inputs:topicName", _ns_topic(ns, topics["rgb"])),
         ("CamRGB.inputs:frameId", "camera_optical_frame"),
@@ -193,23 +123,7 @@ def _build_set_values(
         ("Lidar3DHelper.inputs:topicName", _ns_topic(ns, topics["lidar"])),
         ("Lidar3DHelper.inputs:frameId", "lidar_link"),
         ("Lidar3DHelper.inputs:type", "point_cloud"),
-        # NOTE: ``inputs:fullScan`` defaults to ``False`` on
-        # ``ROS2RtxLidarHelper``, which means a partial sweep (only the
-        # angular slice covered since the previous tick) is published
-        # every simulation frame.  This is fine when the YAML
-        # ``rotation_rate_hz`` roughly matches the sim tick rate (e.g.
-        # 30 Hz LiDAR + 30 Hz sim = one full revolution per tick), but
-        # it breaks kinematic-icp / kiss-icp / kindr-style registrators
-        # for slower LiDARs (e.g. Ouster OS1 at 10 Hz on a 30 Hz sim
-        # tick yields ~36 deg azimuth slices per message, which
-        # de-stabilises the adaptive threshold and voxel map).
-        # fullScan=True accumulates one full revolution per message —
-        # enabled 2026-06-13 after kiss-icp diverged (3 m median step
-        # jumps) and kinematic-icp under-estimated rotation on the
-        # sector slices; see SlamRunner round-4 notes.
         ("Lidar3DHelper.inputs:fullScan", True),
-        # See ``README.md`` (SLAM integration notes) for the matching
-        # ``configs/rover_m2020.yaml`` knob (``lidar_3d.rotation_rate_hz``).
         ("Lidar3DHelper.inputs:qosProfile", sensor_qos_preset),
         ("Lidar3DHelper.inputs:renderProductPath", lidar_3d_render_product_path),
     ]

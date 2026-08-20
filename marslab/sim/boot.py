@@ -1,8 +1,6 @@
-"""Deferred Isaac Sim application bootstrap.
-
-Consumes typed runtime settings, creates the app, optionally enables ROS2,
-and performs the first update before returning the live handle.
-"""
+"""Bootstrap SimulationApp at the Isaac runtime boundary.
+Typed settings select headless mode and optional ROS enablement.
+The first Kit update occurs before the live handle is returned."""
 
 from __future__ import annotations
 

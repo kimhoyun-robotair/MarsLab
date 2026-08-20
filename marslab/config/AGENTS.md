@@ -1,46 +1,43 @@
-# CONFIGURATION GUIDE
+# Configuration guide
 
-## OVERVIEW
+`marslab.config` owns the strict, offline-importable Pydantic v2 boundary for
+the integrated MarsLab document. The supported user launch is:
 
-`marslab.config` is a mixed raw-dict/Pydantic v2 pipeline for layered YAML. It
-is deliberately offline-importable; runtime selectively validates its typed blocks.
+```bash
+marslab/isaac_python.sh marslab/main.py --config configs/config.yaml
+```
 
-## WHERE TO LOOK
+## Contract
+
+- `configs/config.yaml` is the sole active runtime document.
+- Root sections are `scene`, `runtime`, `mars_env`, `rendering`, `rover`, and
+  `wheel_odom`; paths are relative to the declaring config file.
+- `rover.sensors` always contains Camera, IMU, and 3-D LiDAR settings. These
+  acquisition paths have no feature gate.
+- `wheel_odom.publish_tf` explicitly selects the MarsLab dynamic
+  `odom`→`base_link` authority; ground truth remains a separate topic-only
+  `map`/`base_link_gt` output.
+- `rover.ros2.sensor_parent_frame_id` is `Body_Chassis`; the companion launch
+  supplies the sole identity `base_link`→`Body_Chassis` connector.
+
+## Where to look
 
 | Task | Location | Notes |
 |---|---|---|
-| Load/merge YAML | `yaml_loader.py` | Root and rover `base_config` use deep-merge semantics. |
-| Propagate deterministic seeds | `loader.py` | `mars_env.seed` drives terrain seed (`seed + 1`). |
-| Root scenario model | `schema/root.py` | The rover subtree is intentionally opaque here. |
-| Rover/sensor schema | `schema/robot.py` | Large nested model, validators, and legacy migration. |
-| ROS bridge schema | `schema/ros2_bridge.py` | QoS and bridge configuration. |
-| Default inputs | `../../configs/default.yaml`, `../../configs/rover_m2020.yaml` | Keep ownership boundaries intact. |
+| Load the document | `yaml_loader.py` | Resolve paths from the declaring file and return `MarsLabConfig`. |
+| Public facade | `__init__.py`, `loader.py` | Keep `MarsLabConfig` and `load_config` as the narrow public surface. |
+| Root schema | `schema/root.py` | Compose the six strict root sections. |
+| Rover and sensors | `schema/rover.py`, `schema/rover_sensors.py` | Preserve typed physical, control, and retained sensor fields. |
+| ROS settings | `schema/rover_ros2.py` | Preserve topic, rate, frame, and QoS contracts. |
 
-## CONVENTIONS
+## Rules
 
-- Use Pydantic schemas at the configuration boundary; downstream code consumes
-  validated data.
-- Preserve existing `base_config` ordering and recursive merge behavior.
-- Preserve path resolution, list replacement, and legacy `sensors.lidar` to
-  `lidar_3d` normalization in the loader.
-- Schemas forbid unknown fields; update migration tests when changing aliases,
-  ranges, units, defaults, or list-length validation.
-- Keep this package free of Isaac/Omni/USD imports so its tests stay CPU-only.
-- Mypy coverage explicitly includes `marslab/config`; keep annotations meaningful.
-
-## ANTI-PATTERNS
-
-- Do not move per-scenario values into `configs/rover_m2020.yaml`; use scenario
-  YAML or a CLI override.
-- Do not treat the root rover dictionary as a replacement for the specialized
-  rover schema.
-- Do not silently change validation defaults, legacy migrations, or merge order.
-
-## CHECKS
-
-```bash
-pytest tests/unit/test_config_schema.py -q
-pytest tests/unit/test_robot_schema.py -q
-pytest tests/unit/test_loader.py tests/unit/test_sensor_seed.py -q
-mypy marslab/config
-```
+- Validate once at the configuration boundary; downstream layers consume the
+  typed model rather than rebuilding dictionaries.
+- Keep unknown-field rejection, path anchoring, units, ranges, defaults, and
+  deterministic sensor seed behavior stable unless the runtime contract changes.
+- Keep this package free of Isaac, Omni, USD, and live ROS imports so offline
+  configuration inspection remains available.
+- Keep comments concise and describe the schema role or invariant only.
+- User-only Isaac validation uses the canonical command above. Agent checks stop
+  at parsing and source/config reconciliation; no agent claims simulator output.

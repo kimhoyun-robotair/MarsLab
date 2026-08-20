@@ -1,4 +1,6 @@
-"""Explicit loop boundary and cleanup for concrete runtime capabilities."""
+"""Wrap one simulation phase with ordered cleanup ownership.
+Failures preserve the primary status while cleanup still runs.
+The module does not own individual bridge or world resources."""
 
 from __future__ import annotations
 

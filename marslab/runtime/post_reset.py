@@ -1,3 +1,7 @@
+"""Apply articulation, sensor, and bridge setup after world reset.
+The phase returns live handles consumed by the main loop.
+Runtime imports stay deferred until reset has completed."""
+
 from __future__ import annotations
 
 import logging

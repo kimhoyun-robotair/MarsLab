@@ -2287,3 +2287,627 @@ for it.**
 - **관찰 범위:** 사용자가 제공한 위 요약 외 per-topic rate/QoS 세부값은
   기록하거나 추론하지 않는다.
 - **Unlock:** exact user token으로 **Task 29 unlock now valid**.
+
+## G6 누적 보고 — authorized Tasks 29–30 (report-only append)
+
+이 부록은 G5 후보/승인 기록 뒤에 추가하는 **G6 보고 전용** 기록이다. G5
+candidate, G5 사용자 승인, 승인 로그, product/plan/ledger/commit은 수정하지
+않았다. G6는 아직 사용자 `APPROVE G6` 전이며, 이 문서의 명령 성공은 승인을
+대체하지 않는다.
+
+### 증거 권위와 PIN
+
+- 이 부록의 유일한 Task 29/30 acceptance source는
+  `.omo/evidence/marslab-runtime-refactor-v2/task-29-authorized/`와
+  `.omo/evidence/marslab-runtime-refactor-v2/task-30-authorized/`다. 두
+  디렉터리의 executor DoneClaim과 별도 independent reviewer를 각각 읽고
+  `confirmed`를 확인했다.
+- 기존 `task-29/`, `task-30/` evidence와 G5의 조기 Task29/30 rollback 및 그
+  밖의 모든 비-authorized 산출물은 역사적/비권위 자료로 **구분하고 acceptance
+  근거에서 제외**했다. stale 또는 성공 문구가 있어도 이 부록의 PASS를 만들지
+  않는다.
+- append 직전 PIN 명령은 다음과 같이 authorized Task29/30 heading 부재를
+  확인해 exit `1`이었다. 기존 G5 섹션은 그대로 남아 있었다.
+
+  ```bash
+  rg -n '^## (Task 29|Task 30|G6 누적 보고)' MARSLAB_REFACTORING_CHANGE_REPORT.md
+  ```
+
+  원문: `.omo/evidence/marslab-runtime-refactor-v2/g6-report/report-pin-absence.txt`.
+
+### G6 durable product LOC 요약
+
+| Task | route | durable product/docs delta | 누적 product/docs (G5 기준 `+4358/-2870`) |
+|---:|---|---:|---:|
+| 29 | LOW/Luna (`lazycodex-worker-low`) | `+6/-463` (net `-457`) · 10 paths | `+4364/-3333` |
+| 30 | LOW/Luna (`lazycodex-worker-low`) | `+0/-1036` (net `-1036`) · 3 paths | `+4364/-4369` |
+| **G6 합계** | — | **`+6/-1499` (net `-1493`) · 13 paths** | **`+4364/-4369`** |
+
+수치는 product/docs의 durable physical-line delta이며 이 보고서와 evidence
+문서의 LOC는 제외한다. Task29/30은 현재 공유 worktree에서 G5 승인 HEAD 위에
+재현된 uncommitted product diff이고, canonical `configs/config.yaml`은
+삭제하지 않았다.
+
+## Task 29 — split YAML/config residue 제거 (authorized confirmed)
+
+### 범위·변경 파일·심볼·정확한 LOC
+
+목표는 모든 live consumer가 `MarsLabConfig`를 사용한 뒤 split loader와
+pass-through schema wrapper, 두 legacy YAML만 제거하는 것이다. 재사용 가능한
+nested models는 `scenario.py`, `rover.py`, `rover_ros2.py`,
+`rover_sensors.py`에 남겼고 정본 `configs/config.yaml`은 보존했다.
+계획의 “no runtime canonical config” inventory 문구는 같은 Task29의 “do not
+delete `configs/config.yaml`” 지시와 충돌하므로, authorized clarification인
+정확히 `configs/config.yaml` 한 개 inventory를 적용했다.
+
+| 상태 | 파일 | 심볼/구간 | `+LOC` | `-LOC` |
+|---|---|---|---:|---:|
+| D | `configs/default.yaml` | legacy scenario YAML 전체 | 0 | 47 |
+| D | `configs/rover_m2020.yaml` | legacy rover YAML 전체 | 0 | 289 |
+| M | `marslab/config/schema/__init__.py` | `ScenarioConfig` import, `RobotConfig`/`SkidSteerDriveConfig` alias 및 exports 제거; nested exports 유지 | 0 | 7 |
+| D | `marslab/config/schema/mars_env.py` | environment re-export wrapper 전체 | 0 | 17 |
+| D | `marslab/config/schema/rendering.py` | rendering re-export wrapper 전체 | 0 | 15 |
+| D | `marslab/config/schema/robot.py` | robot alias/re-export wrapper 전체 | 0 | 32 |
+| D | `marslab/config/schema/ros2_bridge.py` | ROS schema re-export wrapper 전체 | 0 | 3 |
+| M | `marslab/config/schema/scenario.py` | `ScenarioConfig` class 및 `__all__` 항목 제거 | 0 | 7 |
+| M | `marslab/config/yaml_loader.py` | `_read_mapping`, `load_scenario_config`, `load_rover_config` 및 split `__all__` 제거; `load_config`만 유지 | 1 | 40 |
+| M | `marslab/runtime/atmosphere_boot.py` | `AtmosphereBootResult.config: MarsLabConfig`, `boot_atmosphere()`의 canonical `load_config` 호출 | 5 | 6 |
+| **합계** | **10 product paths** | canonical root-only config boundary | **6** | **463** |
+
+### 확인한 계약과 명령/evidence
+
+| 시나리오 | 정확한 invocation 및 binary observable | authorized evidence |
+|---|---|---|
+| canonical public load | `uv run --no-project python` probe에서 `load_config('configs/config.yaml')`의 exact type이 `MarsLabConfig`, facade `__all__`가 `['MarsLabConfig', 'load_config']`, loader `__all__`가 `['load_config']`, 네 path가 absolute; exit `0` | `task-29-authorized/canonical-probes.txt` |
+| malformed input | 같은 probe가 임시 YAML에서 `rover`를 제거한 입력을 Pydantic `ValidationError`로 거절하고 임시 파일을 정리; exit `0` | `task-29-authorized/canonical-probes.txt`, `adversarial-verify.md` |
+| atmosphere consumer | `uv run --no-project python`으로 `boot_atmosphere('configs/config.yaml')`; `AtmosphereBootResult.config` exact type `MarsLabConfig`, canonical path; exit `0` | `task-29-authorized/canonical-probes.txt` |
+| stale YAML/residue | `find configs -maxdepth 1 -name '*.yaml' -print \| sort`의 정확한 출력이 `configs/config.yaml` 한 줄; split-loader/source scan은 empty-match exit `1` | `task-29-authorized/manual-qa.txt`, `static-checks.txt` |
+| static checks | `uv run --no-project` compileall, Ruff, Black, mypy, `git diff --check`; 각 exit `0`; generated config/runtime bytecode count `0` | `task-29-authorized/static-checks.txt`, `cleanup-receipt.md` |
+| protected content | SHA-256 `configs/config.yaml=1cd6f033ab2c51bcbddffd933734e6d8b533e36b0980cfc3d888a4b29a4f7b5e`, `.gitignore=26a9580429d790b03695678ce653bd1c6408496650317ce9d97a05154503ecb8`; canonical YAML diff 없음 | `task-29-authorized/pre-edit-pin.md`, `adversarial-verify.md` |
+
+legacy historical tests의 상태를 숨기지 않는다. 정확한 `pytest -q
+tests/refactor` invocation은 collection 단계에서 exit `2`이며
+`tests/refactor/test_config_rejections.py`가 제거된
+`load_rover_config`/`load_scenario_config`를 import해서 `ImportError`를 낸다.
+이는 Task29의 live production residue 기준을 무효화하지 않지만 **green test
+suite로 주장하지 않는다**. 해당 legacy test migration/retirement는 Task32로
+명시적으로 deferred다. 원문: `.omo/evidence/marslab-runtime-refactor-v2/g6-report/task29-legacy-pytest.txt`.
+
+### Task 29 DoneClaim (executor, authorized)
+
+`task-29-authorized/adversarial-verify.md`의 executor verdict는 `confirmed`다.
+malformed input, stale state, misleading success output, generated artifact,
+dirty-worktree scope, protected hash를 PASS로 기록했고, prompt injection,
+cancel/resume, hung/long, flaky/repeated interruption 및 Isaac/ROS launch는
+각각 외부 입력·resumable mutation·bounded offline command·결정적 정적
+작업·범위 밖 runtime이므로 N/A로 분류했다. canonical YAML은 retained이고
+legacy test collection limitation은 위와 같이 숨기지 않았다.
+
+### Task 29 독립 gate-review (independent, confirmed)
+
+`task-29-authorized/independent-AdversarialVerify.md`는 별도 재실행으로
+`verdict: confirmed`, `recommendation: APPROVE`, blockers `none`을 기록했다.
+exact facade/type/path, malformed rejection, AST live-source residue, YAML
+inventory, reusable-model retention, atmosphere canonical consumer, static
+checks, generated cleanup, protected hash, exact 10-path diff를 독립 확인했다.
+동일 reviewer는 legacy `pytest -q tests/refactor` collection incompatibility를
+Task32 deferred evidence gap으로 명시했으며, 이를 통과로 재분류하지 않았다.
+
+## Task 30 — stale tracked 문서와 repository metadata 정리 (authorized confirmed)
+
+### 범위·변경 파일·심볼·정확한 LOC
+
+Task30은 실행 코드가 아니라 nonexistent DEM target을 가리키는 한 줄 rule과
+두 stale tracked 문서를 정리한다. 따라서 executable symbol 변경은 없고,
+`.gitattributes`의 exact rule만 삭제한다.
+
+| 상태 | 파일 | 심볼/구간 | `+LOC` | `-LOC` |
+|---|---|---|---:|---:|
+| M | `.gitattributes` | `assets/mars_assets/DEM/**/*.npy filter=lfs diff=lfs merge=lfs -text` stale rule | 0 | 1 |
+| D | `GT_Trajectory.md` | obsolete tracked document 전체 | 0 | 107 |
+| D | `MARSLAB_V0_5_READINESS_AUDIT.md` | stale readiness audit 전체 | 0 | 928 |
+| **합계** | **3 product paths** | one metadata rule + two named document deletions | **0** | **1036** |
+
+### 확인한 계약과 명령/evidence
+
+| 시나리오 | 정확한 invocation 및 binary observable | authorized evidence |
+|---|---|---|
+| failing-first stale proof | `git ls-files --stage -- .gitattributes MARSLAB_V0_5_READINESS_AUDIT.md GT_Trajectory.md`, fixed-string `grep` rule, `test -e` 두 문서, `git check-attr`, `git ls-tree`로 tracked/stale rule 존재와 DEM tree 부재를 확인 | `task-30-authorized/adversarial-verifier.md` RED |
+| exact scope | `git diff --name-status -- .gitattributes MARSLAB_V0_5_READINESS_AUDIT.md GT_Trajectory.md`의 정확한 세 행: `M .gitattributes`, `D GT_Trajectory.md`, `D MARSLAB_V0_5_READINESS_AUDIT.md`; numstat `0/1`, `0/107`, `0/928` | `task-30-authorized/adversarial-verifier.md`, `independent-AdversarialVerify.md` |
+| stale absence | `test ! -e` 두 문서와 DEM directory가 모두 `0`; fixed-string grep은 `1`; `git check-attr -a -- assets/mars_assets/DEM/example.npy`는 output 없이 `0` | `task-30-authorized/adversarial-verifier.md`, `cleanup-receipt.md` |
+| runtime boundary | 모든 `marslab/**/*.py` AST import scan에서 conversion-tool runtime imports `[]`; exit `0`; `git diff --check` exit `0` | `task-30-authorized/adversarial-verifier.md` |
+| manual terminal QA | real-PTY scoped diff/absence/rule/attribute command가 `MANUAL_QA=PASS`, exit `0` | `task-30-authorized/adversarial-verifier.md` |
+
+### 보호 경로와 제한
+
+`.gitignore`, `MARSLAB_STALE_RESIDUE_AUDIT.md`, S01–S05 reports
+(`MARSLAB_S01_S03_CHANGE_REPORT.md`, `MARSLAB_S04_S05_REMOVAL_REPORT.md`),
+Task30 실행 중의 기존 이 report, 세 completed plans, `marslab/convert_urdf_to_usd.py`,
+`marslab/fix_urdf_inertia.py`, `assets/m2020-urdf-models` submodule, assets,
+`MarsLab.pdf`, `MarsLab_refactoring.md`, `package-lock.json`, `uv.lock`, legal
+inventory를 hash/presence/submodule status로 재확인했고 Task30 product scope에서는
+변경하지 않았다. 이후의 별도 G6 report-only append는 의도된 문서 변경이다.
+conversion tools는 developer-only로 보존했으며 runtime import는 없다. legal
+artifact inventory가 비어 있으므로 license/notice를 발명하지 않았다.
+
+### Task 30 DoneClaim (executor, authorized)
+
+`task-30-authorized/DoneClaim.md`는 product scope only, no report/plan/ledger/
+commit edits를 명시하고 COMPLETE을 기록한다. exact three-path diff,
+absence/attribute checks, runtime AST boundary, protected inventory, manual
+PTY QA, `git diff --check`, dirty-path preservation을 PASS로 고정했다.
+
+### Task 30 독립 gate-review (independent, confirmed)
+
+`task-30-authorized/independent-AdversarialVerify.md`는 별도 gate review로
+`Verdict: confirmed`, `Recommendation: APPROVE`, blockers `none`을 기록했다.
+HEAD preimage, exact three-path diff와 numstat, protected SHA/submodule/legal
+inventory, generated-looking untracked file preservation, runtime conversion
+import absence를 재실행했다. malformed input, prompt injection, cancel/resume,
+hung/long/flaky/repeated interruption은 parser·외부 content·resumable state·
+daemon/network/retry가 없는 bounded local deletion이므로 N/A다.
+
+## G6 UltraQA·독립 확인 요약
+
+authorized verifier들이 공통으로 확인한 위협 분류는 다음과 같다. stale state는
+RED preimage와 GREEN absence/inventory로 PASS, dirty concurrent state는 Task29
+10-path와 Task30 3-path를 분리하고 known dirty paths를 보존해 PASS,
+misleading success는 exit code와 실제 출력/내용 assertion을 함께 요구해 PASS,
+generated artifacts는 Task29 owned bytecode `0` 및 Task30 PDF/lock/PDF/untracked
+보존으로 PASS, destructive overreach는 정확한 deletion allowlist와
+`git diff --check`로 PASS다. Prompt injection, malformed input(문서 정리인
+Task30), cancel/resume, hung/long, flaky/repeated interruptions는 각각 해당
+입력·재개 상태·daemon/network/retry가 없는 오프라인 범위라 N/A이며, Isaac/ROS/
+browser/UI 실행도 두 task의 범위 밖이라 PASS로 추론하지 않는다.
+
+각 task의 executor DoneClaim과 independent confirmed reviewer는 서로 별도
+artifact이며 어느 한쪽의 성공 문구를 다른 쪽의 독립 검토로 재사용하지 않았다.
+G5 candidate/approval는 이 append에서 다시 렌더링하거나 수정하지 않았고,
+G6 사용자 문서/차이 검토 전 상태는 **PENDING USER**로 남긴다.
+
+## G6 보고 최종화 — Tasks 31–34 (report-only append)
+
+이 절은 기존 G5 승인과 authorized Task29–30 기록 뒤에 추가한 G6 Tasks31–34
+보고의 **pre-amend historical snapshot**이다. 기존 report의 앞부분과
+G5/Task29/Task30/G6 UltraQA 텍스트는 이 historical append에서 수정하지
+않았다. 아래 수치는 final legacy-document amend 전의 task evidence snapshot이며,
+현재 candidate total로 재사용하지 않는다. report 자체와 별도 `.gitignore`
+변경은 당시 product union에서 제외했다.
+
+### PIN, prefix 보존, 현재 heading 상태
+
+- append 전 `MARSLAB_REFACTORING_CHANGE_REPORT.md`는 182848 bytes,
+  SHA-256
+  `3d95a2a23da8120dd83d9d591f54c5f4f7f59460861256b29f822bb082b9dfed`였다.
+  이 값은 Task34의 historical baseline hash와도 일치한다.
+- append 전 `rg -n '^## Task (31|32|33|34)|^## G6 보고 최종화'`는
+  exit `1`로 current headings 부재를 확인했다. 기존 G5 승인과 authorized
+  Task29/30 heading은 존재했다.
+- prefix/section hash와 append 전후 byte guard는
+  `.omo/evidence/marslab-runtime-refactor-v2/gates/G6/report/report-prefix-pin.md`에
+  기록한다. Task29/30 section bytes와 G5 approval bytes는 그 artifact의
+  전후 hash가 동일해야 한다.
+
+### G6 pre-amend historical cumulative summary
+
+| 범위 | pre-amend historical path scope | `+LOC` | `-LOC` | 비고 |
+|---|---:|---:|---:|---|
+| Task 29–30 (기존 authorized 기록) | 13 | 6 | 1499 | 기존 G6 section의 exact task totals |
+| Task 31 pre-amend 41-path aggregate | 41 Python modules | 207 | 1593 | includes the four authorized Task29 executable overlaps; executor-reported ownership `+187/-1510` is retained as non-reconstructable history, not an exact acceptance total |
+| Task 32 ownership | 9 tracked paths | 0 | 567 | 2 workflows + 6 tests + pytest-only pyproject removal |
+| Task 33 ownership | 7 `AGENTS.md` guides | 293 | 299 | pre-amend per-file numstat 아래에 재기록 |
+| Task 34 original ownership (pre-amend historical) | 5 tracked paths | 198 | 693 | later document additions are outside Task34 ownership |
+| **G6 pre-amend product union (historical)** | **70 tracked paths** | **691** | **4479** | **net `-3788`; report와 unrelated `.gitignore` 제외** |
+
+Task별 scope 숫자를 기계적으로 더하지 않고 70-path pre-amend union을 별도로
+기록한 이유는 Task29와 Task31의 네 Python path가 겹치고 Task31과 Task34가
+`launch/rover_state_publisher.launch.py`를 연속으로 다뤘기 때문이다. 각
+task의 ownership 숫자는 해당 task evidence의 historical contract이고, 이
+표의 G6 total은 final candidate가 아닌 pre-amend diff의 중복 없는 union이다.
+
+## Task 31 — Python concise-comment policy (repaired, confirmed)
+
+### 범위·정확한 paths·symbols/prose scope·LOC
+
+Task31은 다음 41개 기존 Python module의 module/function/class docstring과
+ordinary comments만 정리했다. executable behavior는 보존했고,
+`marslab/config/schema/__init__.py`, `scenario.py`, `yaml_loader.py`,
+`runtime/atmosphere_boot.py`의 executable mismatch는 이미 authorized Task29
+delta로 분리했다. Executor evidence는 ownership delta를 **`+187/-1510`**로
+보고했지만, 저장된 PIN/RED/word-diff/static artifacts로는 그 Task31-only
+분리가 재구성되지 않는다. 따라서 독립적으로 재현 가능한 report LOC는
+현재 41-path aggregate **`+207/-1593`**이며, 여기에는 위 네 Task29 overlap이
+포함된다. `+187/-1510`은 non-reconstructable historical executor figure로
+명시하고 acceptance total로 재사용하지 않는다.
+
+```text
+launch/rover_state_publisher.launch.py
+marslab/config/__init__.py
+marslab/config/loader.py
+marslab/config/schema/__init__.py
+marslab/config/schema/common.py
+marslab/config/schema/root.py
+marslab/config/schema/rover.py
+marslab/config/schema/rover_ros2.py
+marslab/config/schema/rover_sensors.py
+marslab/config/schema/runtime.py
+marslab/config/schema/scenario.py
+marslab/config/yaml_loader.py
+marslab/main.py
+marslab/robots/rover.py
+marslab/robots/drive_api_setup.py
+marslab/ros2_bridge/__init__.py
+marslab/ros2_bridge/context.py
+marslab/ros2_bridge/odometry_publisher.py
+marslab/ros2_bridge/rclpy_integration.py
+marslab/ros2_bridge/rclpy_publishers.py
+marslab/ros2_bridge/qos.py
+marslab/ros2_bridge/robot_description_publisher.py
+marslab/ros2_bridge/sensor_graph.py
+marslab/ros2_bridge/sensor_graph_builder.py
+marslab/ros2_bridge/tf_broadcaster.py
+marslab/ros2_bridge/wheel_odometry_publisher.py
+marslab/runtime/assembly.py
+marslab/runtime/articulation_setup.py
+marslab/runtime/atmosphere_boot.py
+marslab/runtime/lifecycle.py
+marslab/runtime/loop_context.py
+marslab/runtime/main_loop.py
+marslab/runtime/post_reset.py
+marslab/runtime/precheck.py
+marslab/runtime/prepare.py
+marslab/runtime/sensor_frames.py
+marslab/sensors/camera_spawner.py
+marslab/sensors/imu_spawner.py
+marslab/sensors/lidar_3d_spawner.py
+marslab/sensors/sensor_spawner.py
+marslab/sim/boot.py
+```
+
+### Before/after contract
+
+Before에는 multiline implementation history, type-restating Args/Returns/
+Attributes prose, missing module summaries, and generic filler가 남아 있었다.
+After에는 module summary와 one-role function/method docs만 남기고 API/safety
+directive만 유지한다. 2D LiDAR, ROS/TF, sensor graph, lifecycle, atmosphere,
+preflight 경계의 executable tokens는 바꾸지 않았다.
+
+### 검증·DoneClaim·독립 확인
+
+`git diff --numstat` over the exact inventory gives `41 paths, +207/-1593`;
+the command and output are recorded in the G6 gate review. `task-31/static-check.txt`의 Python 3.11 compileall, Black, Ruff,
+`git diff --check`는 모두 exit 0이고 `inventory_count=41`,
+`policy_residue=[]`다. `task-31/semantic-check.txt`와
+`independent-AdversarialVerify.md`는 예상된 Task29 네 mismatch 외
+`unexpected_task31_executable_mismatches=[]`를 재확인한다. 요구된
+`git diff --word-diff=porcelain -- <41 paths>` terminal surface는
+`task-31/word-diff.txt`에 있다.
+
+첫 독립 verifier `task-31/AdversarialVerify.md`는 누락 inventory와 잔여
+docstring 때문에 **needs-fix**였다. 네 path를 보강하고 prose를 수리한 뒤
+`task-31/independent-AdversarialVerify.md`가 `verdict: confirmed`를
+기록했다. 이 repaired artifact만 acceptance evidence로 사용한다.
+
+### Cleanup·제한
+
+`task-31/cleanup-receipt.txt`와
+`task-31/independent-cleanup-receipt.txt`의 owned `.pyc`/`.pyo` 및 빈
+`__pycache__` count는 0이다. Isaac/ROS runtime은 agent가 실행하지 않았다.
+malformed input, prompt injection, cancel/resume, hung/long, flaky/repeated
+interruption은 bounded offline prose edit라 N/A다.
+
+## Task 32 — tests/workflows와 pytest-only metadata 제거 (confirmed)
+
+### 범위·정확한 paths·LOC
+
+현재 unstaged diff의 exact per-file numstat은 다음과 같다.
+
+| 상태 | path | scope | `+LOC` | `-LOC` |
+|---|---|---|---:|---:|
+| D | `.github/workflows/lint.yaml` | lint workflow 전체 | 0 | 26 |
+| D | `.github/workflows/security.yaml` | security workflow 전체 | 0 | 28 |
+| M | `pyproject.toml` | `pytest>=7.0`와 `[tool.pytest.ini_options]`만 제거 | 0 | 5 |
+| D | `tests/refactor/test_config_rejections.py` | legacy rejection test 전체 | 0 | 149 |
+| D | `tests/refactor/test_documented_commands.py` | command test 전체 | 0 | 123 |
+| D | `tests/refactor/test_no_utils_dependencies.py` | stale utils test 전체 | 0 | 102 |
+| D | `tests/refactor/test_rover_schema.py` | rover schema test 전체 | 0 | 25 |
+| D | `tests/refactor/test_scenario_schema.py` | scenario schema test 전체 | 0 | 21 |
+| D | `tests/refactor/test_verify_refactor_ledger.py` | ledger verification test 전체 | 0 | 88 |
+| **합계** | **9 tracked paths** | **6 tests + 2 workflows + pytest-only config** | **0** | **567** |
+
+### Before/after contract
+
+Before에는 여섯 tracked refactor tests, 두 GitHub Actions workflow, pytest
+dev dependency/config가 있었다. After에는 `tests/`와 `.github/workflows/`
+filesystem tree가 absent하고, `pyproject.toml`은 Black/Ruff/mypy/pip-audit/
+types-PyYAML/matplotlib 설정을 유지한 채 pytest-owned entries만 없다.
+Replacement tests/workflows/QA scripts는 추가하지 않았다.
+
+### 검증·DoneClaim·독립 확인
+
+`task-32/reverification-2026-08-20.txt`의 `git diff --name-status --
+tests .github/workflows pyproject.toml`가 정확히 위 9행을 반환하고,
+`git diff --numstat`가 `+0/-567`을 반환한다. `find tests
+.github/workflows -type f -print`는 no files/absent dirs, `rg -n
+'pytest|tool\\.pytest' pyproject.toml`는 no match exit 1,
+Python 3.11 `tomllib` parse와 retained-tool assertions, `git diff --check`
+는 모두 PASS다. `task-32/DoneClaim.md`와 독립
+`task-32/AdversarialVerify.md`는 confirmed를 기록한다.
+
+Unstaged 상태에서 `git ls-files tests .github/workflows`가 여전히 index의
+기존 eight paths를 열거하고 `git ls-files --deleted -- tests
+.github/workflows`가 삭제 예정 eight paths를 열거하는 것은 Git index
+semantics다. 아직 stage/commit하지 않았다는 사실을 숨기지 않는다.
+
+### Cleanup·제한
+
+Task-owned test pycache와 empty directories만 제거했다. pytest 실행과
+Isaac/ROS runtime은 수행하지 않았다. parser, prompt boundary,
+cancel/resume, hung/flaky/repeated interruption surface가 없는 bounded
+deletion이라 N/A다.
+
+## Task 33 — root와 six nested AGENTS contract alignment (confirmed)
+
+### 범위·정확한 paths·LOC
+
+| path | scope/symbols | `+LOC` | `-LOC` |
+|---|---|---:|---:|
+| `AGENTS.md` | workspace runtime contract, ownership table, user-only QA | 73 | 91 |
+| `marslab/config/AGENTS.md` | integrated config/schema ownership | 37 | 40 |
+| `marslab/robots/AGENTS.md` | rover USD/control and frame ownership | 29 | 30 |
+| `marslab/ros2_bridge/AGENTS.md` | retained outputs, QoS, TF/odometry authority | 41 | 41 |
+| `marslab/runtime/AGENTS.md` | lifecycle, atmosphere, GT/wheel routing | 52 | 41 |
+| `marslab/sensors/AGENTS.md` | Camera/IMU/3-D LiDAR acquisition | 33 | 29 |
+| `marslab/sim/AGENTS.md` | SimulationApp boundary and user launch | 28 | 27 |
+| **합계** | **7 rule files** | **293** | **299** |
+
+### Before/after contract
+
+Before에는 split YAML, retired CLI/pytest/Actions, and legacy TF guidance가
+각 guide에 남아 있었다. After에는 모두
+`marslab/isaac_python.sh marslab/main.py --config configs/config.yaml`와
+CPU-safe/deferred-import 경계를 사용한다. retained Camera RGB/depth/
+PointCloud2/CameraInfo, raw/noisy IMU, 3-D LiDAR, joint states, robot
+description, topic-only GT `map`/`base_link_gt`, wheel `odom`/`base_link`,
+`AtmospherePanel`, and sole companion `base_link`→`Body_Chassis` connector가
+각 package ownership에 맞게 일치한다.
+
+### 검증·DoneClaim·독립 확인
+
+`task-33/final-gate.txt`, `markdown-parse.txt`,
+`canonical-command-files.txt`, `post-forbidden-scan.txt`,
+`source-config-launch-reconciliation.txt`, `manual-render.md`, and
+`diff-check.txt` all PASS. Exact live `git diff --numstat` above confirms
+`+293/-299`. `task-33/DoneClaim.md`와 독립
+`task-33/AdversarialVerify.md`가 seven-path scope와 `confirmed`를
+재확인했다. Required manual channel은 각 guide의 `sed -n '1,240p'` render다.
+
+### Cleanup·제한
+
+Task33 evidence는 no generated bytecode, no agent Isaac process, and no
+temporary/browser/port state를 기록한다. Existing ROS daemon and unrelated
+dirty paths were preserved. Runtime/GUI/TF observations are not agent claims.
+
+## Task 34 — active runtime documentation and comment contract (confirmed)
+
+### 범위·정확한 paths·LOC
+
+Tracked Task34 numstat은 정확히 다음과 같이 `+198/-693`이다.
+
+| path | scope/symbols | `+LOC` | `-LOC` |
+|---|---|---:|---:|
+| `README.md` | install/run/config/output/TF/AtmospherePanel/user checklist | 129 | 447 |
+| `docs/frame_conventions.md` | frame-owner contract | 24 | 21 |
+| `docs/odometry_ground_truth.md` | GT versus wheel odometry contract | 34 | 51 |
+| `launch/rover_state_publisher.launch.py` | comments/argument descriptions only | 7 | 112 |
+| `marslab/isaac_python.sh` | shell comments/docstrings only | 4 | 62 |
+| **tracked 합계** | **5 paths** | **198** | **693** |
+
+Task34 당시에는 `docs/colored_pointcloud.md`가 `.gitignore:55`의 `docs/`
+규칙에 걸린 ignored workspace path였고, 그 pre-amend 상태는
+`task-34/baseline-sha256.txt`와 `manual-rendered-qa.txt`에 historical하게
+기록되어 있다. 이후 legacy-document amend는
+`docs/colored_pointcloud.md`와 `docs/legacy_config_notes.md`를 모두 tracked
+tree에 포함했다. amended candidate snapshot에서 두 파일 모두
+`git ls-files`에 나타나고 `git check-ignore`는 exit 1이며, 더 이상
+tracked total에서 제외하거나 force-add할 필요가 없다. 현재 active Markdown
+set은 두 문서와 `frame_conventions.md`, `odometry_ground_truth.md`다.
+
+### Before/after contract
+
+Before에는 stale launch/config/2-D/test/Actions/legacy-TF guidance와 여러
+runtime entrypoints가 섞여 있었다. After에는 one canonical command,
+recursive submodule setup, integrated config keys, retained Camera/IMU/
+3-D LiDAR and ROS topics, separate GT/Wheel streams, sole dynamic wheel TF
+gate, one identity companion connector, AtmospherePanel condition, and a
+truthful user-run Isaac checklist만 남는다. shell/launch executable semantics
+are unchanged.
+
+### 검증·DoneClaim·독립 확인
+
+`task-34/required-doc-contract-probe.txt`의 required markers all true,
+`source-config-launch-reconciliation.txt`의 six top-level config groups,
+topics, frames, wheel gate, and identity connector count `1`,
+`final-residue-scan.txt` no-match exit 1, `bash -n`, launch `py_compile`,
+semantic AST comparison, and `final-diff-check.txt` exit 0가 static contract를
+확인한다. `task-34/manual-rendered-qa.txt`는 README와 active docs의 terminal
+render를 보존한다. `task-34/DoneClaim.md`와 독립
+`task-34/AdversarialVerify.md`는 agent-verifiable criteria를 CONFIRMED로
+기록하고 Isaac/ROS 항목은 NEEDS-HUMAN-REVIEW로 남겼다.
+No Isaac Sim or ROS runtime was run by an agent.
+
+### Cleanup·제한
+
+`generated-after-final-cleanup.txt`는 empty다. launcher help는 Isaac path가
+없는 checkout이라 wrapper를 통과해 실행하지 않았고, parser surface는
+static AST로만 확인했다. Isaac Sim, sensor production, ROS topics/QoS, TF
+tree, AtmospherePanel interaction, and shutdown cleanup은 사용자 checklist
+범위다. agent는 이를 PASS로 발명하지 않는다.
+
+## G6 final UltraQA, manual render, and gate status
+
+### Required manual/data channel
+
+다음 terminal/data render가 이 append의 acceptance surface다.
+
+```bash
+sed -n '/^## G6 보고 최종화/,/^## G6 final UltraQA/p' MARSLAB_REFACTORING_CHANGE_REPORT.md
+sed -n '/^## G6 final UltraQA/,${p;}' MARSLAB_REFACTORING_CHANGE_REPORT.md
+```
+
+PASS 조건은 Task31–34 heading, exact paths/LOC, Task32 index semantics,
+ignored active doc distinction, independent artifacts, limitations, and G6
+summary가 모두 Korean report에서 읽히는 것이다. report render와
+`git diff --check` 결과는
+`.omo/evidence/marslab-runtime-refactor-v2/gates/G6/report/manual-render.txt`
+및 `report-prefix-pin.md`에 캡처한다.
+
+### UltraQA matrix
+
+| class | result | reason/evidence |
+|---|---|---|
+| stale_state | PASS | pre-append absence, live numstat, task evidence re-read |
+| dirty_worktree | PASS | owned scopes separated; unrelated dirty paths preserved |
+| misleading success | PASS | independent artifacts and binary commands cited; no runtime invention |
+| generated cleanup | PASS | task cleanup receipts and final empty generated probe |
+| prompt injection | N/A | no untrusted external content boundary in report append |
+| malformed input | N/A | no parser/runtime input changed by report append |
+| cancel/resume | N/A | bounded local append, no resumable operation |
+| hung/long | N/A | no daemon, network, or long-running command |
+| flaky/repeated interruption | N/A | deterministic local render/checks |
+| Isaac/ROS/UI/browser/port | N/A for agent | user-only runtime validation; no agent run |
+
+G5 user observation is limited to **all TF and topics subscribed normally**.
+No stronger runtime claim is made. G6 report status is **PENDING USER** until
+the exact user token `APPROVE G6` is supplied.
+
+## G6 후보 교정 기록 — 1bbb60d 후보 거부 및 AtmosphereInit 복구
+
+`1bbb60d1aef5785af6ff5651dc3ecee5fc6900dd` G6 후보는
+`AtmosphereInit.sky_params`와 `AtmosphereInit.sun_pos`를 실수로 삭제하여
+gate에서 **REJECT**되었다. PIN/RED의 오프라인 명령은 다음과 같고,
+후보에서 정확히 다음 오류가 재현됐다.
+
+```text
+uv run --no-project --with pydantic --with pyyaml --with numpy --with scipy python -c "from marslab.runtime.atmosphere_boot import boot_atmosphere; boot_atmosphere('configs/config.yaml')"
+TypeError: AtmosphereInit.__init__() got an unexpected keyword argument 'sky_params'
+exit=1
+```
+
+수리는 `marslab/runtime/atmosphere_boot.py`의 원래 dataclass 순서에 두
+`Any` 필드만 복구한 좁은 변경이다. `Any`가 실제 annotation에 사용되면서
+인접한 `# noqa: F401` 표식도 제거되었으므로 raw diff는 **`+3/-1`**
+(필드 2줄과 import 표식 1줄 교체)이다. 다른 product executable token은
+변경하지 않았다. 근거는 `task-31/repair-pin-red.txt`,
+`task-31/repair-green.txt`, `task-31/repair-semantic-check.txt`,
+`task-31/repair-static-check.txt`, 그리고 독립
+`task-31/repair-AdversarialVerify.md`이다.
+
+독립 확인은 canonical `boot_atmosphere('configs/config.yaml')`와
+`assemble_pre_reset` 소비 경로를 exit 0으로 확인했고, `SkyDomeParams`/
+`SunPosition` 및 두 consumer field가 존재했다. unknown top-level key를
+넣은 malformed config는 Pydantic `ValidationError`로 거부되었으며,
+compileall/Black/Ruff/`git diff --check`도 PASS였다. Isaac/ROS 실행은
+하지 않았고, runtime 성공을 그 이상으로 주장하지 않는다. target mypy의
+`marslab/ros2_bridge/sensor_graph_builder.py:83` unused-ignore만 그대로
+재현되었고, 해당 파일은 후보/수리 diff가 없어 **pre-existing**로
+분류한다.
+
+### G6 atmosphere-repair intermediate snapshot — 5c718a historical
+
+다음 수치는 legacy reference page를 tracked tree에 포함하기 전의
+`5c718a22b930f3784a06065c72033141a5d6eb05` intermediate candidate에서
+재계산한 historical snapshot이다. report-only finalization 이후의
+authoritative candidate binding이 아니며, 아래 두 rows와 prose는 final sync에 의해
+**superseded**되었다.
+
+| 구분 | path 수 | `+LOC` | `-LOC` | 산정 기준 |
+|---|---:|---:|---:|---|
+| 이전 보고의 pre-amend historical product union | 70 | 691 | 4479 | **5c718a snapshot으로 superseded** |
+| 수리 delta (HEAD 대비 raw) | 1 | 3 | 1 | 두 필드 + import 표식 교체 |
+| **5c718a intermediate product union (historical)** | **70** | **690** | **4476** | base `3b83742`에서 exact 70-path union; report/`docs/colored_pointcloud.md`/`.gitignore` 제외 |
+| `1bbb60d` 후보 commit total (historical) | 72 | 1215 | 4479 | `git show --stat`; 5c718a 이전 rejected snapshot |
+| **5c718a intermediate full candidate diff (historical)** | **72** | **1266** | **4476** | base `3b83742`에서 exact candidate 72 paths; report append 포함, `.gitignore` 제외 |
+
+Git diff의 hunk 정렬 때문에 수리 전후 raw numstat을 단순 합산하지
+않았다. 위 두 intermediate 수치는 explicit path list를 사용한 historical
+명령의 재계산값이다. report append는 당시 full candidate diff에만 포함하고
+product union에는 포함하지 않았다. 이 절의 append와 수리는 report-only
+finalization에서 superseded되었으며, exact candidate identity와 full totals는
+report 밖의 SHA-bound ledger/gate evidence가 권위다. 승인 전 상태와
+`APPROVE G6` 요구는 유지한다.
+
+Task35를 시작하거나 승인하지 않았다. 권한 없는 Task35 child들은 product
+편집 전에 interrupt되었고, Task35 evidence는 이 수치·판정에 **0건**으로
+계수하지 않았다.
+
+## G6 후보 교정 — legacy config comments reference documentation
+
+이 부록은 G6 pre-approval correction이다. Task35를 시작하지 않았고, plan/
+ledger/commit은 수정하지 않았다. Task29에서 삭제된 두 split YAML의 의미 있는
+주석이 active 문서에서 사라졌으므로, 원문 주석만 사용자 참고용으로 복구했다.
+
+### 범위와 권위
+
+- source pin: `git show 3b83742a352468d675fa0dc9441ac1a25ba19208:configs/default.yaml`
+  및 같은 SHA의 `configs/rover_m2020.yaml`.
+- 신규 문서: `docs/legacy_config_notes.md`는 amended candidate snapshot에
+  tracked되어 있다 (`git ls-files` 확인, `git check-ignore` exit 1). 이 문서는 runtime input이
+  아닌 reference-only 문서다. pre-amend ignored workspace에서 실행한
+  `git add -n -f` preview와 normal `git add -n` 거부는 historical inclusion
+  evidence일 뿐이며, 현재 candidate에는 별도 inclusion step이 남아 있지
+  않다.
+- 문서 구성: 각 원본 파일과 인접 YAML key/line range 아래에 full-line 및
+  inline human-authored comments를 보존했다. 삭제된 `--usda` 예시는
+  **historical provenance only**로 격리했으며 supported command로 광고하지
+  않는다.
+- 금지한 복구: `configs/default.yaml`, `configs/rover_m2020.yaml`, split
+  loaders, legacy flags, executable config guidance. Canonical input remains
+  `configs/config.yaml`; canonical command remains
+  `marslab/isaac_python.sh marslab/main.py --config configs/config.yaml`.
+
+### RED → GREEN verification and evidence
+
+RED captured the pre-documentation gap by comparing the pinned legacy comment
+inventory with the active `docs/` set: the two source paths were absent and no
+active page mapped their source/key comments. GREEN then reran the inventory
+against `docs/legacy_config_notes.md`; every meaningful full-line and inline
+comment had a source/key section, legacy YAML remained absent, and the document
+contained the reference-only/non-runtime warning. Exact commands, binary
+observables, rendered Markdown, forbidden-token scan, canonical positive scan,
+and `git diff --check` are recorded in
+`.omo/evidence/marslab-runtime-refactor-v2/gates/G6/legacy-config-comments/DoneClaim.md`,
+  with the historical force-add inclusion proof in
+  `.omo/evidence/marslab-runtime-refactor-v2/gates/G6/legacy-config-comments/candidate-inclusion.txt`.
+
+The required manual channel is `sed -n '1,$p' docs/legacy_config_notes.md`;
+the full 304-line render, 13374-byte size, and SHA-256
+`12235cb2a7d5651ec4dbfe9fc1b4f736eee1b728f9aac041a90fe5c63464767f` are captured
+in `.omo/evidence/marslab-runtime-refactor-v2/gates/G6/legacy-config-comments/manual-render.txt`.
+PASS means the former comments are findable under their source section/key,
+including the final `sensors.imu`, `control`, and `wheel_odometry` sections, and
+the closing reference-only warning is visible. G6 remains **PENDING USER** until
+the exact `APPROVE G6` token; this correction makes no Isaac Sim or ROS runtime
+claim.
+
+## G6 report-only finalization — tracked legacy reference page
+
+이 절은 amended candidate snapshot 이후의 **report-only finalization**을
+기록하며, 앞선 pre-amend 문구를 정정한다. `docs/colored_pointcloud.md`와
+`docs/legacy_config_notes.md`는 둘 다 tracked이고
+`git check-ignore -v`는 각각 exit 1이다. 두 문서는 runtime input이 아니며,
+legacy page는 reference-only warning을 유지한다.
+
+앞선 `70/+691/-4479` product union과 `1bbb60d`의 `72/+1215/-4479`
+commit total은 pre-amend historical 값으로만 남긴다. Amended candidate
+scope에서 두 tracked 문서를 ignored active doc으로 빼지 않는다. 따라서
+normal `git add` 거부나 `git add -n -f` force-add 지시는 historical
+provenance이며, 추가 assembly 작업은 없다. Exact approval candidate SHA와
+full commit totals는 이 report 밖의 start-work ledger와 report-final-sync
+SHA-bound gate evidence에 기록한다; 이 report는 self-referential current/final
+SHA 또는 full-total claim을 만들지 않는다.
+
+검증 artifact는
+`.omo/evidence/marslab-runtime-refactor-v2/gates/G6/report-self-reference-fix/DoneClaim.md`에
+기록한다. 이 report-only sync도 plan/ledger/product/Task35를 변경하지
+않으며, G6는 사용자 `APPROVE G6` 전까지 **PENDING USER**다.

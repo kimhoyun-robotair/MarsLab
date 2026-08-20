@@ -1,47 +1,47 @@
-# ROS 2 BRIDGE GUIDE
+# ROS 2 bridge guide
 
-## OVERVIEW
+`marslab.ros2_bridge` is the runtime-only boundary between Isaac/OmniGraph
+outputs and optional rclpy publishers. The supported user launch is:
 
-This package connects Isaac/OmniGraph sensor output and optional `rclpy` nodes
-to ROS 2. It is a runtime-only boundary, not an import requirement for CPU tests.
+```bash
+marslab/isaac_python.sh marslab/main.py --config configs/config.yaml
+```
 
-## WHERE TO LOOK
+Start `launch/rover_state_publisher.launch.py` separately when the companion
+articulation publisher is required; keep it in a ROS environment separate from
+the Isaac Python process.
+
+## Ownership contract
+
+- Isaac-side graph publishing carries `/clock`, command input, Camera outputs,
+  raw IMU, 3-D LiDAR, and joint states when ROS is enabled.
+- rclpy publishers carry robot description, noisy IMU, evaluation ground truth,
+  and wheel odometry.
+- Ground truth is topic-only `map`/`base_link_gt` on the configured trajectory
+  topic. Wheel odometry is `odom`/`base_link`; only
+  `wheel_odom.publish_tf=true` makes it the MarsLab dynamic TF owner.
+- The companion launch owns exactly one identity static TF
+  `base_link`→`Body_Chassis`. Its articulation publisher owns the chain below
+  `Body_Chassis`; MarsLab's static sensor broadcaster owns only Camera, IMU,
+  and 3-D LiDAR children below that root.
+
+## Where to look
 
 | Task | Location | Notes |
 |---|---|---|
-| Build OmniGraph sensor graphs | `sensor_graph.py`, `sensor_graph_builder.py` | Keep graph/schema paths aligned. |
-| Translate QoS | `qos.py` | One validated config maps to rclpy profiles and Isaac JSON. |
-| Initialize optional rclpy | `rclpy_integration.py` | Called only after Isaac startup. |
-| Publish TF/odometry | `tf_broadcaster.py`, `odometry_publisher.py` | Respect single-owner transform rule. |
-| Pure bridge math | `odometry_math.py` | Keep it CPU-testable. |
-| Publish description | `robot_description_publisher.py` | Companion to the external state publisher launch. |
-| Configure QoS | `../config/schema/ros2_bridge.py` | Source of bridge config shape. |
+| OmniGraph construction | `sensor_graph.py`, `sensor_graph_builder.py` | Keep retained acquisition handles and graph paths aligned. |
+| QoS mapping | `qos.py`, `../config/schema/rover_ros2.py` | One validated config maps to runtime profiles. |
+| rclpy setup | `rclpy_integration.py`, `rclpy_publishers.py` | Open only after Isaac startup and close in reverse order. |
+| TF and odometry | `tf_broadcaster.py`, `odometry_publisher.py`, `wheel_odometry_publisher.py` | Preserve one owner per edge and distinct GT/Wheel topics. |
+| Description companion | `robot_description_publisher.py`, `../../launch/` | Keep URDF publication with the external articulation publisher. |
 
-## CONVENTIONS
+## Rules
 
-- Keep Isaac/Omni/rclpy imports deferred; use mocks or skips for bindings in unit
-  tests.
-- Maintain the split between Isaac-side graph publishing and the rclpy side.
-- Keep `sensor_graph_builder.py` pure; its shared camera render product keeps
-  RGB, depth, point cloud, and camera-info timestamps aligned.
-- Preserve seeded noise determinism and bridge validation for prim paths and
-  wheel geometry.
-- The separate ROS terminal runs `launch/rover_state_publisher.launch.py`; Isaac
-  itself uses the environment isolated by `marslab/isaac_python.sh`.
-
-## ANTI-PATTERNS
-
-- Isaac publishes joint states and the external `robot_state_publisher` owns the
-  articulation chain below `Body_Chassis`. The companion launch owns the sole
-  identity `base_link` to `Body_Chassis` connector.
-- Do not source system ROS into the Isaac Python process.
-- Do not revive deprecated sensor Path A imports (`camera`, `imu`, `lidar`).
-
-## CHECKS
-
-```bash
-pytest tests/unit/test_ros2_bridge_structure.py tests/unit/test_sensor_graph.py -q
-pytest tests/unit/test_tf_extrinsic_consistency.py tests/unit/test_odometry_publisher.py -q
-pytest tests/unit/test_sensor_graph_builder.py tests/unit/test_ros2_qos_config.py -q
-pytest tests/unit/test_ros2_bridge_lazy_import.py tests/unit/test_tf_nameoverrides.py -q
-```
+- Defer Isaac, Omni, and live rclpy imports; keep pure bridge math importable
+  without runtime bindings.
+- Preserve shared Camera timing, seeded noise, configured prim paths, frame IDs,
+  and QoS settings.
+- Keep comments concise and state producer, consumer, or ownership only.
+- Agent checks are static/offline. User-only Isaac/ROS runtime validation must
+  use the canonical command above, and no agent claims topics, TF, QoS, clock,
+  or cleanup behavior without a user observation.

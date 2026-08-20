@@ -1,4 +1,6 @@
-"""Wheel-encoder dead-reckoning publisher with slip + Gaussian noise."""
+"""Integrate wheel encoders into operational odometry messages.
+The optional publisher owns the dynamic odom-to-base transform.
+ROS bindings are loaded only when the runtime bridge starts."""
 
 from __future__ import annotations
 

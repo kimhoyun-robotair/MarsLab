@@ -1,3 +1,7 @@
+"""Define strict Pydantic settings and reusable scalar aliases.
+Annotated types centralize range and string constraints.
+The schema layer remains offline-importable."""
+
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints

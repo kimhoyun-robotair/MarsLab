@@ -1,9 +1,6 @@
-"""Pre-reset scene assembly for the Isaac Sim runtime.
-
-The module owns the concrete scene-to-reset sequence while remaining offline
-importable. Isaac and Omni-dependent project calls are deferred until the
-assembly function runs.
-"""
+"""Assemble the pre-reset Isaac scene from typed runtime inputs.
+The phase creates world, rover, and mandatory sensors once.
+Runtime imports remain deferred until the simulator boundary."""
 
 from __future__ import annotations
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Config-driven MarsLab runtime entry point."""
+"""Run MarsLab from one validated configuration document.
+The entry point sequences startup, loop execution, and cleanup.
+Isaac and ROS boundaries open only after preflight."""
 
 from __future__ import annotations
 

@@ -1,26 +1,6 @@
-"""Rover DriveAPI and PD-gain facade.
-
-The four functions below — ``resolve_joint_indices``,
-``_apply_drive_api``, ``configure_drives``, ``reinforce_pd_gains`` —
-provide the runtime scripts with a focused module for rover drive
-configuration.  ``marslab/robots/rover.py`` re-exports each name to
-preserve existing imports (``from marslab.robots.rover import
-configure_drives``).
-
-Ordering contract (critical — PhysX tensor-cache semantics):
-
-1. :func:`configure_drives` MUST run **pre-reset**.  PhysX synchronises
-   USD DriveAPI attributes into its tensor cache only at the
-   ``world.reset()`` boundary; any attribute writes after reset are
-   silently dropped.
-2. :func:`reinforce_pd_gains` MUST run **post-reset**.  Only the
-   ``articulation.set_gains`` tensor path propagates to the running
-   PhysX simulation; USD-level writes at that point are ignored.
-
-The two stages are intentionally two separate callables so the caller
-can interleave them around ``world.reset()`` and the physics warm-up
-step loop.
-"""
+"""Configure rover joint drives before and after physics reset.
+DriveAPI writes precede reset while tensor gains follow reset.
+Joint-index resolution remains pure for offline callers."""
 
 from __future__ import annotations
 
@@ -30,11 +10,7 @@ import numpy as np
 
 
 def resolve_joint_indices(dof_names: List[str], requested: List[str]) -> List[int]:
-    """Resolve each requested joint name to its index in ``dof_names``.
-
-    Raises:
-        ValueError: If any requested joint is not present.
-    """
+    """Resolve each requested joint name to its index in ``dof_names``."""
     name_to_index = {name: idx for idx, name in enumerate(dof_names)}
     missing = [name for name in requested if name not in name_to_index]
     if missing:
@@ -53,13 +29,7 @@ def _apply_drive_api(
     max_force: float,
     drive_type: str,
 ) -> bool:
-    """Create or update the angular DriveAPI on a single revolute joint.
-
-    Ordering note: called exclusively from :func:`configure_drives`, which
-    MUST run **pre-reset** — PhysX syncs USD DriveAPI attributes to its
-    tensor cache only at the ``world.reset()`` boundary.  Post-reset
-    writes through this helper are silently ignored by PhysX.
-    """
+    """Create or update the angular DriveAPI on a single revolute joint."""
     from pxr import Sdf, UsdPhysics
 
     joint_prim = stage.GetPrimAtPath(joint_path)
@@ -87,21 +57,11 @@ def configure_drives(
     chassis_path: str,
     control_cfg: Dict[str, Any],
 ) -> None:
-    """Apply DriveAPI attributes to drive / steer / suspension joints.
-
-    Ordering note: MUST be called **BEFORE** ``world.reset()`` because
-    PhysX syncs USD drive attributes to tensors only at the reset
-    boundary; later writes are ignored by the tensor cache.  Post-reset
-    gain reinforcement still runs through ``articulation.set_gains`` --
-    see :func:`reinforce_pd_gains` for the post-reset counterpart.
-    """
+    """Apply DriveAPI attributes to drive / steer / suspension joints."""
     drive_joint_names = list(control_cfg["drive_joint_names"])
     steer_joint_names = list(control_cfg["steer_joint_names"])
     suspension_names = list(control_cfg["suspension_joint_names"])
 
-    # All keys below are required in the ``control:`` block.
-    # ``SkidSteerDriveConfig`` validates at load time so a missing YAML
-    # key raises ``KeyError`` rather than silently substituting a literal.
     drive_damping = float(control_cfg["drive_damping"])
     drive_max_force = float(control_cfg["drive_max_force"])
     steer_stiffness = float(control_cfg["steer_stiffness"])
@@ -113,7 +73,6 @@ def configure_drives(
     joints_scope = f"{chassis_path}/joints"
 
     for jname in drive_joint_names:
-        # Velocity mode: stiffness=0, damping=high.
         _apply_drive_api(
             stage,
             f"{joints_scope}/{jname}",
@@ -124,7 +83,6 @@ def configure_drives(
         )
 
     for jname in steer_joint_names:
-        # Position mode: stiffness=high, damping=moderate.
         _apply_drive_api(
             stage,
             f"{joints_scope}/{jname}",
@@ -136,7 +94,6 @@ def configure_drives(
 
     if suspension_damping > 0.0:
         for jname in suspension_names:
-            # Damped passive joint: stiffness=0, damping>0.
             _apply_drive_api(
                 stage,
                 f"{joints_scope}/{jname}",
@@ -152,22 +109,11 @@ def reinforce_pd_gains(
     control_cfg: Dict[str, Any],
     dof_names: List[str],
 ) -> None:
-    """Reinforce PD gains into the PhysX tensors after ``world.reset``.
-
-    Ordering note: MUST be called **AFTER** ``world.reset()`` -- only
-    the tensor-cache path (``articulation.set_gains``) propagates to
-    the running PhysX simulation.  ``articulation.set_effort_modes``
-    only touches USD, so post-reset ``set_gains`` is the only path
-    that propagates to the tensor cache.  The caller is expected to
-    run the warm-up sequence (10-step physics warmup + play timeline,
-    see ``marslab/main.py``) immediately before calling this helper.
-    """
+    """Reinforce PD gains into the PhysX tensors after ``world.reset``."""
     drive_joint_names = list(control_cfg["drive_joint_names"])
     steer_joint_names = list(control_cfg["steer_joint_names"])
     suspension_names = list(control_cfg["suspension_joint_names"])
 
-    # See ``configure_drives``; all required keys validated by
-    # ``SkidSteerDriveConfig`` at load time.
     drive_damping = float(control_cfg["drive_damping"])
     steer_stiffness = float(control_cfg["steer_stiffness"])
     steer_damping = float(control_cfg["steer_damping"])

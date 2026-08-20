@@ -1,4 +1,6 @@
-"""Isaac Sim IMU creation and live-handle projection."""
+"""Create and initialize the rover IMU sensor.
+Mars gravity is checked before the prim is attached.
+The returned handle is independent of ROS transport."""
 
 from __future__ import annotations
 

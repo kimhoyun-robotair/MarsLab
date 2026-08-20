@@ -1,3 +1,7 @@
+"""Define validated rover spawn, physics, control, and odometry fields.
+The model delegates sensor and ROS subtrees to domain schemas.
+Strictness prevents runtime configuration drift after parsing."""
+
 from pathlib import Path
 from typing import Literal
 

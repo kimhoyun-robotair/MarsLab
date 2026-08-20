@@ -1,46 +1,6 @@
-"""QoS profile adapter: pydantic ``QoSProfileConfig`` -> ``rclpy.qos.QoSProfile``.
-
-Isolated in its own module so the rest of the bridge can stay
-Isaac-Sim-runtime-focused: the ``rclpy.qos`` imports live inside the
-function body and are therefore evaluated only when the runtime
-actually spins up rclpy.  Unit tests that import
-:mod:`marslab.ros2_bridge.qos` without rclpy on the PYTHONPATH will
-succeed at import time and fail only if they call
-:func:`to_rclpy_qos`.
-
-QoS profile plumbing flows through every publisher / subscriber in the
-bridge.  The adapter here is the single conversion point so the
-mapping
-
-    reliability: "reliable" | "best_effort"
-    durability:  "volatile" | "transient_local"
-    history:     "keep_last" | "keep_all"
-    depth:       int
-
-is declared in one place.  The OmniGraph side (Isaac Sim ROS2 bridge
-helper nodes) accepts the ``inputs:qosProfile`` string as a
-**JSON-encoded QoS dict** matching the schema produced by
-``isaacsim.ros2.bridge.ROS2QoSProfile``.  The schema (verified at
-``isaacsim/ros2/bridge/ogn/python/nodes/OgnROS2QoSProfile.py:101-113``,
-Isaac Sim 5.1) is::
-
-    {"history": "keepLast" | "keepAll" | "systemDefault" | "unknown",
-     "depth": <uint64>,
-     "reliability": "reliable" | "bestEffort" | "systemDefault" | "unknown",
-     "durability": "volatile" | "transientLocal" | "systemDefault" | "unknown",
-     "deadline": <double seconds>,
-     "lifespan": <double seconds>,
-     "liveliness": "automatic" | "manualByTopic" | "systemDefault",
-     "leaseDuration": <double seconds>}
-
-:func:`to_omnigraph_qos_json` returns the proper JSON encoding so the
-downstream OmniGraph C++ writer parses it cleanly.  An earlier
-implementation returned bare preset names (``"SystemDefault"``,
-``"SensorData"``); the writer ran ``json.loads("SystemDefault")`` on
-every step and emitted ``Parsing error: ... last read: 'S'`` to
-stderr.  The bare-name path was non-fatal but produced thousands of
-log lines per session, drowning out other diagnostics.
-"""
+"""Translate validated QoS settings for rclpy and OmniGraph.
+One adapter owns reliability, durability, history, and depth mapping.
+ROS imports stay deferred until conversion is requested."""
 
 from __future__ import annotations
 
@@ -57,11 +17,6 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-# Module-level latch: emit the ``transient_local`` warning once per
-# process so callers iterating over many sensor topics (or the schema
-# default tf_qos firing on every scenario load) do not flood the log
-# with the same advisory.  Reset by tests via
-# ``marslab.ros2_bridge.qos._reset_transient_local_warned()`` if needed.
 _transient_local_warned = False
 
 
@@ -72,26 +27,7 @@ def _reset_transient_local_warned() -> None:
 
 
 def to_rclpy_qos(cfg: QoSProfileConfig) -> Any:
-    """Return a ``rclpy.qos.QoSProfile`` built from ``cfg``.
-
-    rclpy is imported lazily so this module stays importable without
-    the ROS 2 distro on PYTHONPATH.  Tests that exercise the mapping
-    logic should use ``pytest.importorskip("rclpy")`` or monkey-patch
-    ``sys.modules["rclpy.qos"]`` before calling.
-
-    Args:
-        cfg: The validated :class:`QoSProfileConfig` from the scenario
-            YAML.  The string fields are already constrained by
-            ``Literal[...]`` on the schema so no further validation is
-            needed here.
-
-    Returns:
-        A ``rclpy.qos.QoSProfile`` instance.  Typed as ``Any`` because
-        the return type depends on the lazily-imported rclpy module.
-    """
-    # Runtime-only import keeps the module import surface pure-Python.
-    # Callers that do not have rclpy (unit tests) should never reach
-    # this line in the first place.
+    """Return a ``rclpy.qos.QoSProfile`` built from ``cfg``."""
     from rclpy.qos import (  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
         DurabilityPolicy,
         HistoryPolicy,
@@ -121,39 +57,7 @@ def to_rclpy_qos(cfg: QoSProfileConfig) -> Any:
 
 
 def to_omnigraph_qos_json(cfg: QoSProfileConfig) -> str:
-    """Build the JSON-encoded QoS dict for Isaac Sim ``inputs:qosProfile``.
-
-    Isaac Sim's ``isaacsim.ros2.bridge`` helper nodes (``ROS2PublishImu``,
-    ``ROS2CameraHelper``, ``ROS2RtxLidarHelper``,
-    ``ROS2PublishRawTransformTree``) expose a string ``qosProfile``
-    input.  The string is parsed as JSON by the C++ writer matching
-    the schema produced by ``OgnROS2QoSProfile``
-    (``isaacsim/ros2/bridge/ogn/python/nodes/OgnROS2QoSProfile.py:101-113``,
-    Isaac Sim 5.1).
-
-    Mapping from MarsLab schema to Isaac Sim QoS JSON keys:
-
-    * ``reliability``: ``"reliable"`` → ``"reliable"``,
-      ``"best_effort"`` → ``"bestEffort"`` (camelCase).
-    * ``durability``: ``"volatile"`` → ``"volatile"``,
-      ``"transient_local"`` → ``"transientLocal"``.
-    * ``history``: ``"keep_last"`` → ``"keepLast"``,
-      ``"keep_all"`` → ``"keepAll"``.
-    * ``depth``: passed through.
-    * ``deadline`` / ``lifespan`` / ``leaseDuration``: 0.0 (no policy).
-    * ``liveliness``: ``"systemDefault"`` (this knob is intentionally
-      not surfaced in YAML).
-
-    Args:
-        cfg: The validated :class:`QoSProfileConfig`.
-
-    Returns:
-        A JSON-encoded string suitable for direct assignment to
-        ``inputs:qosProfile`` on any of the Isaac Sim ROS2 helper
-        nodes.  Single-line, deterministic key order (alphabetical via
-        ``sort_keys=True``) so identical configs produce identical
-        strings, which keeps unit tests stable.
-    """
+    """Build the JSON-encoded QoS dict for Isaac Sim ``inputs:qosProfile``."""
     global _transient_local_warned
 
     reliability_map = {"reliable": "reliable", "best_effort": "bestEffort"}

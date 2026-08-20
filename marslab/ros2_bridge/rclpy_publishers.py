@@ -1,3 +1,7 @@
+"""Construct publisher setups and their validated QoS bundle.
+Each factory exposes the narrow handle used by runtime orchestration.
+ROS bindings remain local to the runtime call path."""
+
 from __future__ import annotations
 
 from collections.abc import Iterable

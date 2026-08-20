@@ -1,4 +1,6 @@
-"""Isaac Sim RTX 3D LiDAR creation and point-cloud acquisition."""
+"""Create the RTX 3-D LiDAR and point-cloud acquisition handle.
+Profile resolution and runtime overrides stay in this spawner.
+Isaac imports are deferred to runtime calls."""
 
 from __future__ import annotations
 

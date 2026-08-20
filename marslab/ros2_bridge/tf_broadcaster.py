@@ -1,29 +1,11 @@
-"""Static TF publisher for sensor frames.
-
-Sensor prims (camera, LiDAR, IMU) are created by MarsLab in Isaac Sim
-after URDF import, so the external robot-state-publisher articulation
-chain does not include their static offsets.  SLAM stacks need these frames.
-This module publishes a one-shot ``/tf_static`` batch covering every
-sensor declared in the rover YAML.
-
-Sensor translations and orientations are authored in the REP-103
-``Body_Chassis`` frame and published unchanged. The companion launch
-provides the sole identity ``base_link -> Body_Chassis`` connector.
-"""
+"""Publish static TF for chassis-mounted sensor frames.
+Camera optical orientation is represented explicitly in transforms.
+ROS and NumPy dependencies stay deferred where runtime-only."""
 
 from __future__ import annotations
 
 from typing import Any, Iterable, List, Optional, Sequence, Tuple, Union
 
-# Sensor frame spec.  Two shapes accepted:
-#
-# * 2-tuple ``(child_frame_id, xyz)`` -- broadcasts with identity
-#   rotation.  Used when the YAML omits ``local_orientation_rpy_deg``.
-# * 3-tuple ``(child_frame_id, xyz, rpy_deg)`` -- applies
-#   ``local_orientation_rpy_deg`` from the rover YAML into the
-#   broadcast quaternion so the ROS frame chain matches the USD prim
-#   orientation set by ``marslab.sensors.sensor_spawner`` in the
-#   REP-103 ``Body_Chassis`` chain.
 SensorFrameSpec = Union[
     Tuple[str, Sequence[float]],
     Tuple[str, Sequence[float], Sequence[float]],
@@ -35,18 +17,7 @@ def build_static_sensor_transforms(
     sensor_frames: Iterable[SensorFrameSpec],
     parent_frame_id: str = "Body_Chassis",
 ) -> List[Any]:
-    """Return a list of ``TransformStamped`` messages for static TF.
-
-    Each ``SensorFrameSpec`` may be a 2-tuple ``(child_frame, xyz)``
-    (identity rotation) or a 3-tuple ``(child_frame, xyz, rpy_deg)``
-    (applies the YAML ``local_orientation_rpy_deg`` so the ROS frame
-    matches the USD prim orient set by
-    ``marslab.sensors.sensor_spawner``).
-
-    Kept separate from :func:`publish_static_sensor_tfs` so callers
-    can inspect or mutate the transforms before broadcast (e.g. for
-    unit tests that inject a fake ``TransformStamped``).
-    """
+    """Return a list of ``TransformStamped`` messages for static TF."""
     import math  # noqa: PLC0415  -- stdlib, deferred to keep parity with msg import
 
     from geometry_msgs.msg import (
@@ -80,12 +51,6 @@ def build_static_sensor_transforms(
         msg.transform.translation.x = float(local_t[0])
         msg.transform.translation.y = float(local_t[1])
         msg.transform.translation.z = float(local_t[2])
-        # Convert YAML ``local_orientation_rpy_deg`` (degrees, ZYX
-        # intrinsic) into the broadcast quaternion.  ``rpy_to_quat``
-        # returns scalar-first (w, x, y, z); ``geometry_msgs/Quaternion``
-        # is scalar-last so unpack accordingly.  yaml ``[0, 0, 0]``
-        # produces the identity quat -- equivalent to the 2-tuple
-        # call-site result.
         qw, qx, qy, qz = rpy_to_quat(
             math.radians(float(rpy_deg[0])),
             math.radians(float(rpy_deg[1])),
@@ -103,33 +68,7 @@ def build_camera_optical_frame_transform(
     camera_frame_id: str = "camera_link",
     optical_frame_id: str = "camera_optical_frame",
 ) -> Any:
-    """Return ``TransformStamped`` from ``camera_link`` to optical frame.
-
-    RGB / Depth images and PointCloud2 from Isaac Sim's
-    ``ROS2CameraHelper`` come out in the **optical frame convention**
-    (Z forward, X right, Y down -- REP-105).  Without a separate
-    optical frame, RViz would show the point cloud rotated 90° because
-    the frame label would not match the data layout.
-
-    This helper publishes the canonical ROS rotation that maps
-    ``camera_link`` → ``camera_optical_frame``.  Image / depth /
-    pointcloud frame_ids should reference ``camera_optical_frame`` so
-    downstream consumers (RViz, ``image_pipeline``,
-    ``depth_image_proc``) interpret the data correctly.
-
-    Rotation: RPY = (-π/2, 0, -π/2) (intrinsic ZYX), matching
-    ``tf_transformations.quaternion_from_euler(-1.5708, 0, -1.5708)``
-    = (x, y, z, w) = (-0.5, 0.5, -0.5, 0.5).
-
-    Args:
-        camera_frame_id: Parent frame name (the REP-103 mount frame).
-            Defaults to ``"camera_link"``.
-        optical_frame_id: Child frame name.  Defaults to
-            ``"camera_optical_frame"``.
-
-    Returns:
-        A populated ``geometry_msgs/TransformStamped``.
-    """
+    """Return ``TransformStamped`` from ``camera_link`` to optical frame."""
     from geometry_msgs.msg import (
         TransformStamped,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
@@ -154,33 +93,12 @@ def publish_static_sensor_tfs(
     *,
     qos: Optional[Any] = None,
 ) -> Any:
-    """Publish ``/tf_static`` for each ``(child_frame, xyz)`` pair.
-
-    Args:
-        node: ``rclpy.node.Node`` used to create the
-            ``StaticTransformBroadcaster``.
-        sensor_frames: Iterable of ``(child_frame_id, xyz)`` pairs.
-        parent_frame_id: Parent frame for all transforms.
-        qos: Optional ``rclpy.qos.QoSProfile`` forwarded to the
-            ``tf2_ros.StaticTransformBroadcaster`` constructor.
-            ``StaticTransformBroadcaster`` takes a ``qos`` keyword
-            argument in tf2_ros >= 0.25 (Humble+).  When ``None`` the
-            tf2_ros default (RELIABLE + TRANSIENT_LOCAL + KEEP_LAST
-            100) is used -- late-joining subscribers still latch the
-            transforms.
-
-    Returns:
-        The :class:`tf2_ros.StaticTransformBroadcaster` kept alive so
-        the caller can hold a reference (the node does not own it).
-    """
+    """Publish ``/tf_static`` for each ``(child_frame, xyz)`` pair."""
     from tf2_ros import (
         StaticTransformBroadcaster,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
     if qos is not None:
-        # tf2_ros older than 0.25 does not accept a ``qos`` keyword;
-        # fall back so MarsLab boots on a mismatched install rather
-        # than crashing at startup.
         try:
             broadcaster = StaticTransformBroadcaster(node, qos=qos)
         except TypeError:
@@ -188,11 +106,6 @@ def publish_static_sensor_tfs(
     else:
         broadcaster = StaticTransformBroadcaster(node)
     msgs = build_static_sensor_transforms(sensor_frames, parent_frame_id)
-    # Publish camera_optical_frame as a child of camera_link so RViz /
-    # image_pipeline / depth_image_proc consume PointCloud2 in the
-    # optical convention they expect.  Driven by the actual broadcast
-    # list (msgs) so this works whether the caller passed a list, a
-    # generator, or any other Iterable.
     if any(m.child_frame_id == "camera_link" for m in msgs):
         msgs.append(build_camera_optical_frame_transform("camera_link", "camera_optical_frame"))
     broadcaster.sendTransform(msgs)
