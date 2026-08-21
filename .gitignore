@@ -59,6 +59,7 @@ figure/
 
 # Agent (Including Claude Code and Codex) harness e,g, share .claude/agents and .claude/skills,
 # hide personal state and workspace
+AGENTS.md
 .claude/settings.local.json
 .claude/.cache/
 .claude/logs/
