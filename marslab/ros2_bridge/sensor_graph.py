@@ -61,7 +61,7 @@ def build_sensor_graph(
     topics = dict(ros2_cfg["topics"])
     options = _resolve_ros2_bridge_options(ros2_cfg)
     graph_path = options.graph_path
-    sensor_preset, tf_preset = _build_qos_presets(options)
+    sensor_preset, joint_state_preset = _build_qos_presets(options)
     camera_render_product_path = camera_acquisition.render_product_path
     if not camera_render_product_path:
         raise ValueError("Camera render-product path must be non-empty")
@@ -80,7 +80,7 @@ def build_sensor_graph(
                 lidar_3d_render_product_path=lidar_3d_acquisition.render_product_path,
                 articulation_root_prim_path=articulation_root_prim_path,
                 sensor_qos_preset=sensor_preset,
-                tf_qos_preset=tf_preset,
+                joint_state_qos_preset=joint_state_preset,
             ),
         },
     )
@@ -151,7 +151,10 @@ def _build_qos_presets(options: Any) -> Tuple[str, str]:
         to_omnigraph_qos_json,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
-    return to_omnigraph_qos_json(options.sensor_qos), to_omnigraph_qos_json(options.tf_qos)
+    return (
+        to_omnigraph_qos_json(options.sensor_qos),
+        to_omnigraph_qos_json(options.joint_state_qos),
+    )
 
 
 __all__ = [

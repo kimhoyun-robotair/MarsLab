@@ -100,7 +100,7 @@ def _nearest_k_median_z(
     points = UsdGeom.Mesh(mesh_prim).GetPointsAttr().Get()
     if points is None or len(points) == 0:
         raise RuntimeError(
-            f"Mesh {mesh_prim.GetPath()} has no authored points; cannot sample " "DEM elevation."
+            f"Mesh {mesh_prim.GetPath()} has no authored points; cannot sample DEM elevation."
         )
     local_to_world = UsdGeom.XformCache(Usd.TimeCode.Default()).GetLocalToWorldTransform(mesh_prim)
     matrix = np.array(local_to_world, dtype=np.float64)
@@ -301,6 +301,7 @@ def assemble_pre_reset(
         stage,
         sensors_config,
         spawned_rover.rigid_body_path,
+        atmosphere_init.gravity,
     )
 
     sensor_graph = None

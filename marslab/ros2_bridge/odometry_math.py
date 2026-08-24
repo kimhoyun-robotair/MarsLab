@@ -13,9 +13,7 @@ All quaternions use the ``[w, x, y, z]`` (scalar-first) convention
 matching Isaac Sim's articulation API and ROS2 ``geometry_msgs/Quaternion``
 field order.
 
-Every helper is deterministic, side-effect free, and built on NumPy
-only so that ``tests/unit/`` can validate it headlessly (offline-first
-testing requirement).
+Every helper is deterministic, side-effect free, and built on NumPy.
 """
 
 from __future__ import annotations
@@ -24,44 +22,7 @@ from typing import Tuple
 
 import numpy as np
 
-from marslab.quaternion import quat_inverse, quat_multiply, quat_rotate_vec
-
-
-def compute_odom_delta(
-    cur_pos_world: np.ndarray,
-    cur_quat_world: np.ndarray,
-    init_pos_world: np.ndarray,
-    init_quat_world: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Convert a world-frame rover pose into odom-frame pose.
-
-    The odom frame is defined as the initial world pose.  Given current
-    and initial poses, returns the pose expressed relative to that
-    initial frame — exactly what ``nav_msgs/Odometry`` expects in its
-    ``pose.pose`` field.
-
-    Args:
-        cur_pos_world: Current rover position in world frame, shape ``(3,)``.
-        cur_quat_world: Current rover orientation in world frame,
-            shape ``(4,)`` scalar-first.
-        init_pos_world: Initial rover position in world frame, shape ``(3,)``.
-        init_quat_world: Initial rover orientation in world frame,
-            shape ``(4,)`` scalar-first.
-
-    Returns:
-        Tuple of ``(delta_pos_odom, delta_quat_odom)``:
-            * ``delta_pos_odom`` shape ``(3,)`` — position in odom frame.
-            * ``delta_quat_odom`` shape ``(4,)`` — orientation in odom frame.
-    """
-    cur_pos_world = np.asarray(cur_pos_world, dtype=np.float32)
-    init_pos_world = np.asarray(init_pos_world, dtype=np.float32)
-    if cur_pos_world.shape != (3,) or init_pos_world.shape != (3,):
-        raise ValueError("position must have shape (3,)")
-    init_quat_inv = quat_inverse(init_quat_world)
-    delta_pos_world = cur_pos_world - init_pos_world
-    delta_pos_odom = quat_rotate_vec(init_quat_inv, delta_pos_world)
-    delta_quat_odom = quat_multiply(init_quat_inv, np.asarray(cur_quat_world, dtype=np.float32))
-    return delta_pos_odom, delta_quat_odom
+from marslab.quaternion import quat_inverse, quat_rotate_vec
 
 
 def world_twist_to_body(

@@ -14,7 +14,6 @@ import numpy as np
 
 from marslab.config.schema.rover_sensors import IMUConfig
 
-_MARS_GRAVITY_MS2 = 3.72
 _MARS_GRAVITY_TOL_STRICT = 0.05
 _LOG = logging.getLogger(__name__)
 
@@ -62,7 +61,7 @@ def _rpy_deg_to_quat_wxyz(rpy_deg: Iterable[float]) -> tuple[float, float, float
 
 def _assert_mars_gravity(
     stage: _StageHandle | None,
-    expected: float = _MARS_GRAVITY_MS2,
+    expected: float,
     tol: float = _MARS_GRAVITY_TOL_STRICT,
 ) -> None:
     """Reject an authored physics scene whose gravity is not Mars gravity."""
@@ -106,12 +105,13 @@ def spawn_imu(
     stage: _StageHandle,
     imu_cfg: IMUConfig,
     chassis_path: str,
+    gravity: float,
 ) -> IMUSpawnHandles:
     """Create and initialize one IMU prim from the typed sensor config."""
     from isaacsim.sensors.physics import IMUSensor
     from pxr import Gf, UsdGeom
 
-    _assert_mars_gravity(stage)
+    _assert_mars_gravity(stage, expected=gravity)
     orientation = imu_cfg.local_orientation_rpy_deg
     has_orientation = any(abs(value) > 0.01 for value in orientation)
     if has_orientation:

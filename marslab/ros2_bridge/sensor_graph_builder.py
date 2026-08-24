@@ -6,10 +6,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+from marslab.config.schema.rover_ros2 import resolve_ros_topic
+
 
 def _ns_topic(ns: str, name: str) -> str:
     """Return ``/<ns>/<name>`` -- topic namespacing helper."""
-    return f"/{ns}/{name}"
+    return resolve_ros_topic(ns, name)
 
 
 def _validate_prim_path(name: str, value: str) -> None:
@@ -76,7 +78,7 @@ def _build_set_values(
     *,
     articulation_root_prim_path: str,
     sensor_qos_preset: str = "SensorData",
-    tf_qos_preset: str = "SystemDefault",
+    joint_state_qos_preset: str = "SystemDefault",
 ) -> List[Tuple[str, Any]]:
     """List of ``(attr, value)`` pairs applied via SET_VALUES."""
     _validate_prim_path("articulation_root_prim_path", articulation_root_prim_path)
@@ -88,7 +90,7 @@ def _build_set_values(
     joint_state_topic = topics["joint_states"]
     values += [
         ("PubJointState.inputs:topicName", _ns_topic(ns, joint_state_topic)),
-        ("PubJointState.inputs:qosProfile", tf_qos_preset),
+        ("PubJointState.inputs:qosProfile", joint_state_qos_preset),
         ("PubJointState.inputs:targetPrim", [usdrt.Sdf.Path(articulation_root_prim_path)]),
     ]
     values += [

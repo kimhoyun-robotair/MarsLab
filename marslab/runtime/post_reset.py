@@ -119,7 +119,6 @@ def assemble_post_reset(
     articulation_setup = import_module("marslab.runtime.articulation_setup")
     rover_module = import_module("marslab.robots.rover")
     drive_setup = import_module("marslab.robots.drive_api_setup")
-    control_config = rover.control.model_dump(mode="python")
     articulation_setup.pin_articulation_root_pose(
         articulation,
         pre_reset.spawn_xyz,
@@ -133,7 +132,6 @@ def assemble_post_reset(
         dof_names, list(rover.control.steer_joint_names)
     )
     articulation_setup.zero_steer_joints(articulation, steer_indices)
-    articulation_setup.apply_initial_joint_positions(articulation, dof_names, control_config)
 
     _LOG.info("Warming up physics handle ...")
     for _ in range(10):

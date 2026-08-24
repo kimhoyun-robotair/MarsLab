@@ -44,7 +44,7 @@ def create_rclpy_node(
     node_name: str,
 ) -> Any:
     return rclpy.create_node(
-        f"{config.namespace}_{node_name}",
+        f"{config.namespace.replace('/', '_')}_{node_name}",
         parameter_overrides=[
             parameter.Parameter(
                 "use_sim_time",

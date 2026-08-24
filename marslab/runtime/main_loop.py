@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from importlib import import_module
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import numpy as np
@@ -57,44 +58,7 @@ class AtmosphereLoopState:
     sweep_max_el: float = 60.0
     update_interval: int = 60
     hdri_dir: str = ""
-
-
-@dataclass
-class VehicleGeometry:
-    """Static rover kinematics consumed by the Ackermann controller."""
-
-    wheelbase: float
-    track_steer: float
-    track_middle: float
-    wheel_radius: float
-
-
-@dataclass
-class ControlLimits:
-    """Ramp-rate and saturation envelope for cmd_vel → joint targets."""
-
-    v_max: float
-    w_max: float
-    max_wheel_accel_rate: float
-    decel_multiplier: float
-    max_steer_angle: float
-    steer_ramp_rate: float
-    negate_steer: bool = False
-
-
-@dataclass
-class AtmosphereCallables:
-    """Optional atmosphere / rendering callbacks shared across the loop."""
-
-    update_sun_fn: Optional[Callable[..., None]] = None
-    update_sky_fn: Optional[Callable[..., None]] = None
-    configure_fog_fn: Optional[Callable[..., None]] = None
-    compute_sun_fn: Optional[Callable[..., Any]] = None
-    compute_sol_sun_fn: Optional[Callable[..., Any]] = None
-    compute_direct_intensity_fn: Optional[Callable[..., float]] = None
-    compute_diffuse_fraction_fn: Optional[Callable[..., float]] = None
-    compute_sky_dome_fn: Optional[Callable[..., Any]] = None
-    atmo_panel_update: Optional[Callable[[], None]] = None
+    sky_dome_config: Any = None
 
 
 @dataclass
@@ -138,44 +102,6 @@ class LoopContext:
     compute_diffuse_fraction_fn: Optional[Callable[..., float]] = None
     compute_sky_dome_fn: Optional[Callable[..., Any]] = None
     atmo_panel_update: Optional[Callable[[], None]] = None
-
-    @property
-    def geometry(self) -> VehicleGeometry:
-        """Read-only :class:`VehicleGeometry` view of the kinematic fields."""
-        return VehicleGeometry(
-            wheelbase=self.wheelbase,
-            track_steer=self.track_steer,
-            track_middle=self.track_middle,
-            wheel_radius=self.wheel_radius,
-        )
-
-    @property
-    def control_limits(self) -> ControlLimits:
-        """Read-only :class:`ControlLimits` view of the ramp/saturation fields."""
-        return ControlLimits(
-            v_max=self.v_max,
-            w_max=self.w_max,
-            max_wheel_accel_rate=self.max_wheel_accel_rate,
-            decel_multiplier=self.decel_multiplier,
-            max_steer_angle=self.max_steer_angle,
-            steer_ramp_rate=self.steer_ramp_rate,
-            negate_steer=self.negate_steer,
-        )
-
-    @property
-    def atmosphere_callables(self) -> AtmosphereCallables:
-        """Read-only :class:`AtmosphereCallables` view of the optional hooks."""
-        return AtmosphereCallables(
-            update_sun_fn=self.update_sun_fn,
-            update_sky_fn=self.update_sky_fn,
-            configure_fog_fn=self.configure_fog_fn,
-            compute_sun_fn=self.compute_sun_fn,
-            compute_sol_sun_fn=self.compute_sol_sun_fn,
-            compute_direct_intensity_fn=self.compute_direct_intensity_fn,
-            compute_diffuse_fraction_fn=self.compute_diffuse_fraction_fn,
-            compute_sky_dome_fn=self.compute_sky_dome_fn,
-            atmo_panel_update=self.atmo_panel_update,
-        )
 
 
 def _apply_ramp(
@@ -224,6 +150,7 @@ def build_atmosphere_loop_state(
         sweep_max_el=dyn.sun_sweep.max_elevation_deg,
         update_interval=dyn.update_interval_frames,
         hdri_dir=atmo_init.hdri_dir,
+        sky_dome_config=atmo_init.sky_dome_config,
     )
 
 
@@ -344,8 +271,7 @@ def _debug_log_step(
                 actual_vel[0, drive_idx_arr] if actual_vel.ndim == 2 else actual_vel[drive_idx_arr]
             )
             logger.debug(
-                "[DIAG %d] twist=(%.3f,%.3f) steer_cmd=%s steer_act=%s "
-                "drive_cmd=%s drive_act=%s",
+                "[DIAG %d] twist=(%.3f,%.3f) steer_cmd=%s steer_act=%s drive_cmd=%s drive_act=%s",
                 ctx.control.step_count,
                 v,
                 w,
@@ -450,11 +376,11 @@ def _publish_imu_with_noise(ctx: LoopContext, step_count: int) -> None:
     from marslab.ros2_bridge.imu_noise_publisher import publish_imu_with_noise
 
     try:
-        from isaacsim.sensors.physics import _sensor as _imu_sensor
-    except ImportError:
+        _imu_sensor = vars(import_module("isaacsim.sensors.physics"))["_sensor"]
+    except (ImportError, KeyError):
         try:
-            from omni.isaac.sensor import _sensor as _imu_sensor
-        except ImportError:
+            _imu_sensor = vars(import_module("omni.isaac.sensor"))["_sensor"]
+        except (ImportError, KeyError):
             return
 
     try:
@@ -514,7 +440,11 @@ def _update_atmosphere(ctx: LoopContext) -> None:
         atmo.solar_constant, current_tau, dyn_sun_pos.zenith_angle_rad
     )
     dyn_diffuse = ctx.compute_diffuse_fraction_fn(current_tau)
-    dyn_sky = ctx.compute_sky_dome_fn(current_tau, atmo.hdri_dir)
+    dyn_sky = ctx.compute_sky_dome_fn(
+        current_tau,
+        atmo.hdri_dir,
+        atmo.sky_dome_config,
+    )
 
     state["direct_intensity"] = dyn_intensity
     state["diffuse_fraction"] = dyn_diffuse

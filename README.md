@@ -49,9 +49,10 @@ source /opt/ros/jazzy/setup.bash
 ros2 launch launch/rover_state_publisher.launch.py
 ```
 
-The companion defaults to the URDF in the repository submodule and the
-`rover` namespace. Set `urdf_path:=...` or `namespace:=...` only when the
-corresponding paths or namespace in `configs/config.yaml` are changed.
+The companion resolves its default URDF from the repository containing the
+launch file, so the checkout may live anywhere. It uses the `rover` namespace.
+Set `urdf_path:=...` or `namespace:=...` only when the corresponding path or
+namespace in `configs/config.yaml` is changed.
 
 ## Integrated configuration
 
@@ -74,6 +75,40 @@ enabled. `rover.sensors.imu.sampling_frequency_hz` controls the PhysX IMU
 sampling frequency even when ROS is disabled; it does not guarantee the
 observed rate of either ROS IMU topic. `rover.control` and
 `rover.wheel_odometry` hold the drive and wheel-estimation parameters.
+The validated `mars_env.gravity` value owns both world gravity and the IMU
+attach/read diagnostic reference; no separate sensor gravity constant exists.
+Camera focal length is configured as `rover.sensors.camera.focal_length_mm`;
+the camera spawner owns the conversion to Isaac Camera units. LiDAR
+`rotation_rate_hz` remains a floating-point value and startup verifies its USD
+readback together with range and FOV overrides.
+
+Isaac Sim owns the final square-pixel camera calibration used by retained
+synthetic outputs. It may adjust vertical aperture, force `fy` to `fx`, and
+publish an unspecified distortion model as `plumb_bob` with default
+coefficients. MarsLab does not expose separate aperture or distortion overrides;
+revisit this policy only if reproducing a calibrated physical camera becomes a
+requirement.
+
+`rover.ros2.namespace` accepts optional outer slashes and is stored in canonical
+form. Every configured topic is a relative name without leading or trailing
+slashes; all rclpy and OmniGraph producers resolve it through the same helper.
+`rendering.sky_dome` owns the initial and dynamic sky color, brightness, and
+HDRI-selection calculations.
+
+`mars_env.dust_optical_depth` is the reproducible initial tau. The GUI tau
+slider is an in-memory override for the current run only; it never rewrites the
+canonical YAML. Persisting a chosen value requires an explicit YAML edit.
+`dynamic_atmosphere` intentionally groups the automatic time-scaled sun sweep
+with manual GUI tau control; tau does not advance automatically.
+
+The default clear, moderate, and dusty sky-dome images are Git-tracked assets
+under `assets/mars_sky` and arrive with a normal clone. MarsLab permits the
+color-dome fallback when a user intentionally changes an HDRI path or filename.
+
+OmniGraph publishes only repeated data with volatile durability: sensor topics
+use `sensor_qos`, while joint states use a separate reliable/volatile
+`joint_state_qos`. Transient-local durability is reserved for rclpy-owned
+outputs such as static transforms and is rejected at the OmniGraph adapter.
 
 ### Rover physics overrides
 

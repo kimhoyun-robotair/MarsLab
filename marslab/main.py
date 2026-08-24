@@ -41,6 +41,7 @@ def main() -> int:
         sun_azimuth_deg=mars.sun_azimuth_deg,
         sun_elevation_deg=mars.sun_elevation_deg,
         sol_duration_seconds=float(mars.sol_duration_seconds),
+        gravity=float(mars.gravity),
         physics_dt=mars.physics_dt,
         direct_intensity=import_module(
             "marslab.environment.light_intensity"
@@ -55,9 +56,11 @@ def main() -> int:
         sky_params=import_module("marslab.environment.sky_dome").compute_sky_dome_params(
             tau,
             str(config.rendering.sky_dome_hdri_dir),
+            config.rendering.sky_dome,
         ),
         sun_pos=sun_position,
         hdri_dir=str(config.rendering.sky_dome_hdri_dir),
+        sky_dome_config=config.rendering.sky_dome,
         dynamic=mars.dynamic_atmosphere,
     )
     simulation_app = boot_simulation_app(config.runtime)

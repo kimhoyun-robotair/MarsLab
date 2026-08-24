@@ -37,7 +37,7 @@ def _build_robot_description(urdf_path: str) -> str:
     abs_urdf_path = os.path.abspath(os.path.expanduser(urdf_path))
     if not os.path.isfile(abs_urdf_path):
         raise FileNotFoundError(
-            f"URDF not found at {abs_urdf_path!r}. " "Set urdf_path:=<abs path> when launching."
+            f"URDF not found at {abs_urdf_path!r}. Set urdf_path:=<abs path> when launching."
         )
     with open(abs_urdf_path, encoding="utf-8") as fh:
         urdf_text = fh.read()
@@ -45,7 +45,7 @@ def _build_robot_description(urdf_path: str) -> str:
     return rewrite_mesh_paths_to_file_uri(urdf_text, os.path.dirname(abs_urdf_path))
 
 
-def _launch_setup(context, *args, **kwargs) -> list:
+def _launch_setup(context, *args, **kwargs) -> list[Node]:
     """Resolve launch arguments and create the URDF and identity nodes."""
     urdf_path = LaunchConfiguration("urdf_path").perform(context)
     namespace = LaunchConfiguration("namespace").perform(context)
@@ -96,7 +96,16 @@ def _launch_setup(context, *args, **kwargs) -> list:
 
 
 def generate_launch_description() -> LaunchDescription:
-    default_urdf = os.path.expanduser("~/MarsLab/assets/m2020-urdf-models/rover/m2020.urdf")
+    default_urdf = os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "assets",
+            "m2020-urdf-models",
+            "rover",
+            "m2020.urdf",
+        )
+    )
     return LaunchDescription(
         [
             DeclareLaunchArgument(

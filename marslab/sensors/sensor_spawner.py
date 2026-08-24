@@ -16,7 +16,6 @@ from marslab.sensors.camera_spawner import CameraSpawnHandles, spawn_camera
 from marslab.sensors.imu_spawner import IMUSpawnHandles, spawn_imu
 from marslab.sensors.lidar_3d_spawner import Lidar3DSpawnHandles, spawn_lidar_3d
 
-_MARS_GRAVITY_MS2 = 3.72
 _MARS_GRAVITY_TOL_WARN = 0.5
 _LOG = logging.getLogger(__name__)
 
@@ -34,6 +33,7 @@ class SensorHandles:
     camera_acquisition: CameraSpawnHandles
     lidar_3d_acquisition: Lidar3DSpawnHandles
     imu_acquisition: IMUSpawnHandles
+    gravity: float
 
     def read_camera_rgb(self) -> npt.NDArray[np.uint8]:
         """Read an RGBA image, returning an empty array before a frame exists."""
@@ -77,12 +77,12 @@ class SensorHandles:
             float(reading.ang_vel_y),
             float(reading.ang_vel_z),
         ]
-        if abs(float(lin_acc[2]) - _MARS_GRAVITY_MS2) > _MARS_GRAVITY_TOL_WARN:
+        if abs(float(lin_acc[2]) - self.gravity) > _MARS_GRAVITY_TOL_WARN:
             _LOG.warning(
                 "IMU z=%.2f m/s^2 deviates from Mars gravity %.2f m/s^2 "
                 "(tolerance %.2f). Check PhysicsScene gravity and rover orientation.",
                 float(lin_acc[2]),
-                _MARS_GRAVITY_MS2,
+                self.gravity,
                 _MARS_GRAVITY_TOL_WARN,
             )
         return {"lin_acc": lin_acc, "ang_vel": ang_vel}
@@ -92,6 +92,7 @@ def spawn_sensors(
     stage: Any,
     sensors_cfg: dict[str, Any],
     rigid_body_path: str,
+    gravity: float,
 ) -> SensorHandles:
     """Create one Camera, one 3D LiDAR, and one IMU for the rover."""
     camera_cfg = CameraConfig.model_validate(sensors_cfg["camera"])
@@ -100,7 +101,7 @@ def spawn_sensors(
 
     camera_handles = spawn_camera(stage, camera_cfg, rigid_body_path)
     lidar_handles = spawn_lidar_3d(stage, lidar_cfg, rigid_body_path)
-    imu_handles = spawn_imu(stage, imu_cfg, rigid_body_path)
+    imu_handles = spawn_imu(stage, imu_cfg, rigid_body_path, gravity)
     return SensorHandles(
         camera=camera_handles.camera,
         lidar_3d=lidar_handles.lidar,
@@ -111,6 +112,7 @@ def spawn_sensors(
         camera_acquisition=camera_handles,
         lidar_3d_acquisition=lidar_handles,
         imu_acquisition=imu_handles,
+        gravity=gravity,
     )
 
 

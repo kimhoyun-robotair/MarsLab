@@ -4,6 +4,7 @@ Isaac imports are deferred to runtime calls."""
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ import numpy.typing as npt
 from marslab.config.schema.rover_sensors import Lidar3DConfig
 
 _POINT_CLOUD_ANNOTATOR = "IsaacExtractRTXSensorPointCloudNoAccumulator"
+_LOG = logging.getLogger(__name__)
 
 
 class _StageHandle(Protocol):
@@ -35,9 +37,9 @@ class _PrimHandle(Protocol):
 
 
 class _AttributeHandle(Protocol):
-    def Set(self, value: float | int | list[float]) -> None: ...
+    def Set(self, value: float | list[float]) -> bool: ...
 
-    def Get(self) -> Sequence[float] | None: ...
+    def Get(self) -> float | Sequence[float] | None: ...
 
 
 class _PointCloudAnnotator(Protocol):
@@ -99,6 +101,26 @@ def _resolve_omnilidar_prim_path(stage: _StageHandle, prim_path: str) -> str:
     return prim_path
 
 
+def _set_verified_scalar(
+    prim: _PrimHandle,
+    attribute_name: str,
+    requested: float,
+) -> float:
+    attribute = prim.GetAttribute(attribute_name)
+    if not attribute.Set(requested):
+        raise RuntimeError(f"LiDAR override write failed: {attribute_name}={requested}")
+    effective = attribute.Get()
+    if effective is None or isinstance(effective, Sequence):
+        raise RuntimeError(f"LiDAR override readback missing: {attribute_name}")
+    effective_value = float(effective)
+    if not math.isclose(effective_value, requested, rel_tol=1e-6, abs_tol=1e-6):
+        raise RuntimeError(
+            f"LiDAR override mismatch for {attribute_name}: "
+            f"requested={requested}, effective={effective_value}"
+        )
+    return effective_value
+
+
 def _apply_lidar_runtime_overrides(
     stage: _StageHandle,
     prim_path: str,
@@ -111,28 +133,55 @@ def _apply_lidar_runtime_overrides(
     if prim is None or not prim.IsValid():
         raise RuntimeError(f"OmniLidar prim not found at {prim_path!r}")
 
-    prim.GetAttribute("omni:sensor:Core:nearRangeM").Set(float(config.range_min))
-    prim.GetAttribute("omni:sensor:Core:farRangeM").Set(float(config.range_max))
-    prim.GetAttribute("omni:sensor:Core:scanRateBaseHz").Set(int(config.rotation_rate_hz))
+    near_range = _set_verified_scalar(prim, "omni:sensor:Core:nearRangeM", float(config.range_min))
+    far_range = _set_verified_scalar(prim, "omni:sensor:Core:farRangeM", float(config.range_max))
+    scan_rate = _set_verified_scalar(
+        prim, "omni:sensor:Core:scanRateBaseHz", float(config.rotation_rate_hz)
+    )
 
     half_fov = float(config.horizontal_fov_deg) / 2.0
     if half_fov >= 180.0:
         start_azimuth, end_azimuth = 0.0, 360.0
     else:
         start_azimuth, end_azimuth = 360.0 - half_fov, half_fov
-    prim.GetAttribute("omni:sensor:Core:validStartAzimuthDeg").Set(start_azimuth)
-    prim.GetAttribute("omni:sensor:Core:validEndAzimuthDeg").Set(end_azimuth)
+    effective_start = _set_verified_scalar(
+        prim, "omni:sensor:Core:validStartAzimuthDeg", start_azimuth
+    )
+    effective_end = _set_verified_scalar(prim, "omni:sensor:Core:validEndAzimuthDeg", end_azimuth)
 
     elevation_attribute = prim.GetAttribute("omni:sensor:Core:emitterState:s001:elevationDeg")
-    existing = list(elevation_attribute.Get() or [])
-    if not existing:
-        return
-    current_span = max(existing) - min(existing)
-    if current_span <= 1e-6:
-        return
-    center = (max(existing) + min(existing)) / 2.0
-    scale = float(config.vertical_fov_deg) / current_span
-    elevation_attribute.Set([(value - center) * scale for value in existing])
+    existing_value = elevation_attribute.Get()
+    existing = (
+        [] if existing_value is None or isinstance(existing_value, float) else list(existing_value)
+    )
+    if existing:
+        current_span = max(existing) - min(existing)
+        if current_span > 1e-6:
+            center = (max(existing) + min(existing)) / 2.0
+            scale = float(config.vertical_fov_deg) / current_span
+            requested_elevations = [(value - center) * scale for value in existing]
+            if not elevation_attribute.Set(requested_elevations):
+                raise RuntimeError("LiDAR elevation override write failed")
+            effective_elevations = elevation_attribute.Get()
+            if effective_elevations is None or not np.allclose(
+                effective_elevations,
+                requested_elevations,
+                rtol=1e-6,
+                atol=1e-6,
+            ):
+                raise RuntimeError("LiDAR elevation override readback mismatch")
+
+    _LOG.info(
+        "LiDAR runtime overrides:\n"
+        "  range: %.3f to %.3f m\n"
+        "  rotation rate: %.3f Hz\n"
+        "  azimuth: %.3f to %.3f deg",
+        near_range,
+        far_range,
+        scan_rate,
+        effective_start,
+        effective_end,
+    )
 
 
 def _rpy_deg_to_quat_wxyz(rpy_deg: Iterable[float]) -> tuple[float, float, float, float]:

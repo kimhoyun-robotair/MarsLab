@@ -19,11 +19,3 @@ def check_rover_config(rover: RoverConfig) -> None:
     check_rover_usd(rover.usd_path)
     if not rover.urdf_source_path.is_file():
         raise FileNotFoundError(f"Rover URDF source missing: {rover.urdf_source_path}")
-
-
-def check_lidar_cfg(lidar_cfg: dict[str, object] | None) -> None:
-    if lidar_cfg is None:
-        raise ValueError(
-            "Scenario config missing sensors.lidar block "
-            "(expected 'lidar_3d' or 'lidar' key under sensors)."
-        )

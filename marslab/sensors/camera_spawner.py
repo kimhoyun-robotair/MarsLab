@@ -15,6 +15,7 @@ import numpy as np
 from marslab.config.schema.rover_sensors import CameraConfig
 
 _LOG = logging.getLogger(__name__)
+_MM_PER_ISAAC_FOCAL_LENGTH_UNIT = 10.0
 
 
 class _StageHandle(Protocol):
@@ -101,7 +102,7 @@ def spawn_camera(
         translation=camera_translation,
     )
     camera.initialize()
-    camera.set_focal_length(float(camera_cfg.focal_length) / 10.0)
+    camera.set_focal_length(float(camera_cfg.focal_length_mm) / _MM_PER_ISAAC_FOCAL_LENGTH_UNIT)
     camera.set_clipping_range(
         float(camera_cfg.clipping_range[0]), float(camera_cfg.clipping_range[1])
     )

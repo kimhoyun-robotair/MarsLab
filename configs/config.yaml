@@ -31,6 +31,15 @@ rendering:
   dome_brightness_scale: 5000.0
   fog_density_scale: 0.002
   fog_color: [0.78, 0.62, 0.42]
+  sky_dome:
+    clear_rgb: [0.76, 0.57, 0.35]
+    dusty_rgb: [0.85, 0.75, 0.60]
+    tau_saturation: 3.0
+    brightness_min: 0.1
+    brightness_decay: 0.3
+    hdri_clear: mars_sky_clear.png
+    hdri_moderate: mars_sky_moderate.png
+    hdri_dusty: mars_sky_dusty.png
   path_tracing:
     spp: 32
     total_spp: 256
@@ -99,7 +108,7 @@ rover:
       local_translation: [1.2, 0.0, 2.1]
       local_orientation_rpy_deg: [6.6, 0.0, 90.0]
       resolution: [640, 480]
-      focal_length: 18.0
+      focal_length_mm: 18.0
       clipping_range: [0.1, 100.0]
       depth_sensor:
         enabled: false

@@ -38,7 +38,7 @@ class CameraConfig(StrictConfigModel):
     local_translation: Vec3
     local_orientation_rpy_deg: Vec3
     resolution: tuple[PositiveInt, PositiveInt]
-    focal_length: PositiveFloat
+    focal_length_mm: PositiveFloat
     clipping_range: tuple[PositiveFloat, PositiveFloat]
     depth_sensor: DepthSensorConfig
 

@@ -38,19 +38,12 @@ import math
 from dataclasses import dataclass
 from typing import Literal
 
-# Default Mars obliquity (axial tilt) used when the caller does not
-# inject the value from ``MarsEnvConfig.obliquity_deg``. Allison &
-# McEwen (2000) cite 25.19 deg for the modern Mars epoch. Exposed as a
-# public name so tests and external callers can reference the canonical
-# default; config-driven runtime paths should pass the value through
-# ``MarsEnvConfig.obliquity_deg`` instead.
+# Default Mars obliquity (axial tilt) for standalone spherical calculations.
+# Allison & McEwen (2000) cite 25.19 deg for the modern Mars epoch.
 MARS_OBLIQUITY_DEG: float = 25.19
 
-# Default planetographic observer latitude used when the caller does
-# not inject ``MarsEnvConfig.default_latitude_deg``. 18.44 deg N is
-# Jezero crater (Mars 2020 Perseverance landing site, rounded from
-# 18.4447 deg N). Same backward-compat exposure rationale as
-# ``MARS_OBLIQUITY_DEG``.
+# Default observer latitude for standalone spherical calculations.
+# 18.44 deg N is Jezero crater (rounded from 18.4447 deg N).
 DEFAULT_LATITUDE_DEG: float = 18.44
 
 
@@ -113,8 +106,7 @@ def solar_declination_deg(
             Ls=0 is northern spring equinox, Ls=90 northern summer
             solstice.
         obliquity_deg: Mars axial tilt in degrees. Defaults to the
-            modern-epoch value 25.19 deg. Pass ``MarsEnvConfig.obliquity_deg``
-            for config-driven runs.
+            modern-epoch value 25.19 deg.
 
     Returns:
         Declination in degrees.
@@ -212,10 +204,9 @@ def compute_sol_sun_position(
     ``max_elevation_deg`` arguments are ignored in ``"spherical"`` mode
     but retained for signature stability.
 
-    Pass ``MarsEnvConfig.default_latitude_deg`` and
-    ``MarsEnvConfig.obliquity_deg`` for config-driven runs; the defaults
-    below match those schema defaults so standalone callers behave
-    identically.
+    The spherical inputs are explicit function arguments and are not part of
+    the canonical runtime YAML. The MarsLab runtime currently calls this API
+    with ``mode="linear"``.
 
     Args:
         time_of_sol_fraction: Fraction of the sol [0, 1] where 0 is
