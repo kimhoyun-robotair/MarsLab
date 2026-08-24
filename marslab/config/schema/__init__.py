@@ -34,9 +34,6 @@ from marslab.config.schema.scenario import (
     RenderingConfig,
     SkyDomeConfig,
     SunSweepConfig,
-    TauConstantConfig,
-    TauRampConfig,
-    TauSineConfig,
 )
 
 __all__ = [
@@ -64,9 +61,6 @@ __all__ = [
     "SpawnConfig",
     "SunSweepConfig",
     "SuspensionConfig",
-    "TauConstantConfig",
-    "TauRampConfig",
-    "TauSineConfig",
     "WheelOdometryConfig",
     "WheelOdomConfig",
     "WheelsConfig",

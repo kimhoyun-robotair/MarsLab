@@ -35,6 +35,7 @@ class ChassisConfig(StrictConfigModel):
 
 
 class WheelsConfig(StrictConfigModel):
+    link_names: tuple[NonEmptyString, ...] = Field(min_length=1)
     mass: PositiveFloat = Field(le=100.0)
     inertia_spin: PositiveFloat
     inertia_transverse: PositiveFloat
@@ -77,8 +78,6 @@ class ControlConfig(StrictConfigModel):
     max_angular_velocity: PositiveFloat
     drive_joint_names: tuple[NonEmptyString, ...] = Field(min_length=1)
     steer_joint_names: tuple[NonEmptyString, ...] = Field(min_length=1)
-    suspension_joint_names: tuple[NonEmptyString, ...] = Field(min_length=1)
-    suspension_damping: NonNegativeFloat
     drive_damping: PositiveFloat
     drive_max_force: PositiveFloat
     steer_stiffness: PositiveFloat
@@ -97,7 +96,6 @@ class ControlConfig(StrictConfigModel):
         joint_groups = (
             ("drive_joint_names", self.drive_joint_names),
             ("steer_joint_names", self.steer_joint_names),
-            ("suspension_joint_names", self.suspension_joint_names),
         )
         seen_names: set[str] = set()
         for group_name, joint_names in joint_groups:

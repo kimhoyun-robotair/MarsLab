@@ -16,6 +16,7 @@ from marslab.ros2_bridge.context import BridgeContext
 from marslab.runtime.assembly import ArticulationHandle, PreResetAssembly
 from marslab.runtime.atmosphere_boot import AtmosphereInit
 from marslab.runtime.main_loop import AtmosphereLoopState
+from marslab.runtime.physics_override_log import format_physics_override_summary
 
 SpawnPosition = tuple[float, float, float]
 SensorFrames = list[tuple[str, list[float], list[float]]]
@@ -143,7 +144,13 @@ def assemble_post_reset(
         timeline.play()
         for _ in range(5):
             world.step(render=True)
-    drive_setup.reinforce_pd_gains(articulation, control_config, dof_names)
+    drive_setup.reinforce_pd_gains(
+        articulation,
+        rover.control,
+        rover.suspension,
+        dof_names,
+    )
+    _LOG.info("%s", format_physics_override_summary(rover))
 
     main_loop = import_module("marslab.runtime.main_loop")
     atmosphere = main_loop.build_atmosphere_loop_state(atmosphere_init, atmosphere_init.tau)

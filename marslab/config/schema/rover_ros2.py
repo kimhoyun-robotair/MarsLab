@@ -31,13 +31,6 @@ class RosTopicsConfig(StrictConfigModel):
 
 class RosRatesConfig(StrictConfigModel):
     imu: PositiveFloat
-    odom: PositiveFloat
-    rgb: PositiveFloat
-    depth: PositiveFloat
-    points: PositiveFloat
-    camera_info: PositiveFloat
-    lidar: PositiveFloat
-    joint_states: PositiveFloat
 
 
 class OdomPublisherConfig(StrictConfigModel):

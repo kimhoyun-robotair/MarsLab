@@ -87,30 +87,33 @@ def apply_mass_properties(
     com_offset: tuple[float, float, float],
     angular_damping: float,
     linear_damping: float,
-) -> None:
+) -> bool:
     """Apply CoM override + angular/linear damping on the articulation body."""
     from pxr import Gf, PhysxSchema, UsdPhysics
 
     art_root_prim = stage.GetPrimAtPath(art_root_path)
     if not art_root_prim.IsValid():
         _LOG.warning("%s not found; skipping mass override.", art_root_path)
-        return
+        return False
 
     if not art_root_prim.HasAPI(UsdPhysics.MassAPI):
         UsdPhysics.MassAPI.Apply(art_root_prim)
     mass_api = UsdPhysics.MassAPI(art_root_prim)
-    mass_api.GetCenterOfMassAttr().Set(
-        Gf.Vec3f(float(com_offset[0]), float(com_offset[1]), float(com_offset[2]))
-    )
+    applied = [
+        mass_api.GetCenterOfMassAttr().Set(
+            Gf.Vec3f(float(com_offset[0]), float(com_offset[1]), float(com_offset[2]))
+        )
+    ]
 
     if angular_damping > 0.0 or linear_damping > 0.0:
         if not art_root_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI):
             PhysxSchema.PhysxRigidBodyAPI.Apply(art_root_prim)
         rb_api = PhysxSchema.PhysxRigidBodyAPI(art_root_prim)
         if angular_damping > 0.0:
-            rb_api.CreateAngularDampingAttr().Set(float(angular_damping))
+            applied.append(rb_api.CreateAngularDampingAttr().Set(float(angular_damping)))
         if linear_damping > 0.0:
-            rb_api.CreateLinearDampingAttr().Set(float(linear_damping))
+            applied.append(rb_api.CreateLinearDampingAttr().Set(float(linear_damping)))
+    return all(bool(result) for result in applied)
 
 
 def _set_mass_and_inertia(
@@ -129,15 +132,15 @@ def _set_mass_and_inertia(
     if not prim.HasAPI(UsdPhysics.MassAPI):
         UsdPhysics.MassAPI.Apply(prim)
     mass_api = UsdPhysics.MassAPI(prim)
-    mass_api.GetMassAttr().Set(float(mass_kg))
-    mass_api.GetDiagonalInertiaAttr().Set(
+    mass_applied = mass_api.GetMassAttr().Set(float(mass_kg))
+    inertia_applied = mass_api.GetDiagonalInertiaAttr().Set(
         Gf.Vec3f(
             float(diagonal_inertia[0]),
             float(diagonal_inertia[1]),
             float(diagonal_inertia[2]),
         )
     )
-    return True
+    return bool(mass_applied) and bool(inertia_applied)
 
 
 def apply_chassis_physics(
@@ -178,14 +181,15 @@ def apply_wheel_physics(
     results: dict[str, bool] = {}
     for name in wheel_link_names:
         wheel_prim_path = f"{chassis_path}/{name}"
-        results[name] = _set_mass_and_inertia(stage, wheel_prim_path, mass, inertia)
-        _bind_wheel_friction_material(
+        mass_applied = _set_mass_and_inertia(stage, wheel_prim_path, mass, inertia)
+        material_applied = _bind_wheel_friction_material(
             stage,
             wheel_prim_path,
             friction_static=friction_static,
             friction_dynamic=friction_dynamic,
             restitution=restitution,
         )
+        results[name] = mass_applied and material_applied
     return results
 
 
@@ -210,13 +214,21 @@ def _bind_wheel_friction_material(
     if not material_prim.HasAPI(UsdPhysics.MaterialAPI):
         UsdPhysics.MaterialAPI.Apply(material_prim)
     physics_material = UsdPhysics.MaterialAPI(material_prim)
-    physics_material.GetStaticFrictionAttr().Set(float(friction_static))
-    physics_material.GetDynamicFrictionAttr().Set(float(friction_dynamic))
-    physics_material.GetRestitutionAttr().Set(float(restitution))
+    static_applied = physics_material.GetStaticFrictionAttr().Set(float(friction_static))
+    dynamic_applied = physics_material.GetDynamicFrictionAttr().Set(float(friction_dynamic))
+    restitution_applied = physics_material.GetRestitutionAttr().Set(float(restitution))
 
     binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
-    binding_api.Bind(material, materialPurpose="physics")
-    return True
+    binding_applied = binding_api.Bind(material, materialPurpose="physics")
+    return all(
+        bool(applied)
+        for applied in (
+            static_applied,
+            dynamic_applied,
+            restitution_applied,
+            binding_applied,
+        )
+    )
 
 
 def apply_suspension_damping_split(
@@ -249,10 +261,10 @@ def _write_joint_damping(stage: Any, joint_path: str, damping: float) -> bool:
 
     if not prim.HasAPI(UsdPhysics.DriveAPI, "angular"):
         UsdPhysics.DriveAPI.Apply(prim, "angular")
-    prim.CreateAttribute("drive:angular:physics:damping", Sdf.ValueTypeNames.Float).Set(
+    applied = prim.CreateAttribute("drive:angular:physics:damping", Sdf.ValueTypeNames.Float).Set(
         float(damping)
     )
-    return True
+    return bool(applied)
 
 
 def find_rigid_body_path(stage: Any, chassis_path: str) -> str:
@@ -289,9 +301,9 @@ def _apply_rover_mass(
     com_offset: tuple[float, float, float],
     angular_damping: float,
     linear_damping: float,
-) -> None:
+) -> bool:
     """Forward CoM offset + damping overrides to :func:`apply_mass_properties`."""
-    apply_mass_properties(
+    return apply_mass_properties(
         stage,
         rigid_body_path,
         com_offset,
@@ -307,13 +319,20 @@ def _apply_rover_articulation_physics(
 ) -> None:
     """Validate and apply chassis / wheel / suspension overrides."""
     chassis_path = f"{rover.prim_path}/Body_Chassis"
+    missing: list[str] = []
     if not apply_chassis_physics(stage, rigid_body_path, rover.chassis):
-        _LOG.warning(
-            "chassis prim missing at %s; chassis mass/inertia override skipped.",
-            rigid_body_path,
-        )
-    apply_wheel_physics(stage, chassis_path, rover.control.drive_joint_names, rover.wheels)
-    apply_suspension_damping_split(stage, chassis_path, rover.suspension)
+        missing.append(rigid_body_path)
+    wheel_results = apply_wheel_physics(
+        stage,
+        chassis_path,
+        rover.wheels.link_names,
+        rover.wheels,
+    )
+    missing.extend(name for name, applied in wheel_results.items() if not applied)
+    suspension_results = apply_suspension_damping_split(stage, chassis_path, rover.suspension)
+    missing.extend(name for name, applied in suspension_results.items() if not applied)
+    if missing:
+        raise RuntimeError(f"physics override targets missing from rover USD: {missing}")
 
 
 def spawn_rover(
@@ -324,13 +343,14 @@ def spawn_rover(
     """Attach the rover USD, position it, and set physics overrides."""
     prim_path = rover.prim_path
     rigid_body_path = _spawn_rover_usd(stage, rover, spawn_xyz)
-    _apply_rover_mass(
+    if not _apply_rover_mass(
         stage,
         rigid_body_path,
         rover.com_offset,
         rover.angular_damping,
         rover.linear_damping,
-    )
+    ):
+        raise RuntimeError(f"rigid-body override target missing from rover USD: {rigid_body_path}")
 
     _apply_rover_articulation_physics(stage, rigid_body_path, rover)
 

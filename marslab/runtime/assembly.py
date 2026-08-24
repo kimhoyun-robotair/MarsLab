@@ -269,7 +269,6 @@ def assemble_pre_reset(
     articulation_factory = import_module("isaacsim.core.prims").Articulation
     sensors_config = rover.sensors.model_dump(mode="python")
     ros2_config = rover.ros2.model_dump(mode="python")
-    control_config = rover.control.model_dump(mode="python")
 
     _reference_user_usda(stage, scene_path)
 
@@ -317,7 +316,7 @@ def assemble_pre_reset(
             articulation_root_prim_path=f"{spawned_rover.chassis_path}/Body_Chassis",
         )
 
-    configure_drives(stage, spawned_rover.chassis_path, control_config)
+    configure_drives(stage, spawned_rover.chassis_path, rover.control)
     articulation = articulation_factory(prim_paths_expr=spawned_rover.prim_path)
     world.reset()
     return PreResetAssembly(

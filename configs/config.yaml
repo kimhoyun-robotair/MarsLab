@@ -20,15 +20,11 @@ mars_env:
       start_azimuth_deg: 90
       end_azimuth_deg: 270
       max_elevation_deg: 60
-    tau_profile: constant
-    tau_constant:
-      base_tau: 0.3
     update_interval_frames: 10
 
 rendering:
   mode: ray_tracing
   sky_dome_hdri_dir: ../assets/mars_sky/
-  resolution: [1920, 1080]
   sun_intensity_scale: 30.0
   sun_color: [1.0, 0.95, 0.85]
   sun_angular_diameter_deg: 0.35
@@ -58,6 +54,13 @@ rover:
     inertia_yy: 1182.2
     inertia_zz: 1391.4
   wheels:
+    link_names:
+      - Frame_WHEEL_LF
+      - Frame_WHEEL_LM
+      - Frame_WHEEL_LR
+      - Frame_WHEEL_RF
+      - Frame_WHEEL_RM
+      - Frame_WHEEL_RR
     mass: 9.0
     inertia_spin: 0.310
     inertia_transverse: 0.275
@@ -86,13 +89,6 @@ rover:
       joint_states: joint_states
     rates:
       imu: 30
-      odom: 50
-      rgb: 30
-      depth: 30
-      points: 30
-      camera_info: 30
-      lidar: 30
-      joint_states: 50
     odom_publisher:
       frame_id: odom
       child_frame_id: base_link
@@ -103,7 +99,7 @@ rover:
     camera:
       local_translation: [1.2, 0.0, 2.1]
       local_orientation_rpy_deg: [6.6, 0.0, 90.0]
-      resolution: [1280, 960]
+      resolution: [640, 480]
       focal_length: 18.0
       clipping_range: [0.1, 100.0]
       depth_sensor:
@@ -151,13 +147,6 @@ rover:
       - LR_STEER
       - RF_STEER
       - RR_STEER
-    suspension_joint_names:
-      - CENTER_DIFFERENTIAL
-      - LEFT_DIFFERENTIAL
-      - RIGHT_DIFFERENTIAL
-      - LEFT_BOGIE
-      - RIGHT_BOGIE
-    suspension_damping: 50.0
     drive_damping: 1000.0
     drive_max_force: 1000000.0
     steer_stiffness: 50000.0

@@ -23,29 +23,10 @@ class SunSweepConfig(StrictConfigModel):
     max_elevation_deg: FiniteFloat = Field(ge=0.0, le=90.0)
 
 
-class TauConstantConfig(StrictConfigModel):
-    base_tau: FiniteFloat = Field(default=0.3, ge=0.0)
-
-
-class TauRampConfig(StrictConfigModel):
-    start_tau: FiniteFloat = Field(default=0.3, ge=0.0)
-    end_tau: FiniteFloat = Field(default=2.0, ge=0.0)
-
-
-class TauSineConfig(StrictConfigModel):
-    base_tau: FiniteFloat = Field(default=0.5, ge=0.0)
-    amplitude: FiniteFloat = Field(default=0.3, ge=0.0)
-    period_fraction: PositiveFloat = 1.0
-
-
 class DynamicAtmosphereConfig(StrictConfigModel):
     enabled: bool
     time_scale: PositiveFloat
     sun_sweep: SunSweepConfig
-    tau_profile: Literal["constant", "ramp", "sine"]
-    tau_constant: TauConstantConfig = Field(default_factory=TauConstantConfig)
-    tau_ramp: TauRampConfig = Field(default_factory=TauRampConfig)
-    tau_sine: TauSineConfig = Field(default_factory=TauSineConfig)
     update_interval_frames: PositiveInt
 
 
@@ -96,7 +77,6 @@ class SkyDomeConfig(StrictConfigModel):
 class RenderingConfig(StrictConfigModel):
     mode: Literal["path_tracing", "ray_tracing"]
     sky_dome_hdri_dir: Path
-    resolution: tuple[PositiveInt, PositiveInt]
     sun_intensity_scale: PositiveFloat
     sun_color: Rgb
     sun_angular_diameter_deg: PositiveFloat = Field(le=5.0)

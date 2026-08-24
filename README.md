@@ -62,16 +62,44 @@ corresponding paths or namespace in `configs/config.yaml` are changed.
 | `scene` | Supplied Scene USDZ path (`usdz_path`). |
 | `runtime` | `headless`, `ros2_enabled`, and `atmosphere_enabled` switches. |
 | `mars_env` | Gravity, dust, solar position, sol timing, and dynamic atmosphere. |
-| `rendering` | Render mode, sky-dome assets, resolution, sun, fog, and path tracing. |
-| `rover` | Rover USD/URDF paths, spawn and physics values, control, sensors, and ROS names/rates/QoS. |
+| `rendering` | Render mode, sky-dome assets, sun, fog, and path tracing. |
+| `rover` | Rover USD/URDF paths, spawn and physics values, control, sensors, and ROS names/QoS. |
 | `wheel_odom` | The dynamic `odom` to `base_link` TF gate (`publish_tf`). |
 
 The retained sensor settings are under `rover.sensors`:
 `seed`, `camera`, `imu`, and `lidar_3d`. Camera, IMU, and 3-D LiDAR acquisition
 is always created by the simulator, regardless of ROS transport. `rover.ros2`
-selects the namespace, topic names, rates, frame IDs, and QoS when the ROS
-bridge is enabled. `rover.control` and `rover.wheel_odometry` hold the drive
-and wheel-estimation parameters.
+selects the namespace, topic names, IMU sampling rate, frame IDs, and QoS when
+the ROS bridge is enabled. `rover.control` and `rover.wheel_odometry` hold the
+drive and wheel-estimation parameters.
+
+### Rover physics overrides
+
+The rover USD supplies geometry, collision shapes, and articulation structure.
+Before the first reset, MarsLab applies the validated `rover` physics values
+from `configs/config.yaml` to the referenced rover on the live USD stage. These
+overrides include chassis and wheel mass/inertia, center of mass, rigid-body
+damping, wheel contact material, and drive/steer gains. The source USD asset is
+not modified.
+
+`rover.wheels.link_names` names the six wheel rigid-body prims that receive
+mass, inertia, and contact-material overrides. These names are intentionally
+separate from `rover.control.drive_joint_names`, which names articulation
+joints used for DriveAPI and velocity control.
+
+Passive rocker-bogie damping has one configuration owner:
+`rover.suspension.rocker_damping` applies to `rocker_joint_names`, while
+`rover.suspension.bogie_damping` applies to `bogie_joint_names`. The split is
+authored before reset and reinforced with the same values in the post-reset
+PhysX gains. `rover.control` contains only active drive/steer gains and control
+limits.
+
+Startup stops before simulation if a configured chassis, wheel, drive, steer,
+rocker, or bogie target is absent from the loaded USD or articulation. After
+all pre-reset overrides and post-reset gains succeed, MarsLab emits one
+`marslab.physics.overrides_applied` INFO summary. It groups the effective
+YAML-owned values over multiple indented lines for the rigid body, chassis,
+wheels, drive, steer, and suspension.
 
 ## Runtime outputs
 
