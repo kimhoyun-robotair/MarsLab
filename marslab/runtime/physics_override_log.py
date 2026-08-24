@@ -25,6 +25,7 @@ def format_physics_override_summary(rover: RoverConfig) -> str:
         (
             "marslab.physics.overrides_applied",
             "  rigid body:",
+            f"    prim name: {rover.chassis.rigid_body_prim_name}",
             f"    center of mass: [{com}] m",
             f"    angular damping: {float(rover.angular_damping)}",
             f"    linear damping: {float(rover.linear_damping)}",

@@ -105,14 +105,15 @@ def apply_mass_properties(
         )
     ]
 
-    if angular_damping > 0.0 or linear_damping > 0.0:
-        if not art_root_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI):
-            PhysxSchema.PhysxRigidBodyAPI.Apply(art_root_prim)
-        rb_api = PhysxSchema.PhysxRigidBodyAPI(art_root_prim)
-        if angular_damping > 0.0:
-            applied.append(rb_api.CreateAngularDampingAttr().Set(float(angular_damping)))
-        if linear_damping > 0.0:
-            applied.append(rb_api.CreateLinearDampingAttr().Set(float(linear_damping)))
+    if not art_root_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI):
+        PhysxSchema.PhysxRigidBodyAPI.Apply(art_root_prim)
+    rb_api = PhysxSchema.PhysxRigidBodyAPI(art_root_prim)
+    applied.extend(
+        (
+            rb_api.CreateAngularDampingAttr().Set(float(angular_damping)),
+            rb_api.CreateLinearDampingAttr().Set(float(linear_damping)),
+        )
+    )
     return all(bool(result) for result in applied)
 
 
@@ -267,20 +268,25 @@ def _write_joint_damping(stage: Any, joint_path: str, damping: float) -> bool:
     return bool(applied)
 
 
-def find_rigid_body_path(stage: Any, chassis_path: str) -> str:
-    """Return the path of the first RigidBodyAPI child of the chassis."""
+def find_rigid_body_path(stage: Any, chassis_path: str, rigid_body_prim_name: str) -> str:
+    """Resolve the configured direct child and require a rigid-body contract."""
     from pxr import UsdPhysics
 
     chassis_prim = stage.GetPrimAtPath(chassis_path)
     if not chassis_prim.IsValid():
         raise RuntimeError(f"Chassis prim missing at {chassis_path}")
 
-    for child in chassis_prim.GetChildren():
-        if child.HasAPI(UsdPhysics.RigidBodyAPI):
-            return str(child.GetPath())
-
-    _LOG.warning("no RigidBodyAPI child under %s; sensors will be static!", chassis_path)
-    return chassis_path
+    rigid_body_path = f"{chassis_path}/{rigid_body_prim_name}"
+    rigid_body_prim = stage.GetPrimAtPath(rigid_body_path)
+    if not rigid_body_prim.IsValid():
+        raise RuntimeError(f"Configured chassis rigid body missing at {rigid_body_path}")
+    if rigid_body_prim.GetParent() != chassis_prim:
+        raise RuntimeError(
+            f"Configured chassis rigid body must be a direct child: {rigid_body_path}"
+        )
+    if not rigid_body_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+        raise RuntimeError(f"Configured chassis target lacks RigidBodyAPI: {rigid_body_path}")
+    return rigid_body_path
 
 
 def _spawn_rover_usd(
@@ -292,7 +298,7 @@ def _spawn_rover_usd(
     load_rover_usd(rover.usd_path, rover.prim_path)
     apply_spawn_pose(stage, rover.prim_path, spawn_xyz, rover.spawn.orientation_rpy)
     chassis_path = f"{rover.prim_path}/Body_Chassis"
-    return find_rigid_body_path(stage, chassis_path)
+    return find_rigid_body_path(stage, chassis_path, rover.chassis.rigid_body_prim_name)
 
 
 def _apply_rover_mass(

@@ -69,9 +69,11 @@ corresponding paths or namespace in `configs/config.yaml` are changed.
 The retained sensor settings are under `rover.sensors`:
 `seed`, `camera`, `imu`, and `lidar_3d`. Camera, IMU, and 3-D LiDAR acquisition
 is always created by the simulator, regardless of ROS transport. `rover.ros2`
-selects the namespace, topic names, IMU sampling rate, frame IDs, and QoS when
-the ROS bridge is enabled. `rover.control` and `rover.wheel_odometry` hold the
-drive and wheel-estimation parameters.
+selects the namespace, topic names, frame IDs, and QoS when the ROS bridge is
+enabled. `rover.sensors.imu.sampling_frequency_hz` controls the PhysX IMU
+sampling frequency even when ROS is disabled; it does not guarantee the
+observed rate of either ROS IMU topic. `rover.control` and
+`rover.wheel_odometry` hold the drive and wheel-estimation parameters.
 
 ### Rover physics overrides
 
@@ -87,12 +89,19 @@ mass, inertia, and contact-material overrides. These names are intentionally
 separate from `rover.control.drive_joint_names`, which names articulation
 joints used for DriveAPI and velocity control.
 
+`rover.chassis.rigid_body_prim_name` names the exact direct child of
+`Body_Chassis` that receives chassis mass, inertia, center-of-mass, and damping
+overrides and owns the sensor attachments. Startup fails if that prim is absent
+or lacks `RigidBodyAPI`. Zero is a valid rigid-body damping override and is
+authored explicitly rather than falling back to the referenced USD value.
+
 Passive rocker-bogie damping has one configuration owner:
 `rover.suspension.rocker_damping` applies to `rocker_joint_names`, while
 `rover.suspension.bogie_damping` applies to `bogie_joint_names`. The split is
 authored before reset and reinforced with the same values in the post-reset
 PhysX gains. `rover.control` contains only active drive/steer gains and control
-limits.
+limits. Post-reset reinforcement updates only those explicitly owned joint
+indices, preserving gains on every other articulation DOF.
 
 Startup stops before simulation if a configured chassis, wheel, drive, steer,
 rocker, or bogie target is absent from the loaded USD or articulation. After
@@ -100,6 +109,11 @@ all pre-reset overrides and post-reset gains succeed, MarsLab emits one
 `marslab.physics.overrides_applied` INFO summary. It groups the effective
 YAML-owned values over multiple indented lines for the rigid body, chassis,
 wheels, drive, steer, and suspension.
+
+PointCloud2 and CameraInfo are mandatory retained ROS outputs; they do not have
+configuration switches. Renderer Motion BVH remains disabled because enabling
+it prevented Isaac Sim 5.1 from completing RTX pipeline startup on the validated
+runtime system.
 
 ## Runtime outputs
 

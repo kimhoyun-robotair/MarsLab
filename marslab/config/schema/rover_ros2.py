@@ -1,4 +1,4 @@
-"""Define validated ROS topics, rates, QoS, and frame settings.
+"""Define validated ROS topics, QoS, and frame settings.
 Validators keep ground-truth and operational odometry distinct.
 The schema stays independent of rclpy imports."""
 
@@ -8,7 +8,6 @@ from pydantic import Field, model_validator
 
 from marslab.config.schema.common import (
     NonEmptyString,
-    PositiveFloat,
     PositiveInt,
     StrictConfigModel,
 )
@@ -29,10 +28,6 @@ class RosTopicsConfig(StrictConfigModel):
     joint_states: NonEmptyString
 
 
-class RosRatesConfig(StrictConfigModel):
-    imu: PositiveFloat
-
-
 class OdomPublisherConfig(StrictConfigModel):
     frame_id: NonEmptyString
     child_frame_id: NonEmptyString
@@ -51,13 +46,10 @@ class QoSProfileConfig(StrictConfigModel):
 class Ros2BridgeConfig(StrictConfigModel):
     namespace: NonEmptyString
     topics: RosTopicsConfig
-    rates: RosRatesConfig
     odom_publisher: OdomPublisherConfig
     sensor_parent_frame_id: NonEmptyString
     graph_path: NonEmptyString = "/World/Stage3ROS2Graph"
     cmd_vel_queue_size: PositiveInt = Field(default=10, le=1000)
-    publish_pointcloud2: bool = True
-    publish_camera_info: bool = True
     publish_robot_description: bool = True
     cmd_vel_qos: QoSProfileConfig = QoSProfileConfig(
         reliability="reliable", durability="volatile", depth=10

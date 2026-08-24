@@ -4,11 +4,14 @@ Joint-index resolution remains pure for offline callers."""
 
 from __future__ import annotations
 
+import logging
 from typing import Any, List
 
 import numpy as np
 
 from marslab.config.schema.rover import ControlConfig, SuspensionConfig
+
+_LOG = logging.getLogger(__name__)
 
 
 def resolve_joint_indices(dof_names: List[str], requested: List[str]) -> List[int]:
@@ -108,7 +111,7 @@ def reinforce_pd_gains(
     suspension_cfg: SuspensionConfig,
     dof_names: List[str],
 ) -> None:
-    """Reinforce PD gains into the PhysX tensors after ``world.reset``."""
+    """Reinforce only MarsLab-owned PD gains after ``world.reset``."""
     drive_joint_names = list(control_cfg.drive_joint_names)
     steer_joint_names = list(control_cfg.steer_joint_names)
 
@@ -121,17 +124,54 @@ def reinforce_pd_gains(
     rocker_indices = resolve_joint_indices(dof_names, list(suspension_cfg.rocker_joint_names))
     bogie_indices = resolve_joint_indices(dof_names, list(suspension_cfg.bogie_joint_names))
 
-    num_dof = len(dof_names)
-    kps = np.zeros((1, num_dof), dtype=np.float32)
-    kds = np.zeros((1, num_dof), dtype=np.float32)
-    for idx in drive_indices:
-        kds[0, idx] = drive_damping
-    for idx in steer_indices:
-        kps[0, idx] = steer_stiffness
-        kds[0, idx] = steer_damping
-    for idx in rocker_indices:
-        kds[0, idx] = float(suspension_cfg.rocker_damping)
-    for idx in bogie_indices:
-        kds[0, idx] = float(suspension_cfg.bogie_damping)
+    owned_indices = drive_indices + steer_indices + rocker_indices + bogie_indices
+    if len(set(owned_indices)) != len(owned_indices):
+        raise ValueError("drive, steer, rocker, and bogie joint groups must not overlap")
+    owned_index_array = np.asarray(owned_indices, dtype=np.int32)
+    unowned_indices = sorted(set(range(len(dof_names))) - set(owned_indices))
+    unowned_index_array = np.asarray(unowned_indices, dtype=np.int32)
+    unowned_before = None
+    if unowned_indices:
+        prior_kps, prior_kds = articulation.get_gains(joint_indices=unowned_index_array)
+        unowned_before = (np.asarray(prior_kps).copy(), np.asarray(prior_kds).copy())
 
-    articulation.set_gains(kps=kps, kds=kds)
+    kps = np.zeros((1, len(owned_indices)), dtype=np.float32)
+    kds = np.concatenate(
+        (
+            np.full(len(drive_indices), drive_damping, dtype=np.float32),
+            np.full(len(steer_indices), steer_damping, dtype=np.float32),
+            np.full(
+                len(rocker_indices),
+                float(suspension_cfg.rocker_damping),
+                dtype=np.float32,
+            ),
+            np.full(
+                len(bogie_indices),
+                float(suspension_cfg.bogie_damping),
+                dtype=np.float32,
+            ),
+        )
+    ).reshape(1, -1)
+    steer_start = len(drive_indices)
+    steer_end = steer_start + len(steer_indices)
+    kps[0, steer_start:steer_end] = steer_stiffness
+
+    articulation.set_gains(
+        kps=kps,
+        kds=kds,
+        joint_indices=owned_index_array,
+    )
+    applied_kps, applied_kds = articulation.get_gains(joint_indices=owned_index_array)
+    if not np.allclose(applied_kps, kps) or not np.allclose(applied_kds, kds):
+        raise RuntimeError("post-reset PD gain verification failed for MarsLab-owned joints")
+    if unowned_before is not None:
+        remaining_kps, remaining_kds = articulation.get_gains(joint_indices=unowned_index_array)
+        if not np.array_equal(remaining_kps, unowned_before[0]) or not np.array_equal(
+            remaining_kds, unowned_before[1]
+        ):
+            raise RuntimeError("post-reset PD gain update modified an unowned articulation DOF")
+    _LOG.info(
+        "Post-reset PD gain ownership:\n  owned DOFs updated: %d\n  unowned DOFs preserved: %d",
+        len(owned_indices),
+        len(unowned_indices),
+    )

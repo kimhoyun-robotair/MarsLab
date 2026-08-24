@@ -300,7 +300,6 @@ def assemble_pre_reset(
     sensor_handles = spawn_sensors(
         stage,
         sensors_config,
-        ros2_config,
         spawned_rover.rigid_body_path,
     )
 

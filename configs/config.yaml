@@ -49,6 +49,7 @@ rover:
   angular_damping: 12.0
   linear_damping: 0.5
   chassis:
+    rigid_body_prim_name: Body_Chassis
     mass: 1025.0
     inertia_xx: 1036.1
     inertia_yy: 1182.2
@@ -87,8 +88,6 @@ rover:
       camera_info: rgb/camera_info
       lidar: lidar/points
       joint_states: joint_states
-    rates:
-      imu: 30
     odom_publisher:
       frame_id: odom
       child_frame_id: base_link
@@ -124,6 +123,7 @@ rover:
       usd_profile: null
       variant: OS1_REV6_128ch10hz1024res
     imu:
+      sampling_frequency_hz: 30
       local_translation: [0.0, 0.0, 0.0]
       local_orientation_rpy_deg: [0.0, 0.0, 0.0]
       sigma_lin_acc: 0.05

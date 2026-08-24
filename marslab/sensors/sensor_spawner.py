@@ -91,7 +91,6 @@ class SensorHandles:
 def spawn_sensors(
     stage: Any,
     sensors_cfg: dict[str, Any],
-    ros2_cfg: dict[str, Any],
     rigid_body_path: str,
 ) -> SensorHandles:
     """Create one Camera, one 3D LiDAR, and one IMU for the rover."""
@@ -101,12 +100,7 @@ def spawn_sensors(
 
     camera_handles = spawn_camera(stage, camera_cfg, rigid_body_path)
     lidar_handles = spawn_lidar_3d(stage, lidar_cfg, rigid_body_path)
-    imu_handles = spawn_imu(
-        stage,
-        imu_cfg,
-        rigid_body_path,
-        float(ros2_cfg["rates"]["imu"]),
-    )
+    imu_handles = spawn_imu(stage, imu_cfg, rigid_body_path)
     return SensorHandles(
         camera=camera_handles.camera,
         lidar_3d=lidar_handles.lidar,

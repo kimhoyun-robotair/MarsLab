@@ -30,6 +30,8 @@ class _PrimHandle(Protocol):
 class _IMUHandle(Protocol):
     def initialize(self) -> None: ...
 
+    def get_dt(self) -> float: ...
+
 
 @dataclass(frozen=True, slots=True)
 class IMUSpawnHandles:
@@ -104,7 +106,6 @@ def spawn_imu(
     stage: _StageHandle,
     imu_cfg: IMUConfig,
     chassis_path: str,
-    frequency_hz: float,
 ) -> IMUSpawnHandles:
     """Create and initialize one IMU prim from the typed sensor config."""
     from isaacsim.sensors.physics import IMUSensor
@@ -130,9 +131,26 @@ def spawn_imu(
     imu = IMUSensor(
         prim_path=imu_prim_path,
         translation=translation,
-        frequency=int(frequency_hz),
+        frequency=imu_cfg.sampling_frequency_hz,
     )
     imu.initialize()
+    effective_period_s = float(imu.get_dt())
+    requested_period_s = 1.0 / imu_cfg.sampling_frequency_hz
+    if not math.isclose(effective_period_s, requested_period_s, rel_tol=1e-5, abs_tol=1e-8):
+        raise RuntimeError(
+            "IMU sampling period mismatch: "
+            f"requested={requested_period_s:.9f} s, "
+            f"effective={effective_period_s:.9f} s"
+        )
+    _LOG.info(
+        "IMU sampling configuration:\n"
+        "  requested frequency: %d Hz\n"
+        "  effective frequency: %.3f Hz\n"
+        "  sensor period: %.6f s",
+        imu_cfg.sampling_frequency_hz,
+        1.0 / effective_period_s,
+        effective_period_s,
+    )
     return IMUSpawnHandles(imu=imu, imu_prim_path=imu_prim_path)
 
 

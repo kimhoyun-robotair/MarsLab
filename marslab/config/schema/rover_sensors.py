@@ -1,4 +1,4 @@
-"""Define validated camera, IMU, and 3-D LiDAR settings.
+"""Define validated camera, IMU sampling, and 3-D LiDAR settings.
 Acquisition is mandatory and separate from ROS transport.
 Isaac handles are created only by runtime spawners."""
 
@@ -72,6 +72,7 @@ class Lidar3DConfig(StrictConfigModel):
 
 
 class IMUConfig(StrictConfigModel):
+    sampling_frequency_hz: PositiveInt
     local_translation: Vec3
     local_orientation_rpy_deg: Vec3
     sigma_lin_acc: NonNegativeFloat

@@ -32,7 +32,6 @@ def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
     """Validate the schema-known subset of ``ros2_cfg`` ONCE."""
     from marslab.config.schema.rover_ros2 import (
         Ros2BridgeConfig,
-        RosRatesConfig,
         RosTopicsConfig,
     )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
@@ -43,11 +42,6 @@ def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
         key: value
         for key, value in dict(ros2_cfg["topics"]).items()
         if key in RosTopicsConfig.model_fields
-    }
-    schema_ros2_cfg["rates"] = {
-        key: value
-        for key, value in dict(ros2_cfg["rates"]).items()
-        if key in RosRatesConfig.model_fields
     }
     return Ros2BridgeConfig.model_validate(schema_ros2_cfg)
 

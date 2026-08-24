@@ -52,7 +52,6 @@ __pycache__/
 .claude/
 tmp/
 work_log/
-docs/
 delete_later/
 reference/
 figure/

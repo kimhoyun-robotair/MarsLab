@@ -28,6 +28,7 @@ class SpawnConfig(StrictConfigModel):
 
 
 class ChassisConfig(StrictConfigModel):
+    rigid_body_prim_name: NonEmptyString
     mass: PositiveFloat = Field(le=5000.0)
     inertia_xx: PositiveFloat
     inertia_yy: PositiveFloat
