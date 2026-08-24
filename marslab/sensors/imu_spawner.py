@@ -13,6 +13,7 @@ from typing import Protocol
 import numpy as np
 
 from marslab.config.schema.rover_sensors import IMUConfig
+from marslab.quaternion import rpy_deg_to_quat
 
 _MARS_GRAVITY_TOL_STRICT = 0.05
 _LOG = logging.getLogger(__name__)
@@ -38,25 +39,6 @@ class IMUSpawnHandles:
 
     imu: _IMUHandle
     imu_prim_path: str
-
-
-def _rpy_deg_to_quat_wxyz(rpy_deg: Iterable[float]) -> tuple[float, float, float, float]:
-    """Convert ZYX roll-pitch-yaw degrees to a WXYZ quaternion."""
-    values = list(rpy_deg)
-    if len(values) != 3:
-        raise ValueError(
-            f"orientation rpy must have 3 entries (roll, pitch, yaw deg); got {values!r}"
-        )
-    roll, pitch, yaw = (math.radians(float(value)) for value in values)
-    cr, sr = math.cos(roll / 2.0), math.sin(roll / 2.0)
-    cp, sp = math.cos(pitch / 2.0), math.sin(pitch / 2.0)
-    cy, sy = math.cos(yaw / 2.0), math.sin(yaw / 2.0)
-    return (
-        float(cr * cp * cy + sr * sp * sy),
-        float(sr * cp * cy - cr * sp * sy),
-        float(cr * sp * cy + sr * cp * sy),
-        float(cr * cp * sy - sr * sp * cy),
-    )
 
 
 def _assert_mars_gravity(
@@ -115,7 +97,7 @@ def spawn_imu(
     orientation = imu_cfg.local_orientation_rpy_deg
     has_orientation = any(abs(value) > 0.01 for value in orientation)
     if has_orientation:
-        qw, qx, qy, qz = _rpy_deg_to_quat_wxyz(orientation)
+        qw, qx, qy, qz = rpy_deg_to_quat(orientation)
         xform_path = f"{chassis_path}/imu_xform"
         xform = UsdGeom.Xform.Define(stage, xform_path)
         xform.ClearXformOpOrder()

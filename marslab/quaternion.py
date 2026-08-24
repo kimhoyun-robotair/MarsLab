@@ -34,6 +34,7 @@ so ``float64 in -> float64 out`` and ``float32 in -> float32 out``.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Tuple
 
 import numpy as np
@@ -169,6 +170,13 @@ def rpy_to_quat(roll: float, pitch: float, yaw: float) -> Tuple[float, float, fl
     y = cr * sp * cy + sr * cp * sy
     z = cr * cp * sy - sr * sp * cy
     return float(w), float(x), float(y), float(z)
+
+
+def rpy_deg_to_quat(
+    rpy_deg: tuple[float, float, float],
+) -> tuple[float, float, float, float]:
+    roll, pitch, yaw = (math.radians(value) for value in rpy_deg)
+    return rpy_to_quat(roll, pitch, yaw)
 
 
 def quat_to_rpy(q: np.ndarray) -> Tuple[float, float, float]:

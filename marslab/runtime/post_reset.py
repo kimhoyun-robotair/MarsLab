@@ -19,7 +19,6 @@ from marslab.runtime.main_loop import AtmosphereLoopState
 from marslab.runtime.physics_override_log import format_physics_override_summary
 
 SpawnPosition = tuple[float, float, float]
-SensorFrames = list[tuple[str, list[float], list[float]]]
 _DOF_NAMES = "dof_names"
 _LOG = logging.getLogger(__name__)
 
@@ -166,9 +165,7 @@ def assemble_post_reset(
     bridge = None
     if ros2_enabled:
         sensor_frames_module = import_module("marslab.runtime.sensor_frames")
-        sensor_frames: SensorFrames = sensor_frames_module.sensor_frames_to_tuples(
-            sensor_frames_module.build_sensor_frames(rover.sensors.model_dump(mode="python"))
-        )
+        sensor_frames = sensor_frames_module.build_sensor_frames(rover.sensors)
         master_seed = rover.sensors.seed
         if master_seed is not None:
             child_seeds = np.random.SeedSequence(int(master_seed)).spawn(3)

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -15,6 +15,7 @@ import numpy as np
 import numpy.typing as npt
 
 from marslab.config.schema.rover_sensors import Lidar3DConfig
+from marslab.quaternion import rpy_deg_to_quat
 
 _POINT_CLOUD_ANNOTATOR = "IsaacExtractRTXSensorPointCloudNoAccumulator"
 _LOG = logging.getLogger(__name__)
@@ -184,25 +185,6 @@ def _apply_lidar_runtime_overrides(
     )
 
 
-def _rpy_deg_to_quat_wxyz(rpy_deg: Iterable[float]) -> tuple[float, float, float, float]:
-    """Convert ZYX roll-pitch-yaw degrees to a WXYZ quaternion."""
-    values = list(rpy_deg)
-    if len(values) != 3:
-        raise ValueError(
-            f"orientation rpy must have 3 entries (roll, pitch, yaw deg); got {values!r}"
-        )
-    roll, pitch, yaw = (math.radians(float(value)) for value in values)
-    cr, sr = math.cos(roll / 2.0), math.sin(roll / 2.0)
-    cp, sp = math.cos(pitch / 2.0), math.sin(pitch / 2.0)
-    cy, sy = math.cos(yaw / 2.0), math.sin(yaw / 2.0)
-    return (
-        float(cr * cp * cy + sr * sp * sy),
-        float(sr * cp * cy - cr * sp * sy),
-        float(cr * sp * cy + sr * cp * sy),
-        float(cr * cp * sy - sr * sp * cy),
-    )
-
-
 def spawn_lidar_3d(
     stage: _StageHandle,
     lidar_cfg: Lidar3DConfig,
@@ -219,7 +201,7 @@ def spawn_lidar_3d(
     }
     if any(abs(value) > 0.01 for value in lidar_cfg.local_orientation_rpy_deg):
         lidar_kwargs["orientation"] = np.asarray(
-            _rpy_deg_to_quat_wxyz(lidar_cfg.local_orientation_rpy_deg), dtype=np.float32
+            rpy_deg_to_quat(lidar_cfg.local_orientation_rpy_deg), dtype=np.float32
         )
     if lidar_cfg.usd_profile is not None:
         lidar_kwargs["name"] = lidar_cfg.usd_profile

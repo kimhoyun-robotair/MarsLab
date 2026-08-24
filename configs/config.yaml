@@ -106,7 +106,7 @@ rover:
     seed: 42
     camera:
       local_translation: [1.2, 0.0, 2.1]
-      local_orientation_rpy_deg: [6.6, 0.0, 90.0]
+      local_orientation_rpy_deg: [0.0, 6.6, 0.0]
       resolution: [640, 480]
       focal_length_mm: 18.0
       clipping_range: [0.1, 100.0]

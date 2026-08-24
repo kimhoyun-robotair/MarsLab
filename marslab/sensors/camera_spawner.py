@@ -5,14 +5,14 @@ Isaac imports are confined to the spawner call."""
 from __future__ import annotations
 
 import logging
-import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
 import numpy as np
 
 from marslab.config.schema.rover_sensors import CameraConfig
+from marslab.quaternion import rpy_deg_to_quat
 
 _LOG = logging.getLogger(__name__)
 _MM_PER_ISAAC_FOCAL_LENGTH_UNIT = 10.0
@@ -37,25 +37,6 @@ class _AnnotatorHandle(Protocol):
 class _RenderProductHandle(Protocol):
     @property
     def path(self) -> str: ...
-
-
-def _rpy_deg_to_quat_wxyz(rpy_deg: Iterable[float]) -> tuple[float, float, float, float]:
-    """Convert ZYX roll-pitch-yaw degrees to a WXYZ quaternion."""
-    values = list(rpy_deg)
-    if len(values) != 3:
-        raise ValueError(
-            f"orientation rpy must have 3 entries (roll, pitch, yaw deg); got {values!r}"
-        )
-    roll, pitch, yaw = (math.radians(float(value)) for value in values)
-    cr, sr = math.cos(roll / 2.0), math.sin(roll / 2.0)
-    cp, sp = math.cos(pitch / 2.0), math.sin(pitch / 2.0)
-    cy, sy = math.cos(yaw / 2.0), math.sin(yaw / 2.0)
-    return (
-        float(cr * cp * cy + sr * sp * sy),
-        float(sr * cp * cy - cr * sp * sy),
-        float(cr * sp * cy + sr * cp * sy),
-        float(cr * cp * sy - sr * sp * cy),
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,7 +64,7 @@ def spawn_camera(
     camera_orientation = camera_cfg.local_orientation_rpy_deg
     has_orientation = any(abs(value) > 0.01 for value in camera_orientation)
     if has_orientation:
-        cam_qw, cam_qx, cam_qy, cam_qz = _rpy_deg_to_quat_wxyz(camera_orientation)
+        cam_qw, cam_qx, cam_qy, cam_qz = rpy_deg_to_quat(camera_orientation)
         camera_xform_path = f"{chassis_path}/camera_xform"
         camera_xform = UsdGeom.Xform.Define(stage, camera_xform_path)
         camera_xform.ClearXformOpOrder()
