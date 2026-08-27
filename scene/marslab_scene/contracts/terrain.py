@@ -12,7 +12,6 @@ from pydantic import (
     ConfigDict,
     Field,
     JsonValue,
-    TypeAdapter,
     ValidationError,
     field_validator,
 )
@@ -20,6 +19,7 @@ from pydantic import (
 from marslab_scene.compat.profiles import (
     resolve_compatibility_policy,
 )
+from marslab_scene.config.json_value import JSON_VALUE_ADAPTER
 from marslab_scene.config.paths import relative_posix_path, resolve_manifest_file
 from marslab_scene.contracts.files import require_artifact_file
 from marslab_scene.contracts.provenance import Provenance
@@ -32,7 +32,6 @@ from marslab_scene.errors import (
 )
 from marslab_scene.terrain.frame import TerrainFrame
 
-_JSON_ADAPTER: Final[TypeAdapter[JsonValue]] = TypeAdapter(JsonValue)
 _AFFINE_LENGTH: Final = 6
 _XY_LENGTH: Final = 2
 
@@ -138,7 +137,7 @@ def _load_yaml(path: Path) -> JsonValue:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as error:
         raise ArtifactManifestError(path=path, detail=str(error)) from error
-    return _JSON_ADAPTER.validate_python(raw)
+    return JSON_VALUE_ADAPTER.validate_python(raw)
 
 
 def load_terrain_artifact(

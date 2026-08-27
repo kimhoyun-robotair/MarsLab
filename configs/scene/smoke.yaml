@@ -1,0 +1,27 @@
+schema_version: 1
+
+scene:
+  id: synthetic-smoke
+  compatibility_profile: canonical
+
+terrain:
+  source:
+    type: artifact
+    manifest: ../../scene/tests/fixtures/terrain/smoke/manifest.yaml
+  crop: {}
+  mesh: {}
+  texture: {}
+  appearance: {}
+  modifiers: []
+
+layers:
+  rocks:
+    enabled: false
+  habitat:
+    enabled: false
+
+output:
+  directory: ../../assets/scene/smoke
+  stage: scene.usda
+  runtime_package: scene.usdz
+  manifest: manifest.yaml

@@ -114,3 +114,15 @@ class SceneBuildError(RuntimeError):
     @override
     def __str__(self) -> str:
         return self.detail
+
+
+class SceneFeatureUnavailable(RuntimeError):
+    feature: str
+
+    def __init__(self, feature: str) -> None:
+        self.feature = feature
+        super().__init__(feature)
+
+    @override
+    def __str__(self) -> str:
+        return f"scene feature is unavailable: {self.feature}"

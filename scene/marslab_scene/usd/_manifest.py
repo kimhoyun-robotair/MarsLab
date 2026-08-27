@@ -13,19 +13,17 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    JsonValue,
-    TypeAdapter,
     ValidationError,
     field_validator,
 )
 
 from marslab_scene.compat.profiles import CompatibilityPolicy
+from marslab_scene.config.json_value import JSON_VALUE_ADAPTER
 from marslab_scene.config.paths import relative_posix_path, resolve_manifest_file
 from marslab_scene.contracts.layers import HabitatLayer, RockLayer
 from marslab_scene.contracts.terrain import TerrainArtifact
 from marslab_scene.errors import ArtifactManifestError, ContractValueError, PathContractError
 
-_JSON_ADAPTER = TypeAdapter(JsonValue)
 _SHA256_LENGTH: Final = 64
 
 
@@ -80,6 +78,7 @@ class SceneArtifactManifest(_ManifestModel):
     layers: tuple[SceneLayerManifest, ...]
     digests: dict[str, str]
     semantic_comparison_report_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    output_override_applied: bool
 
     @field_validator("layers", mode="before")
     @classmethod
@@ -114,6 +113,7 @@ class SceneManifestInputs:
     rocks: RockLayer | None
     habitat: HabitatLayer | None
     policy: CompatibilityPolicy
+    output_override_applied: bool
 
 
 def write_scene_manifest(manifest_path: Path, inputs: SceneManifestInputs) -> None:
@@ -167,6 +167,7 @@ def write_scene_manifest(manifest_path: Path, inputs: SceneManifestInputs) -> No
         "layers": layers,
         "digests": digests,
         "semantic_comparison_report_digest": digests[report_key],
+        "output_override_applied": inputs.output_override_applied,
     }
     _ = manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=True), encoding="utf-8")
 
@@ -176,7 +177,7 @@ def validate_scene_manifest(manifest_path: Path) -> SceneArtifactManifest:
     path = manifest_path.expanduser().resolve()
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        manifest = SceneArtifactManifest.model_validate(_JSON_ADAPTER.validate_python(raw))
+        manifest = SceneArtifactManifest.model_validate(JSON_VALUE_ADAPTER.validate_python(raw))
     except (
         OSError,
         yaml.YAMLError,

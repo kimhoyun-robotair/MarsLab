@@ -14,11 +14,14 @@ from marslab_scene.usd._scene_validation import (
     SceneValidationContract,
     validate_scene_stage,
 )
+from marslab_scene.usd.runtime_package import RuntimePackageReport, validate_runtime_package
 
 __all__ = [
+    "RuntimePackageReport",
     "SceneArtifactManifest",
     "SceneSemanticReport",
     "SceneValidationContract",
+    "validate_runtime_package",
     "validate_scene_manifest",
     "validate_scene_stage",
 ]

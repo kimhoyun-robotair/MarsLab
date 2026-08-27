@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Final, assert_never
+from typing import assert_never
 
 import yaml
-from pydantic import JsonValue, TypeAdapter, ValidationError
+from pydantic import JsonValue, ValidationError
 
 from marslab_scene.compat.profiles import resolve_compatibility_policy
+from marslab_scene.config.json_value import JSON_VALUE_ADAPTER
 from marslab_scene.config.models import (
     ArtifactSource,
     HabitatDisabled,
@@ -22,15 +23,13 @@ from marslab_scene.config.models import (
 from marslab_scene.config.paths import resolve_existing_file
 from marslab_scene.errors import PathContractError, SceneConfigError
 
-_JSON_ADAPTER: Final[TypeAdapter[JsonValue]] = TypeAdapter(JsonValue)
-
 
 def _load_yaml(path: Path) -> JsonValue:
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as error:
         raise SceneConfigError(path=path, detail=str(error)) from error
-    return _JSON_ADAPTER.validate_python(raw)
+    return JSON_VALUE_ADAPTER.validate_python(raw)
 
 
 def load_scene_config(path: Path | str) -> SceneRecipe:

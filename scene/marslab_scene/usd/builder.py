@@ -52,10 +52,12 @@ class SceneBuilder:
         *,
         policy: CompatibilityPolicy,
         force: bool = False,
+        output_override_applied: bool = False,
     ) -> None:
         self._output = output
         self._policy = policy
         self._force = force
+        self._output_override_applied = output_override_applied
         self._target = resolve_safe_output_target(output.directory)
 
     def build(
@@ -100,6 +102,7 @@ class SceneBuilder:
                     rocks=resolved.rocks,
                     habitat=resolved.habitat,
                     policy=self._policy,
+                    output_override_applied=self._output_override_applied,
                 ),
             )
             _ = validate_scene_manifest(manifest_path)

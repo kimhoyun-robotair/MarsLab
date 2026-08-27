@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Final
 
 import yaml
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 
+from marslab_scene.config.json_value import JSON_VALUE_ADAPTER
 from marslab_scene.config.paths import resolve_manifest_file
 from marslab_scene.errors import ArtifactManifestError, ContractValueError
-
-_JSON_ADAPTER: Final[TypeAdapter[JsonValue]] = TypeAdapter(JsonValue)
 
 
 def load_asset_yaml(path: Path) -> JsonValue:
@@ -21,7 +19,7 @@ def load_asset_yaml(path: Path) -> JsonValue:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as error:
         raise ArtifactManifestError(path=path, detail=str(error)) from error
-    return _JSON_ADAPTER.validate_python(raw)
+    return JSON_VALUE_ADAPTER.validate_python(raw)
 
 
 def validate_bundle_digests(root: Path, digests: dict[str, str]) -> str:
