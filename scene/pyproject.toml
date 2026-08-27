@@ -97,6 +97,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S108", "ARG", "PLR2004", "SLF001", "D"]
 "tests/terrain/hirise/**/*.py" = ["ANN001", "E402", "PLC0415", "PLR0913", "PT018", "PYI034", "S603"]
+"tests/layers/rocks/**/*.py" = ["S603"]
 "typings/**/*.pyi" = ["N802", "N815"]
 "marslab_scene/terrain/frame.py" = ["PLR2004"]
 "marslab_scene/terrain/hirise/appearance/*.py" = ["EM102", "PLR0913", "PLR2004", "RUF046", "SIM102", "TRY301"]

@@ -61,32 +61,36 @@ class RockPrototype(AssetManifestModel):
     texture: Path
     collision_prim: str = Field(pattern=r"^/[A-Za-z0-9_/]+$")
     native_diameter_m: float = Field(gt=0.0)
-    stable_pose_wxyz: tuple[float, float, float, float]
-    stable_face_vertex_indices: tuple[int, int, int]
+    stable_poses_wxyz: tuple[tuple[float, float, float, float], ...]
+    stable_faces_vertex_indices: tuple[tuple[int, int, int], ...]
 
     @field_validator("stage", "texture", mode="before")
     @classmethod
     def validate_file_path(cls, value: Path | str) -> Path:
         return relative_posix_path(value)
 
-    @field_validator("stable_pose_wxyz", "stable_face_vertex_indices", mode="before")
+    @field_validator("stable_poses_wxyz", "stable_faces_vertex_indices", mode="before")
     @classmethod
-    def validate_tuple(
+    def validate_nested_tuple(
         cls,
-        value: list[float] | list[int] | tuple[float, ...] | tuple[int, ...],
-    ) -> tuple[float | int, ...]:
-        return tuple(value)
+        value: list[list[float] | list[int]] | tuple[tuple[float, ...] | tuple[int, ...], ...],
+    ) -> tuple[tuple[float | int, ...], ...]:
+        return tuple(tuple(item) for item in value)
 
     @model_validator(mode="after")
     def validate_stable_metadata(self) -> RockPrototype:
-        squared_norm = sum(value * value for value in self.stable_pose_wxyz)
-        if not math.isclose(squared_norm, 1.0, abs_tol=1e-6):
-            raise ContractValueError("stable_pose_wxyz must be a unit quaternion")
-        if (
-            len(set(self.stable_face_vertex_indices)) != _STABLE_FACE_SIZE
-            or min(self.stable_face_vertex_indices) < 0
+        if not self.stable_poses_wxyz or len(self.stable_poses_wxyz) != len(
+            self.stable_faces_vertex_indices
         ):
-            raise ContractValueError("stable_face_vertex_indices must contain three unique indices")
+            raise ContractValueError("stable pose and face candidate counts must match")
+        for pose in self.stable_poses_wxyz:
+            squared_norm = sum(value * value for value in pose)
+            if not math.isclose(squared_norm, 1.0, abs_tol=1e-6):
+                raise ContractValueError("stable_poses_wxyz must contain unit quaternions")
+        for face in self.stable_faces_vertex_indices:
+            if len(set(face)) != _STABLE_FACE_SIZE or min(face) < 0:
+                detail = "stable_faces_vertex_indices must contain unique triangle indices"
+                raise ContractValueError(detail)
         return self
 
 
@@ -180,11 +184,8 @@ def _load_rock_asset(manifest_path: Path) -> RockAssetDescriptor:
             prototype.prim_path,
             resolve_manifest_file(root, prototype.texture),
         )
-        validate_mesh_vertex_indices(
-            stage_path,
-            prototype.geometry_prim,
-            prototype.stable_face_vertex_indices,
-        )
+        for face in prototype.stable_faces_vertex_indices:
+            validate_mesh_vertex_indices(stage_path, prototype.geometry_prim, face)
         minimum, maximum = geometry_bounds(stage_path, prototype.geometry_prim)
         diameter = max(maximum[0] - minimum[0], maximum[1] - minimum[1])
         if not math.isclose(diameter, prototype.native_diameter_m, abs_tol=1e-6):
@@ -198,6 +199,7 @@ def _load_rock_asset(manifest_path: Path) -> RockAssetDescriptor:
         stage_path=stage_path,
         prototype_ids=tuple(item.id for item in manifest.prototypes),
         native_diameters_m=tuple(item.native_diameter_m for item in manifest.prototypes),
+        stable_pose_candidates_wxyz=tuple(item.stable_poses_wxyz for item in manifest.prototypes),
         license_path=license_path,
         attribution=manifest.license.attribution,
         bundle_digest=bundle_digest,

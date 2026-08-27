@@ -147,6 +147,21 @@ The unmodified source run is truthfully recorded as 42 passed, 6 failed, and
 mapped and are caused by the absent source rock-license sidecar; they are not
 treated as passing or skipped.
 
+## Phase-4 RockyComposer target tests
+
+The Phase-4 fixture uses a 2.5 m/px DEM with non-unit vertical scale, non-zero
+reference/offset, nodata, and out-of-bounds rows. The synthetic rock bundle is
+contract data only and does not satisfy the canonical asset Release Gate.
+
+| Target test | Marker | Source / contract disposition | Independent oracle |
+| --- | --- | --- | --- |
+| `tests/layers/rocks/test_phase4_rocks.py::test_legacy_selection_scale_and_orientation_match_read_only_source` | `unit`, `legacy_parity` | Replaces seeded selection, scale, and stable-orientation nodes from source `test_placement.py`, including ordered selection from two non-coplanar stable faces | Direct execution of pinned RockyComposer selection/orientation on the same diameters and seed; quaternion sign equivalence at `1e-5` |
+| `tests/layers/rocks/test_phase4_rocks.py::test_legacy_positions_match_read_only_source_on_same_dem` | `unit`, `legacy_parity` | Replaces source sampling and terrain-frame pipeline positioning | Direct execution of pinned `RasterSampler` and `_apply_terrain_frame_transform` on the same GeoTIFF and XY rows |
+| `tests/layers/rocks/test_phase4_rocks.py::test_public_place_rocks_returns_deterministic_layer_and_filters_invalid_samples` | `unit`, `legacy_parity` | Replaces the non-authoring portion of source `test_pipeline.py`; authoring remains mapped to SceneBuilder | Real public `place_rocks`, actual CSV/GeoTIFF, Phase-2A asset descriptor, repeat equality, and explicit OOB/nodata counts |
+| `tests/layers/rocks/test_phase4_rocks.py::test_profile_specific_z_values_have_independent_expected_values` | `unit`, `legacy_parity` | Locks the deliberate §7.6 legacy/canonical Rock Z delta | Separately hand-calculated legacy `((110-100)+3.25)*1.75=23.1875` and canonical `(110-100)*1.75+3.25=20.75` |
+| `tests/layers/rocks/test_phase4_rocks.py::test_quaternion_comparison_treats_sign_as_equivalent` | `unit`, `legacy_parity` | Locks the §12 quaternion comparator contract | Algebraic identity that `q` and `-q` encode the same rotation |
+| `tests/layers/rocks/test_phase4_rocks.py::test_csv_and_dem_boundaries_fail_closed` | `unit`, `contract`, `legacy_parity` | Ports malformed/missing CSV and invalid sampler-shape failures from source ingest/sampling suites | Real malformed/missing filesystem inputs and array shape boundary |
+
 ## HabitatGen source suite: 14 tests
 
 | Source test file | Collected | Migration contract | Disposition |

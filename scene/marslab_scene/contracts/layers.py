@@ -28,6 +28,15 @@ class FlatnessReport:
 
 
 @dataclass(frozen=True, slots=True)
+class RockPlacementStats:
+    csv_count: int
+    placed_count: int
+    skipped_out_of_bounds: int
+    skipped_nodata: int
+    clamped_count: int
+
+
+@dataclass(frozen=True, slots=True)
 class RockLayer:
     asset_manifest: Path
     positions_local_m: NDArray[np.float64]
@@ -36,6 +45,7 @@ class RockLayer:
     orientations_wxyz: NDArray[np.float64]
     placement_source: Path | None
     seed: int | None
+    stats: RockPlacementStats
 
     def __post_init__(self) -> None:
         count = len(self.positions_local_m)

@@ -14,6 +14,7 @@ class RockAssetDescriptor:
     stage_path: Path
     prototype_ids: tuple[str, ...]
     native_diameters_m: tuple[float, ...]
+    stable_pose_candidates_wxyz: tuple[tuple[tuple[float, float, float, float], ...], ...] = ()
     license_path: Path | None = None
     attribution: str = ""
     bundle_digest: str = ""

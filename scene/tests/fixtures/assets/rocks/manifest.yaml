@@ -39,5 +39,9 @@ prototypes:
     texture: textures/rock.ppm
     collision_prim: /World/RockPrototypes/rock_one/Collision
     native_diameter_m: 1.0
-    stable_pose_wxyz: [1.0, 0.0, 0.0, 0.0]
-    stable_face_vertex_indices: [0, 2, 1]
+    stable_poses_wxyz:
+      - [1.0, 0.0, 0.0, 0.0]
+      - [0.7071067811865476, -0.7071067811865476, 0.0, 0.0]
+    stable_faces_vertex_indices:
+      - [0, 2, 1]
+      - [0, 3, 1]
