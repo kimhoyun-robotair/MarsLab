@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Literal
+from typing import Final, Literal
 
 from pydantic import Field, ValidationError, field_validator
 
@@ -30,6 +30,8 @@ from marslab_scene.usd.validation import (
     validate_asset_stage,
 )
 
+_XYZ_LENGTH: Final = 3
+
 
 class HabitatFiles(AssetManifestModel):
     stage: Path
@@ -45,6 +47,26 @@ class HabitatFiles(AssetManifestModel):
     @classmethod
     def validate_paths(cls, value: list[Path | str] | tuple[Path | str, ...]) -> tuple[Path, ...]:
         return tuple(relative_posix_path(item) for item in value)
+
+
+class HabitatLegacyCompatibility(AssetManifestModel):
+    centroid_zup_m: tuple[float, float, float]
+    source_metadata_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @field_validator("centroid_zup_m", mode="before")
+    @classmethod
+    def validate_centroid(
+        cls,
+        value: list[float] | tuple[float, ...],
+    ) -> tuple[float, float, float]:
+        centroid = tuple(value)
+        if len(centroid) != _XYZ_LENGTH or not all(math.isfinite(item) for item in centroid):
+            raise ContractValueError("legacy centroid must contain three finite values")
+        return (centroid[0], centroid[1], centroid[2])
+
+
+class HabitatCompatibilityProfiles(AssetManifestModel):
+    marslab_utils_6f30d67: HabitatLegacyCompatibility
 
 
 class HabitatAssetManifest(AssetManifestModel):
@@ -65,6 +87,7 @@ class HabitatAssetManifest(AssetManifestModel):
     aabb_max_zup_m: tuple[float, float, float]
     body_floor_z_m: float
     footprint_size_m: tuple[float, float]
+    compatibility_profiles: HabitatCompatibilityProfiles | None = None
 
     @field_validator("digests", mode="before")
     @classmethod
@@ -143,6 +166,12 @@ def _load_habitat_asset(manifest_path: Path) -> HabitatAssetDescriptor:
         aabb_min_zup_m=manifest.aabb_min_zup_m,
         aabb_max_zup_m=manifest.aabb_max_zup_m,
         body_floor_z_m=manifest.body_floor_z_m,
+        footprint_size_m=manifest.footprint_size_m,
+        legacy_centroid_zup_m=(
+            None
+            if manifest.compatibility_profiles is None
+            else manifest.compatibility_profiles.marslab_utils_6f30d67.centroid_zup_m
+        ),
         license_path=license_path,
         attribution=manifest.license.attribution,
         bundle_digest=bundle_digest,

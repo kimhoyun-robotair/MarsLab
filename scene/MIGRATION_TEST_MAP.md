@@ -171,3 +171,25 @@ contract data only and does not satisfy the canonical asset Release Gate.
 | `tests/test_skeleton.py` | 3 | legacy namespaces import | Delete after migration because retired namespaces must not remain active |
 
 HabitatGen collected and passed all 14 tests in its existing environment.
+
+## Phase-5 HabitatGen target tests
+
+The Phase-5 fixture uses a 2 x 3 m/px DEM with a nodata cell, a non-unit
+vertical scale, non-zero Z reference and offset, and distinct non-zero legacy
+and canonical centroids. The Phase-2A habitat bundle remains synthetic
+contract data and does not satisfy the canonical asset Release Gate.
+
+| Target test | Marker | Source / contract disposition | Independent oracle |
+| --- | --- | --- | --- |
+| `tests/layers/habitat/test_phase5_habitat.py::test_legacy_profile_matches_read_only_source_on_nontrivial_fixture` | `unit`, `legacy_parity` | Migrates the numerical portions of source `test_composer.py`: legacy flatness window, bilinear sampling, centroid transform, body-floor alignment and transformed AABB | Direct execution of pinned HabitatGen `find_flattest_anchor`, `sample_dem_z` and `compute_transform` on the same GeoTIFF and metadata |
+| `tests/layers/habitat/test_phase5_habitat.py::test_canonical_profile_uses_independent_resolution_and_alignment_oracle` | `unit`, `legacy_parity` | Locks canonical §5.3/§7.6 resolution, elevation, Z-up centroid and body-floor contracts | Hand-derived 3 x 3 window at row/column `(2,2)`, projected center `(1005,1992.5)`, surface Z `9.5 m`, translation `(1,-2.5,9)` and translated AABB |
+| `tests/layers/habitat/test_phase5_habitat.py::test_profiles_have_deliberately_distinct_expected_anchor_and_transform` | `unit`, `legacy_parity` | Records the deliberate profile delta instead of sharing expected values | Legacy row/column `(6,6)` and translation `(8.75,-13.75,24.5)` versus canonical `(2,2)` and `(1,-2.5,9)` |
+| `tests/layers/habitat/test_phase5_habitat.py::test_anchor_boundaries_nodata_and_malformed_settings_fail_closed` | `unit`, `contract`, `legacy_parity` | Replaces source config/anchor edge coverage with explicit schema-v1 absolute-anchor failure modes | Real GeoTIFF boundary/nodata samples: canonical OOB rejection, legacy edge clamp, missing absolute XY rejection, and oversized footprint rejection |
+| `tests/layers/habitat/test_phase5_habitat.py::test_public_api_authors_no_stage_and_imports_no_asset_generator` | `unit`, `legacy_parity` | Replaces the non-authoring composer pipeline behavior; old authoring moves to Phase 6 and assetgen is explicitly retired | Public `place_habitat` on actual TerrainArtifact/manifest inputs, filesystem inventory equality, and loaded-module inventory |
+
+The source `test_composer.py` config roundtrip was superseded by the Phase-1
+strict recipe schema. Its USD validator and final scene smoke belong to the
+single SceneBuilder and runtime phases, because a habitat layer is forbidden
+from authoring a stage. `test_assetgen.py` remains replaced by the Phase-2A
+bundle contract and the blocked Phase-2B Release Gate. `test_skeleton.py` is
+deleted by design because the legacy namespace must not remain active.

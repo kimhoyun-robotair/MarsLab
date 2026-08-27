@@ -25,6 +25,9 @@ class TerrainAnchor:
 class FlatnessReport:
     elevation_range_m: float
     valid_sample_count: int
+    standard_deviation_m: float = 0.0
+    mean_surface_z_m: float = 0.0
+    window_radius_px: tuple[int, int] = (0, 0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,8 +80,24 @@ class HabitatLayer:
     rotation_wxyz: tuple[float, float, float, float]
     anchor: TerrainAnchor
     flatness: FlatnessReport
+    aabb_min_local_m: tuple[float, float, float]
+    aabb_max_local_m: tuple[float, float, float]
 
     def __post_init__(self) -> None:
-        values = (*self.translation_local_m, *self.rotation_wxyz)
+        values = (
+            *self.translation_local_m,
+            *self.rotation_wxyz,
+            *self.aabb_min_local_m,
+            *self.aabb_max_local_m,
+        )
         if not all(math.isfinite(value) for value in values):
             raise ContractValueError("habitat transform must be finite")
+        if any(
+            minimum > maximum
+            for minimum, maximum in zip(
+                self.aabb_min_local_m,
+                self.aabb_max_local_m,
+                strict=True,
+            )
+        ):
+            raise ContractValueError("habitat AABB minimum must not exceed maximum")

@@ -35,6 +35,8 @@ class HabitatAssetDescriptor:
     aabb_min_zup_m: tuple[float, float, float]
     aabb_max_zup_m: tuple[float, float, float]
     body_floor_z_m: float
+    footprint_size_m: tuple[float, float] = (0.0, 0.0)
+    legacy_centroid_zup_m: tuple[float, float, float] | None = None
     license_path: Path | None = None
     attribution: str = ""
     bundle_digest: str = ""
