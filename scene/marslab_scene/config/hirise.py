@@ -12,7 +12,12 @@ from marslab_scene.errors import ContractValueError
 
 
 class _StrictModel(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True, strict=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        allow_inf_nan=False,
+        extra="forbid",
+        frozen=True,
+        strict=True,
+    )
 
 
 class CropSettings(_StrictModel):
@@ -80,9 +85,9 @@ class MeshSettings(_StrictModel):
 class PhysicsSettings(_StrictModel):
     gravity_mps2: float = Field(default=3.711, gt=0.0)
     collision_approximation: Literal["none", "meshSimplification"] = "none"
-    static_friction: float = 1.0
-    dynamic_friction: float = 0.8
-    restitution: float = 0.0
+    static_friction: float = Field(default=1.0, ge=0.0)
+    dynamic_friction: float = Field(default=0.8, ge=0.0)
+    restitution: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class TextureOutputSizeSettings(_StrictModel):

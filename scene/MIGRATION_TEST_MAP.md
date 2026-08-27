@@ -256,6 +256,7 @@ input is a skipped `NOT RUN`, never a `PASS`.
 | `tests/contracts/test_hirise_recipe_settings.py::test_hirise_recipe_rejects_unknown_and_invalid_settings` | `contract`, `standalone_usd` | Unknown HiRISE setting fails at the strict schema boundary | Public recipe loader rejection |
 | `tests/contracts/test_hirise_recipe_settings.py::test_public_recipe_preserves_active_hirise_pipeline_settings` | `contract`, `standalone_usd` | Active source `PipelineConfig` input, resample, nodata-fill, and physics settings must remain public recipe semantics | Real two-band GeoTIFF, public YAML build, resampled USD mesh values, and authored USD physics/material attributes |
 | `tests/contracts/test_hirise_recipe_settings.py::test_hirise_recipe_rejects_invalid_active_pipeline_settings` | `contract`, `standalone_usd` | Invalid active input, resample, fill, gravity, and collision settings fail at the strict schema boundary | Public recipe loader rejection |
+| `tests/contracts/test_hirise_recipe_settings.py::test_hirise_recipe_rejects_nonfinite_and_invalid_material_settings` | `contract`, `standalone_usd` | Non-finite HiRISE values and material settings outside physical ranges fail at the strict schema boundary | Public YAML recipe loader rejection |
 | `tests/usd/test_paths.py` | `unit`, `contract` | Central USD relative-reference and containment responsibility | Real relocated filesystem paths and fail-closed URI/absolute/escape cases |
 
 ## Production source module inventory

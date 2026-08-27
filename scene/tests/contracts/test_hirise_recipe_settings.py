@@ -244,6 +244,36 @@ def test_hirise_recipe_rejects_unknown_and_invalid_settings(tmp_path: Path) -> N
 @pytest.mark.parametrize(
     ("section", "value"),
     [
+        ("input", {"nodata_override": float("nan")}),
+        ("input", {"nodata_override": float("inf")}),
+        ("physics", {"gravity_mps2": float("inf")}),
+        ("physics", {"static_friction": -0.1}),
+        ("physics", {"static_friction": float("nan")}),
+        ("physics", {"dynamic_friction": -0.1}),
+        ("physics", {"dynamic_friction": float("inf")}),
+        ("physics", {"restitution": -0.1}),
+        ("physics", {"restitution": 1.1}),
+    ],
+)
+def test_hirise_recipe_rejects_nonfinite_and_invalid_material_settings(
+    tmp_path: Path,
+    section: str,
+    value: dict[str, float],
+) -> None:
+    # Given
+    recipe = _recipe(tmp_path)
+    document = yaml.safe_load(recipe.read_text(encoding="utf-8"))
+    document["terrain"][section] = value
+    recipe.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    # When / Then
+    with pytest.raises(SceneConfigError):
+        load_scene_config(recipe)
+
+
+@pytest.mark.parametrize(
+    ("section", "value"),
+    [
         ("input", {"band": 0}),
         ("resample", {"method": "lanczos"}),
         ("processing", {"fill_nodata": "interpolate"}),
