@@ -11,6 +11,25 @@ Phase-0 disposition, not a claim that target behavior is already covered.
 | `tests/legacy_reference/test_phase0_baseline.py::test_phase0_documents_exist_when_baseline_is_locked` | `legacy_parity` | Required provenance, license, paper inventory, and mapping records cannot disappear | Phase-0 file contract |
 | `tests/legacy_reference/test_phase0_baseline.py::test_phase0_snapshot_is_self_authenticating_when_loaded` | `legacy_parity` | Fixture cannot silently drift or lose source revision/input digest/seed | SHA-256 plus locked source snapshot |
 
+## Phase-1 target tests
+
+| Target test | Marker | Contract / failure mode | Independent oracle |
+| --- | --- | --- | --- |
+| `tests/contracts/test_phase1_contracts.py::test_public_loader_resolves_valid_recipe_when_files_exist` | `unit`, `contract` | Recipe paths resolve relative to the recipe and required files exist | Temporary filesystem layout |
+| `tests/contracts/test_phase1_contracts.py::test_public_loader_rejects_missing_profile_when_recipe_is_loaded` | `unit`, `contract` | Schema-v1 compatibility profile has no implicit default | Required-field contract in §7.6/§9.1 |
+| `tests/contracts/test_phase1_contracts.py::test_public_loader_rejects_unknown_profile_when_recipe_is_loaded` | `unit`, `contract` | Unknown compatibility profile fails closed | Immutable profile registry |
+| `tests/contracts/test_phase1_contracts.py::test_public_loader_rejects_unknown_key_when_recipe_is_loaded` | `unit`, `contract` | Schema keys are strict | Pydantic `extra=forbid` boundary |
+| `tests/contracts/test_phase1_contracts.py::test_public_loader_rejects_non_relative_input_path` | `unit`, `contract` | Absolute paths and file URIs are forbidden | Recipe-relative path contract |
+| `tests/contracts/test_phase1_contracts.py::test_public_loader_rejects_missing_input_file` | `unit`, `contract` | Required input files fail immediately when absent | Temporary filesystem layout |
+| `tests/contracts/test_phase1_contracts.py::test_manifest_loader_rejects_invalid_world_convention` | `unit`, `contract` | Only Z-up and one meter per unit are accepted | World convention contract |
+| `tests/contracts/test_phase1_contracts.py::test_manifest_loader_rejects_absolute_manifest_path` | `unit`, `contract` | Manifest file paths are root-relative POSIX paths | Manifest path contract |
+| `tests/contracts/test_phase1_contracts.py::test_manifest_loader_rejects_profile_mismatch` | `unit`, `contract` | Imported terrain profile cannot be rebound implicitly | Profile equality contract |
+| `tests/contracts/test_phase1_contracts.py::test_terrain_frame_applies_profile_specific_z_contract` | `unit`, `contract` | Canonical and legacy rock Z formula remain distinct | Hand-calculated §7.6 values |
+| `tests/contracts/test_phase1_contracts.py::test_asset_descriptor_rejects_missing_contract_files` | `unit`, `contract` | Asset descriptors cannot carry missing manifest/stage files | Temporary filesystem layout |
+| `tests/contracts/test_phase1_contracts.py::test_terrain_artifact_rejects_missing_contract_files` | `unit`, `contract` | Terrain artifacts require existing stage and manifest files | Temporary filesystem layout |
+| `tests/contracts/test_phase1_contracts.py::test_scene_artifact_rejects_missing_contract_files` | `unit`, `contract` | Scene artifacts require existing stage/package/manifest files | Temporary filesystem layout |
+| `tests/contracts/test_phase1_contracts.py::test_layer_summary_rejects_negative_count` | `unit`, `contract` | Layer counts cannot be negative | Integer boundary contract |
+
 ## HiRISEGen source suite: 111 tests
 
 | Source test file | Collected | Migration contract | Disposition |
