@@ -52,13 +52,14 @@ def _sha256(path: Path) -> str:
 
 
 def _contained_entrypoint(root: Path, relative: Path) -> Path:
+    lexical = root / relative
+    if lexical.is_symlink():
+        detail = f"entrypoint is a symlink: {relative}"
+        raise LegacyTerrainNormalizationError(detail)
     try:
         path = resolve_local_reference(root, root, relative.as_posix())
     except PathContractError as error:
         raise LegacyTerrainNormalizationError(str(error)) from error
-    if path.is_symlink():
-        detail = f"entrypoint is a symlink: {relative}"
-        raise LegacyTerrainNormalizationError(detail)
     return path
 
 
@@ -85,8 +86,12 @@ def _external_copy(
     if entry is None:
         detail = f"external dependency is absent from exact owner/token allowlist: {owner_relative}"
         raise LegacyTerrainNormalizationError(detail)
+    if entry.source.is_symlink():
+        raise LegacyTerrainNormalizationError(
+            "allowlisted replacement source is not a regular file"
+        )
     source = entry.source.resolve()
-    if not source.is_file() or source.is_symlink():
+    if not source.is_file():
         raise LegacyTerrainNormalizationError(
             "allowlisted replacement source is not a regular file"
         )
@@ -114,6 +119,14 @@ def _dependency_copy(
 ) -> _DependencyCopy:
     if "://" in token or token.startswith("file:"):
         raise LegacyTerrainNormalizationError("remote URI dependency is forbidden")
+    lexical = owner.parent / token
+    if lexical.is_symlink():
+        return _external_copy(
+            owner_relative,
+            token,
+            context.entries,
+            context.output_root,
+        )
     try:
         source = resolve_local_reference(context.root, owner.parent, token)
     except PathContractError:
@@ -124,13 +137,6 @@ def _dependency_copy(
             context.output_root,
         )
     relative = source.relative_to(context.root.resolve())
-    if source.is_symlink():
-        return _external_copy(
-            owner_relative,
-            token,
-            context.entries,
-            context.output_root,
-        )
     return _DependencyCopy(
         source=source,
         destination=context.output_root / relative,

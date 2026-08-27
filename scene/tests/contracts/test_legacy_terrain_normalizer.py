@@ -175,6 +175,23 @@ def test_digest_mismatch_fails_closed(tmp_path: Path) -> None:
         )
 
 
+def test_allowlisted_replacement_symlink_fails_closed(tmp_path: Path) -> None:
+    # Given
+    authored_path = "/missing/legacy/albedo.png"
+    root, replacement = _fixture(tmp_path, authored_path)
+    replacement_link = tmp_path / "replacement-link.png"
+    replacement_link.symlink_to(replacement)
+    source = _source(root, replacement_link, authored_path)
+
+    # When / Then
+    with pytest.raises(LegacyTerrainNormalizationError, match="regular file"):
+        normalize_legacy_terrain(
+            source,
+            output_dir=tmp_path / "symlink-replacement",
+            policy=resolve_compatibility_policy("canonical"),
+        )
+
+
 def test_absolute_symlink_and_special_replacement_fail_closed(tmp_path: Path) -> None:
     # Given
     authored_path = "linked.png"
