@@ -22,6 +22,7 @@ from marslab_scene.errors import (
     UnknownCompatibilityProfileError,
 )
 from marslab_scene.terrain import TerrainFrame
+from marslab_scene.usd.builder import SceneBuilder
 
 __all__ = [
     "ArtifactManifestError",
@@ -35,6 +36,7 @@ __all__ = [
     "RockLayer",
     "RockPlacementStats",
     "SceneArtifact",
+    "SceneBuilder",
     "SceneConfigError",
     "SceneRecipe",
     "TerrainAnchor",

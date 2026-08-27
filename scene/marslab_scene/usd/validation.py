@@ -8,6 +8,20 @@ from pathlib import Path
 from pxr import Sdf, Usd, UsdGeom, UsdShade, UsdUtils
 
 from marslab_scene.errors import ContractValueError
+from marslab_scene.usd._manifest import SceneArtifactManifest, validate_scene_manifest
+from marslab_scene.usd._scene_validation import (
+    SceneSemanticReport,
+    SceneValidationContract,
+    validate_scene_stage,
+)
+
+__all__ = [
+    "SceneArtifactManifest",
+    "SceneSemanticReport",
+    "SceneValidationContract",
+    "validate_scene_manifest",
+    "validate_scene_stage",
+]
 
 
 @dataclass(frozen=True, slots=True)

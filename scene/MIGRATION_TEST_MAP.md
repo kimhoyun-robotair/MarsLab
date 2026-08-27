@@ -193,3 +193,24 @@ single SceneBuilder and runtime phases, because a habitat layer is forbidden
 from authoring a stage. `test_assetgen.py` remains replaced by the Phase-2A
 bundle contract and the blocked Phase-2B Release Gate. `test_skeleton.py` is
 deleted by design because the legacy namespace must not remain active.
+
+## Phase-6 final SceneBuilder target tests
+
+These tests use actual standalone `usd-core`/`pxr` composition and Phase-2A
+copyright-safe asset fixtures. They establish final authoring and relocation
+contracts only; they are not Isaac, MarsLab runtime, canonical asset, or paper
+reproduction evidence.
+
+| Target test | Marker | Source / contract disposition | Independent oracle |
+| --- | --- | --- | --- |
+| `tests/usd/test_scene_builder.py::test_scene_builder_authors_exact_hierarchy_and_instancer_contract` | `contract`, `standalone_usd` | Consolidates Rocky/Habitat final writers into the sole final author and locks §10.2 hierarchy, conventions, transforms, references, arrays, manifest, and checksums | Actual composed `pxr` stage, Sdf authored reference inventory, and public contract values |
+| `tests/usd/test_scene_builder.py::test_scene_builder_rejects_duplicate_layer_kinds` | `contract`, `standalone_usd` | Prevents duplicate composer/layer authoring | Duplicate typed layer input and absent output boundary |
+| `tests/usd/test_scene_builder.py::test_working_layout_and_standalone_usdz_relocate_independently` | `contract`, `standalone_usd` | Locks working-layout relocation and single-file USDZ dependency closure | Two distinct temporary roots, actual `Usd.Stage.Open`, and `UsdUtils.ComputeAllDependencies` |
+| `tests/usd/test_scene_builder.py::test_enabled_layer_combinations_keep_stable_hierarchy` | `contract`, `standalone_usd` | Locks terrain-only and habitat-enabled hierarchy without placeholder prims | Actual composed child order for both parametrized cases |
+| `tests/usd/test_scene_builder.py::test_terrain_owned_physics_and_material_children_are_preserved_before_layers` | `contract`, `standalone_usd` | Preserves terrain-owned physics/material scopes while keeping final layer order deterministic | Actual sublayer composition with non-layer children and `pxr` child inventory |
+| `tests/usd/test_output_safety.py::test_existing_output_is_preserved_by_default` | `contract`, `standalone_usd` | Implements §9.3 default no-overwrite policy | Existing sentinel file remains byte-identical after rejection |
+| `tests/usd/test_output_safety.py::test_unsafe_output_roots_are_rejected` | `contract`, `standalone_usd` | Rejects filesystem root and user home targets | Resolved root identities for both parametrized cases |
+| `tests/usd/test_output_safety.py::test_unresolved_output_variable_is_rejected` | `contract`, `standalone_usd` | Rejects unresolved environment-variable output tokens | Literal unresolved path component boundary |
+| `tests/usd/test_output_safety.py::test_failed_validation_removes_only_temporary_output` | `contract`, `standalone_usd` | Implements temporary-build cleanup without touching unrelated files | Invalid actual terrain stage, absent temp/target, and preserved sibling sentinel |
+| `tests/usd/test_output_safety.py::test_force_publish_retains_recoverable_sibling_backup` | `contract`, `standalone_usd` | Implements validate-before-backup-and-atomic-publish force policy | Backup contains original sentinel and published stage opens |
+| `tests/usd/test_output_safety.py::test_final_manifest_rejects_dependency_checksum_corruption` | `contract`, `standalone_usd` | Requires final manifest schema/path/checksum validation before publication | Independent post-build mutation of the semantic report produces an explicit checksum mismatch |

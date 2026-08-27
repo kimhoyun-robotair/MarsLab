@@ -31,6 +31,7 @@ class SceneArtifact:
     terrain: TerrainArtifact
     layer_summaries: tuple[LayerSummary, ...]
     provenance: Provenance
+    previous_output_backup: Path | None = None
 
     def __post_init__(self) -> None:
         require_artifact_file(self.root_dir, self.stage_path)

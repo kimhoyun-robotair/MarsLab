@@ -102,3 +102,15 @@ class ContractValueError(ValueError):
     @override
     def __str__(self) -> str:
         return self.detail
+
+
+class SceneBuildError(RuntimeError):
+    detail: str
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+    @override
+    def __str__(self) -> str:
+        return self.detail
