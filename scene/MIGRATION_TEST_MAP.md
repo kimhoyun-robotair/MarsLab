@@ -214,3 +214,21 @@ reproduction evidence.
 | `tests/usd/test_output_safety.py::test_failed_validation_removes_only_temporary_output` | `contract`, `standalone_usd` | Implements temporary-build cleanup without touching unrelated files | Invalid actual terrain stage, absent temp/target, and preserved sibling sentinel |
 | `tests/usd/test_output_safety.py::test_force_publish_retains_recoverable_sibling_backup` | `contract`, `standalone_usd` | Implements validate-before-backup-and-atomic-publish force policy | Backup contains original sentinel and published stage opens |
 | `tests/usd/test_output_safety.py::test_final_manifest_rejects_dependency_checksum_corruption` | `contract`, `standalone_usd` | Requires final manifest schema/path/checksum validation before publication | Independent post-build mutation of the semantic report produces an explicit checksum mismatch |
+
+## Phase-7 public scripts and actual runtime target tests
+
+The committed smoke recipe uses the Phase-2A copyright-safe terrain fixture and
+is therefore synthetic input. Its standalone results do not satisfy canonical
+asset, paper reproduction, Isaac, or MarsLab runtime gates. The actual runtime
+node has no mock, stub, fallback, or standalone substitute; an absent runtime
+input is a skipped `NOT RUN`, never a `PASS`.
+
+| Target test | Marker | Source / contract disposition | Independent oracle |
+| --- | --- | --- | --- |
+| `tests/pipeline/test_phase7_scripts.py::test_json_boundaries_reuse_adapter_loaded_before_usd_runtime` | `contract`, `standalone_usd` | Locks the actual Isaac failure where a late recursive `JsonValue` adapter is built after Kit changes the typing-extension identity | One preloaded adapter object shared by every YAML/manifest boundary; actual bundled build is the runtime toggle proof |
+| `tests/pipeline/test_phase7_scripts.py::test_public_build_uses_recipe_and_records_output_override` | `contract`, `standalone_usd` | Replaces the old HiRISE CLI wrapper with the single recipe-to-artifact public boundary and records temporary-output override without absolute manifest paths | Real public build, manifest text, and published USDZ |
+| `tests/pipeline/test_phase7_scripts.py::test_runtime_package_validator_observes_terrain_and_dependency_closure` | `contract`, `standalone_usd` | Validates final package terrain and missing-reference contracts without claiming Isaac | Actual `usd-core` package open, terrain prim traversal, and dependency inventory |
+| `tests/pipeline/test_phase7_scripts.py::test_build_script_reports_existing_output_and_force_backup` | `contract`, `standalone_usd` | Locks public CLI exit status, existing-output rejection, validate-before-force publish, and recoverable backup reporting | Three real subprocess invocations and preserved sibling backup |
+| `tests/pipeline/test_phase7_scripts.py::test_scripts_expose_help_and_invalid_recipe_is_nonzero` | `contract`, `standalone_usd` | Locks all four thin script surfaces and strict invalid-recipe rejection | Real subprocess exit codes with malformed YAML recipe |
+| `tests/pipeline/test_phase7_scripts.py::test_asset_and_scene_validation_scripts_drive_real_public_validators` | `contract`, `standalone_usd` | Replaces old script-only smoke assertions with real synthetic bundle and USDZ validation | Actual Phase-2A bundle loaders and actual `usd-core` final package inspection |
+| `tests/runtime/test_phase7_actual_runtime.py::test_actual_isaac_and_marslab_assembly_load_final_scene` | `isaac_runtime`, `marslab_runtime` | Replaces legacy skipped Isaac smoke nodes with one truthful actual runtime gate | Actual bundled interpreter, SimulationApp/Kit, world, MarsLab `assemble_pre_reset`, `/World/Terrain` mesh traversal, and runtime update; no mock or fallback |
