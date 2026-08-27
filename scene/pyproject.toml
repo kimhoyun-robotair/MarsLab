@@ -43,6 +43,7 @@ markers = [
 
 [tool.basedpyright]
 typeCheckingMode = "all"
+stubPath = "typings"
 pythonVersion = "3.11"
 pythonPlatform = "All"
 include = ["marslab_scene"]
@@ -51,6 +52,7 @@ reportUnusedCallResult = "warning"
 reportUnnecessaryTypeIgnoreComment = "error"
 reportUnusedVariable = "error"
 reportMissingParameterType = "error"
+reportMissingModuleSource = "none"
 reportPrivateUsage = "error"
 reportUnnecessaryComparison = "none"
 reportAny = "none"
@@ -87,6 +89,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S108", "ARG", "PLR2004", "SLF001", "D"]
+"typings/**/*.pyi" = ["N802", "N815"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

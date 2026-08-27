@@ -25,10 +25,33 @@ Phase-0 disposition, not a claim that target behavior is already covered.
 | `tests/contracts/test_phase1_contracts.py::test_manifest_loader_rejects_absolute_manifest_path` | `unit`, `contract` | Manifest file paths are root-relative POSIX paths | Manifest path contract |
 | `tests/contracts/test_phase1_contracts.py::test_manifest_loader_rejects_profile_mismatch` | `unit`, `contract` | Imported terrain profile cannot be rebound implicitly | Profile equality contract |
 | `tests/contracts/test_phase1_contracts.py::test_terrain_frame_applies_profile_specific_z_contract` | `unit`, `contract` | Canonical and legacy rock Z formula remain distinct | Hand-calculated §7.6 values |
-| `tests/contracts/test_phase1_contracts.py::test_asset_descriptor_rejects_missing_contract_files` | `unit`, `contract` | Asset descriptors cannot carry missing manifest/stage files | Temporary filesystem layout |
+| `tests/contracts/test_phase1_contracts.py::test_rock_asset_descriptor_rejects_missing_contract_files` | `unit`, `contract` | Rock descriptors cannot carry missing manifest/stage files | Temporary filesystem layout |
+| `tests/contracts/test_phase1_contracts.py::test_habitat_asset_descriptor_rejects_missing_contract_files` | `unit`, `contract` | Habitat descriptors cannot carry missing manifest/stage files | Temporary filesystem layout |
 | `tests/contracts/test_phase1_contracts.py::test_terrain_artifact_rejects_missing_contract_files` | `unit`, `contract` | Terrain artifacts require existing stage and manifest files | Temporary filesystem layout |
 | `tests/contracts/test_phase1_contracts.py::test_scene_artifact_rejects_missing_contract_files` | `unit`, `contract` | Scene artifacts require existing stage/package/manifest files | Temporary filesystem layout |
 | `tests/contracts/test_phase1_contracts.py::test_layer_summary_rejects_negative_count` | `unit`, `contract` | Layer counts cannot be negative | Integer boundary contract |
+
+## Phase-2A target tests
+
+All fixtures in this section are synthetic contract data. Their results are
+standalone USD validation, not canonical asset, Isaac, MarsLab runtime, or paper
+reproduction evidence.
+
+| Target test | Marker | Contract / failure mode | Independent oracle |
+| --- | --- | --- | --- |
+| `tests/contracts/test_asset_contracts.py::test_rock_loader_validates_synthetic_bundle_with_real_usd` | `contract`, `standalone_usd` | Rock schema, prototype metadata, material, texture, collision, checksums, provenance, and license resolve together | Actual `usd-core` stage composition plus manifest checksums |
+| `tests/contracts/test_asset_contracts.py::test_habitat_loader_validates_synthetic_bundle_with_real_usd` | `contract`, `standalone_usd` | Habitat schema and Z-up geometry-derived centroid/AABB/body-floor/footprint metadata agree | Actual `usd-core` geometry bounds |
+| `tests/contracts/test_asset_contracts.py::test_asset_loaders_resolve_after_bundle_root_is_relocated` | `contract`, `standalone_usd` | Bundle references remain owner-relative after copying the full layout to a different root | Temporary relocated filesystem and actual `usd-core` dependency resolution |
+| `tests/contracts/test_asset_contracts.py::test_asset_bundle_digest_is_stable_across_relocation` | `contract`, `standalone_usd` | Bundle digest excludes absolute checkout path | §5.4 lexical path + NUL + file digest algorithm |
+| `tests/contracts/test_asset_negatives.py::test_rock_loader_rejects_missing_declared_file` | `contract`, `standalone_usd` | Missing bundle file fails closed | Temporary filesystem deletion |
+| `tests/contracts/test_asset_negatives.py::test_asset_loader_rejects_absolute_manifest_path` | `contract`, `standalone_usd` | Manifest paths must be root-relative POSIX paths | Absolute path boundary |
+| `tests/contracts/test_asset_negatives.py::test_asset_loader_rejects_bad_world_convention` | `contract`, `standalone_usd` | Y-up and non-meter manifests fail closed | Z-up, meter literals in §6 |
+| `tests/contracts/test_asset_negatives.py::test_asset_loader_rejects_checksum_mismatch` | `contract`, `standalone_usd` | Modified content cannot retain its declared checksum | Independent SHA-256 of modified bytes |
+| `tests/contracts/test_asset_negatives.py::test_asset_loader_rejects_missing_attribution_field` | `contract`, `standalone_usd` | Provenance and license attribution are required | Strict schema required fields |
+| `tests/contracts/test_asset_negatives.py::test_rock_loader_rejects_missing_declared_prim` | `contract`, `standalone_usd` | Geometry, material, and collision prim declarations must resolve to correct USD types | Actual `usd-core` prim lookup |
+| `tests/contracts/test_asset_negatives.py::test_rock_loader_rejects_absolute_usd_reference` | `contract`, `standalone_usd` | Authored USD asset paths must be relative and bundle-contained | Owning-layer token inspection before dependency resolution |
+| `tests/contracts/test_asset_negatives.py::test_rock_loader_rejects_prototype_path_that_disagrees_with_stable_id` | `contract`, `standalone_usd` | Stable prototype ID and composed prototype prim path cannot disagree | Manifest prototype-root and stable-ID contract |
+| `tests/contracts/test_asset_negatives.py::test_rock_loader_rejects_texture_that_is_not_bound_under_prototype` | `contract`, `standalone_usd` | Per-prototype texture metadata must identify the actual bound material dependency | Actual composed USD asset attributes under the prototype subtree |
 
 ## HiRISEGen source suite: 111 tests
 

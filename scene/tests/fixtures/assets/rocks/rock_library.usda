@@ -1,0 +1,18 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "World"
+{
+    def Scope "RockPrototypes"
+    {
+        def Xform "rock_one" (
+            prepend references = @prototypes/rock_one.usda@
+        )
+        {
+        }
+    }
+}

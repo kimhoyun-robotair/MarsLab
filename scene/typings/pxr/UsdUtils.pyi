@@ -1,0 +1,3 @@
+from pxr import Sdf
+
+def ComputeAllDependencies(path: str) -> tuple[list[Sdf.Layer], list[str], list[str]]: ...
