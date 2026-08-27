@@ -199,6 +199,20 @@ python3 -m pip install -e .
 > Isaac Sim provides the Python interpreter used by the simulator. Installing
 > the package above does not replace the Isaac Sim installation.
 
+Offline scene construction is a separate project under `scene/`. Install and
+use it only when building or validating a new relocatable scene package:
+
+```bash
+python3.11 -m pip install -e './scene[standalone-usd,test]'
+python3.11 scripts/scene/build_scene.py \
+  --config configs/scene/smoke.yaml \
+  --output-dir "$(mktemp -d)/scene"
+```
+
+See [`scene/README.md`](scene/README.md) for compatibility profiles, manifests,
+validation tiers, provenance, and actual Isaac runtime smoke. Scene recipes do
+not replace the runtime `configs/config.yaml` contract.
+
 By default, the launcher looks for Isaac Sim at `$HOME/isaacsim`. If Isaac Sim
 is installed elsewhere, set its installation directory for the current shell:
 

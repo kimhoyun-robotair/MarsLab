@@ -23,7 +23,7 @@ The exact pre/post status and scoped diff are retained in the task evidence.
 | `HiRISEGen/src/hirisegen/texture/` and `visual_enhancement/` | `scene/marslab_scene/terrain/hirise/texture/` and `appearance/` | behavior-neutral migration; texture helpers split only by responsibility |
 | `HiRISEGen/src/hirisegen/usd/` | `scene/marslab_scene/usd/terrain.py` | consolidated reusable terrain sub-stage writer |
 | `HiRISEGen/src/hirisegen/pipeline.py::ExportResult` | `scene/marslab_scene/terrain/hirise/build.py::build_hirise_terrain` and `contracts/terrain.py::TerrainArtifact` | explicit artifact/manifest return contract |
-| `RockyComposer/src/rockycomposer/ingest/` and `library/` | `scene/marslab_scene/layers/rocks/input.py` and `assets/rocks.py` | map only; migration pending |
+| `RockyComposer/src/rockycomposer/ingest/` and `library/` | `scene/marslab_scene/layers/rocks/input.py` and `assets/rocks.py` | explicit CSV input and asset-manifest validation migrated; discovery removed |
 | `RockyComposer/src/rockycomposer/sampling/` and `placement/` | `scene/marslab_scene/terrain/sampling.py` and `layers/rocks/` | selection/scale snapshot locked |
 | `RockyComposer/src/rockycomposer/authoring/scene.py` | `scene/marslab_scene/usd/builder.py` | behavior reference only; no writer copied in Phase 0 |
 | `HabitatGen/src/habitatgen/composer/placement/` | `scene/marslab_scene/layers/habitat/` | transform snapshot locked |

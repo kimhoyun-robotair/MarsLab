@@ -5,6 +5,11 @@ MarsLab uses one runtime configuration file:
 resolved from the directory containing that file, so the repository can be
 cloned anywhere without changing paths for a particular computer.
 
+Offline scene generation is a separate configuration domain. Recipes under
+`configs/scene/*.yaml` are consumed by `marslab_scene` before runtime; their
+terrain, placement, compatibility-profile, and output settings must never be
+added to `configs/config.yaml`. Runtime consumes only the resulting USDZ path.
+
 The configuration is validated with strict Pydantic schemas before Isaac Sim
 starts. Unknown keys, invalid types, out-of-range values, missing required
 assets, and incompatible option combinations stop the launch early.
@@ -40,6 +45,49 @@ default rather than removing the subsystem.
 | `wheel_odom` | Dynamic odometry TF ownership | Decide whether MarsLab or an external estimator owns TF. |
 
 ## Scene selection and rover spawn
+
+### Offline build versus runtime selection
+
+Build a scene with the scene project and a versioned recipe, then point a
+temporary or committed runtime config at the validated package:
+
+```bash
+python3.11 -m pip install -e './scene[standalone-usd,test]'
+scene_build_root="$(mktemp -d)"
+python3.11 scripts/scene/build_scene.py \
+  --config configs/scene/smoke.yaml \
+  --output-dir "${scene_build_root}/scene"
+python3.11 scripts/scene/validate_scene.py \
+  --scene "${scene_build_root}/scene/scene.usdz"
+```
+
+For the supported authoring/runtime surface, run the same scripts with
+`marslab/isaac_python.sh`. `configs/scene/smoke.yaml` explicitly selects the
+`canonical` compatibility profile and a synthetic artifact. The
+`marslab_utils_6f30d67` profile exists only for locked legacy parity.
+`configs/scene/paper.example.yaml` is not runnable until every paper input and
+canonical asset has an authoritative digest and license; do not rename it to
+`paper.yaml` or guess its paths.
+
+The builder refuses an existing output by default. `--force` preserves the
+previous output as a recoverable sibling backup after the new output has passed
+validation. The final `scene.usdz` is relocatable and the adjacent manifest
+records relative paths, resolved profile, provenance and SHA-256 digests.
+
+Actual runtime smoke uses a temporary copy of `configs/config.yaml` and changes
+only `scene.usdz_path` in that copy:
+
+```bash
+marslab/isaac_python.sh scripts/scene/smoke_isaac.py \
+  --scene "${scene_build_root}/scene/scene.usdz" \
+  --base-runtime-config configs/config.yaml \
+  --report "${scene_build_root}/isaac-smoke.json"
+```
+
+Standalone `usd-core` validation is not Isaac validation. See
+[`scene/README.md`](scene/README.md) for manifest fields, output layout, test
+tiers, provenance, asset-license status, and the currently blocked Release
+Gates.
 
 ### `scene.usdz_path`
 
