@@ -11,7 +11,11 @@ from marslab_scene.config.hirise import (
     AppearanceSettings,
     CropSettings,
     ElevationSettings,
+    InputSettings,
     MeshSettings,
+    PhysicsSettings,
+    ProcessingSettings,
+    ResampleSettings,
     TextureSettings,
 )
 from marslab_scene.config.paths import relative_local_path, relative_posix_path
@@ -103,9 +107,13 @@ TerrainSource: TypeAlias = Annotated[
 
 class TerrainSettings(StrictModel):
     source: TerrainSource
+    input: InputSettings = Field(default_factory=InputSettings)
     crop: CropSettings = Field(default_factory=CropSettings)
+    resample: ResampleSettings = Field(default_factory=ResampleSettings)
+    processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     elevation: ElevationSettings = Field(default_factory=ElevationSettings)
     mesh: MeshSettings = Field(default_factory=MeshSettings)
+    physics: PhysicsSettings = Field(default_factory=PhysicsSettings)
     texture: TextureSettings = Field(default_factory=TextureSettings)
     appearance: AppearanceSettings = Field(default_factory=AppearanceSettings)
     modifiers: tuple[()] = ()

@@ -9,7 +9,7 @@ import yaml
 from marslab_scene import build_scene
 from marslab_scene.config.loader import load_scene_config
 from marslab_scene.errors import SceneConfigError
-from pxr import Usd, UsdGeom
+from pxr import Usd, UsdGeom, UsdPhysics
 from rasterio.transform import from_origin
 
 pytestmark = [pytest.mark.contract, pytest.mark.standalone_usd]
@@ -164,6 +164,71 @@ def test_public_recipe_honors_nondefault_appearance_settings(tmp_path: Path) -> 
     assert manifest["seed"] == 7
 
 
+def test_public_recipe_preserves_active_hirise_pipeline_settings(tmp_path: Path) -> None:
+    # Given
+    recipe = _recipe(tmp_path)
+    band_one = np.arange(16, dtype=np.float32).reshape(4, 4)
+    band_two = np.array(
+        [
+            [50.0, 51.0, 52.0, 53.0],
+            [54.0, -9999.0, 56.0, 57.0],
+            [58.0, 59.0, 60.0, 61.0],
+            [62.0, 63.0, 64.0, 65.0],
+        ],
+        dtype=np.float32,
+    )
+    with rasterio.open(
+        tmp_path / "source.tif",
+        "w",
+        driver="GTiff",
+        width=4,
+        height=4,
+        count=2,
+        dtype="float32",
+        crs="EPSG:32612",
+        transform=from_origin(0.0, 8.0, 2.0, 2.0),
+    ) as dataset:
+        dataset.write(band_one, 1)
+        dataset.write(band_two, 2)
+    document = yaml.safe_load(recipe.read_text(encoding="utf-8"))
+    document["terrain"].update(
+        {
+            "input": {"band": 2, "nodata_override": -9999.0},
+            "resample": {"method": "nearest"},
+            "processing": {"fill_nodata": "zero"},
+            "physics": {
+                "gravity_mps2": 1.234,
+                "collision_approximation": "meshSimplification",
+                "static_friction": 0.42,
+                "dynamic_friction": 0.31,
+                "restitution": 0.17,
+            },
+        }
+    )
+    recipe.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    # When
+    artifact = build_scene(recipe)
+
+    # Then
+    stage = Usd.Stage.Open(str(artifact.root_dir / "terrain/terrain.usda"))
+    points = UsdGeom.Mesh.Get(stage, "/World/MarsTerrain/VisualMesh").GetPointsAttr().Get()
+    assert min(float(point[2]) for point in points) == pytest.approx(-1.0)
+    assert float(points[1][2]) == pytest.approx(111.0)
+    assert max(float(point[2]) for point in points) == pytest.approx(129.0)
+    physics_scene = UsdPhysics.Scene.Get(stage, "/World/PhysicsScene")
+    assert physics_scene.GetGravityMagnitudeAttr().Get() == pytest.approx(1.234)
+    collision = UsdPhysics.MeshCollisionAPI.Get(
+        stage,
+        "/World/MarsTerrain/CollisionMesh",
+    )
+    assert collision.GetApproximationAttr().Get() == "meshSimplification"
+    material = UsdPhysics.MaterialAPI.Get(stage, "/World/MarsTerrain/PhysicsMaterial")
+    assert material.GetStaticFrictionAttr().Get() == pytest.approx(0.42)
+    assert material.GetDynamicFrictionAttr().Get() == pytest.approx(0.31)
+    assert material.GetRestitutionAttr().Get() == pytest.approx(0.17)
+
+
 def test_hirise_recipe_rejects_unknown_and_invalid_settings(tmp_path: Path) -> None:
     # Given
     recipe = _recipe(tmp_path)
@@ -173,4 +238,31 @@ def test_hirise_recipe_rejects_unknown_and_invalid_settings(tmp_path: Path) -> N
 
     # When / Then
     with pytest.raises(SceneConfigError, match="unknown"):
+        load_scene_config(recipe)
+
+
+@pytest.mark.parametrize(
+    ("section", "value"),
+    [
+        ("input", {"band": 0}),
+        ("resample", {"method": "lanczos"}),
+        ("processing", {"fill_nodata": "interpolate"}),
+        ("physics", {"gravity_mps2": 0.0}),
+        ("physics", {"collision_approximation": "convexHull"}),
+        ("physics", {"unknown": 1}),
+    ],
+)
+def test_hirise_recipe_rejects_invalid_active_pipeline_settings(
+    tmp_path: Path,
+    section: str,
+    value: dict[str, float | int | str],
+) -> None:
+    # Given
+    recipe = _recipe(tmp_path)
+    document = yaml.safe_load(recipe.read_text(encoding="utf-8"))
+    document["terrain"][section] = value
+    recipe.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    # When / Then
+    with pytest.raises(SceneConfigError):
         load_scene_config(recipe)

@@ -52,12 +52,15 @@ class HiriseBuildConfig:
 
     dem_path: Path
     output_dir: Path
+    input_band: int = 1
+    nodata_override: float | None = None
     crop: CropConfig = field(default_factory=CropConfig)
     elevation: ElevationConfig = field(default_factory=ElevationConfig)
     visual_grid_size: int = 513
     collision_grid_size: int = 257
     fill_nodata: str = "nearest"
     resample_method: str = "bilinear"
+    physics: PhysicsConfig = field(default_factory=PhysicsConfig)
     texture: TextureConfig = field(default_factory=TextureConfig)
     appearance: VisualEnhancementConfig = field(default_factory=VisualEnhancementConfig)
 
@@ -72,12 +75,15 @@ def _sha256(path: Path) -> str:
 
 def _resolved_config_digest(config: HiriseBuildConfig) -> str:
     payload = {
+        "input_band": config.input_band,
+        "nodata_override": config.nodata_override,
         "crop": asdict(config.crop),
         "elevation": asdict(config.elevation),
         "visual_grid_size": config.visual_grid_size,
         "collision_grid_size": config.collision_grid_size,
         "fill_nodata": config.fill_nodata,
         "resample_method": config.resample_method,
+        "physics": asdict(config.physics),
         "texture": asdict(config.texture),
         "appearance": asdict(config.appearance),
     }
@@ -87,7 +93,11 @@ def _resolved_config_digest(config: HiriseBuildConfig) -> str:
 
 def _pipeline_config(config: HiriseBuildConfig) -> PipelineConfig:
     return PipelineConfig(
-        input=InputConfig(path=config.dem_path),
+        input=InputConfig(
+            path=config.dem_path,
+            band=config.input_band,
+            nodata_override=config.nodata_override,
+        ),
         crop=config.crop,
         resample=ResampleConfig(method=config.resample_method),
         coordinates=CoordinatesConfig(),
@@ -100,7 +110,7 @@ def _pipeline_config(config: HiriseBuildConfig) -> PipelineConfig:
             write_collision_obj=False,
         ),
         usd=UsdConfig(output_dir=config.output_dir),
-        physics=PhysicsConfig(),
+        physics=config.physics,
         texture=config.texture,
         visual_enhancement=config.appearance,
     )
@@ -123,22 +133,28 @@ def build_hirise_terrain(
         HiriseBuildConfig(
             dem_path=dem_path,
             output_dir=output_dir,
+            input_band=config.input_band,
+            nodata_override=config.nodata_override,
             crop=config.crop,
             elevation=config.elevation,
             visual_grid_size=config.visual_grid_size,
             collision_grid_size=config.collision_grid_size,
             fill_nodata=config.fill_nodata,
             resample_method=config.resample_method,
+            physics=config.physics,
             texture=config.texture,
             appearance=config.appearance,
         )
     )
-    info = inspect_dem(dem_path)
+    info = inspect_dem(dem_path, pipeline.input.band)
     validate_dem_for_mvp(info)
     window = compute_crop_window(info, pipeline.crop)
-    crop = read_dem_window(dem_path, window)
+    crop = read_dem_window(dem_path, window, pipeline.input.band)
     validate_visual_enhancement_sources(pipeline, info, crop)
-    valid_mask = build_valid_mask(crop.array, info.nodata) & ~crop.mask
+    nodata = pipeline.input.nodata_override
+    if nodata is None:
+        nodata = info.nodata
+    valid_mask = build_valid_mask(crop.array, nodata) & ~crop.mask
     filled = fill_nodata(crop.array, valid_mask, pipeline.processing.fill_nodata)
     elevation = normalize_elevation(filled, valid_mask, pipeline.elevation)
     visual_z = resample_elevation(

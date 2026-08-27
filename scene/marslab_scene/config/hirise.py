@@ -31,6 +31,19 @@ class CropSettings(_StrictModel):
         return self
 
 
+class InputSettings(_StrictModel):
+    band: int = Field(default=1, ge=1)
+    nodata_override: float | None = None
+
+
+class ResampleSettings(_StrictModel):
+    method: Literal["nearest", "bilinear"] = "bilinear"
+
+
+class ProcessingSettings(_StrictModel):
+    fill_nodata: Literal["nearest", "zero", "mean"] = "nearest"
+
+
 class ElevationSettings(_StrictModel):
     normalization: Literal[
         "absolute", "min_zero", "mean_zero", "median_zero", "percentile_zero", "manual"
@@ -62,6 +75,14 @@ class MeshSettings(_StrictModel):
         if value % 2 == 0:
             raise ContractValueError("HiRISE mesh grid size must be odd")
         return value
+
+
+class PhysicsSettings(_StrictModel):
+    gravity_mps2: float = Field(default=3.711, gt=0.0)
+    collision_approximation: Literal["none", "meshSimplification"] = "none"
+    static_friction: float = 1.0
+    dynamic_friction: float = 0.8
+    restitution: float = 0.0
 
 
 class TextureOutputSizeSettings(_StrictModel):

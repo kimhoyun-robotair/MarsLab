@@ -34,6 +34,7 @@ from marslab_scene.terrain.hirise.config import (
     ElevationConfig,
     MastcamReferenceConfig,
     OrthomosaicConfig,
+    PhysicsConfig,
     TextureConfig,
     TextureMaterialConfig,
     TextureOutputSize,
@@ -139,10 +140,15 @@ def _hirise_build_config(recipe: SceneRecipe, dem: Path, output: Path) -> Hirise
     return HiriseBuildConfig(
         dem_path=dem,
         output_dir=output,
+        input_band=terrain.input.band,
+        nodata_override=terrain.input.nodata_override,
         crop=CropConfig(**terrain.crop.model_dump()),
+        resample_method=terrain.resample.method,
+        fill_nodata=terrain.processing.fill_nodata,
         elevation=ElevationConfig(**terrain.elevation.model_dump()),
         visual_grid_size=terrain.mesh.visual_grid_size,
         collision_grid_size=terrain.mesh.collision_grid_size,
+        physics=PhysicsConfig(**terrain.physics.model_dump()),
         texture=TextureConfig(
             enabled=terrain.texture.enabled,
             mode=terrain.texture.mode,
