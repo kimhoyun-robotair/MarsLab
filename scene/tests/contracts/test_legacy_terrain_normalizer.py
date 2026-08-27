@@ -192,6 +192,61 @@ def test_allowlisted_replacement_symlink_fails_closed(tmp_path: Path) -> None:
         )
 
 
+def test_time_sampled_absolute_reference_fails_closed(tmp_path: Path) -> None:
+    # Given
+    authored_path = str(tmp_path / "external.png")
+    root, _replacement = _fixture(tmp_path, authored_path)
+    Path(authored_path).write_bytes(b"external")
+    stage = Usd.Stage.Open(str(root / "terrain.usda"))
+    assert stage
+    attribute = stage.GetPrimAtPath("/World/Material").GetAttribute("inputs:file")
+    attribute.Clear()
+    attribute.Set(Sdf.AssetPath(authored_path), 1.0)
+    stage.GetRootLayer().Save()
+    source = LegacyArtifactSource.model_construct(
+        type="legacy_artifact",
+        root=root,
+        stage=Path("terrain.usda"),
+        dem=Path("terrain.tif"),
+        metadata=Path("metadata.json"),
+        external_dependencies=(),
+    )
+
+    # When / Then
+    with pytest.raises(LegacyTerrainNormalizationError, match="allowlist"):
+        normalize_legacy_terrain(
+            source,
+            output_dir=tmp_path / "time-sample",
+            policy=resolve_compatibility_policy("canonical"),
+        )
+
+
+def test_allowlisted_time_sampled_reference_rewrites_relative_path(tmp_path: Path) -> None:
+    # Given
+    authored_path = "/missing/legacy/albedo.png"
+    root, replacement = _fixture(tmp_path, authored_path)
+    stage = Usd.Stage.Open(str(root / "terrain.usda"))
+    assert stage
+    attribute = stage.GetPrimAtPath("/World/Material").GetAttribute("inputs:file")
+    attribute.Clear()
+    attribute.Set(Sdf.AssetPath(authored_path), 1.0)
+    stage.GetRootLayer().Save()
+
+    # When
+    artifact = normalize_legacy_terrain(
+        _source(root, replacement, authored_path),
+        output_dir=tmp_path / "normalized-time-sample",
+        policy=resolve_compatibility_policy("canonical"),
+    )
+
+    # Then
+    normalized = Usd.Stage.Open(str(artifact.root_dir / "terrain.usda"))
+    assert normalized
+    normalized_attribute = normalized.GetPrimAtPath("/World/Material").GetAttribute("inputs:file")
+    assert normalized_attribute.Get(Usd.TimeCode(1.0)).path == "dependencies/albedo.png"
+    assert authored_path not in (artifact.root_dir / "terrain.usda").read_text(encoding="utf-8")
+
+
 def test_absolute_symlink_and_special_replacement_fail_closed(tmp_path: Path) -> None:
     # Given
     authored_path = "linked.png"

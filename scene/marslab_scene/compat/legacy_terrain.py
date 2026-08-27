@@ -184,7 +184,9 @@ def _rewrite_layer(
         raise LegacyTerrainNormalizationError(detail)
     asset_attributes = tuple(_asset_attributes(source_sdf))
     reference_tokens = tuple(source_sdf.GetExternalReferences())
-    attribute_tokens = tuple(attribute.default.path for attribute in asset_attributes)
+    attribute_tokens = tuple(
+        token for attribute in asset_attributes for _, token in _asset_tokens(attribute)
+    )
     authored_tokens = (*reference_tokens, *attribute_tokens)
     if len(authored_tokens) != len(set(authored_tokens)):
         raise LegacyTerrainNormalizationError("owner layer has ambiguous duplicate asset token")
@@ -208,8 +210,13 @@ def _rewrite_layer(
         if token in reference_tokens:
             _ = destination_sdf.UpdateExternalReference(token, replacement)
         for attribute in _asset_attributes(destination_sdf):
-            if attribute.default.path == token:
-                attribute.default = Sdf.AssetPath(replacement)
+            for time, asset_token in _asset_tokens(attribute):
+                if asset_token != token:
+                    continue
+                if time is None:
+                    attribute.default = Sdf.AssetPath(replacement)
+                else:
+                    attribute.SetTimeSample(time, Sdf.AssetPath(replacement))
     destination_sdf.Save()
     return _LayerRewriteResult(
         destination=destination_layer,
@@ -239,8 +246,19 @@ def _asset_attributes(layer: Sdf.Layer) -> Iterator[Sdf.AttributeSpec]:
         prim = pending.pop()
         pending.extend(prim.nameChildren.values())
         for attribute in prim.attributes.values():
-            if isinstance(attribute.default, Sdf.AssetPath) and attribute.default.path:
+            if (
+                isinstance(attribute.default, Sdf.AssetPath) and attribute.default.path
+            ) or attribute.GetNumTimeSamples() > 0:
                 yield attribute
+
+
+def _asset_tokens(attribute: Sdf.AttributeSpec) -> Iterator[tuple[float | None, str]]:
+    if isinstance(attribute.default, Sdf.AssetPath) and attribute.default.path:
+        yield None, attribute.default.path
+    for time in attribute.ListTimeSamples():
+        value = attribute.QueryTimeSample(time)
+        if isinstance(value, Sdf.AssetPath) and value.path:
+            yield time, value.path
 
 
 def normalize_legacy_terrain(
