@@ -9,6 +9,7 @@ terrain:
     type: hirise
     dem: ../../data/jezero.tif
   crop: {}
+  elevation: {}
   mesh: {}
   texture: {}
   appearance: {}

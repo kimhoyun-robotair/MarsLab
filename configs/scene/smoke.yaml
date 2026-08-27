@@ -9,6 +9,7 @@ terrain:
     type: artifact
     manifest: ../../scene/tests/fixtures/terrain/smoke/manifest.yaml
   crop: {}
+  elevation: {}
   mesh: {}
   texture: {}
   appearance: {}

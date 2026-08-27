@@ -55,11 +55,34 @@ class WorldConventions(_ManifestModel):
     meters_per_unit: Annotated[float, Field(ge=1.0, le=1.0)]
 
 
+class LegacyExternalDependencyRecord(_ManifestModel):
+    owner_layer: Path
+    authored_path_sha256: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    destination: Path
+    sha256: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    redistribution_allowed: Literal[True]
+
+    @field_validator("owner_layer", "destination", mode="before")
+    @classmethod
+    def validate_path(cls, value: Path | str) -> Path:
+        return relative_posix_path(value)
+
+
 class ManifestProvenance(_ManifestModel):
     producer: str = Field(min_length=1)
     marslab_revision: str | None
     marslab_utils_revision: str | None
     source_files: tuple[Path, ...]
+    legacy_key_mapping: dict[str, str] | None = None
+    legacy_external_dependencies: tuple[LegacyExternalDependencyRecord, ...] = ()
+
+    @field_validator("legacy_external_dependencies", mode="before")
+    @classmethod
+    def validate_legacy_dependencies(
+        cls,
+        value: list[LegacyExternalDependencyRecord] | tuple[LegacyExternalDependencyRecord, ...],
+    ) -> tuple[LegacyExternalDependencyRecord, ...]:
+        return tuple(value)
 
     @field_validator("source_files", mode="before")
     @classmethod

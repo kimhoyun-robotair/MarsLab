@@ -242,6 +242,20 @@ input is a skipped `NOT RUN`, never a `PASS`.
 | `tests/contracts/test_phase8_inventory.py::test_locked_source_test_inventory_has_final_dispositions` | `contract` | The locked source test inventory cannot regress to an ambiguous or unfinished disposition | Frozen source-test path inventory and final disposition vocabulary |
 | `tests/contracts/test_phase8_inventory.py::test_phase8_topology_has_documented_asset_license_roots_and_no_retired_dependency` | `contract` | Asset license status roots must exist even while blobs are blocked, and retired direct dependencies cannot return | Filesystem topology and `scene/pyproject.toml` direct dependency list |
 
+## F1 specification-gap repair tests
+
+| Target test | Marker | Contract / failure mode | Independent observable |
+| --- | --- | --- | --- |
+| `tests/contracts/test_legacy_terrain_normalizer.py::test_normalized_legacy_artifact_relocates_without_original_root` | `contract`, `standalone_usd` | AC-26 exact owner/token allowlist replacement, checksum, redistribution, provenance/profile, and relocation | Actual `pxr` layer rewrite, copied replacement bytes, deleted legacy root, relocated stage reopen |
+| `tests/contracts/test_legacy_terrain_normalizer.py::test_unallowlisted_external_reference_fails_closed` | `contract`, `standalone_usd` | Ordinary absolute path, parent escape, missing file, and remote URI fail closed | Actual authored Sdf asset paths and explicit exception boundary |
+| `tests/contracts/test_legacy_terrain_normalizer.py::test_digest_mismatch_fails_closed` | `contract`, `standalone_usd` | Checksum-pinned replacement mismatch | Independent SHA-256 mismatch |
+| `tests/contracts/test_legacy_terrain_normalizer.py::test_absolute_symlink_and_special_replacement_fail_closed` | `contract`, `standalone_usd` | Outbound absolute symlink and non-regular replacement | Real filesystem symlink and directory semantics |
+| `tests/contracts/test_legacy_terrain_normalizer.py::test_nested_layer_escape_requires_nested_owner_allowlist` | `contract`, `standalone_usd` | Nested owning-layer escape cannot borrow the root-layer allowlist | Actual nested USDA dependency traversal and owner identity |
+| `tests/contracts/test_hirise_recipe_settings.py::test_public_recipe_honors_nondefault_hirise_settings` | `contract`, `standalone_usd` | Strict recipe crop/elevation/mesh/texture/appearance propagation | Public YAML build, terrain manifest, semantic report, and actual USD mesh Z |
+| `tests/contracts/test_hirise_recipe_settings.py::test_public_recipe_honors_nondefault_appearance_settings` | `contract`, `standalone_usd` | Enabled appearance inputs must change the produced terrain texture | Public YAML build, enhanced texture dimensions, and propagated detail seed |
+| `tests/contracts/test_hirise_recipe_settings.py::test_hirise_recipe_rejects_unknown_and_invalid_settings` | `contract`, `standalone_usd` | Unknown HiRISE setting fails at the strict schema boundary | Public recipe loader rejection |
+| `tests/usd/test_paths.py` | `unit`, `contract` | Central USD relative-reference and containment responsibility | Real relocated filesystem paths and fail-closed URI/absolute/escape cases |
+
 ## Production source module inventory
 
 The import graph was inspected at the locked source revision and against all

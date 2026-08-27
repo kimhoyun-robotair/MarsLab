@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import posixpath
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +11,7 @@ from marslab_scene.terrain.hirise.config import PipelineConfig, TextureConfig
 from marslab_scene.terrain.hirise.mesh.heightfield import MeshData
 from marslab_scene.terrain.hirise.texture.prepare import PreparedTexture
 from marslab_scene.terrain.hirise.texture.uv import build_face_varying_uvs
+from marslab_scene.usd.paths import relative_reference
 
 
 class TerrainStageError(RuntimeError):
@@ -71,10 +71,12 @@ def _bind_texture(
     reader_output = reader.CreateOutput("result", Sdf.ValueTypeNames.Float2)
     albedo = UsdShade.Shader.Define(stage, f"{material_path}/AlbedoTexture")
     albedo.CreateIdAttr("UsdUVTexture")
-    relative = texture.output_path.relative_to(scene_path.parent)
-    albedo.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(
-        Sdf.AssetPath(posixpath.join(*relative.parts))
+    relative = relative_reference(
+        scene_path.parent,
+        texture.output_path,
+        root=scene_path.parent,
     )
+    albedo.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(relative))
     albedo.CreateInput("sourceColorSpace", Sdf.ValueTypeNames.Token).Set(config.color_space)
     albedo.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(reader_output)
     rgb_output = albedo.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)

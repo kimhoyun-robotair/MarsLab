@@ -49,8 +49,19 @@ def load_scene_config(path: Path | str) -> SceneRecipe:
                 resolved_source = source.model_copy(
                     update={"manifest": resolve_existing_file(anchor, manifest)}
                 )
-            case LegacyArtifactSource():
-                resolved_source = source
+            case LegacyArtifactSource(root=root, external_dependencies=dependencies):
+                resolved_root = (anchor / root).resolve()
+                resolved_source = source.model_copy(
+                    update={
+                        "root": resolved_root,
+                        "external_dependencies": tuple(
+                            dependency.model_copy(
+                                update={"source": (anchor / dependency.source).resolve()}
+                            )
+                            for dependency in dependencies
+                        ),
+                    }
+                )
             case unreachable:
                 assert_never(unreachable)
         rocks = recipe.layers.rocks
@@ -76,9 +87,46 @@ def load_scene_config(path: Path | str) -> SceneRecipe:
                 resolved_habitat = habitat
             case unreachable:
                 assert_never(unreachable)
+        texture = recipe.terrain.texture
+        resolved_texture = texture.model_copy(
+            update={
+                "path": None
+                if texture.path is None
+                else resolve_existing_file(anchor, texture.path)
+            }
+        )
+        appearance = recipe.terrain.appearance
+        resolved_appearance = appearance.model_copy(
+            update={
+                "orthomosaic": appearance.orthomosaic.model_copy(
+                    update={
+                        "path": (
+                            None
+                            if appearance.orthomosaic.path is None
+                            else resolve_existing_file(anchor, appearance.orthomosaic.path)
+                        )
+                    }
+                ),
+                "mastcam_reference": appearance.mastcam_reference.model_copy(
+                    update={
+                        "path": (
+                            None
+                            if appearance.mastcam_reference.path is None
+                            else resolve_existing_file(anchor, appearance.mastcam_reference.path)
+                        )
+                    }
+                ),
+            }
+        )
         return recipe.model_copy(
             update={
-                "terrain": recipe.terrain.model_copy(update={"source": resolved_source}),
+                "terrain": recipe.terrain.model_copy(
+                    update={
+                        "source": resolved_source,
+                        "texture": resolved_texture,
+                        "appearance": resolved_appearance,
+                    }
+                ),
                 "layers": recipe.layers.model_copy(
                     update={"rocks": resolved_rocks, "habitat": resolved_habitat}
                 ),

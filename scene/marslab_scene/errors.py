@@ -126,3 +126,15 @@ class SceneFeatureUnavailable(RuntimeError):
     @override
     def __str__(self) -> str:
         return f"scene feature is unavailable: {self.feature}"
+
+
+class LegacyTerrainNormalizationError(RuntimeError):
+    detail: str
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+    @override
+    def __str__(self) -> str:
+        return self.detail

@@ -31,6 +31,7 @@ from marslab_scene.usd.packaging import (
     resolve_safe_output_target,
     validate_relocated_package,
 )
+from marslab_scene.usd.paths import relative_reference
 from marslab_scene.usd.validation import SceneValidationContract, validate_scene_stage
 
 SceneLayer: TypeAlias = RockLayer | HabitatLayer
@@ -133,8 +134,12 @@ class SceneBuilder:
         UsdGeom.SetStageMetersPerUnit(stage, 1.0)
         world = UsdGeom.Xform.Define(stage, "/World")
         stage.SetDefaultPrim(world.GetPrim())
-        terrain_relative = terrain.stage_path.relative_to(terrain.root_dir)
-        stage.GetRootLayer().subLayerPaths = [f"terrain/{terrain_relative.as_posix()}"]
+        terrain_target = (
+            stage_path.parent / "terrain" / terrain.stage_path.relative_to(terrain.root_dir)
+        )
+        stage.GetRootLayer().subLayerPaths = [
+            relative_reference(stage_path.parent, terrain_target, root=stage_path.parent)
+        ]
         UsdGeom.Xform.Define(stage, "/World/MarsTerrain")
         if layers.rocks is not None:
             _author_rocks(stage, layers.rocks)
@@ -188,7 +193,13 @@ def _author_rocks(stage: Usd.Stage, layer: RockLayer) -> None:
         library.GetPrim()
         .GetReferences()
         .AddReference(
-            f"rocks/{asset.stage_path.relative_to(asset.manifest_path.parent).as_posix()}"
+            relative_reference(
+                Path(stage.GetRootLayer().realPath).parent,
+                Path(stage.GetRootLayer().realPath).parent
+                / "rocks"
+                / asset.stage_path.relative_to(asset.manifest_path.parent),
+                root=Path(stage.GetRootLayer().realPath).parent,
+            )
         )
     )
     library.CreateVisibilityAttr(UsdGeom.Tokens.invisible)
@@ -218,7 +229,13 @@ def _author_habitat(stage: Usd.Stage, layer: HabitatLayer) -> None:
         habitat.GetPrim()
         .GetReferences()
         .AddReference(
-            f"habitats/{asset.stage_path.relative_to(asset.manifest_path.parent).as_posix()}"
+            relative_reference(
+                Path(stage.GetRootLayer().realPath).parent,
+                Path(stage.GetRootLayer().realPath).parent
+                / "habitats"
+                / asset.stage_path.relative_to(asset.manifest_path.parent),
+                root=Path(stage.GetRootLayer().realPath).parent,
+            )
         )
     )
     habitat.AddTranslateOp().Set(Gf.Vec3d(*layer.translation_local_m))

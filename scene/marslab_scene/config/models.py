@@ -7,6 +7,13 @@ from typing import Annotated, ClassVar, Final, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from marslab_scene.config.hirise import (
+    AppearanceSettings,
+    CropSettings,
+    ElevationSettings,
+    MeshSettings,
+    TextureSettings,
+)
 from marslab_scene.config.paths import relative_local_path, relative_posix_path
 from marslab_scene.errors import ContractValueError
 
@@ -94,16 +101,13 @@ TerrainSource: TypeAlias = Annotated[
 ]
 
 
-class EmptySettings(StrictModel):
-    pass
-
-
 class TerrainSettings(StrictModel):
     source: TerrainSource
-    crop: EmptySettings = Field(default_factory=EmptySettings)
-    mesh: EmptySettings = Field(default_factory=EmptySettings)
-    texture: EmptySettings = Field(default_factory=EmptySettings)
-    appearance: EmptySettings = Field(default_factory=EmptySettings)
+    crop: CropSettings = Field(default_factory=CropSettings)
+    elevation: ElevationSettings = Field(default_factory=ElevationSettings)
+    mesh: MeshSettings = Field(default_factory=MeshSettings)
+    texture: TextureSettings = Field(default_factory=TextureSettings)
+    appearance: AppearanceSettings = Field(default_factory=AppearanceSettings)
     modifiers: tuple[()] = ()
 
     @field_validator("modifiers", mode="before")

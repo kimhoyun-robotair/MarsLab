@@ -7,13 +7,14 @@ from pathlib import Path
 
 from pxr import Sdf, Usd, UsdGeom, UsdShade, UsdUtils
 
-from marslab_scene.errors import ContractValueError
+from marslab_scene.errors import ContractValueError, PathContractError
 from marslab_scene.usd._manifest import SceneArtifactManifest, validate_scene_manifest
 from marslab_scene.usd._scene_validation import (
     SceneSemanticReport,
     SceneValidationContract,
     validate_scene_stage,
 )
+from marslab_scene.usd.paths import resolve_local_reference
 from marslab_scene.usd.runtime_package import RuntimePackageReport, validate_runtime_package
 
 __all__ = [
@@ -218,11 +219,13 @@ def _resolved_asset_dependencies(stage_path: Path) -> set[Path]:
 
 
 def _validate_asset_token(root: Path, owner: Path, token: str) -> None:
-    raw = Path(token)
-    if raw.is_absolute() or "://" in token or token.startswith("file:"):
-        detail = f"expected a relative USD asset path: {token}"
-        raise ContractValueError(detail)
-    _require_contained(root, (owner / raw).resolve())
+    try:
+        _ = resolve_local_reference(root, owner, token)
+    except PathContractError as error:
+        if Path(token).is_absolute() or "://" in token or token.startswith("file:"):
+            detail = f"expected a relative USD asset path: {token}"
+            raise ContractValueError(detail) from error
+        raise ContractValueError(error.detail) from error
 
 
 def _require_contained(root: Path, path: Path) -> None:
