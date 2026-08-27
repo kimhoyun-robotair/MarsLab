@@ -103,6 +103,13 @@ class TerrainArtifactManifest(_ManifestModel):
     digests: dict[str, str]
     compatibility_profile: str = Field(min_length=1)
     coordinate_frame: TerrainFrameManifest | None
+    semantic_comparison_report: Path | None = None
+    seed: int | None = None
+
+    @field_validator("semantic_comparison_report", mode="before")
+    @classmethod
+    def validate_semantic_report(cls, value: Path | str | None) -> Path | None:
+        return None if value is None else relative_posix_path(value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +158,8 @@ def load_terrain_artifact(
                 artifact=manifest_path,
             )
         root = manifest_path.parent.resolve()
+        if manifest.semantic_comparison_report is not None:
+            _ = resolve_manifest_file(root, manifest.semantic_comparison_report)
         stage_path = resolve_manifest_file(root, manifest.files.stage)
         dem_path = (
             None if manifest.files.dem is None else resolve_manifest_file(root, manifest.files.dem)

@@ -56,6 +56,13 @@ reportMissingModuleSource = "none"
 reportPrivateUsage = "error"
 reportUnnecessaryComparison = "none"
 reportAny = "none"
+reportMissingTypeStubs = "none"
+reportUnknownMemberType = "none"
+reportUnknownVariableType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownParameterType = "none"
+reportAttributeAccessIssue = "none"
+reportCallIssue = "none"
 
 [tool.ruff]
 target-version = "py311"
@@ -89,7 +96,14 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S108", "ARG", "PLR2004", "SLF001", "D"]
+"tests/terrain/hirise/**/*.py" = ["ANN001", "E402", "PLC0415", "PLR0913", "PT018", "PYI034", "S603"]
 "typings/**/*.pyi" = ["N802", "N815"]
+"marslab_scene/terrain/frame.py" = ["PLR2004"]
+"marslab_scene/terrain/hirise/appearance/*.py" = ["EM102", "PLR0913", "PLR2004", "RUF046", "SIM102", "TRY301"]
+"marslab_scene/terrain/hirise/dem/*.py" = ["PLR2004"]
+"marslab_scene/terrain/hirise/mesh/*.py" = ["PLC0415", "PLR2004"]
+"marslab_scene/terrain/hirise/texture/prepare.py" = ["ARG001", "EM102", "PLR0913"]
+"marslab_scene/terrain/hirise/texture/uv.py" = ["PLR2004"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

@@ -15,11 +15,14 @@ The exact pre/post status and scoped diff are retained in the task evidence.
 
 | Source at the locked revision | Intended target | Phase-0 disposition |
 | --- | --- | --- |
-| `HiRISEGen/src/hirisegen/config.py` | `scene/marslab_scene/config/` | map only; migration pending |
-| `HiRISEGen/src/hirisegen/dem/` | `scene/marslab_scene/terrain/hirise/dem/` | numerical snapshot locked |
-| `HiRISEGen/src/hirisegen/mesh/` | `scene/marslab_scene/terrain/hirise/mesh/` | map only; migration pending |
-| `HiRISEGen/src/hirisegen/texture/` and `visual_enhancement/` | `scene/marslab_scene/terrain/hirise/texture/` and `appearance/` | map only; migration pending |
-| `HiRISEGen/src/hirisegen/usd/` | `scene/marslab_scene/usd/terrain.py` | map only; migration pending |
+| `HiRISEGen/src/hirisegen/config.py` | `scene/marslab_scene/terrain/hirise/config.py` plus schema-v1 `config/` | retained terrain values separated from the strict scene recipe boundary |
+| `HiRISEGen/src/hirisegen/dem/coordinates.py`, `elevation.py` | `scene/marslab_scene/terrain/frame.py`, `elevation.py` | behavior-neutral migration with direct source parity |
+| `HiRISEGen/src/hirisegen/dem/crop.py`, `nodata.py`, `resample.py` | `scene/marslab_scene/terrain/hirise/dem/` | behavior-neutral migration with all source nodes ported |
+| `HiRISEGen/src/hirisegen/ingest/dem_info.py`, `geotiff.py` | `scene/marslab_scene/terrain/hirise/ingest/` | behavior-neutral migration; placeholders omitted |
+| `HiRISEGen/src/hirisegen/mesh/` | `scene/marslab_scene/terrain/hirise/mesh/` | behavior-neutral migration with all source nodes ported |
+| `HiRISEGen/src/hirisegen/texture/` and `visual_enhancement/` | `scene/marslab_scene/terrain/hirise/texture/` and `appearance/` | behavior-neutral migration; texture helpers split only by responsibility |
+| `HiRISEGen/src/hirisegen/usd/` | `scene/marslab_scene/usd/terrain.py` | consolidated reusable terrain sub-stage writer |
+| `HiRISEGen/src/hirisegen/pipeline.py::ExportResult` | `scene/marslab_scene/terrain/hirise/build.py::build_hirise_terrain` and `contracts/terrain.py::TerrainArtifact` | explicit artifact/manifest return contract |
 | `RockyComposer/src/rockycomposer/ingest/` and `library/` | `scene/marslab_scene/layers/rocks/input.py` and `assets/rocks.py` | map only; migration pending |
 | `RockyComposer/src/rockycomposer/sampling/` and `placement/` | `scene/marslab_scene/terrain/sampling.py` and `layers/rocks/` | selection/scale snapshot locked |
 | `RockyComposer/src/rockycomposer/authoring/scene.py` | `scene/marslab_scene/usd/builder.py` | behavior reference only; no writer copied in Phase 0 |

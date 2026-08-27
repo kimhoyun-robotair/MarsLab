@@ -80,6 +80,53 @@ reproduction evidence.
 | `tests/test_visual_enhancement_sources.py` | 6 | source validation failures | Pending port in terrain phase |
 | `tests/test_visual_enhancement_usd_binding.py` | 2 | standalone material binding | Pending port in terrain/USD phases |
 
+## Phase-3 HiRISE target tests
+
+The mechanically ported files below preserve every source node name one for
+one. For example, each node in `test_legacy_crop.py` maps to the identically
+named node in source `tests/test_crop.py`; no wildcard adds untracked tests.
+
+| Target test file | Marker | Source / contract disposition | Independent oracle |
+| --- | --- | --- | --- |
+| `tests/terrain/hirise/test_legacy_coordinates.py` | `unit`, `legacy_parity` | All 10 nodes from `tests/test_coordinates.py`, namespace-only port | Read-only source assertions and REP-103 analytical values |
+| `tests/terrain/hirise/test_legacy_crop.py` | `unit`, `legacy_parity` | All 7 nodes from `tests/test_crop.py`, namespace-only port | Read-only source window/affine behavior |
+| `tests/terrain/hirise/test_legacy_dem_info.py` | `unit`, `legacy_parity` | All 6 nodes from `tests/test_dem_info.py`, namespace-only port | Actual rasterio metadata |
+| `tests/terrain/hirise/test_legacy_elevation.py` | `unit`, `legacy_parity` | All 9 nodes from `tests/test_elevation.py`, namespace-only port | Read-only source formulas and hand-checkable arrays |
+| `tests/terrain/hirise/test_legacy_heightfield_mesh.py` | `unit`, `legacy_parity` | All 8 nodes from `tests/test_heightfield_mesh.py`, namespace-only port | Source topology/winding and analytical bounds |
+| `tests/terrain/hirise/test_legacy_nodata.py` | `unit`, `legacy_parity` | All 6 nodes from `tests/test_nodata.py`, namespace-only port | Source mask/fill behavior |
+| `tests/terrain/hirise/test_legacy_usd_writer.py` | `unit`, `legacy_parity` | All 8 nodes from `tests/test_usd_writer.py`, writer renamed to the required `usd.terrain` owner | Actual `pxr` semantic prim/schema inspection |
+| `tests/terrain/hirise/test_legacy_visual_enhancement_colorize.py` | `unit`, `legacy_parity` | All 3 nodes from `tests/test_visual_enhancement_colorize.py`, appearance namespace port | Read-only source pixel arrays |
+| `tests/terrain/hirise/test_legacy_visual_enhancement_finalize.py` | `unit`, `legacy_parity` | All 3 nodes from `tests/test_visual_enhancement_finalize.py`, appearance namespace port | SHA/pixel determinism from actual raster output |
+| `tests/terrain/hirise/test_legacy_visual_enhancement_orthomosaic.py` | `unit`, `legacy_parity` | All 2 nodes from `tests/test_visual_enhancement_orthomosaic.py`, appearance namespace port | Actual raster quadrant orientation |
+| `tests/terrain/hirise/test_legacy_visual_enhancement_palette.py` | `unit`, `legacy_parity` | All 3 nodes from `tests/test_visual_enhancement_palette.py`, appearance namespace port | Actual raster percentile selection |
+| `tests/terrain/hirise/test_legacy_visual_enhancement_usd_binding.py` | `standalone_usd`, `legacy_parity` | Both nodes from `tests/test_visual_enhancement_usd_binding.py`, writer renamed to `usd.terrain` | Actual `pxr` shader and relative asset inspection |
+| `tests/terrain/hirise/test_phase3_terrain.py::test_numerical_migration_matches_read_only_source` | `unit`, `legacy_parity` | Direct source-to-target elevation and mesh comparison | Read-only `hirisegen` imported from pinned checkout |
+| `tests/terrain/hirise/test_phase3_terrain.py::test_pipeline_semantics_match_read_only_source` | `unit`, `legacy_parity`, `standalone_usd` | Replaces pipeline/texture synthetic duplication with one real source pipeline comparison | Pinned source pipeline, actual GeoTIFF/PNG, semantic USD arrays |
+| `tests/terrain/hirise/test_phase3_terrain.py::test_public_build_returns_relocatable_terrain_artifact` | `unit`, `contract`, `standalone_usd`, `legacy_parity` | `ExportResult` replacement, manifest, public build and relocation contract | Actual public API, copied artifact root and `pxr` reopen |
+| `tests/terrain/hirise/test_phase3_terrain.py::test_public_build_rejects_missing_dem` | `unit`, `contract`, `legacy_parity` | Missing input failure mode | Real filesystem absence |
+
+The remaining source-suite dispositions are deliberate replacements rather
+than silent deletions. `test_cli_export.py` is replaced by the public build and
+artifact tests because the old Typer entry point is explicitly not migrated.
+`test_config.py`, `test_texture_config.py`, and
+`test_visual_enhancement_config.py` are replaced by Phase-1 strict recipe tests
+and the typed `HiriseBuildConfig` boundary. `test_texture_export.py`,
+`test_visual_enhancement_e2e.py`, and `test_visual_enhancement_metadata.py` are
+replaced by the direct pinned-source pipeline semantic comparison plus manifest
+contract/relocation test. `test_visual_enhancement_sources.py` is represented
+by retained source validation in the real public build and its missing-input
+negative node; source-specific error wording is not promoted to a new public
+contract. `test_import.py` is covered by the clean Python 3.11 wheel/import
+gate. `test_isaac_smoke_script.py` is not migrated because it only tested an old
+script surface; actual Isaac startup belongs to the later runtime phase.
+
+Import-graph inspection found no production or test reference to
+`dem/metrics.py` or `ingest/pds_to_geotiff.py`; both are one-line placeholders
+and are intentionally removed. `cli.py` and its Typer entry point are omitted
+by specification. The old `usd/write_*.py` modules are consolidated only in
+`marslab_scene/usd/terrain.py`; appearance processing is renamed without
+algorithm changes from `visual_enhancement/` to `appearance/`.
+
 ## RockyComposer source suite: 52 tests
 
 | Source test file | Collected | Migration contract | Disposition |

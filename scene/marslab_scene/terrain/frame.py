@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import assert_never
+from typing import TypedDict, assert_never
+
+import numpy as np
 
 from marslab_scene.compat.profiles import (
     CompatibilityProfileName,
@@ -13,6 +15,77 @@ from marslab_scene.compat.profiles import (
     resolve_compatibility_policy,
 )
 from marslab_scene.errors import ContractValueError
+
+
+class Rep103GridError(ValueError):
+    """Raised when a local terrain grid violates REP-103 orientation."""
+
+
+class FrameMetadata(TypedDict):
+    standard: str
+    frame_id: str
+    type: str
+    x_axis: str
+    y_axis: str
+    z_axis: str
+    meters_per_unit: float
+    yaw_zero: str
+    yaw_positive: str
+
+
+def build_local_xy_grid(
+    width: int,
+    height: int,
+    size_x_m: float,
+    size_y_m: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Build the legacy crop-centered REP-103 local XY grid."""
+    if width < 2 or height < 2:
+        raise ContractValueError("width and height must be at least two")
+    if size_x_m <= 0.0 or size_y_m <= 0.0:
+        raise ContractValueError("terrain grid dimensions must be positive")
+    columns = np.arange(width, dtype=np.float64)
+    rows = np.arange(height, dtype=np.float64)
+    x_row = (columns - (width - 1) / 2) * (size_x_m / (width - 1))
+    y_column = ((height - 1) / 2 - rows) * (size_y_m / (height - 1))
+    return (
+        np.broadcast_to(x_row, (height, width)).copy(),
+        np.broadcast_to(y_column[:, np.newaxis], (height, width)).copy(),
+    )
+
+
+def validate_rep103_grid(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> None:
+    """Reject terrain arrays that do not follow REP-103 grid orientation."""
+    x_values = np.asarray(x)
+    y_values = np.asarray(y)
+    z_values = np.asarray(z)
+    if x_values.shape != y_values.shape or x_values.shape != z_values.shape:
+        raise Rep103GridError("x, y, and z grids must have matching shapes")
+    if x_values.ndim != 2:
+        raise Rep103GridError("x, y, and z grids must be two-dimensional")
+    if not np.isfinite(x_values).all() or not np.isfinite(y_values).all():
+        raise Rep103GridError("x and y grids must contain finite values")
+    if not np.isfinite(z_values).all():
+        raise Rep103GridError("z grid must contain finite values")
+    if not np.all(np.diff(x_values, axis=1) > 0):
+        raise Rep103GridError("x grid must increase eastward with column index")
+    if not np.all(np.diff(y_values, axis=0) < 0):
+        raise Rep103GridError("row zero must remain north of increasing row indices")
+
+
+def build_frame_metadata(frame_id: str = "map") -> FrameMetadata:
+    """Return the retained REP-103 local ENU frame metadata."""
+    return {
+        "standard": "ROS REP-103",
+        "frame_id": frame_id,
+        "type": "local_enu",
+        "x_axis": "east",
+        "y_axis": "north",
+        "z_axis": "up",
+        "meters_per_unit": 1.0,
+        "yaw_zero": "east",
+        "yaw_positive": "counter_clockwise",
+    }
 
 
 @dataclass(frozen=True, slots=True)
