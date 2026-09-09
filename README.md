@@ -12,7 +12,7 @@
     <img src="https://img.shields.io/badge/Project_Page-C1440E?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Project Page" />
   </a>
   &nbsp;
-  <a href="docs/MarsLab.pdf">
+  <a href="https://kimhoyun-robotair.github.io/MarsLab/MarsLab.pdf">
     <img src="https://img.shields.io/badge/Paper-DC2626?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Paper" />
   </a>
   &nbsp;
@@ -417,3 +417,21 @@ Offline checks can validate YAML structure, asset paths, schemas, and pure
 computation. Isaac GUI appearance, rover physics, live sensor data, ROS topics,
 QoS and TF, AtmospherePanel behavior, and shutdown cleanup must be verified in
 the user's Isaac Sim and ROS installation.
+
+---
+
+# 🔭 Future Work
+
+Planned improvements include:
+
+- [ ] Integrate scene and asset generation.
+- [ ] Integrate evaluation workflows for TUM, path planning, and SLAM.
+- [ ] Integrate Nav2.
+- [ ] Add customizable noise and bias models for individual sensors, including IMU.
+- [ ] Resolve vibration issues during runtime rendering.
+- [ ] Add 2D LiDAR.
+- [ ] Improve the realism of sky and light rendering.
+- [ ] Add photorealistic scene generation.
+- [ ] Add wheel traces.
+- [ ] Add support for multiple and heterogeneous robots.
+- [ ] Dockerize MarsLab.
