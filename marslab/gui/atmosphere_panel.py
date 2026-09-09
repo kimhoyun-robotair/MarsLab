@@ -1,20 +1,4 @@
-"""Interactive atmosphere control panel for Isaac Sim.
-
-Provides an omni.ui-based window with sliders and toggles for real-time
-control of Mars atmospheric parameters during simulation:
-
-- Dust optical depth (tau): slider 0.1--6.0, affects fog/sky/irradiance
-- Sun control mode: "Auto Sweep" (east-to-west diurnal) or "Manual"
-- Manual sun position: azimuth (0--360) and elevation (0--90) sliders
-
-The panel reads and writes a shared ``atmosphere_state`` dict. The render
-loop in :func:`marslab.runtime.main_loop.run_main_loop` checks this dict
-every N frames and updates the renderers accordingly.
-
-Requires Isaac Sim runtime (omni.ui). Guarded by try/except at import
-time in ``marslab/main.py`` so headless or non-GUI environments
-degrade gracefully.
-"""
+"""Control tau (0.05–6), sun mode, and manual sun angles through shared runtime state."""
 
 from __future__ import annotations
 
@@ -38,39 +22,21 @@ _REQUIRED_STATE_KEYS = (
 
 
 class AtmospherePanel:
-    """omni.ui window for interactive atmosphere parameter control.
-
-    Widget references (sliders, labels, buttons) are stored as attributes
-    on the instance so they can be updated from the render loop. They are
-    constructed inside an ``omni.ui`` ``with`` block; once that builder
-    scope exits, Kit's C++ proxy lifetime is independent of the Python
-    reference. This means the ``.enabled`` setter on a stored slider may
-    later raise ``AttributeError`` or ``RuntimeError`` if the underlying
-    proxy has been finalized. ``_update_slider_enabled`` catches and
-    logs those cases instead of crashing the GUI thread; see the
-    rationale block in that method.
-
-    Args:
-        atmosphere_state: Mutable dict shared with the render loop.
-            Must contain the keys listed in ``_REQUIRED_STATE_KEYS``;
-            ``__init__`` raises ``KeyError`` if any are missing so that
-            misconfiguration surfaces immediately rather than as a later
-            ``KeyError`` deep inside the render loop.
-    """
+    """Interactive atmosphere controls and irradiance readouts."""
 
     def __init__(self, atmosphere_state: Dict[str, Any]) -> None:
         missing = [k for k in _REQUIRED_STATE_KEYS if k not in atmosphere_state]
         if missing:
             raise KeyError(
                 "AtmospherePanel requires atmosphere_state to be populated by "
-                "build_atmosphere_state(); missing keys: " + ", ".join(missing)
+                "build_atmosphere_loop_state(); missing keys: " + ", ".join(missing)
             )
         self._state = atmosphere_state
         self._build_ui()
 
     def _build_ui(self) -> None:
         """Construct the panel layout."""
-        self._window = ui.Window("MarsLab Atmosphere Control", width=420, height=340)
+        self._window = ui.Window("MarsLab Atmosphere Control", width=420, height=420)
         with self._window.frame, ui.VStack(spacing=6):
             ui.Spacer(height=4)
 
@@ -79,8 +45,8 @@ class AtmospherePanel:
                 "Dust Optical Depth (tau)",
                 style={"font_size": 16, "color": 0xFFDDDDDD},
             )
-            self._tau_model = ui.SimpleFloatModel(self._state.get("tau", 0.3))
-            ui.FloatSlider(model=self._tau_model, min=0.1, max=6.0)
+            self._tau_model = ui.SimpleFloatModel(self._state["tau"])
+            ui.FloatSlider(model=self._tau_model, min=0.05, max=6.0)
             self._tau_model.add_value_changed_fn(self._on_tau_changed)
 
             self._tau_label = ui.Label(
@@ -119,13 +85,13 @@ class AtmospherePanel:
 
             # --- Manual sun sliders ---
             ui.Label("Sun Azimuth (deg)", style={"font_size": 13})
-            self._az_model = ui.SimpleFloatModel(self._state.get("sun_azimuth_deg", 180.0))
+            self._az_model = ui.SimpleFloatModel(self._state["sun_azimuth_deg"])
             self._az_slider = ui.FloatSlider(model=self._az_model, min=0.0, max=360.0)
             self._az_model.add_value_changed_fn(self._on_azimuth_changed)
 
             ui.Label("Sun Elevation (deg)", style={"font_size": 13})
-            self._el_model = ui.SimpleFloatModel(self._state.get("sun_elevation_deg", 45.0))
-            self._el_slider = ui.FloatSlider(model=self._el_model, min=0.5, max=89.5)
+            self._el_model = ui.SimpleFloatModel(self._state["sun_elevation_deg"])
+            self._el_slider = ui.FloatSlider(model=self._el_model, min=0.0, max=90.0)
             self._el_model.add_value_changed_fn(self._on_elevation_changed)
 
             ui.Spacer(height=4)
@@ -147,11 +113,11 @@ class AtmospherePanel:
         self._state["tau"] = model.as_float
 
     def _on_azimuth_changed(self, model: ui.SimpleFloatModel) -> None:
-        if self._state.get("sun_mode") == "manual":
+        if self._state["sun_mode"] == "manual":
             self._state["sun_azimuth_deg"] = model.as_float
 
     def _on_elevation_changed(self, model: ui.SimpleFloatModel) -> None:
-        if self._state.get("sun_mode") == "manual":
+        if self._state["sun_mode"] == "manual":
             self._state["sun_elevation_deg"] = model.as_float
 
     def _set_sun_mode(self, mode: str) -> None:
@@ -161,13 +127,8 @@ class AtmospherePanel:
             self._mode_label.text = self._format_mode_status()
 
     def _update_slider_enabled(self) -> None:
-        is_manual = self._state.get("sun_mode") == "manual"
-        # omni.ui FloatSlider widgets are owned by the VStack context; once
-        # the Python-side reference outlives the builder scope the C++ proxy
-        # may be finalized, so `.enabled` can raise AttributeError/RuntimeError
-        # even though the attribute binding still exists. Model-level gating
-        # in _on_{azimuth,elevation}_changed already enforces state safety,
-        # so logging-and-skipping here is behaviourally equivalent.
+        is_manual = self._state["sun_mode"] == "manual"
+        # Model callbacks still gate manual changes if a widget proxy expires.
         for attr in ("_az_slider", "_el_slider"):
             widget = getattr(self, attr, None)
             if widget is None:
@@ -185,36 +146,28 @@ class AtmospherePanel:
     # --- Status formatting ---
 
     def _format_tau_status(self) -> str:
-        tau = self._state.get("tau", 0.3)
-        intensity = self._state.get("direct_intensity", 0.0)
-        return f"  tau = {tau:.2f}  |  Direct irradiance: {intensity:.0f} W/m2"
+        tau = self._state["tau"]
+        intensity = self._state["direct_intensity"]
+        return f"  tau = {tau:.2f}  |  Direct normal: {intensity:.0f} W/m2"
 
     def _format_mode_status(self) -> str:
-        mode = self._state.get("sun_mode", "auto")
+        mode = self._state["sun_mode"]
         if mode == "auto":
-            t = self._state.get("time_of_sol", 0.0)
-            # ``sol_duration_seconds`` is seeded by ``build_atmosphere_state``
-            # from the pydantic ``MarsEnvConfig.sol_duration_seconds`` default,
-            # so no local fallback literal is needed here. ``__init__``
-            # validated its presence already.
+            t = self._state["time_of_sol"]
             sol_seconds = self._state["sol_duration_seconds"]
             hours = t * (sol_seconds / 3600.0)
             return f"  Mode: Auto Sweep  |  Sol time: {hours:.1f}h ({t:.2f})"
         else:
-            az = self._state.get("sun_azimuth_deg", 180.0)
-            el = self._state.get("sun_elevation_deg", 45.0)
+            az = self._state["sun_azimuth_deg"]
+            el = self._state["sun_elevation_deg"]
             return f"  Mode: Manual  |  Az={az:.1f} deg, El={el:.1f} deg"
 
     def _format_full_status(self) -> str:
-        diffuse = self._state.get("diffuse_fraction", 0.0)
+        diffuse = self._state["diffuse_fraction"]
         return f"  Diffuse fraction: {diffuse:.2f}"
 
     def update_display(self) -> None:
-        """Refresh status labels from current atmosphere_state.
-
-        Called from the render loop after atmosphere parameters are
-        recomputed, so the panel shows up-to-date values.
-        """
+        """Refresh status and auto-mode sliders after the atmosphere update."""
         if self._tau_label:
             self._tau_label.text = self._format_tau_status()
         if self._mode_label:
@@ -223,6 +176,6 @@ class AtmospherePanel:
             self._status_label.text = self._format_full_status()
 
         # Sync manual sliders with auto-computed values (when in auto mode)
-        if self._state.get("sun_mode") == "auto":
-            self._az_model.set_value(self._state.get("sun_azimuth_deg", 180.0))
-            self._el_model.set_value(self._state.get("sun_elevation_deg", 45.0))
+        if self._state["sun_mode"] == "auto":
+            self._az_model.set_value(self._state["sun_azimuth_deg"])
+            self._el_model.set_value(self._state["sun_elevation_deg"])

@@ -1,1 +1,0 @@
-"""HiRISE terrain texture preparation."""

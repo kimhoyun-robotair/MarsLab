@@ -11,7 +11,7 @@ from typing import Protocol
 
 import numpy as np
 
-from marslab.config.schema.rover_sensors import CameraConfig
+from marslab.config.schema.rover_sensors import CameraConfig, DepthSensorConfig
 from marslab.quaternion import rpy_deg_to_quat
 
 _LOG = logging.getLogger(__name__)
@@ -32,6 +32,8 @@ class _CameraHandle(Protocol):
 
 class _AnnotatorHandle(Protocol):
     def attach(self, products: Sequence["_RenderProductHandle"]) -> None: ...
+
+    def get_data(self) -> np.ndarray: ...
 
 
 class _RenderProductHandle(Protocol):
@@ -94,7 +96,7 @@ def spawn_camera(
     rgb_annotator.attach([render_product])
     depth_annotator.attach([render_product])
 
-    return CameraSpawnHandles(
+    handles = CameraSpawnHandles(
         camera=camera,
         camera_prim_path=camera_prim_path,
         render_product=render_product,
@@ -102,6 +104,49 @@ def spawn_camera(
         rgb_annotator=rgb_annotator,
         depth_annotator=depth_annotator,
     )
+    _apply_depth_sensor_schema(handles, camera_cfg.depth_sensor)
+    return handles
+
+
+_DEPTH_SENSOR_SCHEMA_ATTRS = {
+    "baseline_mm": "baselineMM",
+    "min_distance_m": "minDistance",
+    "max_distance_m": "maxDistance",
+    "noise_mean": "noiseMean",
+    "noise_sigma": "noiseSigma",
+    "confidence_threshold": "confidenceThreshold",
+    "max_disparity_pixel": "maxDisparityPixel",
+}
+
+
+def _apply_depth_sensor_schema(acquisition: CameraSpawnHandles, config: DepthSensorConfig) -> None:
+    """Apply optional depth acquisition effects while preserving the RGB output."""
+    if not config.enabled:
+        return
+    import carb
+    from isaacsim.core.utils.prims import get_prim_at_path
+
+    if carb.settings.get_settings().get("/rtx/rendermode") == "PathTracing":
+        _LOG.warning("Depth effects require ray_tracing in Isaac Sim 5.1; using raw depth.")
+        return
+    prim = None
+    try:
+        prim = get_prim_at_path(acquisition.render_product_path)
+        if not prim or not prim.ApplyAPI("OmniSensorDepthSensorSingleViewAPI"):
+            raise RuntimeError("Depth sensor render product or schema unavailable")
+        prim.GetAttribute("omni:rtx:post:depthSensor:enabled").Set(True)
+        prim.GetAttribute("omni:rtx:post:depthSensor:rgbDepthOutputMode").Set(0)
+        for field, suffix in _DEPTH_SENSOR_SCHEMA_ATTRS.items():
+            attr = prim.GetAttribute(f"omni:rtx:post:depthSensor:{suffix}")
+            if not attr or not attr.Set(float(getattr(config, field))):
+                raise RuntimeError(f"Depth sensor attribute unavailable: {suffix}")
+    except (RuntimeError, AttributeError) as exc:
+        if prim:
+            enabled = prim.GetAttribute("omni:rtx:post:depthSensor:enabled")
+            if enabled:
+                enabled.Set(False)
+            prim.RemoveAPI("OmniSensorDepthSensorSingleViewAPI")
+        _LOG.warning("Depth effects unavailable; using raw depth: %s", exc)
 
 
 __all__ = ["CameraSpawnHandles", "spawn_camera"]

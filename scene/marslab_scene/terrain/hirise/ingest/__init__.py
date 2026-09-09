@@ -1,1 +1,0 @@
-"""HiRISE GeoTIFF ingestion."""

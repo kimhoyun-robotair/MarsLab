@@ -1,71 +1,57 @@
-# Environment variables & API keys
+# Keep runtime inputs, source, and installation/user documentation.
+/*
+!/.gitignore
+!/.gitmodules
+!/CONFIGURATION_GUIDE.md
+!/pyproject.toml
+!/README.md
+!/assets/
+!/configs/
+!/launch/
+!/marslab/
+
+# Retain rover and sky assets; scene packages remain external downloads.
+/assets/*
+!/assets/m2020-urdf-models/
+!/assets/mars_sky/
+!/assets/robots/
+/assets/scene/
+
+# The simulator consumes one configuration and one ROS companion launch.
+/configs/*
+!/configs/config.yaml
+/launch/*
+!/launch/rover_state_publisher.launch.py
+
+# Keep runtime Python modules and the Isaac Python launcher.
+/marslab/**
+!/marslab/**/
+!/marslab/**/*.py
+!/marslab/isaac_python.sh
+
+# Keep Project Page Module
+!/site/
+
+# Exclude local state inside retained directories as well.
+AGENTS.md
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.vscode/
+.idea/
 .env
 .env.*
-!.env.example
 *.key
 *.pem
 credentials.json
 secrets.json
-.omc/
-.codex/
-.codegraph/
-
-# Python
-__pycache__/
-*.pyc
-.venv/
-venv/
-
-# IDE
-.vscode/
-.idea/
-
-# OS
 .DS_Store
 Thumbs.db
-
-# Ignore build and install folders
-build/
-install/
-log/
-.devenv/
-.colcon_workspace
-.vscode/
-
-# Ignore Python cache files
-__pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-
-# Ignore other common files
 *.swp
 *.swo
 *.swn
 *~
-*.txt
-.coverage
-
-# Development
-.claude/
-tmp/
-work_log/
-delete_later/
-reference/
-figure/
-docs/
-
-# Agent (Including Claude Code and Codex) harness e,g, share .claude/agents and .claude/skills,
-# hide personal state and workspace
-AGENTS.md
-.claude/settings.local.json
-.claude/.cache/
-.claude/logs/
-_workspace/
-_workspace_*/
-.omo/
-
-# Massive File
-assets/scene

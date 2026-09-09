@@ -10,7 +10,7 @@ import logging
 from importlib import import_module
 
 from marslab.runtime.assembly import assemble_pre_reset
-from marslab.runtime.atmosphere_boot import AtmosphereInit
+from marslab.runtime.atmosphere_boot import prepare_atmosphere
 from marslab.runtime.lifecycle import CleanupResources, cleanup_phase, run_with_cleanup
 from marslab.runtime.loop_context import build_loop_context
 from marslab.runtime.post_reset import assemble_post_reset
@@ -30,39 +30,7 @@ def main() -> int:
 
     config = prepare_config(config_path)
     mars = config.mars_env
-    sun_position = import_module("marslab.environment.sun_position").compute_sun_position(
-        mars.sun_azimuth_deg,
-        mars.sun_elevation_deg,
-    )
-    tau = mars.dust_optical_depth
-    atmosphere = AtmosphereInit(
-        tau=tau,
-        solar_constant=mars.solar_constant,
-        sun_azimuth_deg=mars.sun_azimuth_deg,
-        sun_elevation_deg=mars.sun_elevation_deg,
-        sol_duration_seconds=float(mars.sol_duration_seconds),
-        gravity=float(mars.gravity),
-        physics_dt=mars.physics_dt,
-        direct_intensity=import_module(
-            "marslab.environment.light_intensity"
-        ).compute_direct_intensity(
-            mars.solar_constant,
-            tau,
-            sun_position.zenith_angle_rad,
-        ),
-        diffuse_fraction=import_module(
-            "marslab.environment.diffuse_fraction"
-        ).compute_diffuse_fraction_1d_approx(tau),
-        sky_params=import_module("marslab.environment.sky_dome").compute_sky_dome_params(
-            tau,
-            str(config.rendering.sky_dome_hdri_dir),
-            config.rendering.sky_dome,
-        ),
-        sun_pos=sun_position,
-        hdri_dir=str(config.rendering.sky_dome_hdri_dir),
-        sky_dome_config=config.rendering.sky_dome,
-        dynamic=mars.dynamic_atmosphere,
-    )
+    atmosphere = prepare_atmosphere(config)
     simulation_app = boot_simulation_app(config.runtime)
     resources = CleanupResources(simulation_app=simulation_app)
     run_completed = False

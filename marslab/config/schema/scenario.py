@@ -26,6 +26,10 @@ class SunSweepConfig(StrictConfigModel):
 class DynamicAtmosphereConfig(StrictConfigModel):
     enabled: bool
     time_scale: PositiveFloat
+    initial_sol_fraction: FiniteFloat = Field(
+        default=0.5, ge=0.0, lt=1.0,
+        description="Initial rising (<=0.5) or setting (>0.5) branch; angles set the start.",
+    )
     sun_sweep: SunSweepConfig
     update_interval_frames: PositiveInt
 
@@ -44,9 +48,17 @@ class MarsEnvConfig(StrictConfigModel):
 class FogConfig(StrictConfigModel):
     enabled: bool = True
     color_amount: FiniteFloat = Field(default=1.0, ge=0.0, le=1.0)
+    start_distance_m: NonNegativeFloat = 0.0
+    end_distance_m: PositiveFloat = 5000.0
     start_height: FiniteFloat = 0.0
     height_falloff: FiniteFloat = Field(default=0.01, ge=0.0)
     height_density_ratio: FiniteFloat = Field(default=0.5, ge=0.0, le=2.0)
+
+    @model_validator(mode="after")
+    def check_distance_range(self) -> "FogConfig":
+        if self.end_distance_m <= self.start_distance_m:
+            raise ValueError("fog.end_distance_m must exceed fog.start_distance_m")
+        return self
 
 
 class RayTracingConfig(StrictConfigModel):

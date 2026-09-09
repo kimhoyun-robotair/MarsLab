@@ -1,38 +1,4 @@
-"""Sun position computation for Mars.
-
-Two entry points for callers:
-
-* :func:`compute_sun_position` — static azimuth / elevation from YAML.
-* :func:`compute_sol_sun_position` — sol-fraction-based diurnal sweep.
-
-The sweep defaults to ``mode="spherical"``, which evaluates the standard
-astronomy identities
-
-    sin(el) = sin(phi) sin(delta) + cos(phi) cos(delta) cos(H)
-    sin(az) = -cos(delta) sin(H) / cos(el)
-
-where ``phi`` is the observer latitude, ``delta`` the solar declination,
-and ``H`` the hour angle (``H = (t_frac - 0.5) * 2*pi``). A linear
-azimuth + half-sine elevation sweep (``mode="linear"``) is preserved for
-callers that explicitly want the sunrise-azimuth / sunset-azimuth /
-peak-elevation envelope; it is a first-order approximation off by
-20-40 deg in azimuth near transit for Jezero crater (18.44 deg N) and
-is not used by paper figures.
-
-Scientific basis:
-
-* Mars sol = 88,642 s (IAU).
-* Mars obliquity ~ 25.19 deg. Declination over an orbit is
-  ``delta ~ obliquity * sin(Ls)`` where Ls is the areocentric longitude.
-* Jezero (phi ~ 18.44 deg N) at Ls=90 (northern summer solstice) peaks
-  near ``90 - (phi - obliquity) ~ 83.25`` deg elevation.
-* At Ls=0 / Ls=180 (equinoxes) the peak is ``90 - phi ~ 71.56`` deg.
-
-References:
-    Allison & McEwen (2000). A post-Pathfinder evaluation of areocentric
-    solar coordinates with improved timing recipes for Mars seasonal/diurnal
-    climate studies. Planet. Space Sci. 48 (2-3), 215-235.
-"""
+"""Compute static sun angles and standalone linear or spherical sweeps."""
 
 import math
 from dataclasses import dataclass
@@ -170,12 +136,7 @@ def _linear_sun_position(
     end_azimuth_deg: float,
     max_elevation_deg: float,
 ) -> SunPosition:
-    """Legacy first-order diurnal approximation.
-
-    Azimuth: linear sweep from ``start`` to ``end``. Elevation: half-sine
-    peaking at t=0.5. Kept for backward-compat with pre-refactor
-    callers/tests that assert on the envelope parameters directly.
-    """
+    """Interpolate azimuth with a half-sine elevation envelope."""
     azimuth_deg = start_azimuth_deg + (end_azimuth_deg - start_azimuth_deg) * time_of_sol_fraction
     elevation_deg = max_elevation_deg * math.sin(math.pi * time_of_sol_fraction)
     return compute_sun_position(azimuth_deg, elevation_deg)
@@ -193,59 +154,11 @@ def compute_sol_sun_position(
     declination_deg: float | None = None,
     obliquity_deg: float = MARS_OBLIQUITY_DEG,
 ) -> SunPosition:
-    """Compute sun position from a fractional time-of-sol.
-
-    The default ``mode="spherical"`` evaluates the standard spherical
-    astronomy identities for altitude and azimuth. This is the
-    physically correct path-of-the-sun and is what the paper figures
-    render. ``mode="linear"`` preserves a first-order approximation
-    (linear azimuth + half-sine elevation) for callers that want an
-    explicit envelope; the ``start_azimuth_deg`` / ``end_azimuth_deg`` /
-    ``max_elevation_deg`` arguments are ignored in ``"spherical"`` mode
-    but retained for signature stability.
-
-    The spherical inputs are explicit function arguments and are not part of
-    the canonical runtime YAML. The MarsLab runtime currently calls this API
-    with ``mode="linear"``.
-
-    Args:
-        time_of_sol_fraction: Fraction of the sol [0, 1] where 0 is
-            local midnight-to-sunrise (``mode="linear"`` treats 0 as
-            sunrise; ``mode="spherical"`` treats 0.5 as solar transit
-            and 0/1 as local midnight).
-        start_azimuth_deg: Linear-mode sunrise azimuth. Ignored in
-            spherical mode.
-        end_azimuth_deg: Linear-mode sunset azimuth. Ignored in
-            spherical mode.
-        max_elevation_deg: Linear-mode peak elevation. Ignored in
-            spherical mode.
-        mode: ``"spherical"`` (default, physically correct) or
-            ``"linear"`` (envelope approximation).
-        latitude_deg: Observer latitude, degrees (spherical mode only).
-            Defaults to Jezero crater 18.44 deg N.
-        ls_deg: Areocentric longitude of the Sun, degrees (spherical
-            mode only). 0 = northern spring equinox, 90 = northern
-            summer solstice. Ignored if ``declination_deg`` is given.
-        declination_deg: Solar declination override, degrees (spherical
-            mode only). If ``None``, derived from ``ls_deg`` and
-            ``obliquity_deg``.
-        obliquity_deg: Mars axial tilt in degrees, used only when
-            ``declination_deg`` is ``None`` and ``mode == "spherical"``.
-            Defaults to the modern-epoch value 25.19 deg.
-
-    Returns:
-        SunPosition for the requested time of sol. Sub-horizon
-        spherical-mode samples have ``elevation_deg == 0`` (clamped).
-
-    Raises:
-        ValueError: If ``time_of_sol_fraction`` is outside [0, 1],
-            ``max_elevation_deg`` is outside (0, 90], or ``mode`` is
-            unknown.
-    """
+    """Compute a sweep; the runtime explicitly selects the linear envelope."""
     if not 0.0 <= time_of_sol_fraction <= 1.0:
         raise ValueError(f"time_of_sol_fraction must be in [0, 1], got {time_of_sol_fraction}")
-    if not 0.0 < max_elevation_deg <= 90.0:
-        raise ValueError(f"max_elevation_deg must be in (0, 90], got {max_elevation_deg}")
+    if not 0.0 <= max_elevation_deg <= 90.0:
+        raise ValueError(f"max_elevation_deg must be in [0, 90], got {max_elevation_deg}")
 
     if mode == "linear":
         return _linear_sun_position(

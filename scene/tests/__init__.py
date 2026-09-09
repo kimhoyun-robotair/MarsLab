@@ -1,1 +1,0 @@
-"""MarsLab scene tests."""

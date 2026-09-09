@@ -92,7 +92,7 @@ def _build_wheel_odom_params(
         "slip_left": float(wheel_odometry.slip_left),
         "slip_right": float(wheel_odometry.slip_right),
         "sigma_omega": float(wheel_odometry.sigma_omega),
-        "seed": 0,
+        "seed": None,
     }
     if wheel_odometry.pose_diag is not None:
         params["pose_diag"] = list(wheel_odometry.pose_diag)
@@ -175,7 +175,7 @@ def assemble_post_reset(
             odom_seed = None
             imu_seed = None
         wheel_odom_params = _build_wheel_odom_params(rover, dof_names)
-        if wheel_odom_params is not None and odom_seed is not None:
+        if wheel_odom_params is not None:
             wheel_odom_params["seed"] = odom_seed
         imu = rover.sensors.imu
         imu_noise_params: ImuNoiseParams | None = None

@@ -38,14 +38,11 @@ def set_render_mode(rendering_config: RenderingConfig) -> None:
             pt_cfg.denoiser_optix,
         )
     else:
-        settings.set("/rtx/rendermode", "RayTracedLighting")
+        settings.set("/rtx/rendermode", "RaytracedLighting")
         settings.set("/rtx/shadows/enabled", True)
         settings.set("/rtx/reflections/enabled", True)
         settings.set("/rtx/directLighting/enabled", True)
-        # Post-processing: denoise Monte Carlo variance and apply DLSS Quality
-        # AA. Operates on pixel space after radiance is computed, so Mars
-        # atmospheric physics (Beer's law, COMIMART, dust scattering) in
-        # marslab/environment/* is untouched.
+        # Apply image denoising and anti-aliasing after lighting.
         settings.set(
             "/rtx/indirectDiffuse/denoiser/enabled",
             rt_cfg.denoiser_indirect_diffuse,

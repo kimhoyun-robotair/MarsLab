@@ -5,7 +5,7 @@ Isaac graph imports occur only during graph construction."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 from marslab.ros2_bridge.sensor_graph_builder import (
     _build_connections,
@@ -52,7 +52,6 @@ def build_sensor_graph(
     lidar_3d_acquisition: Lidar3DSpawnHandles,
     imu_acquisition: IMUSpawnHandles,
     articulation_root_prim_path: str,
-    depth_sensor_cfg: Optional[Dict[str, Any]] = None,
 ) -> SensorGraphHandle:
     """Build the rover ROS2 OmniGraph."""
     import omni.graph.core as og  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
@@ -85,64 +84,7 @@ def build_sensor_graph(
         },
     )
 
-    if depth_sensor_cfg is not None and bool(depth_sensor_cfg.get("enabled")):
-        try:
-            _apply_depth_sensor_schema(camera_render_product_path, depth_sensor_cfg)
-        except (
-            RuntimeError,
-            AttributeError,
-            ImportError,
-        ) as exc:  # pragma: no cover - runtime-only fallback
-            import logging  # noqa: PLC0415  -- defer until needed
-
-            logging.getLogger(__name__).warning(
-                "Depth-sensor schema apply skipped: %s.  Falling back to "
-                "the renderer's raw DistanceToImagePlane AOV.",
-                exc,
-            )
-
     return SensorGraphHandle(graph_path=graph_path, graph=graph_handle)
-
-
-_DEPTH_SENSOR_SCHEMA_ATTRS: Dict[str, str] = {
-    "baseline_mm": "omni:rtx:post:depthSensor:baselineMM",
-    "min_distance_m": "omni:rtx:post:depthSensor:minDistance",
-    "max_distance_m": "omni:rtx:post:depthSensor:maxDistance",
-    "noise_mean": "omni:rtx:post:depthSensor:noiseMean",
-    "noise_sigma": "omni:rtx:post:depthSensor:noiseSigma",
-    "confidence_threshold": "omni:rtx:post:depthSensor:confidenceThreshold",
-    "max_disparity_pixel": "omni:rtx:post:depthSensor:maxDisparityPixel",
-}
-
-
-def _apply_depth_sensor_schema(
-    camera_render_product_path: str,
-    depth_sensor_cfg: Dict[str, Any],
-) -> None:
-    """Apply ``OmniSensorDepthSensorSingleViewAPI`` to the shared render product."""
-    from isaacsim.core.utils.prims import (
-        get_prim_at_path,
-    )  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
-
-    rp_prim = get_prim_at_path(camera_render_product_path)
-    if rp_prim is None or not rp_prim.IsValid():
-        raise RuntimeError(
-            f"Render product prim at {camera_render_product_path!r} is invalid; cannot apply "
-            "OmniSensorDepthSensorSingleViewAPI"
-        )
-
-    rp_prim.ApplyAPI("OmniSensorDepthSensorSingleViewAPI")
-    enabled_attr = rp_prim.GetAttribute("omni:rtx:post:depthSensor:enabled")
-    if enabled_attr:
-        enabled_attr.Set(True)
-
-    for yaml_field, attr_name in _DEPTH_SENSOR_SCHEMA_ATTRS.items():
-        if yaml_field not in depth_sensor_cfg:
-            continue
-        value = depth_sensor_cfg[yaml_field]
-        attr = rp_prim.GetAttribute(attr_name)
-        if attr:
-            attr.Set(float(value))
 
 
 def _build_qos_presets(options: Any) -> Tuple[str, str]:

@@ -5,6 +5,7 @@ The loop remains importable without Isaac or ROS bindings."""
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from importlib import import_module
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
@@ -51,11 +52,12 @@ class AtmosphereLoopState:
     sol_duration: float
     solar_constant: float
     elapsed: float = 0.0
-    dynamic_enabled: bool = False
     time_scale: float = 1.0
     sweep_start_az: float = 90.0
     sweep_end_az: float = 270.0
     sweep_max_el: float = 60.0
+    auto_peak_el: float = 0.0
+    last_auto_angles: tuple[float, float] | None = None
     update_interval: int = 60
     hdri_dir: str = ""
     sky_dome_config: Any = None
@@ -98,8 +100,8 @@ class LoopContext:
     configure_fog_fn: Optional[Callable[..., None]] = None
     compute_sun_fn: Optional[Callable[..., Any]] = None
     compute_sol_sun_fn: Optional[Callable[..., Any]] = None
-    compute_direct_intensity_fn: Optional[Callable[..., float]] = None
-    compute_diffuse_fraction_fn: Optional[Callable[..., float]] = None
+    compute_direct_fn: Optional[Callable[..., float]] = None
+    compute_diffuse_fn: Optional[Callable[..., float]] = None
     compute_sky_dome_fn: Optional[Callable[..., Any]] = None
     atmo_panel_update: Optional[Callable[[], None]] = None
 
@@ -134,7 +136,7 @@ def build_atmosphere_loop_state(
         "sun_mode": "auto" if dyn.enabled else "manual",
         "sun_azimuth_deg": float(atmo_init.sun_azimuth_deg),
         "sun_elevation_deg": float(atmo_init.sun_elevation_deg),
-        "time_of_sol": 0.0,
+        "time_of_sol": dyn.initial_sol_fraction,
         "direct_intensity": atmo_init.direct_intensity,
         "diffuse_fraction": atmo_init.diffuse_fraction,
         "sol_duration_seconds": atmo_init.sol_duration_seconds,
@@ -143,7 +145,7 @@ def build_atmosphere_loop_state(
         atmosphere_dict=atmosphere_dict,
         sol_duration=atmo_init.sol_duration_seconds,
         solar_constant=atmo_init.solar_constant,
-        dynamic_enabled=dyn.enabled,
+        elapsed=dyn.initial_sol_fraction * atmo_init.sol_duration_seconds,
         time_scale=dyn.time_scale,
         sweep_start_az=dyn.sun_sweep.start_azimuth_deg,
         sweep_end_az=dyn.sun_sweep.end_azimuth_deg,
@@ -406,53 +408,73 @@ def _update_atmosphere(ctx: LoopContext) -> None:
     current_tau = state["tau"]
     dyn_sun_pos = None
 
-    if state["sun_mode"] == "auto" and atmo.dynamic_enabled:
-        atmo.elapsed += ctx.physics_dt * atmo.update_interval * atmo.time_scale
-        t = (atmo.elapsed % atmo.sol_duration) / atmo.sol_duration
-        state["time_of_sol"] = t
-        if ctx.compute_sol_sun_fn is not None:
-            dyn_sun_pos = ctx.compute_sol_sun_fn(
-                time_of_sol_fraction=t,
+    if state["sun_mode"] == "auto":
+        if ctx.compute_sol_sun_fn is None or ctx.compute_sun_fn is None:
+            return
+        angles = state["sun_azimuth_deg"], state["sun_elevation_deg"]
+        if angles != atmo.last_auto_angles:
+            # Anchor both angles before advancing the existing sweep.
+            atmo.auto_peak_el = max(atmo.sweep_max_el, angles[1])
+            phase = 0.0
+            if atmo.auto_peak_el:
+                phase = math.asin(angles[1] / atmo.auto_peak_el) / math.pi
+            if (atmo.elapsed % atmo.sol_duration) / atmo.sol_duration > 0.5:
+                phase = 1.0 - phase
+            atmo.elapsed = phase * atmo.sol_duration
+            dyn_sun_pos = ctx.compute_sun_fn(*angles)
+        else:
+            step = ctx.physics_dt * atmo.update_interval * atmo.time_scale
+            atmo.elapsed += step
+            sweep = ctx.compute_sol_sun_fn(
+                time_of_sol_fraction=(atmo.elapsed % atmo.sol_duration) / atmo.sol_duration,
                 start_azimuth_deg=atmo.sweep_start_az,
                 end_azimuth_deg=atmo.sweep_end_az,
-                max_elevation_deg=atmo.sweep_max_el,
+                max_elevation_deg=atmo.auto_peak_el,
                 mode="linear",
             )
-            state["sun_azimuth_deg"] = dyn_sun_pos.azimuth_deg
-            state["sun_elevation_deg"] = dyn_sun_pos.elevation_deg
+            azimuth_step = (atmo.sweep_end_az - atmo.sweep_start_az) * step / atmo.sol_duration
+            dyn_sun_pos = ctx.compute_sun_fn(
+                (angles[0] + azimuth_step) % 360.0, sweep.elevation_deg
+            )
+        t = (atmo.elapsed % atmo.sol_duration) / atmo.sol_duration
+        state["time_of_sol"] = t
+        state["sun_azimuth_deg"] = dyn_sun_pos.azimuth_deg
+        state["sun_elevation_deg"] = dyn_sun_pos.elevation_deg
+        atmo.last_auto_angles = dyn_sun_pos.azimuth_deg, dyn_sun_pos.elevation_deg
     elif state["sun_mode"] == "manual" and ctx.compute_sun_fn is not None:
+        atmo.last_auto_angles = None
         dyn_sun_pos = ctx.compute_sun_fn(
             azimuth_deg=state["sun_azimuth_deg"],
-            elevation_deg=max(0.5, min(89.5, state["sun_elevation_deg"])),
+            elevation_deg=state["sun_elevation_deg"],
         )
 
     if dyn_sun_pos is None:
         return
 
     if (
-        ctx.compute_direct_intensity_fn is None
-        or ctx.compute_diffuse_fraction_fn is None
+        ctx.compute_direct_fn is None
+        or ctx.compute_diffuse_fn is None
         or ctx.compute_sky_dome_fn is None
     ):
         return
 
-    dyn_intensity = ctx.compute_direct_intensity_fn(
+    direct = ctx.compute_direct_fn(
         atmo.solar_constant, current_tau, dyn_sun_pos.zenith_angle_rad
     )
-    dyn_diffuse = ctx.compute_diffuse_fraction_fn(current_tau)
+    diffuse = ctx.compute_diffuse_fn(current_tau)
     dyn_sky = ctx.compute_sky_dome_fn(
         current_tau,
         atmo.hdri_dir,
         atmo.sky_dome_config,
     )
 
-    state["direct_intensity"] = dyn_intensity
-    state["diffuse_fraction"] = dyn_diffuse
+    state["direct_intensity"] = direct
+    state["diffuse_fraction"] = diffuse
 
     if ctx.update_sun_fn is not None:
-        ctx.update_sun_fn(ctx.stage, dyn_sun_pos, dyn_intensity, dyn_diffuse, ctx.render_config)
+        ctx.update_sun_fn(ctx.stage, dyn_sun_pos, direct, ctx.render_config)
     if ctx.update_sky_fn is not None:
-        ctx.update_sky_fn(ctx.stage, dyn_sky, dyn_diffuse, ctx.render_config)
+        ctx.update_sky_fn(ctx.stage, dyn_sky, diffuse, ctx.render_config)
     if ctx.configure_fog_fn is not None:
         ctx.configure_fog_fn(ctx.stage, current_tau, ctx.render_config)
     if ctx.atmo_panel_update is not None:

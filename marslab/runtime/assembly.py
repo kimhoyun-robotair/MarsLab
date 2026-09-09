@@ -272,13 +272,12 @@ def assemble_pre_reset(
 
     _reference_user_usda(stage, scene_path)
 
+    set_render_mode(render_config)
     if atmosphere_enabled:
-        set_render_mode(render_config)
         configure_sun_light(
             stage,
             atmosphere_init.sun_pos,
             atmosphere_init.direct_intensity,
-            atmosphere_init.diffuse_fraction,
             render_config,
         )
         configure_sky_dome(
@@ -306,13 +305,11 @@ def assemble_pre_reset(
 
     sensor_graph = None
     if ros2_enabled:
-        camera_config = sensors_config["camera"]
         sensor_graph = build_sensor_graph(
             ros2_cfg=ros2_config,
             camera_acquisition=sensor_handles.camera_acquisition,
             lidar_3d_acquisition=sensor_handles.lidar_3d_acquisition,
             imu_acquisition=sensor_handles.imu_acquisition,
-            depth_sensor_cfg=camera_config.get("depth_sensor"),
             articulation_root_prim_path=f"{spawned_rover.chassis_path}/Body_Chassis",
         )
 

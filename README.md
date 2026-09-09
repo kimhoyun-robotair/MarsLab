@@ -88,6 +88,15 @@ flowchart LR
 
 ---
 
+## Atmosphere defaults
+
+Runs start at **tau=0.05** with a fixed manual sun. The GUI supports tau=0.05–6
+and sun elevation 0–90°; Auto Sweep continues from the latest sun angles. The sun
+uses Beer-law direct irradiance; the sky retains its tau-indexed table and gain.
+The retained diffuse table and simple fog remain uncalibrated approximations.
+See the [model limits and experiment settings](CONFIGURATION_GUIDE.md#mars-environment-and-atmosphere)
+before interpreting lighting values as physical measurements.
+
 ## 🏜️ Research Environments
 
 MarsLab supports repeatable autonomy experiments across terrain geometry,

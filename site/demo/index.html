@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MarsLab · Interactive Lab</title><link rel="stylesheet" href="demo.css?v=showcase-2"></head>
+<body>
+<main class="lab">
+  <header class="lab-header"><div><a class="back" href="../">← Project page</a><p class="eyebrow">MARSLAB / INTERACTIVE LAB</p><h1>A rover's view of Mars.</h1></div><label class="scene-picker">Environment<select id="scene"><option value="crater">Main Crater</option><option value="canyon">Grand Canyon</option></select></label></header>
+  <p class="intro">Explore real terrain. Follow a recorded rover traverse. Inspect how its sensors and SLAM maps change together.</p>
+  <div class="tabs" role="tablist" aria-label="Demo mode"><button id="tab-explore" role="tab" aria-selected="true" aria-controls="workspace" data-mode="explore">Explore terrain</button><button id="tab-slam" role="tab" aria-selected="false" aria-controls="workspace" tabindex="-1" data-mode="slam">SLAM replay</button></div>
+  <section id="workspace" role="tabpanel" aria-labelledby="tab-explore">
+    <div class="workspace-bar"><p id="mode-description">Drag to orbit the terrain. Zoom in, pan, or jump to the rover.</p><span class="badge">RECORDED EXPERIMENT</span></div>
+    <div class="workspace-grid">
+      <div class="viewport-wrap"><div class="view-tools"><button id="overview">Overview</button><button id="focus">Focus rover</button><button id="top">Top view</button><label><input id="follow" type="checkbox"> Follow</label></div><div id="viewport" tabindex="0" role="img" aria-label="Interactive 3D terrain. Drag to orbit, scroll to zoom; arrow keys pan."></div><div id="loading" role="status">Loading terrain and experiment…</div><div class="view-footer"><span id="view-label">HiRISE-derived terrain · true elevation scale</span><button id="reset-camera" title="Reset camera">Reset view</button></div></div>
+      <aside class="side-panel">
+        <div id="sensor-panel"><div class="sensor-grid"><figure><canvas id="rgb" width="256" height="192" aria-label="Recorded RGB camera frame"></canvas><figcaption>RGB <span id="rgb-stamp">0.0 s</span></figcaption></figure><figure><canvas id="depth" width="256" height="192" aria-label="Recorded depth image"></canvas><figcaption>Depth <span>0–100 m</span></figcaption></figure></div><div class="depth-key"><span>Near</span><div></div><span>Far · invalid = black</span></div><figure class="lidar-figure"><canvas id="lidar" width="520" height="280" aria-label="Recorded LiDAR scan, isometric projection"></canvas><figcaption>LiDAR <span id="lidar-count">—</span></figcaption></figure><p class="small">Sensor frames share one recorded timeline. Moving the viewing camera does not change the rover's recorded observations.</p></div>
+        <div id="slam-panel" hidden><label class="algorithm-label">SLAM method<select id="algorithm"><option value="mola">MOLA · LiDAR odometry</option><option value="rtab">RTAB-MAP · RGB-D + wheel odometry</option></select></label><div class="legend"><span class="map-dot">● Recorded map</span><span class="est-dot">— Estimated path</span><span class="gt-dot">— Ground truth</span></div><label class="check-row"><input id="show-gt" type="checkbox" checked> Show ground-truth path</label><dl class="metrics"><div><dt>Map points (source)</dt><dd id="map-count">—</dd></div><div><dt>Map snapshot time</dt><dd id="map-time">—</dd></div><div><dt>Estimated poses shown</dt><dd id="pose-count">—</dd></div></dl><p class="small">These are actual algorithm outputs, replayed in your browser. No SLAM process runs on a server. Ground truth is aligned at the starting pose for visual comparison.</p><p class="small">Map points are downsampled for the web. The recording begins after initialization.</p></div>
+      </aside>
+    </div>
+    <div class="transport"><button id="play" class="primary" disabled>Play traverse</button><button id="restart" disabled aria-label="Restart traverse">↺</button><label class="timeline-label" for="timeline">Time</label><input id="timeline" type="range" min="0" max="20" step="0.001" value="0" disabled aria-label="Experiment time"><output id="time" for="timeline">0.0 / 20.0 s</output><label class="speed-label">Speed<select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+    <div class="experiment-footer"><span id="run-info">Actual Isaac Sim / ROS 2 data · τ = 0.5</span></div>
+  </section>
+  <noscript>This demo requires JavaScript. <a href="../">Return to the project page.</a></noscript>
+</main><script type="module" src="demo.js?v=showcase-2"></script>
+</body></html>

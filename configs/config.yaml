@@ -1,5 +1,5 @@
 scene:
-  usdz_path: ../assets/scene/jezero_plain/jezero_plain.usdz
+  usdz_path: ../assets/scene/main_crater/main_crater.usdz
 
 runtime:
   headless: false
@@ -8,13 +8,14 @@ runtime:
 
 mars_env:
   gravity: 3.72
-  dust_optical_depth: 0.3
+  dust_optical_depth: 0.05
   solar_constant: 589
   sol_duration_seconds: 88642
-  sun_azimuth_deg: 180
-  sun_elevation_deg: 45
+  sun_azimuth_deg: 90.07
+  sun_elevation_deg: 3.47
   dynamic_atmosphere:
-    enabled: true
+    enabled: false
+    initial_sol_fraction: 0.5
     time_scale: 200.0
     sun_sweep:
       start_azimuth_deg: 90

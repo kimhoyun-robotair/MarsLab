@@ -1,1 +1,0 @@
-"""HiRISE heightfield mesh construction."""

@@ -42,7 +42,7 @@ class SensorHandles:
 
     def read_camera_depth(self) -> npt.NDArray[np.float32]:
         """Read a depth image, returning an empty array before a frame exists."""
-        data = self.camera.get_depth() if self.camera is not None else None
+        data = self.camera_acquisition.depth_annotator.get_data()
         return np.array([] if data is None else data, dtype=np.float32)
 
     def read_lidar_3d_point_cloud(self) -> npt.NDArray[np.float32]:

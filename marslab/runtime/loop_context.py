@@ -38,8 +38,8 @@ def build_loop_context(
         spin_once = spin_bridge
 
     update_sun_fn = update_sky_fn = configure_fog_fn = None
-    compute_sun_fn = compute_sol_sun_fn = compute_direct_intensity_fn = None
-    compute_diffuse_fraction_fn = compute_sky_dome_fn = None
+    compute_sun_fn = compute_sol_sun_fn = compute_direct_fn = compute_diffuse_fn = None
+    compute_sky_dome_fn = None
     if config.runtime.atmosphere_enabled:
         sun_renderer = import_module("marslab.rendering.sun_renderer")
         update_sun_fn = sun_renderer.update_sun_light
@@ -50,10 +50,10 @@ def build_loop_context(
         sun_position = import_module("marslab.environment.sun_position")
         compute_sun_fn = sun_position.compute_sun_position
         compute_sol_sun_fn = sun_position.compute_sol_sun_position
-        compute_direct_intensity_fn = import_module(
+        compute_direct_fn = import_module(
             "marslab.environment.light_intensity"
         ).compute_direct_intensity
-        compute_diffuse_fraction_fn = import_module(
+        compute_diffuse_fn = import_module(
             "marslab.environment.diffuse_fraction"
         ).compute_diffuse_fraction_1d_approx
         compute_sky_dome_fn = import_module("marslab.environment.sky_dome").compute_sky_dome_params
@@ -96,8 +96,8 @@ def build_loop_context(
         configure_fog_fn=configure_fog_fn,
         compute_sun_fn=compute_sun_fn,
         compute_sol_sun_fn=compute_sol_sun_fn,
-        compute_direct_intensity_fn=compute_direct_intensity_fn,
-        compute_diffuse_fraction_fn=compute_diffuse_fraction_fn,
+        compute_direct_fn=compute_direct_fn,
+        compute_diffuse_fn=compute_diffuse_fn,
         compute_sky_dome_fn=compute_sky_dome_fn,
         atmo_panel_update=(
             post_reset.atmosphere_panel.update_display

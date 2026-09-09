@@ -124,26 +124,69 @@ sensor, physics, or ROS ownership.
 
 - `gravity` controls world gravity and the IMU diagnostic reference. Keep it
   within the validated Mars range unless the schema and physics contract change.
-- `dust_optical_depth` (`tau`) controls sky color, brightness, direct light, and
-  diffuse light. Lower values produce clearer skies; higher values produce a
-  darker, dustier atmosphere.
-- `solar_constant`, `sun_azimuth_deg`, and `sun_elevation_deg` define the initial
-  illumination state.
-- `sol_duration_seconds` defines the modeled Martian day length.
+- `dust_optical_depth` (`tau`) starts at **0.05**. YAML accepts `0 < tau <= 6`,
+  including values below 0.05; the GUI slider covers **0.05–6**.
+- `solar_constant` is top-of-atmosphere broadband irradiance in W/m²; the default
+  589 is a mean Mars value, without automatic seasonal or orbital scaling.
+- `sun_azimuth_deg` and `sun_elevation_deg` set the manual sun, with elevation
+  allowed from 0° through 90°.
+- `sol_duration_seconds` defines the sweep's simulated duration.
+
+### Lighting model and limits
+
+With zenith angle `z`, direct normal irradiance is `B = I0 exp(-tau/cos(z))`.
+This uses the plane-parallel approximation documented in
+[NASA's 1990 update, equations 6–7](https://ntrs.nasa.gov/api/citations/19910005804/downloads/19910005804.pdf).
+The source supports the secant approximation up to about `z=80°` (elevation 10°).
+The same expression is extended toward the horizon for continuity, with no
+accuracy guarantee there. At elevation 0° or below, direct irradiance is zero,
+as specified in MarsLab.pdf Eq. 3. The tau-indexed sky remains independent of
+sun elevation; no additional night or twilight model is imposed.
+
+The retained tau-only table is an **uncalibrated heuristic**, not a reproduced
+[COMIMART calculation](https://doi.org/10.1051/swsc/2015035). Its reference zenith,
+cloud/albedo conditions, spectral band, extraction data, and error bounds are
+unavailable. Linear interpolation is used between the existing points, with
+endpoint clamping outside 0–6 in the pure function. The tau=5/6 points and
+`f(0)=0.10` have no established physical calibration; the latter must not be
+interpreted as a verified molecular-scattering floor. At tau=0.05, `f=0.14`.
+
+MarsLab.pdf III-E specifies a tau-indexed COMIMART reduction but does not give
+its table values or a DomeLight conversion. The runtime preserves the existing
+table and renderer scale without deriving absolute diffuse irradiance from the
+direct beam. Reproducing COMIMART requires traceable input data and calibration.
 
 ### Dynamic atmosphere
 
-Set `mars_env.dynamic_atmosphere.enabled` to animate the sun during the run.
-`time_scale` controls how quickly simulated solar time advances, while
-`sun_sweep` defines the azimuth interval and maximum elevation.
-`update_interval_frames` trades responsiveness for update cost.
+`mars_env.dynamic_atmosphere.enabled` selects the **initial** sun mode; the
+supplied configuration uses `false` for a fixed manual sun. The GUI can select
+Auto Sweep or Manual afterward, regardless of this initial flag. Dust changes
+update the sky and fog in either mode, every `update_interval_frames`.
 
-The GUI dust slider is an in-memory override for the current run. It does not
-write values back to `configs/config.yaml`.
+Both modes start at `sun_azimuth_deg` and `sun_elevation_deg`. Selecting Auto Sweep
+anchors the sweep at the latest angles, including manual edits, before advancing.
+Manual pauses motion; returning to auto preserves the current position and the
+previous rising/setting direction. Rapid mode changes also preserve manual edits.
+
+`initial_sol_fraction` is retained for configuration compatibility. Values up to
+0.5 select the initial rising branch and values above 0.5 select the setting
+branch; it does not override the configured angles. The actual phase is derived
+from the current elevation on the half-sine envelope. If the current elevation
+exceeds `sun_sweep.max_elevation_deg`, that elevation becomes the peak for this
+auto run so entering auto never clamps the sun to a lower angle.
+
+The difference `end_azimuth_deg - start_azimuth_deg` sets azimuth travel per sol,
+starting at the current azimuth and wrapping at 360°. These values do not force
+a reset to the start azimuth at a sol boundary. `time_scale` controls the motion
+rate. This is an interactive sweep, not an astronomical day/night model.
+
+GUI overrides only affect the current run. For dust-only comparisons, keep the
+manual sun, rover/camera pose, renderer, exposure, and texture inputs fixed, then
+vary tau. Record these settings alongside the sensor seed.
 
 ## Rendering modes
 
-`rendering.mode` accepts two modes:
+`rendering.mode` applies even when `runtime.atmosphere_enabled: false` and accepts two modes:
 
 | Mode | Trade-off | Recommended use |
 | --- | --- | --- |
@@ -162,8 +205,36 @@ Sky-dome tuning is split between:
 - sun intensity, color, and angular diameter
 - fog density, color, height, and falloff
 
-Keep the three HDRI filenames inside `sky_dome_hdri_dir`. If an image is
-intentionally unavailable, MarsLab can fall back to a color dome.
+Sun intensity is `B * sun_intensity_scale`, with no second `(1-f)` reduction.
+Dome intensity retains `f(tau) * brightness * dome_brightness_scale`, with the
+original gain of **5000**. Here `brightness` is computed from
+`sky_dome.brightness_min`, `brightness_decay`, and `tau_saturation`.
+This is the existing renderer mapping, not an equation specified by the PDF.
+No isotropic-sky conversion or absolute diffuse irradiance is computed.
+Colors, texture pixels, and brightness modifiers affect appearance; USD light
+intensity values must not be interpreted or added as measured W/m².
+
+Keep the three HDRI filenames inside `sky_dome_hdri_dir`. Startup and live updates
+select the same texture: clear below tau=0.5, moderate below 1.5, dusty otherwise.
+A missing or empty texture clears the previous texture and uses the color dome;
+a missing file emits a warning. Texture changes therefore follow tau in both
+directions instead of retaining the initial image.
+
+### Simple fog
+
+Fog uses the [RTX simple exponential appearance approximation](https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_common.html#simple-fog).
+It is not a multiple-scattering dust model. `fog_density_scale * tau` sets the
+renderer density at the end distance, without a physical m⁻¹ or visibility
+calibration. The following keys were checked against Isaac Sim 5.1:
+
+| Configuration | Meaning |
+| --- | --- |
+| `fog.enabled` | Enable simple fog when the atmosphere is active. |
+| `fog.start_distance_m` / `fog.end_distance_m` | Camera distance interval, defaults 0 / 5000; end must exceed start. |
+| `fog.start_height` | Height plane in meters, using the stage's +Z axis. |
+| `fog.height_falloff` | Renderer height falloff parameter. |
+| `fog.height_density_ratio` | Height density relative to the tau-scaled distance density. |
+| `fog.color_amount` | Existing 0–1 control, now mapped to the supported `fogColorIntensity` setting. |
 
 ## Rover physics
 
@@ -213,8 +284,18 @@ single shared Camera render product used by RGB, raw depth, depth PointCloud2,
 and CameraInfo.
 
 `depth_sensor.enabled` does **not** turn depth publishing on or off. It only
-enables the optional depth schema/noise/post-processing model. Raw depth and the
-retained PointCloud2 path remain part of the camera pipeline.
+applies the optional renderer depth schema to camera acquisition, including when
+`runtime.ros2_enabled: false`. Raw depth and the retained PointCloud2 path remain
+part of the camera pipeline. The independent depth reader consumes its attached
+`distance_to_image_plane` annotator, returning an empty array until data arrives.
+Attaching this schema does not establish that the raw depth AOV contains its
+noise; the renderer's dedicated depth-effect output is a separate interface.
+If the optional schema is unavailable, a warning reports the raw-depth fallback.
+The shared render product explicitly selects LDR color (`rgbDepthOutputMode=0`)
+to preserve RGB when the optional effect is enabled. Isaac Sim 5.1 emitted
+repeated missing-depth-buffer errors with this effect in Path Tracing during
+validation. MarsLab therefore applies it in `ray_tracing` mode;
+`path_tracing` warns and retains raw depth.
 
 ### 3-D LiDAR
 
@@ -233,7 +314,10 @@ file and checked during preflight.
 control the separate noisy ROS stream. A configured sampling frequency does not
 guarantee the final observed ROS publication rate; verify it in the live system.
 
-`rover.sensors.seed` makes supported noisy outputs repeatable across runs.
+An integer `rover.sensors.seed` derives separate NumPy seeds for wheel odometry
+and noisy IMU output. `null` leaves both nondeterministic; wheel odometry no
+longer silently falls back to seed 0. This setting does not seed the RTX depth
+effect or guarantee deterministic GPU rendering.
 
 ## ROS 2 topics, frames, and QoS
 
