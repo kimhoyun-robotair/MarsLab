@@ -30,7 +30,7 @@
 !/marslab/isaac_python.sh
 
 # Keep Project Page Module
-!/site/
+!/docs/
 
 # Exclude local state inside retained directories as well.
 AGENTS.md
