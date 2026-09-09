@@ -8,11 +8,11 @@
 *Department of Robotics and Mechatronics Engineering, DGIST*
 
 <p>
-  <a href="https://kimhoyun-robotair.github.io/MarsLab.github.io/">
+  <a href="https://kimhoyun-robotair.github.io/MarsLab/">
     <img src="https://img.shields.io/badge/Project_Page-C1440E?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Project Page" />
   </a>
   &nbsp;
-  <a href="https://kimhoyun-robotair.github.io/MarsLab.github.io/MarsLab.pdf">
+  <a href="docs/MarsLab.pdf">
     <img src="https://img.shields.io/badge/Paper-DC2626?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Paper" />
   </a>
   &nbsp;
@@ -30,7 +30,11 @@
 
 <br />
 
-<img src="https://kimhoyun-robotair.github.io/MarsLab.github.io/asset/fig02_main_scene.png" width="960" alt="MarsLab simulation environment" />
+<a href="https://www.youtube.com/watch?v=gkr9NTTGlTw">
+  <img src="https://img.youtube.com/vi/gkr9NTTGlTw/maxresdefault.jpg" width="960" alt="Watch the MarsLab video on YouTube" />
+</a>
+<br />
+<a href="https://www.youtube.com/watch?v=gkr9NTTGlTw">▶ Watch the MarsLab video on YouTube</a>
 
 </div>
 
@@ -106,7 +110,7 @@ illumination, and atmospheric appearance.
 <tr>
 <td width="33%" align="center" valign="top">
 
-<img src="https://kimhoyun-robotair.github.io/MarsLab.github.io/asset/fig03_marsbase1.png" width="100%" alt="Mars Base scene" />
+<img src="https://kimhoyun-robotair.github.io/MarsLab/asset/fig03_marsbase1.png" width="100%" alt="Mars Base scene" />
 
 **Mars Base**<br />
 Landmark-rich structured terrain.
@@ -114,7 +118,7 @@ Landmark-rich structured terrain.
 </td>
 <td width="33%" align="center" valign="top">
 
-<img src="https://kimhoyun-robotair.github.io/MarsLab.github.io/asset/fig03_main_crater1.png" width="100%" alt="Main Crater scene" />
+<img src="https://kimhoyun-robotair.github.io/MarsLab/asset/showcase/crater.jpg" width="100%" alt="Main Crater scene" />
 
 **Main Crater**<br />
 Open crater terrain with sparse structure.
@@ -122,7 +126,7 @@ Open crater terrain with sparse structure.
 </td>
 <td width="33%" align="center" valign="top">
 
-<img src="https://kimhoyun-robotair.github.io/MarsLab.github.io/asset/fig03_marscanyon1.png" width="100%" alt="Mars Canyon scene" />
+<img src="https://kimhoyun-robotair.github.io/MarsLab/asset/showcase/canyon.jpg" width="100%" alt="Mars Canyon scene" />
 
 **Mars Canyon**<br />
 Long-range terrain with challenging geometry.
@@ -133,7 +137,7 @@ Long-range terrain with challenging geometry.
 
 Interactive benchmark results, environment comparisons, illumination changes,
 and dust experiments are available on the
-[**MarsLab Project Page**](https://kimhoyun-robotair.github.io/MarsLab.github.io/).
+[**MarsLab Project Page**](https://kimhoyun-robotair.github.io/MarsLab/).
 
 ---
 
