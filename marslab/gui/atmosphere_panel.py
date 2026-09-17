@@ -32,12 +32,27 @@ class AtmospherePanel:
                 "build_atmosphere_loop_state(); missing keys: " + ", ".join(missing)
             )
         self._state = atmosphere_state
-        self._build_ui()
+        self._window: ui.Window | None = None
+        try:
+            self._build_ui()
+        except BaseException:
+            try:
+                self.close()
+            except Exception:
+                _LOG.exception("Atmosphere panel cleanup failed during construction.")
+            raise
+
+    def close(self) -> None:
+        """Release the window and the UI callbacks it owns."""
+        window, self._window = self._window, None
+        if window is not None:
+            window.destroy()
 
     def _build_ui(self) -> None:
         """Construct the panel layout."""
-        self._window = ui.Window("MarsLab Atmosphere Control", width=420, height=420)
-        with self._window.frame, ui.VStack(spacing=6):
+        window = ui.Window("MarsLab Atmosphere Control", width=420, height=420)
+        self._window = window
+        with window.frame, ui.VStack(spacing=6):
             ui.Spacer(height=4)
 
             # --- Tau slider ---

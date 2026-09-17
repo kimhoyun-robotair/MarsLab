@@ -4,8 +4,11 @@ Isaac graph imports occur only during graph construction."""
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple
+
+import numpy as np
 
 from marslab.ros2_bridge.sensor_graph_builder import (
     _build_connections,
@@ -26,6 +29,47 @@ class SensorGraphHandle:
 
     graph_path: str
     graph: Any
+    raw_imu_graph_path: str
+    raw_imu_graph: Any
+
+    def initialize_raw_imu(self) -> None:
+        """Initialize raw IMU publishing after construction or Stop."""
+        import omni.graph.core as og
+
+        og.Controller.set(
+            og.Controller.attribute(
+                f"{self.raw_imu_graph_path}/OnImpulseEvent.state:enableImpulse"
+            ),
+            True,
+        )
+        og.Controller.evaluate_sync(self.raw_imu_graph)
+
+    def publish_raw_imu(
+        self,
+        stamp_seconds: float,
+        linear_acceleration: np.ndarray,
+        angular_velocity: np.ndarray,
+        orientation_xyzw: np.ndarray,
+    ) -> None:
+        """Publish the same acquired IMU sample supplied to the noisy stream."""
+        import omni.graph.core as og
+
+        if not math.isfinite(stamp_seconds) or stamp_seconds < 0.0:
+            raise ValueError("IMU acquisition time must be finite and non-negative")
+        publisher_path = f"{self.raw_imu_graph_path}/PubIMU"
+        og.Controller.edit(
+            self.raw_imu_graph,
+            {
+                og.Controller.Keys.SET_VALUES: [
+                    (f"{publisher_path}.inputs:timeStamp", stamp_seconds),
+                    (f"{publisher_path}.inputs:linearAcceleration", linear_acceleration.tolist()),
+                    (f"{publisher_path}.inputs:angularVelocity", angular_velocity.tolist()),
+                    (f"{publisher_path}.inputs:orientation", orientation_xyzw.tolist()),
+                    (f"{self.raw_imu_graph_path}/OnImpulseEvent.state:enableImpulse", True),
+                ],
+            },
+        )
+        og.Controller.evaluate_sync(self.raw_imu_graph)
 
 
 def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
@@ -64,6 +108,8 @@ def build_sensor_graph(
     camera_render_product_path = camera_acquisition.render_product_path
     if not camera_render_product_path:
         raise ValueError("Camera render-product path must be non-empty")
+    if not imu_acquisition.imu_prim_path:
+        raise ValueError("IMU prim path must be non-empty")
 
     keys = og.Controller.Keys
     graph_handle, _, _, _ = og.Controller.edit(
@@ -74,17 +120,44 @@ def build_sensor_graph(
             keys.SET_VALUES: _build_set_values(
                 ns=ns,
                 topics=topics,
-                imu_prim_path=imu_acquisition.imu_prim_path,
                 camera_render_product_path=camera_render_product_path,
                 lidar_3d_render_product_path=lidar_3d_acquisition.render_product_path,
                 articulation_root_prim_path=articulation_root_prim_path,
                 sensor_qos_preset=sensor_preset,
                 joint_state_qos_preset=joint_state_preset,
+                depth_noise_enabled=camera_acquisition.depth_noise_enabled,
             ),
         },
     )
 
-    return SensorGraphHandle(graph_path=graph_path, graph=graph_handle)
+    raw_imu_graph_path = f"{graph_path}RawIMU"
+    raw_imu_graph, _, _, _ = og.Controller.edit(
+        {
+            "graph_path": raw_imu_graph_path,
+            "evaluator_name": "execution",
+            "pipeline_stage": og.GraphPipelineStage.GRAPH_PIPELINE_STAGE_ONDEMAND,
+        },
+        {
+            keys.CREATE_NODES: [
+                ("OnImpulseEvent", "omni.graph.action.OnImpulseEvent"),
+                ("PubIMU", "isaacsim.ros2.bridge.ROS2PublishImu"),
+            ],
+            keys.CONNECT: [
+                ("OnImpulseEvent.outputs:execOut", "PubIMU.inputs:execIn"),
+            ],
+            keys.SET_VALUES: [
+                ("PubIMU.inputs:topicName", _ns_topic(ns, topics["imu"])),
+                ("PubIMU.inputs:frameId", "imu_link"),
+                ("PubIMU.inputs:qosProfile", sensor_preset),
+            ],
+        },
+    )
+    return SensorGraphHandle(
+        graph_path=graph_path,
+        graph=graph_handle,
+        raw_imu_graph_path=raw_imu_graph_path,
+        raw_imu_graph=raw_imu_graph,
+    )
 
 
 def _build_qos_presets(options: Any) -> Tuple[str, str]:

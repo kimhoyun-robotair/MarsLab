@@ -19,6 +19,11 @@ def build_sensor_frames(sensors_cfg: SensorsConfig) -> SensorFrames:
             list(sensors_cfg.camera.local_orientation_rpy_deg),
         ),
         (
+            "lidar_2d_link",
+            list(sensors_cfg.lidar_2d.local_translation),
+            list(sensors_cfg.lidar_2d.local_orientation_rpy_deg),
+        ),
+        (
             "lidar_link",
             list(sensors_cfg.lidar_3d.local_translation),
             list(sensors_cfg.lidar_3d.local_orientation_rpy_deg),

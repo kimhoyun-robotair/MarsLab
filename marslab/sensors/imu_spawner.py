@@ -34,11 +34,56 @@ class _IMUHandle(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class IMUSample:
+    """One valid sensor-period measurement shared by raw and noisy output."""
+
+    stamp_seconds: float
+    linear_acceleration: np.ndarray
+    angular_velocity: np.ndarray
+    orientation_xyzw: np.ndarray
+
+    @property
+    def stamp_ns(self) -> int:
+        # ROS2PublishImu truncates the native seconds multiplied by 1e9.
+        return int(self.stamp_seconds * 1_000_000_000)
+
+
+@dataclass(frozen=True, slots=True)
 class IMUSpawnHandles:
     """Live IMU handle and its USD prim path."""
 
     imu: _IMUHandle
     imu_prim_path: str
+
+    def read_sample(self) -> IMUSample | None:
+        from isaacsim.sensors.physics import _sensor
+
+        reading = _sensor.acquire_imu_sensor_interface().get_sensor_reading(
+            self.imu_prim_path, use_latest_data=False, read_gravity=True
+        )
+        if not reading.is_valid or reading.time <= 0.0:
+            return None
+        linear = np.asarray(
+            [reading.lin_acc_x, reading.lin_acc_y, reading.lin_acc_z], dtype=np.float64
+        )
+        angular = np.asarray(
+            [reading.ang_vel_x, reading.ang_vel_y, reading.ang_vel_z], dtype=np.float64
+        )
+        orientation = np.asarray(reading.orientation, dtype=np.float64)
+        if (
+            not math.isfinite(reading.time)
+            or not np.all(np.isfinite(linear))
+            or not np.all(np.isfinite(angular))
+            or orientation.shape != (4,)
+            or not np.all(np.isfinite(orientation))
+        ):
+            raise RuntimeError(f"Non-finite IMU sample at {self.imu_prim_path}")
+        return IMUSample(
+            stamp_seconds=float(reading.time),
+            linear_acceleration=linear,
+            angular_velocity=angular,
+            orientation_xyzw=orientation,
+        )
 
 
 def _assert_mars_gravity(
@@ -136,4 +181,4 @@ def spawn_imu(
     return IMUSpawnHandles(imu=imu, imu_prim_path=imu_prim_path)
 
 
-__all__ = ["IMUSpawnHandles", "spawn_imu"]
+__all__ = ["IMUSample", "IMUSpawnHandles", "spawn_imu"]

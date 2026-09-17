@@ -12,6 +12,31 @@ from marslab.quaternion import rpy_to_quat
 logger = logging.getLogger(__name__)
 
 
+def create_rover_articulation(prim_path: str) -> Any:
+    """Keep unrelated stage deletions from invalidating the rover physics view."""
+    from isaacsim.core.prims import Articulation
+
+    class RoverArticulation(Articulation):
+        def _on_prim_deletion(self, deleted_prim_path: str) -> None:
+            roots = self.prim_paths
+            ancestor_prefix = deleted_prim_path.rstrip("/") + "/"
+            if not any(
+                root == deleted_prim_path or root.startswith(ancestor_prefix) for root in roots
+            ):
+                logger.debug(
+                    "Ignoring prim deletion outside rover articulation roots: deleted=%s roots=%s",
+                    deleted_prim_path,
+                    roots,
+                )
+                return
+            logger.info(
+                "Invalidating rover articulation after prim deletion: %s", deleted_prim_path
+            )
+            super()._on_prim_deletion(deleted_prim_path)
+
+    return RoverArticulation(prim_paths_expr=prim_path)
+
+
 def pin_articulation_root_pose(
     articulation: Any,
     spawn_xyz: Sequence[float],
@@ -41,6 +66,7 @@ def zero_steer_joints(articulation: Any, steer_indices: Sequence[int]) -> None:
 
 
 __all__ = [
+    "create_rover_articulation",
     "pin_articulation_root_pose",
     "zero_steer_joints",
 ]

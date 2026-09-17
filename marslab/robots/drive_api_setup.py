@@ -5,6 +5,7 @@ Joint-index resolution remains pure for offline callers."""
 from __future__ import annotations
 
 import logging
+from math import degrees, isnan
 from typing import Any, List
 
 import numpy as np
@@ -66,6 +67,8 @@ def configure_drives(
     control_cfg: ControlConfig,
 ) -> None:
     """Apply DriveAPI attributes to the actively controlled joints."""
+    from pxr import UsdPhysics
+
     drive_joint_names = list(control_cfg.drive_joint_names)
     steer_joint_names = list(control_cfg.steer_joint_names)
 
@@ -78,6 +81,26 @@ def configure_drives(
 
     joints_scope = f"{chassis_path}/joints"
     missing: list[str] = []
+
+    requested_limit_deg = degrees(float(control_cfg.max_steer_angle))
+    for jname in steer_joint_names:
+        joint_path = f"{joints_scope}/{jname}"
+        joint_prim = stage.GetPrimAtPath(joint_path)
+        if not joint_prim.IsValid() or not joint_prim.IsA(UsdPhysics.RevoluteJoint):
+            raise RuntimeError(f"steering joint must be a USD revolute joint: {joint_path}")
+        joint = UsdPhysics.RevoluteJoint(joint_prim)
+        lower = float(joint.GetLowerLimitAttr().Get())
+        upper = float(joint.GetUpperLimitAttr().Get())
+        if (
+            isnan(lower)
+            or isnan(upper)
+            or lower > -requested_limit_deg
+            or upper < requested_limit_deg
+        ):
+            raise RuntimeError(
+                f"steering limit +/-{requested_limit_deg:.6f} deg exceeds USD travel "
+                f"[{lower}, {upper}] deg for {joint_path}"
+            )
 
     for jname in drive_joint_names:
         if not _apply_drive_api(

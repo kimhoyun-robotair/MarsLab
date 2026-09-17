@@ -29,12 +29,10 @@ def create_world(
             normalised internally -- always applied as ``-abs(gravity)``
             along +Z.
         solver_type: ``"TGS"`` (default) or ``"PGS"``.
-        solver_position_iteration_count: Written to
-            ``physxScene:solverPositionIterationCount`` on ``/physicsScene``.
-            The default of 16 accommodates the 29-DOF rover articulation
-            with high-gain drives.
-        solver_velocity_iteration_count: Written to
-            ``physxScene:solverVelocityIterationCount``.
+        solver_position_iteration_count: Scene minimum and maximum position
+            iterations. Both bounds are set so every actor uses this count.
+        solver_velocity_iteration_count: Scene minimum and maximum velocity
+            iterations.
 
     Returns:
         ``(world, stage)`` tuple.  ``stage`` is the current USD stage
@@ -42,7 +40,7 @@ def create_world(
     """
     import omni.usd
     from isaacsim.core.api import World
-    from pxr import Sdf
+    from pxr import PhysxSchema
 
     world = World(
         stage_units_in_meters=1.0,
@@ -58,14 +56,13 @@ def create_world(
 
     physics_scene_prim = stage.GetPrimAtPath("/physicsScene")
     if physics_scene_prim.IsValid():
-        physics_scene_prim.CreateAttribute(
-            "physxScene:solverPositionIterationCount",
-            Sdf.ValueTypeNames.Int,
-        ).Set(int(solver_position_iteration_count))
-        physics_scene_prim.CreateAttribute(
-            "physxScene:solverVelocityIterationCount",
-            Sdf.ValueTypeNames.Int,
-        ).Set(int(solver_velocity_iteration_count))
+        scene_api = PhysxSchema.PhysxSceneAPI.Apply(physics_scene_prim)
+        position_iterations = int(solver_position_iteration_count)
+        velocity_iterations = int(solver_velocity_iteration_count)
+        scene_api.CreateMinPositionIterationCountAttr(position_iterations)
+        scene_api.CreateMaxPositionIterationCountAttr(position_iterations)
+        scene_api.CreateMinVelocityIterationCountAttr(velocity_iterations)
+        scene_api.CreateMaxVelocityIterationCountAttr(velocity_iterations)
 
     return world, stage
 

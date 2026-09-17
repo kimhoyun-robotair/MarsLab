@@ -1,4 +1,4 @@
-# Keep runtime inputs, source, and installation/user documentation.
+# Track runtime files, user documentation, and the project page.
 /*
 !/.gitignore
 !/.gitmodules
@@ -7,21 +7,24 @@
 !/README.md
 !/assets/
 !/configs/
+!/docs/
 !/launch/
 !/marslab/
 
-# Retain rover and sky assets; scene packages remain external downloads.
+# Keep rover assets and atmosphere references; scenes are external downloads.
 /assets/*
 !/assets/m2020-urdf-models/
 !/assets/mars_sky/
 !/assets/robots/
+!/assets/atmosphere/
 /assets/scene/
 
-# The simulator consumes one configuration and one ROS companion launch.
+# Keep the runtime configuration and both ROS companion files.
 /configs/*
 !/configs/config.yaml
 /launch/*
 !/launch/rover_state_publisher.launch.py
+!/launch/companion_urdf.py
 
 # Keep runtime Python modules and the Isaac Python launcher.
 /marslab/**
@@ -29,10 +32,7 @@
 !/marslab/**/*.py
 !/marslab/isaac_python.sh
 
-# Keep Project Page Module
-!/docs/
-
-# Exclude local state inside retained directories as well.
+# Ignore local instructions, environments, caches, and credentials.
 AGENTS.md
 __pycache__/
 *.py[cod]

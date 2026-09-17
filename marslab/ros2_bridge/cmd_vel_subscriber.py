@@ -1,26 +1,16 @@
-"""rclpy subscriber for ``geometry_msgs/Twist`` command input.
+"""Receive finite Twist commands and signal fresh input to the physics loop.
 
-The runtime consumes ``/<ns>/cmd_vel`` each physics step to drive
-the Ackermann controller.  Keeping the subscriber in its own module
-lets the state container be unit-tested without importing ``rclpy``.
-
-``queue_size`` is keyword-only with no default.  The canonical value
-(``10``) lives in
-:class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig` under
-``cmd_vel_queue_size`` and is threaded through ``init_rclpy_side``.
-Every call site must pass it explicitly so a missing YAML key cannot
-hide behind a Python fallback.
-
-The optional ``qos`` parameter pins reliability / durability / history
-depth through YAML via
-:class:`marslab.config.schema.ros2_bridge.QoSProfileConfig`.  When
-omitted the integer-``queue_size`` overload is used, matching the
-rclpy default profile.
+Queue depth and QoS are supplied by the validated ROS configuration.
+The loop owns command expiry in simulation time.
 """
 
 from __future__ import annotations
 
+import logging
+import math
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def create_cmd_vel_subscriber(
@@ -36,11 +26,9 @@ def create_cmd_vel_subscriber(
     Args:
         node: ``rclpy.node.Node`` instance.
         topic: Fully-qualified topic name (e.g. ``/rover/cmd_vel``).
-        twist_state: Mutable dict with keys ``"v"`` and ``"w"``.  The
-            subscriber writes the latest ``linear.x`` into ``v`` and
-            ``angular.z`` into ``w`` on every message.  Passing a
-            shared dict keeps the subscriber side-effect-visible to
-            the main simulation loop without a class.
+        twist_state: Shared command values and a receipt ``sequence``.
+            The physics loop timestamps sequence changes in simulation time.
+            Invalid commands replace both velocities with a stop command.
         queue_size: rclpy subscription queue depth.  Keyword-only --
             callers must source this from
             :class:`marslab.config.schema.ros2_bridge.Ros2BridgeConfig`
@@ -71,9 +59,20 @@ def create_cmd_vel_subscriber(
     if qos is None and queue_size < 1:
         raise ValueError("queue_size must be >= 1 when qos is None")
 
+    twist_state.setdefault("sequence", 0)
+    invalid_reported = False
+
     def _cb(msg: Twist) -> None:
-        twist_state["v"] = float(msg.linear.x)
-        twist_state["w"] = float(msg.angular.z)
+        nonlocal invalid_reported
+        v = float(msg.linear.x)
+        w = float(msg.angular.z)
+        valid = math.isfinite(v) and math.isfinite(w)
+        if not valid:
+            v = w = 0.0
+            if not invalid_reported:
+                logger.warning("Non-finite cmd_vel on %s; requesting a controlled stop", topic)
+        invalid_reported = not valid
+        twist_state.update(v=v, w=w, sequence=twist_state["sequence"] + 1)
 
     if qos is not None:
         # rclpy accepts QoSProfile as a positional arg identical in

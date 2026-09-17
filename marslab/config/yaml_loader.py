@@ -47,6 +47,12 @@ def load_config(path: str | Path) -> MarsLabConfig:
 
     rover = data.get("rover")
     if isinstance(rover, dict):
+        wheel_odometry = rover.get("wheel_odometry")
+        if isinstance(wheel_odometry, dict) and "track_width" in wheel_odometry:
+            raise ValueError(
+                "wheel_odometry.track_width is obsolete; remove it and configure "
+                "rover.control.wheelbase, track_steer, and track_middle"
+            )
         for field_name in ("usd_path", "urdf_source_path"):
             rover_path = rover.get(field_name)
             if isinstance(rover_path, str):

@@ -37,6 +37,28 @@ def build_loop_context(
 
         spin_once = spin_bridge
 
+    def reset_articulation() -> None:
+        articulation = post_reset.articulation
+        if not articulation.is_physics_handle_valid():
+            world.reset()
+            articulation.initialize()
+        articulation.post_reset()
+        setup = import_module("marslab.runtime.articulation_setup")
+        setup.pin_articulation_root_pose(articulation, pre_reset.spawn_xyz, pre_reset.spawn_rpy)
+        setup.zero_steer_joints(articulation, post_reset.steer_indices)
+        articulation.set_joint_velocity_targets(
+            np.zeros(len(post_reset.drive_indices), dtype=np.float32),
+            joint_indices=np.asarray(post_reset.drive_indices, dtype=np.int32),
+        )
+        import_module("marslab.robots.drive_api_setup").reinforce_pd_gains(
+            articulation,
+            config.rover.control,
+            config.rover.suspension,
+            list(articulation.dof_names),
+        )
+        if pre_reset.sensor_graph is not None:
+            pre_reset.sensor_graph.initialize_raw_imu()
+
     update_sun_fn = update_sky_fn = configure_fog_fn = None
     compute_sun_fn = compute_sol_sun_fn = compute_direct_fn = compute_diffuse_fn = None
     compute_sky_dome_fn = None
@@ -70,6 +92,7 @@ def build_loop_context(
         track_steer=float(control_config.track_steer),
         track_middle=float(control_config.track_middle),
         wheel_radius=float(control_config.wheel_radius),
+        steering_axle_offset=float(control_config.steering_axle_offset),
         v_max=float(control_config.max_linear_velocity),
         w_max=float(control_config.max_angular_velocity),
         physics_dt=atmosphere_init.physics_dt,
@@ -79,6 +102,10 @@ def build_loop_context(
         decel_multiplier=float(control_config.decel_multiplier),
         max_steer_angle=float(control_config.max_steer_angle),
         steer_ramp_rate=float(control_config.steer_ramp_rate),
+        steering_alignment_tolerance=float(control_config.steering_alignment_tolerance),
+        steering_stop_speed=float(control_config.steering_stop_speed),
+        command_timeout=float(control_config.command_timeout),
+        brake_stiffness=float(control_config.brake_stiffness),
         control=ControlState(
             current_drive_targets=np.zeros(len(post_reset.drive_indices), dtype=np.float32),
             current_steer_targets=np.zeros(len(post_reset.steer_indices), dtype=np.float32),
@@ -88,8 +115,16 @@ def build_loop_context(
         odom_ctx=bridge.odom_ctx if bridge is not None else None,
         wheel_odom_ctx=bridge.wheel_odom_ctx if bridge is not None else None,
         imu_noise_ctx=bridge.imu_noise_ctx if bridge is not None else None,
+        depth_publisher=bridge.depth_publisher if bridge is not None else None,
+        lidar_scan_publisher=bridge.lidar_scan_publisher if bridge is not None else None,
         render_config=config.rendering,
         ackermann_fn=import_module("marslab.robots.rover_control").ackermann_command,
+        reset_articulation=reset_articulation,
+        reset_depth_acquisition=pre_reset.sensors.camera_acquisition.reset_depth_noise,
+        read_imu_sample=pre_reset.sensors.imu_acquisition.read_sample,
+        publish_raw_imu=(
+            pre_reset.sensor_graph.publish_raw_imu if pre_reset.sensor_graph is not None else None
+        ),
         spin_once=spin_once,
         update_sun_fn=update_sun_fn,
         update_sky_fn=update_sky_fn,

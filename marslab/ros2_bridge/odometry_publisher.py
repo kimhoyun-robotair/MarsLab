@@ -11,6 +11,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from marslab.ros2_bridge.odometry_math import world_twist_to_body
+from marslab.ros2_bridge.timestamp import ros_stamp_from_ns
 
 
 def _set_xyz(target: Any, vec: NDArray[np.float32]) -> None:
@@ -69,6 +70,8 @@ def publish_ground_truth_pose(
     cur_quat_world: NDArray[np.float32],
     linear_vel_world: NDArray[np.float32],
     angular_vel_world: NDArray[np.float32],
+    *,
+    stamp_ns: int,
 ) -> None:
     """Publish one absolute Isaac-world pose as ``nav_msgs/Odometry``."""
     from nav_msgs.msg import Odometry
@@ -79,10 +82,8 @@ def publish_ground_truth_pose(
         linear_vel_world, angular_vel_world, cur_quat_world
     )
 
-    now = ctx.node.get_clock().now().to_msg()
-
     odom = Odometry()
-    odom.header.stamp = now
+    odom.header.stamp = ros_stamp_from_ns(stamp_ns)
     odom.header.frame_id = ctx.frame_id
     odom.child_frame_id = ctx.child_frame_id
     _set_xyz(odom.pose.pose.position, cur_pos_world)

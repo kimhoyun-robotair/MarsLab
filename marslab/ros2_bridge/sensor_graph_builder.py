@@ -32,8 +32,6 @@ def _build_create_nodes() -> List[Tuple[str, str]]:
     ]
     nodes.append(("PubJointState", "isaacsim.ros2.bridge.ROS2PublishJointState"))
     nodes += [
-        ("ReadIMU", "isaacsim.sensors.physics.IsaacReadIMU"),
-        ("PubIMU", "isaacsim.ros2.bridge.ROS2PublishImu"),
         ("CamRGB", "isaacsim.ros2.bridge.ROS2CameraHelper"),
         ("CamDepth", "isaacsim.ros2.bridge.ROS2CameraHelper"),
         ("CamPCL", "isaacsim.ros2.bridge.ROS2CameraHelper"),
@@ -54,12 +52,6 @@ def _build_connections() -> List[Tuple[str, str]]:
         ("ReadSimTime.outputs:simulationTime", "PubJointState.inputs:timeStamp"),
     ]
     edges += [
-        ("OnTick.outputs:tick", "ReadIMU.inputs:execIn"),
-        ("ReadIMU.outputs:execOut", "PubIMU.inputs:execIn"),
-        ("ReadIMU.outputs:angVel", "PubIMU.inputs:angularVelocity"),
-        ("ReadIMU.outputs:linAcc", "PubIMU.inputs:linearAcceleration"),
-        ("ReadIMU.outputs:orientation", "PubIMU.inputs:orientation"),
-        ("ReadSimTime.outputs:simulationTime", "PubIMU.inputs:timeStamp"),
         ("OnTick.outputs:tick", "CamRGB.inputs:execIn"),
         ("OnTick.outputs:tick", "CamDepth.inputs:execIn"),
         ("OnTick.outputs:tick", "CamPCL.inputs:execIn"),
@@ -72,19 +64,20 @@ def _build_connections() -> List[Tuple[str, str]]:
 def _build_set_values(
     ns: str,
     topics: Dict[str, str],
-    imu_prim_path: str,
     camera_render_product_path: str,
     lidar_3d_render_product_path: str,
     *,
     articulation_root_prim_path: str,
     sensor_qos_preset: str = "SensorData",
     joint_state_qos_preset: str = "SystemDefault",
+    depth_noise_enabled: bool = False,
 ) -> List[Tuple[str, Any]]:
     """List of ``(attr, value)`` pairs applied via SET_VALUES."""
     _validate_prim_path("articulation_root_prim_path", articulation_root_prim_path)
     import usdrt  # pyright: ignore[reportMissingImports]  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
 
     values: List[Tuple[str, Any]] = [
+        ("ReadSimTime.inputs:resetOnStop", True),
         ("PubClock.inputs:topicName", "/clock"),
     ]
     joint_state_topic = topics["joint_states"]
@@ -94,10 +87,8 @@ def _build_set_values(
         ("PubJointState.inputs:targetPrim", [usdrt.Sdf.Path(articulation_root_prim_path)]),
     ]
     values += [
-        ("ReadIMU.inputs:imuPrim", [imu_prim_path]),
-        ("PubIMU.inputs:topicName", _ns_topic(ns, topics["imu"])),
-        ("PubIMU.inputs:frameId", "imu_link"),
-        ("PubIMU.inputs:qosProfile", sensor_qos_preset),
+        ("CamDepth.inputs:enabled", not depth_noise_enabled),
+        ("CamPCL.inputs:enabled", not depth_noise_enabled),
         ("CamRGB.inputs:resetSimulationTimeOnStop", True),
         ("CamDepth.inputs:resetSimulationTimeOnStop", True),
         ("CamPCL.inputs:resetSimulationTimeOnStop", True),

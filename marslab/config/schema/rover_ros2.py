@@ -2,6 +2,7 @@
 Validators keep ground-truth and operational odometry distinct.
 The schema stays independent of rclpy imports."""
 
+import re
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -18,8 +19,8 @@ def _normalize_ros_segments(value: str, *, allow_outer_slashes: bool) -> str:
         raise ValueError("ROS topic names must be relative and must not start or end with '/'")
     normalized = value.strip("/") if allow_outer_slashes else value
     segments = normalized.split("/")
-    if not normalized or any(
-        not segment or segment in {".", ".."} or any(char.isspace() for char in segment)
+    if not normalized or "//" in value or any(
+        re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", segment) is None or "__" in segment
         for segment in segments
     ):
         raise ValueError(f"invalid ROS name: {value!r}")
@@ -40,7 +41,6 @@ def resolve_ros_topic(namespace: str, topic: str) -> str:
 
 class RosTopicsConfig(StrictConfigModel):
     cmd_vel: NonEmptyString
-    robot_description: NonEmptyString
     imu: NonEmptyString
     imu_noisy: NonEmptyString
     odom: NonEmptyString
@@ -50,6 +50,7 @@ class RosTopicsConfig(StrictConfigModel):
     points: NonEmptyString
     camera_info: NonEmptyString
     lidar: NonEmptyString
+    scan: NonEmptyString = "scan"
     joint_states: NonEmptyString
 
     @field_validator("*", mode="after")
@@ -59,11 +60,11 @@ class RosTopicsConfig(StrictConfigModel):
 
 
 class OdomPublisherConfig(StrictConfigModel):
-    frame_id: NonEmptyString
-    child_frame_id: NonEmptyString
+    frame_id: Literal["odom"]
+    child_frame_id: Literal["base_link"]
     queue_size: PositiveInt = Field(le=1000)
-    gt_frame_id: NonEmptyString = "map"
-    gt_child_frame_id: NonEmptyString = "base_link_gt"
+    gt_frame_id: Literal["map"] = "map"
+    gt_child_frame_id: Literal["base_link_gt"] = "base_link_gt"
 
 
 class QoSProfileConfig(StrictConfigModel):
@@ -77,10 +78,9 @@ class Ros2BridgeConfig(StrictConfigModel):
     namespace: NonEmptyString
     topics: RosTopicsConfig
     odom_publisher: OdomPublisherConfig
-    sensor_parent_frame_id: NonEmptyString
+    sensor_parent_frame_id: Literal["Body_Chassis"]
     graph_path: NonEmptyString = "/World/Stage3ROS2Graph"
     cmd_vel_queue_size: PositiveInt = Field(default=10, le=1000)
-    publish_robot_description: bool = True
     cmd_vel_qos: QoSProfileConfig = QoSProfileConfig(
         reliability="reliable", durability="volatile", depth=10
     )
@@ -110,6 +110,9 @@ class Ros2BridgeConfig(StrictConfigModel):
         )
         if resolved_topics[0] == resolved_topics[1]:
             raise ValueError("resolved odom and gt_trajectory topics must be distinct")
+        for name in ("sensor_qos", "joint_state_qos"):
+            if getattr(self, name).durability != "volatile":
+                raise ValueError(f"{name}.durability must be volatile for OmniGraph publishers")
         return self
 
 

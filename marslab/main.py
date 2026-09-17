@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-from importlib import import_module
 
 from marslab.runtime.assembly import assemble_pre_reset
 from marslab.runtime.atmosphere_boot import prepare_atmosphere
@@ -33,7 +32,6 @@ def main() -> int:
     atmosphere = prepare_atmosphere(config)
     simulation_app = boot_simulation_app(config.runtime)
     resources = CleanupResources(simulation_app=simulation_app)
-    run_completed = False
     try:
         try:
             world, stage = create_world(physics_dt=atmosphere.physics_dt, gravity=mars.gravity)
@@ -57,12 +55,7 @@ def main() -> int:
                 atmosphere_enabled=config.runtime.atmosphere_enabled,
                 ros2_enabled=config.runtime.ros2_enabled,
                 wheel_odom_publish_tf=config.wheel_odom.publish_tf,
-            )
-            bridge = post_reset.bridge
-            resources = CleanupResources(
-                bridge=bridge,
-                rclpy_shutdown=(import_module("rclpy").shutdown if bridge is not None else None),
-                simulation_app=simulation_app,
+                cleanup_resources=resources,
             )
             context = build_loop_context(
                 simulation_app=simulation_app,
@@ -77,11 +70,9 @@ def main() -> int:
             logging.getLogger("marslab.main").exception("Simulation setup failed.")
             raise
         result = run_with_cleanup(context, resources)
-        run_completed = True
         return result.status
     finally:
-        if not run_completed:
-            cleanup_phase(resources)
+        cleanup_phase(resources, exit_status=1)
 
 
 if __name__ == "__main__":

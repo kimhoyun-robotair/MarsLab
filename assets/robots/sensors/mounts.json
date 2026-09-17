@@ -1,0 +1,25 @@
+{
+  "units": "m",
+  "parent_link": "Body_Chassis",
+  "deck_height_m": 1.13338005,
+  "optical_centers": {
+    "lidar_2d": [
+      0.9,
+      0.25,
+      1.4
+    ],
+    "lidar_3d": [
+      0.45,
+      0.25,
+      2.2
+    ]
+  },
+  "orientation_rpy_deg": [
+    0,
+    0,
+    0
+  ],
+  "design": "Original research add-on models; not flight Perseverance instruments or vendor CAD.",
+  "mesh_origin": "Optical center; +X forward, +Y left, +Z up.",
+  "scan_window": "Near clip must exceed housing radius: 0.20m 2D, 0.15m 3D."
+}

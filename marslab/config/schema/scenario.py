@@ -2,10 +2,11 @@
 These pure models are consumed before Kit startup.
 Validation rules keep physical and visual inputs bounded."""
 
+import re
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from marslab.config.schema.common import (
     FiniteFloat,
@@ -102,10 +103,20 @@ class RenderingConfig(StrictConfigModel):
     path_tracing: PathTracingConfig
     sky_dome: SkyDomeConfig = Field(default_factory=SkyDomeConfig)
 
+    @field_validator("sun_prim_path", "dome_prim_path")
+    @classmethod
+    def check_light_prim_path(cls, value: str) -> str:
+        if re.fullmatch(r"(?:/[A-Za-z_][A-Za-z0-9_]*)+", value) is None:
+            raise ValueError("light prim paths must be absolute USD prim paths")
+        return value
+
     @model_validator(mode="after")
     def check_colors(self) -> "RenderingConfig":
         if any(channel < 0.0 or channel > 1.0 for channel in (*self.sun_color, *self.fog_color)):
             raise ValueError("rendering RGB channels must be within [0, 1]")
+        sun, dome = self.sun_prim_path, self.dome_prim_path
+        if sun == dome or sun.startswith(dome + "/") or dome.startswith(sun + "/"):
+            raise ValueError("sun and dome prim paths must be distinct and not contain each other")
         return self
 
 

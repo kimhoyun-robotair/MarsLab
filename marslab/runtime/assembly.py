@@ -25,8 +25,15 @@ _FALLBACK_LIGHT_PATH: Final = "/World/FallbackSun"
 _LOG = logging.getLogger(__name__)
 
 
+class PhysicsContextHandle(Protocol):
+    @property
+    def prim_path(self) -> str: ...
+
+
 class WorldHandle(Protocol):
     def reset(self) -> None: ...
+
+    def get_physics_context(self) -> PhysicsContextHandle: ...
 
 
 class PrimHandle(Protocol):
@@ -48,7 +55,18 @@ class StageHandle(Protocol):
 
 
 class ArticulationHandle(Protocol):
+    @property
+    def dof_names(self) -> list[str]: ...
+
     def initialize(self) -> None: ...
+
+    def is_physics_handle_valid(self) -> bool: ...
+
+    def post_reset(self) -> None: ...
+
+    def set_joint_velocity_targets(
+        self, velocities: np.ndarray, *, joint_indices: np.ndarray
+    ) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,11 +192,6 @@ def _reference_user_usda(stage: StageHandle, usda_abs: str) -> None:
     while stage_utils.is_stage_loading():
         app.update()
 
-    nested_phys = stage.GetPrimAtPath(f"{_TERRAIN_PRIM_PATH}/PhysicsScene")
-    if nested_phys.IsValid():
-        nested_phys.SetActive(False)
-        _LOG.info("Deactivated nested PhysicsScene at %s/PhysicsScene.", _TERRAIN_PRIM_PATH)
-
 
 def _add_fallback_light_if_missing(stage: StageHandle) -> bool:
     pxr = import_module("pxr")
@@ -261,16 +274,30 @@ def assemble_pre_reset(
     from marslab.rendering.render_settings import set_render_mode  # noqa: PLC0415
     from marslab.rendering.sky_renderer import configure_sky_dome  # noqa: PLC0415
     from marslab.rendering.sun_renderer import configure_sun_light  # noqa: PLC0415
+    from marslab.robots.differential import configure_rocker_differential  # noqa: PLC0415
     from marslab.robots.drive_api_setup import configure_drives  # noqa: PLC0415
-    from marslab.robots.rover import spawn_rover  # noqa: PLC0415
+    from marslab.robots.rover import apply_spawn_pose, spawn_rover  # noqa: PLC0415
     from marslab.ros2_bridge.sensor_graph import build_sensor_graph  # noqa: PLC0415
     from marslab.sensors.sensor_spawner import spawn_sensors  # noqa: PLC0415
+    from marslab.sim.physics_scene import (  # noqa: PLC0415
+        normalize_reference_physics,
+        validate_world_physics,
+    )
+    from marslab.sim.point_instancer import normalize_external_prototypes  # noqa: PLC0415
+    from marslab.sim.spawn_clearance import resolve_spawn_clearance  # noqa: PLC0415
 
-    articulation_factory = import_module("isaacsim.core.prims").Articulation
-    sensors_config = rover.sensors.model_dump(mode="python")
+    articulation_factory = import_module(
+        "marslab.runtime.articulation_setup"
+    ).create_rover_articulation
+    sensors_config = rover.sensors
     ros2_config = rover.ros2.model_dump(mode="python")
+    world_scene_path = world.get_physics_context().prim_path
 
     _reference_user_usda(stage, scene_path)
+    normalize_reference_physics(
+        stage, _TERRAIN_PRIM_PATH, world_scene_path, atmosphere_init.gravity
+    )
+    normalize_external_prototypes(stage, _TERRAIN_PRIM_PATH)
 
     set_render_mode(render_config)
     if atmosphere_enabled:
@@ -296,6 +323,16 @@ def assemble_pre_reset(
         rover=rover,
     )
     spawned_rover = spawn_rover(stage, rover, spawn_xyz)
+    configure_rocker_differential(stage, spawned_rover.chassis_path)
+    spawn_xyz = resolve_spawn_clearance(
+        stage,
+        _TERRAIN_PRIM_PATH,
+        spawned_rover.prim_path,
+        spawn_xyz,
+        float(rover.spawn.z_offset or 0.0),
+    )
+    apply_spawn_pose(stage, spawned_rover.prim_path, spawn_xyz, spawn_rpy)
+    validate_world_physics(stage, world_scene_path, atmosphere_init.gravity)
     sensor_handles = spawn_sensors(
         stage,
         sensors_config,
@@ -314,7 +351,8 @@ def assemble_pre_reset(
         )
 
     configure_drives(stage, spawned_rover.chassis_path, rover.control)
-    articulation = articulation_factory(prim_paths_expr=spawned_rover.prim_path)
+    articulation = articulation_factory(prim_path=spawned_rover.prim_path)
+    validate_world_physics(stage, world_scene_path, atmosphere_init.gravity)
     world.reset()
     return PreResetAssembly(
         spawn_xyz=spawn_xyz,

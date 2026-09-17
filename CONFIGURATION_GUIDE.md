@@ -5,10 +5,10 @@ MarsLab uses one runtime configuration file:
 resolved from the directory containing that file, so the repository can be
 cloned anywhere without changing paths for a particular computer.
 
-Offline scene generation is a separate configuration domain. Recipes under
-`configs/scene/*.yaml` are consumed by `marslab_scene` before runtime; their
-terrain, placement, compatibility-profile, and output settings must never be
-added to `configs/config.yaml`. Runtime consumes only the resulting USDZ path.
+Runtime loads a prebuilt scene through `scene.usdz_path`. Terrain generation,
+asset conversion, and experiment/evaluation tools are outside this distribution.
+The configuration controls loading, rover dynamics, sensing, lighting, and ROS
+interfaces.
 
 The configuration is validated with strict Pydantic schemas before Isaac Sim
 starts. Unknown keys, invalid types, out-of-range values, missing required
@@ -46,53 +46,32 @@ default rather than removing the subsystem.
 
 ## Scene selection and rover spawn
 
-### Offline build versus runtime selection
-
-Build a scene with the scene project and a versioned recipe, then point a
-temporary or committed runtime config at the validated package:
-
-```bash
-python3.11 -m pip install -e './scene[standalone-usd,test]'
-scene_build_root="$(mktemp -d)"
-python3.11 scripts/scene/build_scene.py \
-  --config configs/scene/smoke.yaml \
-  --output-dir "${scene_build_root}/scene"
-python3.11 scripts/scene/validate_scene.py \
-  --scene "${scene_build_root}/scene/scene.usdz"
-```
-
-For the supported authoring/runtime surface, run the same scripts with
-`marslab/isaac_python.sh`. `configs/scene/smoke.yaml` explicitly selects the
-`canonical` compatibility profile and a synthetic artifact. The
-`marslab_utils_6f30d67` profile exists only for locked legacy parity.
-`configs/scene/paper.example.yaml` is not runnable until every paper input and
-canonical asset has an authoritative digest and license; do not rename it to
-`paper.yaml` or guess its paths.
-
-The builder refuses an existing output by default. `--force` preserves the
-previous output as a recoverable sibling backup after the new output has passed
-validation. The final `scene.usdz` is relocatable and the adjacent manifest
-records relative paths, resolved profile, provenance and SHA-256 digests.
-
-Actual runtime smoke uses a temporary copy of `configs/config.yaml` and changes
-only `scene.usdz_path` in that copy:
-
-```bash
-marslab/isaac_python.sh scripts/scene/smoke_isaac.py \
-  --scene "${scene_build_root}/scene/scene.usdz" \
-  --base-runtime-config configs/config.yaml \
-  --report "${scene_build_root}/isaac-smoke.json"
-```
-
-Standalone `usd-core` validation is not Isaac validation. See
-[`scene/README.md`](scene/README.md) for manifest fields, output layout, test
-tiers, provenance, asset-license status, and the currently blocked Release
-Gates.
-
 ### `scene.usdz_path`
 
 Selects the supplied Mars scene. A relative path is resolved from `configs/`.
 The path must point to an existing USDZ file before Isaac starts.
+
+Download the scene assets as described in the [README](README.md#2-download-the-mars-scene-assets).
+The reference scenes use these paths:
+
+| Scene | Value in `configs/config.yaml` |
+| --- | --- |
+| Jezero Plain (supplied default) | `../assets/scene/jezero_plain/jezero_plain.usdz` |
+| Main Crater | `../assets/scene/main_crater/main_crater.usdz` |
+| Grand Canyon | `../assets/scene/grand_canyon/grand_canyon.usdz` |
+| Mars Base | `../assets/scene/mars_base/mars_base.usdz` |
+
+For example, to select Main Crater, change the existing field:
+
+```yaml
+scene:
+  usdz_path: ../assets/scene/main_crater/main_crater.usdz
+```
+
+Then run the canonical launcher with `configs/config.yaml`. Runtime reads the
+scene's meshes and collision data from USD; it does not require a neighboring
+DEM, generation recipe, or `metadata.json`. Recheck rover spawn and contact
+when selecting another terrain.
 
 ### `rover.spawn.mode`
 
@@ -104,7 +83,16 @@ The path must point to an existing USDZ file before Isaac starts.
 
 `xy` provides the horizontal position or offset. `z_offset` adds clearance above
 the sampled surface, and `orientation_rpy` sets roll, pitch, and yaw in radians.
-Start with a small positive `z_offset` to avoid initial terrain intersection.
+Before the first physics step, runtime sweeps bounds of the actual rover
+colliders against the scene and raises the initial height where needed to
+preserve that clearance over the whole footprint. This includes slopes and
+scene obstacles. A position with no scene support below the footprint fails
+startup. Use a small positive `z_offset` for initial settling under gravity.
+
+Hidden rock-library prototypes outside a PointInstancer are referenced beneath
+that instancer in the session layer. Their standalone originals are disabled,
+preserving the placed rocks without invisible colliders at the library origin.
+The source scene package is unchanged.
 
 ## Runtime modes
 
@@ -116,9 +104,14 @@ Start with a small positive `z_offset` to avoid initial terrain intersection.
 | `runtime.ros2_enabled: false` | Isolate Isaac scene, physics, or rendering issues. |
 | `runtime.atmosphere_enabled: true` | Enable Mars sky, sun, fog, and optional GUI control. |
 | `runtime.atmosphere_enabled: false` | Use the fallback scene light and reduce atmosphere complexity. |
+| `runtime.enable_motion_bvh: true` | Enable RTX geometry-motion tracking for moving LiDAR; defaults to `true`. |
 
 Headless mode prevents the GUI panel from being created. It does not redefine
 sensor, physics, or ROS ownership.
+
+`enable_motion_bvh` enables the renderer's motion acceleration structure. Keep
+it enabled when the rover or scene objects move. It does not enable scan
+deskewing or change the LiDAR output to motion-compensated coordinates.
 
 ## Mars environment and atmosphere
 
@@ -143,18 +136,14 @@ accuracy guarantee there. At elevation 0° or below, direct irradiance is zero,
 as specified in MarsLab.pdf Eq. 3. The tau-indexed sky remains independent of
 sun elevation; no additional night or twilight model is imposed.
 
-The retained tau-only table is an **uncalibrated heuristic**, not a reproduced
-[COMIMART calculation](https://doi.org/10.1051/swsc/2015035). Its reference zenith,
-cloud/albedo conditions, spectral band, extraction data, and error bounds are
-unavailable. Linear interpolation is used between the existing points, with
-endpoint clamping outside 0–6 in the pure function. The tau=5/6 points and
-`f(0)=0.10` have no established physical calibration; the latter must not be
-interpreted as a verified molecular-scattering floor. At tau=0.05, `f=0.14`.
-
-MarsLab.pdf III-E specifies a tau-indexed COMIMART reduction but does not give
-its table values or a DomeLight conversion. The runtime preserves the existing
-table and renderer scale without deriving absolute diffuse irradiance from the
-direct beam. Reproducing COMIMART requires traceable input data and calibration.
+The tau-only diffuse fraction now evaluates the published delta-Eddington
+[COMIMART equations 10–23](https://doi.org/10.1051/swsc/2015035) at fixed NIR
+reference conditions: solar cosine 0.7, single-scattering albedo 0.97,
+asymmetry 0.70 and ground albedo 0.25. Clouds and gases are omitted in this
+reduction. Published Table 3 values, numerical differences and assumptions are
+recorded in [assets/atmosphere/](assets/atmosphere/README.md). This is a
+traceable reference reduction; the DomeLight gain is still a renderer scale,
+not a full-spectrum or absolute diffuse irradiance calibration.
 
 ### Dynamic atmosphere
 
@@ -238,20 +227,57 @@ calibration. The following keys were checked against Isaac Sim 5.1:
 
 ## Rover physics
 
-The rover USD owns geometry, collision shapes, and articulation structure.
-Configuration values override selected live-stage physics without rewriting the
-source asset.
+The rover USD owns geometry, collision shapes, articulation structure, mass,
+inertia, and center of mass. Configuration owns chassis damping, wheel contact
+materials, and joint drives without rewriting the source asset. Mass, inertia,
+and center-of-mass override keys are not accepted in the configuration.
+
+The source rover's rigid-body masses total 951.64 kg. The 20 links with visual meshes
+use uniform-density solid convex hulls to estimate their link-local centers of
+mass and full inertia tensors. These are geometry-based approximations, not
+measured flight-rover mass distributions. The supplied URDF and USD physics
+layers contain the authored mass properties. The active rover also includes
+the LiDAR attachment masses described below.
+
+The passive rocker differential constrains `LEFT_DIFFERENTIAL +
+RIGHT_DIFFERENTIAL = 0` through PhysX mimic coupling. Both rocker position
+stiffnesses remain zero; damping is configurable. Startup validates this
+coupling before physics begins.
+
+### Supplied rover and LiDAR assets
+
+`rover.usd_path` selects `assets/robots/rover/m2020_lidar.usda`, which composes
+the base `m2020.usd` and both sensor USD assets. Preserve the base rover's
+configuration layers and textures alongside it. `rover.urdf_source_path` selects
+`assets/robots/rover/m2020_lidar.urdf`; its mesh references use the rover
+submodule and the sensor OBJ/MTL files.
+
+The attachments add **5.688155 kg**, bringing the authored rover mass to
+**957.328155 kg**. Their mass is merged into the chassis rigid body.
+The [sensor asset guide](assets/robots/sensors/README.md) and
+[mass-property record](assets/robots/sensors/mass_properties.json) describe the
+construction assumptions and resulting COM/inertia. Retained Blender sources,
+JSON records, and previews document the supplied assets; runtime reads the
+authored USD/URDF. Asset generation and rebuild commands are outside this
+distribution.
+
+### Physics tuning
 
 Tune in this order:
 
 1. Confirm `chassis.rigid_body_prim_name`, wheel link names, and joint names.
-2. Set chassis and wheel mass/inertia values.
+2. Confirm the source USD mass properties and tune chassis damping.
 3. Set wheel static/dynamic friction and restitution.
 4. Tune passive rocker and bogie damping.
 5. Tune active drive and steering gains.
 
-Static friction must not be lower than dynamic friction. Joint and link lists
-must match the USD exactly; startup fails when a configured target is absent.
+Static friction must not be lower than dynamic friction. Wheel links name the
+six `Body_Wheel*` rigid bodies, each with enabled collision shapes. Startup
+checks each collider's effective physics material, including instance proxies,
+before reset. Joint and link lists must match the USD exactly; missing bodies,
+colliders, or ineffective overrides stop startup. Physics material bindings do
+not change the visual materials. Runtime logs separate requested settings from
+the values read back from USD.
 
 ## Rover control
 
@@ -262,18 +288,56 @@ command ramping.
 
 | Mode | Meaning |
 | --- | --- |
-| `acceleration` | Drive commands behave as acceleration targets. This is the supplied default. |
-| `force` | Drive commands behave as force targets. Re-tune damping and maximum force when selecting it. |
+| `acceleration` | Selects the PhysX DriveAPI acceleration mode. This is the supplied default. |
+| `force` | Selects the PhysX DriveAPI force mode. Re-tune damping and maximum force when selecting it. |
+
+In both modes the controller sends wheel angular-velocity targets and steering
+angle targets. `drive_type` selects how PhysX applies the drive response.
 
 Important tuning groups:
 
-- Geometry: `wheel_radius`, `wheelbase`, `track_steer`, `track_middle`
+- Geometry: `wheel_radius`, `wheelbase`, `steering_axle_offset`, `track_steer`, `track_middle`
 - Limits: `max_linear_velocity`, `max_angular_velocity`, `max_steer_angle`
 - Drive: damping, maximum force, and wheel acceleration rate
-- Steering: stiffness, damping, maximum force, and ramp rate
+- Steering: stiffness, damping, maximum force, ramp rate, and alignment tolerance
 - Braking feel: `decel_multiplier`
+- Parking hold: `brake_stiffness` (default `50000.0`; `0` disables it)
 
-Drive and steering joint lists must be nonempty, unique, and disjoint.
+The parking brake latches measured wheel angles when all commanded wheel rates
+finish ramping to zero, then holds those targets with the configured position
+stiffness. A nonzero drive target releases the hold; Stop clears the latch.
+Tune this gain together with the drive mode, damping and maximum force.
+
+Drive and steering lists require six and four unique, disjoint joints in their
+documented wheel order. `command_timeout` defaults to 0.5 simulated seconds;
+publish commands continuously while driving. Stale or nonfinite commands
+request a controlled stop using the configured deceleration ramp. Pause freezes
+expiry; Stop clears the command. A zero Twist or timeout retains the current
+steering orientation while braking, rather than straightening moving wheels.
+
+Ordinary driving reduces excessive yaw rate before computing both steering and
+wheel rates, so they describe the same feasible arc. A command with zero linear
+speed and nonzero yaw rate selects a pivot turn: the four corner wheels point
+along tangents around the middle axle, and the two wheel banks counter-rotate.
+The canonical `max_steer_angle` is `0.9` rad (51.57 degrees). Configuration must
+allow the pivot angles required by its geometry; insufficient steering travel
+fails preflight. Before physics reset, startup also checks this configured
+travel against each steering joint's USD limits without changing those limits.
+
+`steering_axle_offset` is the forward displacement of the front/rear axle
+midpoint from the nonsteering middle axle, in meters. It defaults to zero; the
+supplied rover uses `0.05502`, matching its USD wheel centers. Front and rear
+wheel positions are therefore `wheelbase/2 + offset` and `-wheelbase/2 + offset`,
+with middle wheels at zero. The canonical pivot angles are approximately
+48.12 degrees at the front and 45.33 degrees at the rear. Control and wheel
+odometry use this same geometry.
+
+For a material steering change, the controller brakes first, steers after measured
+wheel-angle excursion divided by elapsed time over a 0.20 s simulation-time
+window falls below `steering_stop_speed` (default `0.05` rad/s), and resumes driving
+only after measured steering is within `steering_alignment_tolerance` (default
+`0.02` rad) of the target. Wheel-rate ramping uses a common proportional change
+so acceleration and braking preserve the commanded wheel-speed ratios.
 
 ## Sensors
 
@@ -283,30 +347,72 @@ Camera resolution, focal length, clipping range, and local pose configure the
 single shared Camera render product used by RGB, raw depth, depth PointCloud2,
 and CameraInfo.
 
-`depth_sensor.enabled` does **not** turn depth publishing on or off. It only
-applies the optional renderer depth schema to camera acquisition, including when
-`runtime.ros2_enabled: false`. Raw depth and the retained PointCloud2 path remain
-part of the camera pipeline. The independent depth reader consumes its attached
-`distance_to_image_plane` annotator, returning an empty array until data arrives.
-Attaching this schema does not establish that the raw depth AOV contains its
-noise; the renderer's dedicated depth-effect output is a separate interface.
-If the optional schema is unavailable, a warning reports the raw-depth fallback.
-The shared render product explicitly selects LDR color (`rgbDepthOutputMode=0`)
-to preserve RGB when the optional effect is enabled. Isaac Sim 5.1 emitted
-repeated missing-depth-buffer errors with this effect in Path Tracing during
-validation. MarsLab therefore applies it in `ray_tracing` mode;
-`path_tracing` warns and retains raw depth.
+`horizontal_fov_deg` optionally sets the pinhole horizontal field of view and
+overrides `focal_length_mm`; null preserves the focal-length setting. The
+default is 135 degrees, with square pixels and about 122.18 degrees vertically
+at 640×480. CameraInfo and depth-cloud projection use the same intrinsics.
+The camera is placed at the source rover's left Navcam mast reference point,
+`[0.752094567, -0.774359584, 1.837690473]` metres relative to `Body_Chassis`.
+It keeps the forward, 6.6-degree downward orientation and chassis-owned static
+TF; it does not track an independently actuated mast. No camera mesh is added.
+The 0.3 m near clip excludes the surrounding mast head. The far clip and
+optional depth-noise maximum are 200 m. Camera depth is distance along the
+optical axis, rather than radial distance at the image edges.
+
+`depth_sensor.enabled` selects optional additive Gaussian noise on measured
+depth. `noise_mean` and `noise_sigma` are in metres; min/max distance mask
+unusable pixels. Noise uses a child of the configured sensor seed and the
+acquisition timestamp. The depth image and organized XYZ cloud use the same
+noisy sample, frame and timestamp. RGB and CameraInfo keep the shared Camera
+product. When disabled, native raw depth/point-cloud helpers remain active.
+The old stereo baseline/confidence/disparity keys are rejected because those
+renderer-only settings did not affect the retained ROS measurements.
+
+Both cloud paths publish XYZ fields. Native raw clouds can be unorganized
+(`height=1`), while the noisy path preserves the depth image's row/column layout.
+Use the PointCloud2 dimensions and fields when decoding it. Shared intrinsics
+and matching depth/Z values alone do not establish full XYZ-to-surface accuracy;
+pixel-center conventions also matter when comparing against projected targets.
+
+### 2-D LiDAR
+
+The horizontal RTX sensor publishes `/rover/scan` in `lidar_2d_link`. The default
+forward field of view is 135 degrees, centred on +X, with a 0.2–200 m range.
+The native sensor completes 360-degree rotations; partial native emission gates
+produced irregular scan completion intervals in the installed Isaac version.
+Acquisition crops ranges, intensities and angular metadata together, so the
+supported local reader and ROS expose only the configured forward sector.
+The underlying native annotator still contains the full turn. Tune range,
+horizontal FOV, scan rate and local pose.
+
+The current settings produce 1,201 output beams at a nominal 10 Hz. Native
+no-return values can be `-1`; consumers should reject nonfinite values and
+values outside the advertised range limits.
+
+`LaserScan.header.stamp` is the nominal first-ray time, computed as the native
+FlatScan completion timestamp minus `scan_time = 1 / rotationRate`, plus the
+time to reach the sector's first ray. `time_increment` retains the full-turn
+angular resolution: `scan_time * horizontal_resolution_deg / 360`. Cropping
+does not stretch the remaining beams across a whole rotation. Completion time is sampled
+at render-step resolution; this interface does not provide exact individual-ray
+timestamps. Startup scans without valid timing and scans whose nominal start
+precedes the episode are skipped.
 
 ### 3-D LiDAR
 
 Tune range, horizontal/vertical field of view, rotation rate, and local pose.
-Choose exactly one profile source:
-
-- `profile_name` for a built-in profile, or
-- `profile_json_path` for a custom JSON profile.
-
-Do not set both. Custom profile paths are resolved relative to the configuration
-file and checked during preflight.
+The default range is 3.5–200 m. The ray-origin offset also uses the near range,
+so rays begin beyond the mounted rover geometry instead of being blocked by it.
+The inspected rover's furthest visual vertex is about 3.087 m from the 3-D
+scanner in its authored pose; 3.5 m includes clearance. Reassess this bound if
+the rover geometry, sensor mount or articulation envelope changes. Returns
+inside 3.5 m are intentionally unavailable. Maximum range is a configured cap;
+native material reflectance and scene occlusion still affect actual returns.
+`profile_name` selects an installed Isaac USD sensor model; `variant` selects
+its supported variant. Preflight checks the installed catalog. Keep
+`profile_json_path` and `usd_profile` null: Isaac 5.1's OmniLidar constructor
+does not load arbitrary legacy JSON through those arguments. Unsupported
+values now fail before Kit starts instead of silently using another sensor.
 
 ### IMU
 
@@ -314,20 +420,57 @@ file and checked during preflight.
 control the separate noisy ROS stream. A configured sampling frequency does not
 guarantee the final observed ROS publication rate; verify it in the live system.
 
-An integer `rover.sensors.seed` derives separate NumPy seeds for wheel odometry
-and noisy IMU output. `null` leaves both nondeterministic; wheel odometry no
-longer silently falls back to seed 0. This setting does not seed the RTX depth
-effect or guarantee deterministic GPU rendering.
+Raw and noisy IMU output share one sensor-period measurement and its acquisition
+timestamp. Noise is sampled once per fresh measurement. Ground truth and wheel
+odometry use the simulation time of the completed physics state; wheel odometry
+and its optional TF share the same timestamp.
+
+An integer `rover.sensors.seed` derives separate streams for wheel odometry,
+noisy IMU and optional depth noise. `null` selects nondeterministic noise.
+This does not guarantee deterministic GPU rendering or physics.
+
+Pause preserves the current episode, including control ramps, odometry, noise
+generators, and atmosphere progression. Stop resets those states and sensor
+freshness; Play restores the rover articulation for a new episode. Simulation
+clock and sensor helper timestamps reset on Stop, so ROS consumers must handle
+time moving backwards between episodes. A fixed seed reinitializes the custom
+noise generators; depth noise also depends on acquisition timestamps.
+Reproducibility across complete runs must be checked with the same inputs and
+acquisition conditions.
 
 ## ROS 2 topics, frames, and QoS
 
 `rover.ros2.namespace` is normalized without outer slashes. Topic entries are
 relative names and must not start or end with `/`.
 
+### Companion launch
+
+For the robot description and articulation TF chain, run the companion from the
+repository root in a separate ROS terminal:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+ros2 launch launch/rover_state_publisher.launch.py
+```
+
+The launch file reads its sibling [companion_urdf.py](launch/companion_urdf.py).
+This helper prepares the URDF text with `Body_Chassis` as its root, handles the
+source floating joints, and resolves relative mesh filenames to absolute file
+URIs. It leaves the source URDF unchanged. Keep both Python files in `launch/`.
+
+The companion does not read `configs/config.yaml`. Its default `urdf_path` is
+`assets/robots/rover/m2020_lidar.urdf` and its default namespace is `rover`.
+When changing `rover.urdf_source_path` or `rover.ros2.namespace`, supply matching
+`urdf_path:=<absolute-path>` or `namespace:=<name>` launch arguments. Its
+`publish_frequency` argument controls robot_state_publisher cadence, not the
+Isaac physics or sensor sampling rate.
+
+### Ownership and QoS
+
 Keep these ownership rules intact:
 
-- The companion owns identity `base_link` to `Body_Chassis` and the URDF
-  articulation chain.
+- The companion owns identity `base_link` to `Body_Chassis`, the URDF
+  articulation chain and the retained `/rover/robot_description` topic.
 - MarsLab owns static sensor frames below `Body_Chassis`.
 - Ground truth uses `map` / `base_link_gt` and publishes no TF.
 - Wheel odometry uses `odom` / `base_link`.
@@ -339,7 +482,7 @@ QoS profiles support:
 
 - Reliability: `reliable` or `best_effort`
 - Durability: `volatile` or `transient_local`
-- History: `keep_last` or `keep_all`
+- History: `keep_last` (the common rclpy/OmniGraph supported policy)
 - Queue depth: a positive value within the validated range
 
 Use best-effort/volatile QoS for high-rate sensors unless a consumer requires
@@ -347,11 +490,13 @@ reliable delivery. Keep static and latched data transient-local where supported.
 
 ## Wheel odometry
 
-Wheel odometry uses left/right drive-joint groups, track width, slip factors,
-angular-rate uncertainty, and optional covariance diagonals.
+Wheel odometry solves planar velocity from six wheel encoders and the four
+measured steering angles. It shares wheelbase, steering-axle offset, track, and
+radius geometry with the drive controller, applies configured slip and
+angular-rate noise, and integrates planar arcs. It never reads ground truth.
 
 - Increase `slip_left` or `slip_right` only to model systematic wheel slip.
-- Keep `track_width` consistent with rover geometry.
+- Tune geometry in `rover.control`; the separate `track_width` key is removed.
 - Use six nonnegative covariance values in the documented component order.
 - Set `rover.wheel_odometry.enabled: false` to disable the wheel estimate.
 - Set `wheel_odom.publish_tf: false` when an external localization system owns

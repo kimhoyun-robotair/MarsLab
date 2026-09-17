@@ -5,11 +5,12 @@ USD and Isaac imports remain local to runtime helpers."""
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from marslab.config.schema.rover import ChassisConfig, RoverConfig, SuspensionConfig, WheelsConfig
+from marslab.config.schema.rover import RoverConfig, SuspensionConfig, WheelsConfig
 from marslab.quaternion import rpy_to_quat
 
 # Re-exported so callers use the rover facade for joint-index resolution.
@@ -22,8 +23,7 @@ __all__ = [
     "SpawnedRover",
     "load_rover_usd",
     "apply_spawn_pose",
-    "apply_mass_properties",
-    "apply_chassis_physics",
+    "apply_body_damping",
     "apply_wheel_physics",
     "apply_suspension_damping_split",
     "find_rigid_body_path",
@@ -81,84 +81,65 @@ def apply_spawn_pose(
     orient_op.Set(Gf.Quatf(float(qw), float(qx), float(qy), float(qz)))
 
 
-def apply_mass_properties(
-    stage: Any,
-    art_root_path: str,
-    com_offset: tuple[float, float, float],
-    angular_damping: float,
-    linear_damping: float,
-) -> bool:
-    """Apply CoM override + angular/linear damping on the articulation body."""
-    from pxr import Gf, PhysxSchema, UsdPhysics
-
-    art_root_prim = stage.GetPrimAtPath(art_root_path)
-    if not art_root_prim.IsValid():
-        _LOG.warning("%s not found; skipping mass override.", art_root_path)
-        return False
-
-    if not art_root_prim.HasAPI(UsdPhysics.MassAPI):
-        UsdPhysics.MassAPI.Apply(art_root_prim)
-    mass_api = UsdPhysics.MassAPI(art_root_prim)
-    applied = [
-        mass_api.GetCenterOfMassAttr().Set(
-            Gf.Vec3f(float(com_offset[0]), float(com_offset[1]), float(com_offset[2]))
-        )
-    ]
-
-    if not art_root_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI):
-        PhysxSchema.PhysxRigidBodyAPI.Apply(art_root_prim)
-    rb_api = PhysxSchema.PhysxRigidBodyAPI(art_root_prim)
-    applied.extend(
-        (
-            rb_api.CreateAngularDampingAttr().Set(float(angular_damping)),
-            rb_api.CreateLinearDampingAttr().Set(float(linear_damping)),
-        )
-    )
-    return all(bool(result) for result in applied)
-
-
-def _set_mass_and_inertia(
-    stage: Any,
-    prim_path: str,
-    mass_kg: float,
-    diagonal_inertia: tuple[float, float, float],
-) -> bool:
-    """Apply ``UsdPhysics.MassAPI`` mass + diagonal inertia to a single prim."""
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
-        return False
-
-    from pxr import Gf, UsdPhysics  # noqa: WPS433  (deferred Isaac Sim import)
-
-    if not prim.HasAPI(UsdPhysics.MassAPI):
-        UsdPhysics.MassAPI.Apply(prim)
-    mass_api = UsdPhysics.MassAPI(prim)
-    mass_applied = mass_api.GetMassAttr().Set(float(mass_kg))
-    inertia_applied = mass_api.GetDiagonalInertiaAttr().Set(
-        Gf.Vec3f(
-            float(diagonal_inertia[0]),
-            float(diagonal_inertia[1]),
-            float(diagonal_inertia[2]),
-        )
-    )
-    return bool(mass_applied) and bool(inertia_applied)
-
-
-def apply_chassis_physics(
+def apply_body_damping(
     stage: Any,
     rigid_body_path: str,
-    chassis_cfg: ChassisConfig,
-) -> bool:
-    """Inject chassis mass + diagonal inertia from the YAML ``chassis:`` block."""
-    return _set_mass_and_inertia(
-        stage,
+    angular_damping: float,
+    linear_damping: float,
+) -> None:
+    """Set chassis damping while retaining source USD mass properties."""
+    from pxr import PhysxSchema
+
+    prim = _require_rigid_body(stage, rigid_body_path)
+    rb_api = PhysxSchema.PhysxRigidBodyAPI.Apply(prim)
+    angular = _set_verified_float(rb_api.CreateAngularDampingAttr(), angular_damping)
+    linear = _set_verified_float(rb_api.CreateLinearDampingAttr(), linear_damping)
+    _LOG.info(
+        "marslab.physics.damping_verified body=%s angular=%s linear=%s",
         rigid_body_path,
-        chassis_cfg.mass,
-        (
-            chassis_cfg.inertia_xx,
-            chassis_cfg.inertia_yy,
-            chassis_cfg.inertia_zz,
-        ),
+        angular,
+        linear,
+    )
+    _log_usd_mass_properties(prim)
+
+
+def _require_rigid_body(stage: Any, prim_path: str) -> Any:
+    from pxr import UsdPhysics
+
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid() or not prim.IsActive():
+        raise RuntimeError(f"Configured rigid body missing or inactive: {prim_path}")
+    if not prim.HasAPI(UsdPhysics.RigidBodyAPI):
+        raise RuntimeError(f"Configured target lacks RigidBodyAPI: {prim_path}")
+    if not UsdPhysics.RigidBodyAPI(prim).GetRigidBodyEnabledAttr().Get():
+        raise RuntimeError(f"Configured rigid body is disabled: {prim_path}")
+    if prim.IsInstanceProxy():
+        raise RuntimeError(f"Configured rigid body is not editable: {prim_path}")
+    return prim
+
+
+def _set_verified_float(attribute: Any, requested: float) -> float:
+    if not attribute.Set(float(requested)):
+        raise RuntimeError(f"Could not set physics attribute: {attribute.GetPath()}")
+    actual = attribute.Get()
+    if actual is None or not math.isclose(float(actual), requested, rel_tol=1e-6, abs_tol=1e-8):
+        raise RuntimeError(
+            f"Physics attribute mismatch at {attribute.GetPath()}: "
+            f"requested={requested}, actual={actual}"
+        )
+    return float(actual)
+
+
+def _log_usd_mass_properties(prim: Any) -> None:
+    from pxr import UsdPhysics
+
+    mass = UsdPhysics.MassAPI(prim)
+    _LOG.info(
+        "marslab.physics.usd_mass_properties body=%s mass=%s inertia=%s center_of_mass=%s",
+        prim.GetPath(),
+        mass.GetMassAttr().Get(),
+        mass.GetDiagonalInertiaAttr().Get(),
+        mass.GetCenterOfMassAttr().Get(),
     )
 
 
@@ -167,69 +148,92 @@ def apply_wheel_physics(
     chassis_path: str,
     wheel_link_names: tuple[str, ...],
     wheels_cfg: WheelsConfig,
-) -> dict[str, bool]:
-    """Inject per-wheel mass / inertia / friction."""
-    mass = wheels_cfg.mass
-    inertia = (
-        wheels_cfg.inertia_spin,
-        wheels_cfg.inertia_transverse,
-        wheels_cfg.inertia_transverse,
-    )
-    friction_static = wheels_cfg.friction_static
-    friction_dynamic = wheels_cfg.friction_dynamic
-    restitution = wheels_cfg.restitution
-
-    results: dict[str, bool] = {}
+) -> None:
+    """Set wheel contact and verify each owned collider's effective material."""
     for name in wheel_link_names:
         wheel_prim_path = f"{chassis_path}/{name}"
-        mass_applied = _set_mass_and_inertia(stage, wheel_prim_path, mass, inertia)
-        material_applied = _bind_wheel_friction_material(
+        wheel = _require_rigid_body(stage, wheel_prim_path)
+        colliders = _wheel_colliders(wheel)
+        _bind_wheel_friction_material(
             stage,
-            wheel_prim_path,
-            friction_static=friction_static,
-            friction_dynamic=friction_dynamic,
-            restitution=restitution,
+            wheel,
+            colliders,
+            f"{chassis_path}/PhysicsMaterials/{name}",
+            wheels_cfg,
         )
-        results[name] = mass_applied and material_applied
-    return results
+        _log_usd_mass_properties(wheel)
+
+
+def _wheel_colliders(wheel: Any) -> list[Any]:
+    """Include collision instance proxies, without crossing rigid-body ownership."""
+    from pxr import Usd, UsdPhysics
+
+    colliders = []
+    for prim in Usd.PrimRange(wheel, Usd.TraverseInstanceProxies()):
+        if prim != wheel and prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            raise RuntimeError(
+                f"Wheel material scope contains another rigid body: {prim.GetPath()}"
+            )
+        if (
+            prim.HasAPI(UsdPhysics.CollisionAPI)
+            and UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()
+        ):
+            colliders.append(prim)
+    if not colliders:
+        raise RuntimeError(f"Configured wheel has no enabled colliders: {wheel.GetPath()}")
+    return colliders
 
 
 def _bind_wheel_friction_material(
     stage: Any,
-    wheel_prim_path: str,
-    *,
-    friction_static: float,
-    friction_dynamic: float,
-    restitution: float,
-) -> bool:
-    """Bind a per-wheel ``PhysicsMaterial`` carrying the friction coefficients."""
-    prim = stage.GetPrimAtPath(wheel_prim_path)
-    if not prim.IsValid():
-        return False
+    wheel: Any,
+    colliders: list[Any],
+    material_path: str,
+    wheels_cfg: WheelsConfig,
+) -> None:
+    """Author at the editable body; physics bindings leave visual materials intact."""
+    from pxr import UsdPhysics, UsdShade
 
-    from pxr import Sdf, UsdPhysics, UsdShade  # noqa: WPS433  (deferred)
-
-    material_path = f"{wheel_prim_path}/PhysicsMaterial"
-    material = UsdShade.Material.Define(stage, Sdf.Path(material_path))
-    material_prim = material.GetPrim()
-    if not material_prim.HasAPI(UsdPhysics.MaterialAPI):
-        UsdPhysics.MaterialAPI.Apply(material_prim)
-    physics_material = UsdPhysics.MaterialAPI(material_prim)
-    static_applied = physics_material.GetStaticFrictionAttr().Set(float(friction_static))
-    dynamic_applied = physics_material.GetDynamicFrictionAttr().Set(float(friction_dynamic))
-    restitution_applied = physics_material.GetRestitutionAttr().Set(float(restitution))
-
-    binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
-    binding_applied = binding_api.Bind(material, materialPurpose="physics")
-    return all(
-        bool(applied)
-        for applied in (
-            static_applied,
-            dynamic_applied,
-            restitution_applied,
-            binding_applied,
-        )
+    material = UsdShade.Material.Define(stage, material_path)
+    physics_material = UsdPhysics.MaterialAPI.Apply(material.GetPrim())
+    static = _set_verified_float(
+        physics_material.CreateStaticFrictionAttr(), wheels_cfg.friction_static
     )
+    dynamic = _set_verified_float(
+        physics_material.CreateDynamicFrictionAttr(), wheels_cfg.friction_dynamic
+    )
+    restitution = _set_verified_float(
+        physics_material.CreateRestitutionAttr(), wheels_cfg.restitution
+    )
+
+    binding_api = UsdShade.MaterialBindingAPI.Apply(wheel)
+    if not binding_api.Bind(
+        material,
+        bindingStrength=UsdShade.Tokens.strongerThanDescendants,
+        materialPurpose="physics",
+    ):
+        raise RuntimeError(f"Could not bind wheel physics material: {wheel.GetPath()}")
+    for collider in colliders:
+        effective, relationship = UsdShade.MaterialBindingAPI(collider).ComputeBoundMaterial(
+            materialPurpose="physics"
+        )
+        if not effective or effective.GetPath() != material.GetPath():
+            raise RuntimeError(
+                f"Wheel physics material mismatch at {collider.GetPath()}: "
+                f"expected={material.GetPath()}, actual={effective.GetPath()}, "
+                f"binding={relationship.GetPath()}"
+            )
+        _LOG.info(
+            "marslab.physics.wheel_contact_verified body=%s collider=%s material=%s "
+            "static=%s dynamic=%s restitution=%s instance_proxy=%s",
+            wheel.GetPath(),
+            collider.GetPath(),
+            effective.GetPath(),
+            static,
+            dynamic,
+            restitution,
+            collider.IsInstanceProxy(),
+        )
 
 
 def apply_suspension_damping_split(
@@ -301,42 +305,20 @@ def _spawn_rover_usd(
     return find_rigid_body_path(stage, chassis_path, rover.chassis.rigid_body_prim_name)
 
 
-def _apply_rover_mass(
-    stage: Any,
-    rigid_body_path: str,
-    com_offset: tuple[float, float, float],
-    angular_damping: float,
-    linear_damping: float,
-) -> bool:
-    """Forward CoM offset + damping overrides to :func:`apply_mass_properties`."""
-    return apply_mass_properties(
-        stage,
-        rigid_body_path,
-        com_offset,
-        angular_damping,
-        linear_damping,
-    )
-
-
 def _apply_rover_articulation_physics(
     stage: Any,
-    rigid_body_path: str,
     rover: RoverConfig,
 ) -> None:
-    """Validate and apply chassis / wheel / suspension overrides."""
+    """Validate and apply wheel contact and suspension overrides."""
     chassis_path = f"{rover.prim_path}/Body_Chassis"
-    missing: list[str] = []
-    if not apply_chassis_physics(stage, rigid_body_path, rover.chassis):
-        missing.append(rigid_body_path)
-    wheel_results = apply_wheel_physics(
+    apply_wheel_physics(
         stage,
         chassis_path,
         rover.wheels.link_names,
         rover.wheels,
     )
-    missing.extend(name for name, applied in wheel_results.items() if not applied)
     suspension_results = apply_suspension_damping_split(stage, chassis_path, rover.suspension)
-    missing.extend(name for name, applied in suspension_results.items() if not applied)
+    missing = [name for name, applied in suspension_results.items() if not applied]
     if missing:
         raise RuntimeError(f"physics override targets missing from rover USD: {missing}")
 
@@ -349,16 +331,14 @@ def spawn_rover(
     """Attach the rover USD, position it, and set physics overrides."""
     prim_path = rover.prim_path
     rigid_body_path = _spawn_rover_usd(stage, rover, spawn_xyz)
-    if not _apply_rover_mass(
+    apply_body_damping(
         stage,
         rigid_body_path,
-        rover.com_offset,
         rover.angular_damping,
         rover.linear_damping,
-    ):
-        raise RuntimeError(f"rigid-body override target missing from rover USD: {rigid_body_path}")
+    )
 
-    _apply_rover_articulation_physics(stage, rigid_body_path, rover)
+    _apply_rover_articulation_physics(stage, rover)
 
     return SpawnedRover(
         prim_path=prim_path,

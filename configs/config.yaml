@@ -1,10 +1,11 @@
 scene:
-  usdz_path: ../assets/scene/main_crater/main_crater.usdz
+  usdz_path: ../assets/scene/jezero_plain/jezero_plain.usdz
 
 runtime:
   headless: false
   ros2_enabled: true
   atmosphere_enabled: true
+  enable_motion_bvh: true
 
 mars_env:
   gravity: 3.72
@@ -47,34 +48,26 @@ rendering:
     max_bounces: 6
 
 rover:
-  usd_path: ../assets/robots/rover/m2020.usd
-  urdf_source_path: ../assets/m2020-urdf-models/rover/m2020.urdf
+  usd_path: ../assets/robots/rover/m2020_lidar.usda
+  urdf_source_path: ../assets/robots/rover/m2020_lidar.urdf
   prim_path: /World/Rover
   spawn:
     mode: dem_center
     xy: [0.0, 0.0]
     z_offset: 0.1
     orientation_rpy: [0.0, 0.0, 0.0]
-  com_offset: [0.2, 0.0, 0.0]
   angular_damping: 12.0
   linear_damping: 0.5
   chassis:
     rigid_body_prim_name: Body_Chassis
-    mass: 1025.0
-    inertia_xx: 1036.1
-    inertia_yy: 1182.2
-    inertia_zz: 1391.4
   wheels:
     link_names:
-      - Frame_WHEEL_LF
-      - Frame_WHEEL_LM
-      - Frame_WHEEL_LR
-      - Frame_WHEEL_RF
-      - Frame_WHEEL_RM
-      - Frame_WHEEL_RR
-    mass: 9.0
-    inertia_spin: 0.310
-    inertia_transverse: 0.275
+      - Body_WheelLeftFront
+      - Body_WheelLeftMiddle
+      - Body_WheelLeftRear
+      - Body_WheelRightFront
+      - Body_WheelRightMiddle
+      - Body_WheelRightRear
     friction_static: 0.6
     friction_dynamic: 0.5
     restitution: 0.0
@@ -87,7 +80,6 @@ rover:
     namespace: rover
     topics:
       cmd_vel: cmd_vel
-      robot_description: robot_description
       imu: imu
       imu_noisy: imu_noisy
       odom: odom
@@ -97,6 +89,7 @@ rover:
       points: depth/points
       camera_info: rgb/camera_info
       lidar: lidar/points
+      scan: scan
       joint_states: joint_states
     odom_publisher:
       frame_id: odom
@@ -106,25 +99,30 @@ rover:
   sensors:
     seed: 42
     camera:
-      local_translation: [1.2, 0.0, 2.1]
+      local_translation: [0.752094567, -0.774359584, 1.837690473]
       local_orientation_rpy_deg: [0.0, 6.6, 0.0]
       resolution: [640, 480]
       focal_length_mm: 18.0
-      clipping_range: [0.1, 100.0]
+      horizontal_fov_deg: 135.0
+      clipping_range: [0.3, 200.0]
       depth_sensor:
         enabled: false
-        baseline_mm: 55.0
         min_distance_m: 0.3
-        max_distance_m: 100.0
+        max_distance_m: 200.0
         noise_mean: 0.0
         noise_sigma: 0.005
-        confidence_threshold: 0.95
-        max_disparity_pixel: 110.0
-    lidar_3d:
-      local_translation: [1.45, 0.0, 2.1]
+    lidar_2d:
+      local_translation: [0.90, 0.25, 1.40]
       local_orientation_rpy_deg: [0.0, 0.0, 0.0]
-      range_min: 5.0
-      range_max: 100.0
+      range_min: 0.20
+      range_max: 200.0
+      horizontal_fov_deg: 135.0
+      rotation_rate_hz: 10.0
+    lidar_3d:
+      local_translation: [0.45, 0.25, 2.20]
+      local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+      range_min: 3.5
+      range_max: 200.0
       horizontal_fov_deg: 220.0
       vertical_fov_deg: 45.0
       rotation_rate_hz: 30.0
@@ -141,10 +139,12 @@ rover:
   control:
     wheel_radius: 0.2667
     wheelbase: 2.26
+    steering_axle_offset: 0.05502
     track_steer: 2.125
     track_middle: 2.369
     max_linear_velocity: 4.0
     max_angular_velocity: 0.7
+    command_timeout: 0.5
     drive_joint_names:
       - LF_DRIVE
       - LM_DRIVE
@@ -159,13 +159,16 @@ rover:
       - RR_STEER
     drive_damping: 1000.0
     drive_max_force: 1000000.0
+    brake_stiffness: 50000.0
     steer_stiffness: 50000.0
     steer_damping: 5000.0
     steer_max_force: 100000.0
     drive_type: acceleration
     negate_steer: true
     max_wheel_accel_rate: 0.5
-    max_steer_angle: 0.7
+    max_steer_angle: 0.9
+    steering_alignment_tolerance: 0.02
+    steering_stop_speed: 0.05
     steer_ramp_rate: 2.0
     decel_multiplier: 3.0
     debug_logging: false
@@ -173,7 +176,6 @@ rover:
     enabled: true
     left_wheel_joints: [LF_DRIVE, LM_DRIVE, LR_DRIVE]
     right_wheel_joints: [RF_DRIVE, RM_DRIVE, RR_DRIVE]
-    track_width: 2.369
     slip_left: 0.02
     slip_right: 0.02
     sigma_omega: 0.05

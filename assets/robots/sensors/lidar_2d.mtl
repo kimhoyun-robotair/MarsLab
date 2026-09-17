@@ -1,0 +1,12 @@
+newmtl metal
+Kd 0.38 0.42 0.46
+Ns 32
+newmtl white
+Kd 0.78 0.79 0.75
+Ns 32
+newmtl window
+Kd 0.012 0.025 0.032
+Ns 32
+newmtl bolt
+Kd 0.2 0.17 0.1
+Ns 32

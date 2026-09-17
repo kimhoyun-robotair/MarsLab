@@ -1,0 +1,44 @@
+{
+  "reference": {
+    "title": "A model to calculate solar radiation fluxes on the Martian surface",
+    "authors": "A. Vicente-Retortillo, F. Valero, L. Vazquez and G. M. Martinez",
+    "year": 2015,
+    "doi": "10.1051/swsc/2015035",
+    "url": "https://doi.org/10.1051/swsc/2015035",
+    "accessible_author_copy": "https://www.researchgate.net/publication/283452176_A_model_to_calculate_solar_radiation_fluxes_on_the_Martian_surface",
+    "license": "CC-BY-4.0",
+    "equations": "10–23",
+    "table": 3,
+    "accessed": "2026-09-16"
+  },
+  "conditions": {
+    "scattering_regime": "NIR representative parameters, 700–1100 nm; not a spectral integration",
+    "single_scattering_albedo": 0.97,
+    "asymmetry_factor": 0.7,
+    "surface_albedo": 0.25,
+    "atmosphere": "single homogeneous plane-parallel layer; MarsLab assumes dust-only with cloud and gas optical depths zero, rather than deriving those depths from Table 3",
+    "runtime_fixed_cos_zenith": 0.7,
+    "runtime_tau_range": [0.0, 6.0],
+    "published_comparison_tau_range": [0.3, 5.0],
+    "disort_streams": 32,
+    "disort_phase_function": "Henyey-Greenstein"
+  },
+  "tau_rows": [0.3, 0.6, 1.0, 1.5, 2.5, 5.0],
+  "cos_zenith_columns": [0.3, 0.5, 0.7, 0.85, 1.0],
+  "published_total_over_toa_comimart": [
+    [0.8266, 0.9055, 0.9445, 0.9628, 0.9761],
+    [0.7129, 0.8278, 0.8923, 0.9244, 0.9483],
+    [0.6129, 0.7429, 0.8276, 0.8727, 0.9076],
+    [0.5308, 0.6578, 0.7538, 0.8089, 0.8533],
+    [0.4253, 0.5305, 0.6270, 0.6893, 0.7432],
+    [0.2675, 0.3317, 0.4006, 0.4529, 0.5039]
+  ],
+  "published_total_over_toa_disort": [
+    [0.7948, 0.9038, 0.9524, 0.9721, 0.9846],
+    [0.6701, 0.8168, 0.8979, 0.9345, 0.9590],
+    [0.5693, 0.7221, 0.8265, 0.8796, 0.9178],
+    [0.4907, 0.6308, 0.7447, 0.8101, 0.8608],
+    [0.3910, 0.5027, 0.6092, 0.6810, 0.7436],
+    [0.2457, 0.3146, 0.3851, 0.4397, 0.4950]
+  ]
+}

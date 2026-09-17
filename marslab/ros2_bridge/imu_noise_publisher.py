@@ -1,21 +1,4 @@
-"""Python-side IMU noise injection with a seeded RNG.
-
-The OmniGraph ``ReadIMU`` → ``PubIMU`` path publishes raw PhysX IMU
-readings with no Gaussian noise on ``/<ns>/imu``.  This module provides
-an optional rclpy-side publisher that reads the same IMU frame, injects
-zero-mean Gaussian noise on all six axes (3 linear-acceleration +
-3 angular-velocity), and publishes ``sensor_msgs/Imu`` on
-``/<ns>/imu_noisy`` — a *separate* topic from the OmniGraph ``PubIMU``
-output — so SLAM stacks that need repeatable noise sequences can subscribe
-to ``imu_noisy`` instead.  The two topics are distinct by design: running
-both publishers simultaneously does NOT produce duplicate messages on any
-single topic.
-
-The seeded :func:`numpy.random.default_rng` call guarantees that the same
-``seed`` value produces an identical noise sequence across multiple runs.
-Omitting ``seed`` (``None``) falls back to nondeterministic behaviour,
-preserving the original behaviour of the OmniGraph path.
-"""
+"""Publish seeded noise from the same sample and time as the raw IMU graph."""
 
 from __future__ import annotations
 
@@ -23,6 +6,8 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import numpy as np
+
+from marslab.ros2_bridge.timestamp import ros_stamp_from_ns, split_stamp_ns
 
 
 @dataclass
@@ -34,6 +19,8 @@ class ImuNoiseContext:
     sigma_ang_vel: float
     imu_prim_path: str
     frame_id: str = "imu_link"
+    seed: Optional[int] = None
+    last_stamp_ns: Optional[int] = None
 
 
 def create_imu_noise_publisher(
@@ -65,7 +52,14 @@ def create_imu_noise_publisher(
         sigma_ang_vel=float(sigma_ang_vel),
         imu_prim_path=imu_prim_path,
         frame_id=frame_id,
+        seed=seed,
     )
+
+
+def reset_imu_noise(ctx: ImuNoiseContext) -> None:
+    """Reset sample tracking and the seeded noise sequence for a new run."""
+    ctx.last_stamp_ns = None
+    ctx.rng = np.random.default_rng(ctx.seed)
 
 
 def publish_imu_with_noise(
@@ -73,10 +67,20 @@ def publish_imu_with_noise(
     lin_acc: np.ndarray,
     ang_vel: np.ndarray,
     orientation_wxyz: Optional[np.ndarray] = None,
+    *,
+    stamp_ns: int,
 ) -> None:
     """Inject Gaussian noise and publish sensor_msgs/Imu."""
+    split_stamp_ns(stamp_ns)
+    if ctx.last_stamp_ns is not None:
+        if stamp_ns < ctx.last_stamp_ns:
+            raise ValueError("IMU time moved backwards; reset before a new run")
+        if stamp_ns == ctx.last_stamp_ns:
+            return
+
     from sensor_msgs.msg import Imu  # noqa: PLC0415
 
+    stamp = ros_stamp_from_ns(stamp_ns)
     la = np.asarray(lin_acc, dtype=np.float64).copy()
     av = np.asarray(ang_vel, dtype=np.float64).copy()
 
@@ -86,7 +90,7 @@ def publish_imu_with_noise(
         av += ctx.rng.normal(0.0, ctx.sigma_ang_vel, 3)
 
     msg = Imu()
-    msg.header.stamp = ctx.node.get_clock().now().to_msg()
+    msg.header.stamp = stamp
     msg.header.frame_id = ctx.frame_id
 
     msg.linear_acceleration.x = float(la[0])
@@ -107,17 +111,19 @@ def publish_imu_with_noise(
         msg.orientation_covariance[0] = -1.0
 
     # Diagonal covariance: sigma^2 on each axis, -1 if sensor unavailable
-    la_var = ctx.sigma_lin_acc ** 2 if ctx.sigma_lin_acc > 0.0 else 0.0
-    av_var = ctx.sigma_ang_vel ** 2 if ctx.sigma_ang_vel > 0.0 else 0.0
+    la_var = ctx.sigma_lin_acc**2 if ctx.sigma_lin_acc > 0.0 else 0.0
+    av_var = ctx.sigma_ang_vel**2 if ctx.sigma_ang_vel > 0.0 else 0.0
     for i in range(3):
         msg.linear_acceleration_covariance[i * 3 + i] = la_var
         msg.angular_velocity_covariance[i * 3 + i] = av_var
 
     ctx.publisher.publish(msg)
+    ctx.last_stamp_ns = stamp_ns
 
 
 __all__ = [
     "ImuNoiseContext",
     "create_imu_noise_publisher",
     "publish_imu_with_noise",
+    "reset_imu_noise",
 ]

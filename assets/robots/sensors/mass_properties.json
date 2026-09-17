@@ -1,0 +1,595 @@
+{
+  "source_usd": "assets/robots/rover/m2020.usd",
+  "source_urdf": "assets/m2020-urdf-models/rover/m2020.urdf",
+  "source_urdf_sha256": "e97537bade2f112679065791d6a354cd52e24a08af5156d710125e0119787eb0",
+  "source_layers_sha256": {
+    "assets/robots/rover/m2020.usd": "f97c651331c7ceab6061bf39d20643010306d6921da3b6508718c4d23518071f",
+    "assets/robots/rover/configuration/m2020_physics.usd": "8b5cd9cb4812e861c35a20d19a23d366a8008be474072e9fc07ada9aeeee2ba7",
+    "assets/robots/rover/configuration/m2020_base.usd": "028791c4dbbdbd25e6d6e28e7f6c77c26279ff989b2265fb5f2a71c2ce8523f5",
+    "assets/robots/rover/configuration/m2020_sensor.usd": "60b00273a992b70b3dcc0a9279fde1b7f9bed94d85fce718af88bf2749728abf",
+    "assets/robots/rover/configuration/m2020_robot.usd": "6f8008396a6cdc4245bfd7747d5e5bd7d5f30c6b0ec2321ee5c9dd4d031f7492"
+  },
+  "method": "Mass-weighted COM and parallel-axis tensor composition; original chassis inertia retained.",
+  "assumptions": [
+    "Research add-on housings, not NASA flight instruments or vendor CAD.",
+    "2D scanner .38kg and 3D scanner .65kg are engineering mass assumptions, not measured hardware.",
+    "Mount plates/struts are aluminum 2700kg/m^3; mast has 22mm outer and 18.5mm inner radius.",
+    "Small visual bevels are neglected in analytical mass; sensor assemblies use uniform envelope inertia.",
+    "Support margin uses initial six wheel-center convex hull; dynamic stability requires Isaac observations."
+  ],
+  "components": [
+    {
+      "name": "2D scanner electronics and optical assembly",
+      "mass_kg": 0.38,
+      "center_m": [
+        0.9,
+        0.25,
+        1.3775
+      ],
+      "inertia_kg_m2": [
+        [
+          0.0009720716666666666,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0009720716666666666,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0006850133333333333
+        ]
+      ],
+      "model": "uniform solid box",
+      "dimensions_m": [
+        0.104,
+        0.104,
+        0.141
+      ]
+    },
+    {
+      "name": "2D deck plate",
+      "mass_kg": 0.7776000000000001,
+      "center_m": [
+        0.9,
+        0.25,
+        1.13938005
+      ],
+      "inertia_kg_m2": [
+        [
+          0.0014673312000000004,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0016682112000000005,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0031168800000000007
+        ]
+      ],
+      "model": "uniform solid box",
+      "dimensions_m": [
+        0.16,
+        0.15,
+        0.012
+      ]
+    },
+    {
+      "name": "2D solid aluminum pedestal",
+      "mass_kg": 0.6393852838800002,
+      "center_m": [
+        0.9,
+        0.25,
+        1.223690025
+      ],
+      "inertia_kg_m2": [
+        [
+          0.0014009895303528476,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0013760535042815275,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.00016304324738940007
+        ]
+      ],
+      "model": "uniform solid box",
+      "dimensions_m": [
+        0.036,
+        0.042,
+        0.15661995000000006
+      ]
+    },
+    {
+      "name": "3D scanner assembly",
+      "mass_kg": 0.65,
+      "center_m": [
+        0.45,
+        0.25,
+        2.186
+      ],
+      "inertia_kg_m2": [
+        [
+          0.0016369572916666668,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0016369572916666668,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.00115058125
+        ]
+      ],
+      "model": "uniform solid cylinder",
+      "radius_m": 0.0595,
+      "inner_radius_m": 0,
+      "height_m": 0.14
+    },
+    {
+      "name": "3D deck plate",
+      "mass_kg": 1.6632000000000002,
+      "center_m": [
+        0.45,
+        0.25,
+        1.1403800499999999
+      ],
+      "inertia_kg_m2": [
+        [
+          0.005571165600000002,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.006735405600000002,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.012252240000000003
+        ]
+      ],
+      "model": "uniform solid box",
+      "dimensions_m": [
+        0.22,
+        0.2,
+        0.014
+      ]
+    },
+    {
+      "name": "3D aluminum mast tube",
+      "mass_kg": 1.1646357416297803,
+      "center_m": [
+        0.45,
+        0.25,
+        1.6316900250000002
+      ],
+      "inertia_kg_m2": [
+        [
+          0.09129806270499136,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.09129806270499136,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.000481140140760803
+        ]
+      ],
+      "model": "uniform hollow cylinder",
+      "radius_m": 0.022,
+      "inner_radius_m": 0.0185,
+      "height_m": 0.9686199500000001
+    },
+    {
+      "name": "3D diagonal brace -1",
+      "mass_kg": 0.17466708814198514,
+      "center_m": [
+        0.40900000000000003,
+        0.25,
+        1.2553800499999999
+      ],
+      "inertia_kg_m2": [
+        [
+          0.0006852872393581748,
+          0.0,
+          -0.00025686200370245724
+        ],
+        [
+          0.0,
+          0.0007798303261912494,
+          0.0
+        ],
+        [
+          -0.00025686200370245724,
+          0.0,
+          0.00010618755937587367
+        ]
+      ],
+      "model": "uniform solid box",
+      "dimensions_m": [
+        0.014,
+        0.02,
+        0.23104112188093268
+      ]
+    },
+    {
+      "name": "3D diagonal brace 1",
+      "mass_kg": 0.17466708814198514,
+      "center_m": [
+        0.491,
+        0.25,
+        1.2553800499999999
+      ],
+      "inertia_kg_m2": [
+        [
+          0.0006852872393581748,
+          0.0,
+          0.00025686200370245724
+        ],
+        [
+          0.0,
+          0.0007798303261912494,
+          0.0
+        ],
+        [
+          0.00025686200370245724,
+          0.0,
+          0.00010618755937587367
+        ]
+      ],
+      "model": "uniform solid box",
+      "dimensions_m": [
+        0.014,
+        0.02,
+        0.23104112188093268
+      ]
+    },
+    {
+      "name": "lidar_2d fastener",
+      "mass_kg": 0.008,
+      "center_m": [
+        0.8400000000000001,
+        0.195,
+        1.15138005
+      ],
+      "inertia_kg_m2": [
+        [
+          1.52e-07,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.52e-07,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.9600000000000003e-07
+        ]
+      ],
+      "model": "uniform solid cylinder",
+      "radius_m": 0.007,
+      "inner_radius_m": 0,
+      "height_m": 0.009
+    },
+    {
+      "name": "lidar_2d fastener",
+      "mass_kg": 0.008,
+      "center_m": [
+        0.8400000000000001,
+        0.305,
+        1.15138005
+      ],
+      "inertia_kg_m2": [
+        [
+          1.52e-07,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.52e-07,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.9600000000000003e-07
+        ]
+      ],
+      "model": "uniform solid cylinder",
+      "radius_m": 0.007,
+      "inner_radius_m": 0,
+      "height_m": 0.009
+    },
+    {
+      "name": "lidar_2d fastener",
+      "mass_kg": 0.008,
+      "center_m": [
+        0.96,
+        0.195,
+        1.15138005
+      ],
+      "inertia_kg_m2": [
+        [
+          1.52e-07,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.52e-07,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.9600000000000003e-07
+        ]
+      ],
+      "model": "uniform solid cylinder",
+      "radius_m": 0.007,
+      "inner_radius_m": 0,
+      "height_m": 0.009
+    },
+    {
+      "name": "lidar_2d fastener",
+      "mass_kg": 0.008,
+      "center_m": [
+        0.96,
+        0.305,
+        1.15138005
+      ],
+      "inertia_kg_m2": [
+        [
+          1.52e-07,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.52e-07,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.9600000000000003e-07
+        ]
+      ],
+      "model": "uniform solid cylinder",
+      "radius_m": 0.007,
+      "inner_radius_m": 0,
+      "height_m": 0.009
+    },
+    {
+      "name": "lidar_3d fastener",
+      "mass_kg": 0.008,
+      "center_m": [
+        0.39,
+        0.195,
+        1.15138005
+      ],
+      "inertia_kg_m2": [
+        [
+          1.52e-07,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.52e-07,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.9600000000000003e-07
+        ]
+      ],
+      "model": "uniform solid cylinder",
+      "radius_m": 0.007,
+      "inner_radius_m": 0,
+      "height_m": 0.009
+    },
+    {
+      "name": "lidar_3d fastener",
+      "mass_kg": 0.008,
+      "center_m": [
+        0.39,
+        0.305,
+        1.15138005
+      ],
+      "inertia_kg_m2": [
+        [
+          1.52e-07,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.52e-07,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.9600000000000003e-07
+        ]
+      ],
+      "model": "uniform solid cylinder",
+      "radius_m": 0.007,
+      "inner_radius_m": 0,
+      "height_m": 0.009
+    },
+    {
+      "name": "lidar_3d fastener",
+      "mass_kg": 0.008,
+      "center_m": [
+        0.51,
+        0.195,
+        1.15138005
+      ],
+      "inertia_kg_m2": [
+        [
+          1.52e-07,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.52e-07,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.9600000000000003e-07
+        ]
+      ],
+      "model": "uniform solid cylinder",
+      "radius_m": 0.007,
+      "inner_radius_m": 0,
+      "height_m": 0.009
+    },
+    {
+      "name": "lidar_3d fastener",
+      "mass_kg": 0.008,
+      "center_m": [
+        0.51,
+        0.305,
+        1.15138005
+      ],
+      "inertia_kg_m2": [
+        [
+          1.52e-07,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.52e-07,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.9600000000000003e-07
+        ]
+      ],
+      "model": "uniform solid cylinder",
+      "radius_m": 0.007,
+      "inner_radius_m": 0,
+      "height_m": 0.009
+    }
+  ],
+  "chassis_before": {
+    "mass_kg": 670.0,
+    "center_of_mass_m": [
+      -0.061680424958467484,
+      -0.05973226949572563,
+      1.1465632915496826
+    ],
+    "inertia_kg_m2": [
+      [
+        156.42206629252962,
+        5.365676803913698,
+        26.05218477004145
+      ],
+      [
+        5.3656768039137,
+        410.08249907965563,
+        13.966406890966226
+      ],
+      [
+        26.05218477004145,
+        13.966406890966226,
+        454.39887701062685
+      ]
+    ]
+  },
+  "chassis_after": {
+    "mass_kg": 675.6881552017938,
+    "center_of_mass_m": [
+      -0.056154856662077056,
+      -0.057124845928607865,
+      1.1486354774530887
+    ],
+    "inertia_kg_m2": [
+      [
+        158.068855478386,
+        4.219007442088298,
+        25.28425416043629
+      ],
+      [
+        4.2190074420883,
+        413.8716121723715,
+        13.536385586371313
+      ],
+      [
+        25.28425416043629,
+        13.536385586371313,
+        457.64031000186213
+      ]
+    ],
+    "principal_moments_kg_m2": [
+      155.91310190071647,
+      410.0543388532528,
+      463.6133368986505
+    ]
+  },
+  "added_mass_kg": 5.6881552017938475,
+  "chassis_com_shift_m": [
+    0.005525568296390428,
+    0.002607423567117767,
+    0.0020721859034060763
+  ],
+  "rover_before": {
+    "mass_kg": 951.6399999856949,
+    "center_of_mass_m": [
+      -0.02986389705684739,
+      -0.04616100224760383,
+      0.9475454313036487
+    ]
+  },
+  "rover_after": {
+    "mass_kg": 957.3281551874887,
+    "center_of_mass_m": [
+      -0.02615296086355516,
+      -0.04440130288393763,
+      0.9501904970876168
+    ],
+    "initial_static_support_margin_m": 1.0488270596595162
+  },
+  "output_usd": "assets/robots/rover/m2020_lidar.usda",
+  "output_urdf": "assets/robots/rover/m2020_lidar.urdf",
+  "frames": "No sensor links or joints added; MarsLab owns lidar_link/lidar_2d_link static transforms."
+}

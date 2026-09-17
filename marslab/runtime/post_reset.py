@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from importlib import import_module
-from typing import NotRequired, Protocol, TypedDict
+from typing import TYPE_CHECKING, NotRequired, Protocol, TypedDict
 
 import numpy as np
 
@@ -18,6 +18,9 @@ from marslab.runtime.atmosphere_boot import AtmosphereInit
 from marslab.runtime.main_loop import AtmosphereLoopState
 from marslab.runtime.physics_override_log import format_physics_override_summary
 
+if TYPE_CHECKING:
+    from marslab.runtime.lifecycle import CleanupResources
+
 SpawnPosition = tuple[float, float, float]
 _DOF_NAMES = "dof_names"
 _LOG = logging.getLogger(__name__)
@@ -26,8 +29,13 @@ _LOG = logging.getLogger(__name__)
 class WheelOdomParams(TypedDict):
     left_indices: list[int]
     right_indices: list[int]
+    steering_indices: list[int]
     wheel_radius: float
-    track_width: float
+    wheelbase: float
+    steering_axle_offset: float
+    track_steer: float
+    track_middle: float
+    negate_steer: bool
     slip_left: float
     slip_right: float
     sigma_omega: float
@@ -60,6 +68,8 @@ class TimelineHandle(Protocol):
 class AtmospherePanelHandle(Protocol):
     def update_display(self) -> None: ...
 
+    def close(self) -> None: ...
+
 
 @dataclass(frozen=True, slots=True)
 class PostResetAssembly:
@@ -87,8 +97,15 @@ def _build_wheel_odom_params(
         "right_indices": rover_module.resolve_joint_indices(
             dof_names, list(wheel_odometry.right_wheel_joints)
         ),
+        "steering_indices": rover_module.resolve_joint_indices(
+            dof_names, list(rover.control.steer_joint_names)
+        ),
         "wheel_radius": float(rover.control.wheel_radius),
-        "track_width": float(wheel_odometry.track_width),
+        "wheelbase": float(rover.control.wheelbase),
+        "steering_axle_offset": float(rover.control.steering_axle_offset),
+        "track_steer": float(rover.control.track_steer),
+        "track_middle": float(rover.control.track_middle),
+        "negate_steer": rover.control.negate_steer,
         "slip_left": float(wheel_odometry.slip_left),
         "slip_right": float(wheel_odometry.slip_right),
         "sigma_omega": float(wheel_odometry.sigma_omega),
@@ -112,17 +129,13 @@ def assemble_post_reset(
     atmosphere_enabled: bool,
     ros2_enabled: bool,
     wheel_odom_publish_tf: bool,
+    cleanup_resources: CleanupResources,
 ) -> PostResetAssembly:
     articulation = pre_reset.articulation
     articulation.initialize()
     articulation_setup = import_module("marslab.runtime.articulation_setup")
     rover_module = import_module("marslab.robots.rover")
     drive_setup = import_module("marslab.robots.drive_api_setup")
-    articulation_setup.pin_articulation_root_pose(
-        articulation,
-        pre_reset.spawn_xyz,
-        pre_reset.spawn_rpy,
-    )
     dof_names = list(getattr(articulation, _DOF_NAMES))
     drive_indices = rover_module.resolve_joint_indices(
         dof_names, list(rover.control.drive_joint_names)
@@ -131,6 +144,13 @@ def assemble_post_reset(
         dof_names, list(rover.control.steer_joint_names)
     )
     articulation_setup.zero_steer_joints(articulation, steer_indices)
+
+    drive_setup.reinforce_pd_gains(
+        articulation,
+        rover.control,
+        rover.suspension,
+        dof_names,
+    )
 
     _LOG.info("Warming up physics handle ...")
     for _ in range(10):
@@ -141,26 +161,20 @@ def assemble_post_reset(
         timeline.play()
         for _ in range(5):
             world.step(render=True)
-    drive_setup.reinforce_pd_gains(
-        articulation,
-        rover.control,
-        rover.suspension,
-        dof_names,
-    )
+    if pre_reset.sensor_graph is not None:
+        pre_reset.sensor_graph.initialize_raw_imu()
     _LOG.info("%s", format_physics_override_summary(rover))
 
     main_loop = import_module("marslab.runtime.main_loop")
     atmosphere = main_loop.build_atmosphere_loop_state(atmosphere_init, atmosphere_init.tau)
     atmosphere_panel = None
     if not headless and atmosphere_enabled:
-        try:
-            atmosphere_panel_module = import_module("marslab.gui.atmosphere_panel")
-            atmosphere_panel = atmosphere_panel_module.AtmospherePanel(atmosphere.atmosphere_dict)
-            for _ in range(5):
-                simulation_app.update()
-            _LOG.info("Atmosphere control panel created.")
-        except Exception as exc:  # noqa: BLE001 - legacy GUI failure boundary
-            _LOG.error("GUI panel unavailable (%s); continuing without it.", exc)
+        atmosphere_panel_module = import_module("marslab.gui.atmosphere_panel")
+        atmosphere_panel = atmosphere_panel_module.AtmospherePanel(atmosphere.atmosphere_dict)
+        cleanup_resources.atmosphere_panel = atmosphere_panel
+        for _ in range(5):
+            simulation_app.update()
+        _LOG.info("Atmosphere control panel created.")
 
     bridge = None
     if ros2_enabled:
@@ -191,10 +205,19 @@ def assemble_post_reset(
             ros2_cfg=rover.ros2.model_dump(mode="python"),
             sensor_frames=sensor_frames,
             node_name="marslab_main_rover",
-            urdf_path=str(rover.urdf_source_path),
             wheel_odom_params=wheel_odom_params,
             imu_noise_params=imu_noise_params,
             wheel_odom_publish_tf=wheel_odom_publish_tf,
+        )
+        cleanup_resources.bridge = bridge
+        cleanup_resources.rclpy_shutdown = bridge.shutdown
+        depth_module = import_module("marslab.ros2_bridge.depth_publisher")
+        bridge.depth_publisher = depth_module.create_depth_publisher(
+            bridge.node, pre_reset.sensors.camera_acquisition, rover.ros2
+        )
+        lidar_scan_module = import_module("marslab.ros2_bridge.lidar_scan_publisher")
+        bridge.lidar_scan_publisher = lidar_scan_module.create_lidar_scan_publisher(
+            bridge.node, pre_reset.sensors.lidar_2d_acquisition, rover.ros2
         )
     return PostResetAssembly(
         articulation=articulation,

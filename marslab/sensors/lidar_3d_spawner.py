@@ -5,10 +5,8 @@ Isaac imports are deferred to runtime calls."""
 from __future__ import annotations
 
 import logging
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -16,6 +14,7 @@ import numpy.typing as npt
 
 from marslab.config.schema.rover_sensors import Lidar3DConfig
 from marslab.quaternion import rpy_deg_to_quat
+from marslab.sensors.lidar_runtime import apply_range_and_scan_overrides, resolve_omnilidar_prim
 
 _POINT_CLOUD_ANNOTATOR = "IsaacExtractRTXSensorPointCloudNoAccumulator"
 _LOG = logging.getLogger(__name__)
@@ -36,8 +35,12 @@ class _PrimHandle(Protocol):
 
     def GetAttribute(self, name: str) -> "_AttributeHandle": ...
 
+    def GetAttributes(self) -> Sequence["_AttributeHandle"]: ...
+
 
 class _AttributeHandle(Protocol):
+    def GetName(self) -> str: ...
+
     def Set(self, value: float | list[float]) -> bool: ...
 
     def Get(self) -> float | Sequence[float] | None: ...
@@ -75,114 +78,29 @@ class Lidar3DSpawnHandles:
         return np.asarray(points, dtype=np.float32).reshape(-1, 3)
 
 
-def _resolve_lidar_profile(config: Lidar3DConfig) -> str:
-    """Resolve the configured profile name or explicit JSON path."""
-    profile_json_path: Path | None = config.profile_json_path
-    if profile_json_path is not None:
-        return str(profile_json_path)
-    profile_name: str | None = config.profile_name
-    if profile_name is not None:
-        return profile_name
-    raise ValueError("LiDAR config requires profile_name or profile_json_path")
-
-
-def _resolve_omnilidar_prim_path(stage: _StageHandle, prim_path: str) -> str:
-    """Find a referenced OmniLidar descendant when a carrier Xform is used."""
-    if not hasattr(stage, "GetPrimAtPath"):
-        return prim_path
-    root = stage.GetPrimAtPath(prim_path)
-    if root is None or not root.IsValid() or root.GetTypeName() == "OmniLidar":
-        return prim_path
-    stack = list(root.GetChildren())
-    while stack:
-        child = stack.pop()
-        if child.GetTypeName() == "OmniLidar":
-            return str(child.GetPath())
-        stack.extend(child.GetChildren())
-    return prim_path
-
-
-def _set_verified_scalar(
-    prim: _PrimHandle,
-    attribute_name: str,
-    requested: float,
-) -> float:
-    attribute = prim.GetAttribute(attribute_name)
-    if not attribute.Set(requested):
-        raise RuntimeError(f"LiDAR override write failed: {attribute_name}={requested}")
-    effective = attribute.Get()
-    if effective is None or isinstance(effective, Sequence):
-        raise RuntimeError(f"LiDAR override readback missing: {attribute_name}")
-    effective_value = float(effective)
-    if not math.isclose(effective_value, requested, rel_tol=1e-6, abs_tol=1e-6):
-        raise RuntimeError(
-            f"LiDAR override mismatch for {attribute_name}: "
-            f"requested={requested}, effective={effective_value}"
-        )
-    return effective_value
-
-
-def _apply_lidar_runtime_overrides(
-    stage: _StageHandle,
-    prim_path: str,
-    config: Lidar3DConfig,
-) -> None:
-    """Apply range, rate, and FOV overrides to the loaded OmniLidar prim."""
-    if not hasattr(stage, "GetPrimAtPath"):
-        return
-    prim = stage.GetPrimAtPath(prim_path)
-    if prim is None or not prim.IsValid():
-        raise RuntimeError(f"OmniLidar prim not found at {prim_path!r}")
-
-    near_range = _set_verified_scalar(prim, "omni:sensor:Core:nearRangeM", float(config.range_min))
-    far_range = _set_verified_scalar(prim, "omni:sensor:Core:farRangeM", float(config.range_max))
-    scan_rate = _set_verified_scalar(
-        prim, "omni:sensor:Core:scanRateBaseHz", float(config.rotation_rate_hz)
-    )
-
-    half_fov = float(config.horizontal_fov_deg) / 2.0
-    if half_fov >= 180.0:
-        start_azimuth, end_azimuth = 0.0, 360.0
-    else:
-        start_azimuth, end_azimuth = 360.0 - half_fov, half_fov
-    effective_start = _set_verified_scalar(
-        prim, "omni:sensor:Core:validStartAzimuthDeg", start_azimuth
-    )
-    effective_end = _set_verified_scalar(prim, "omni:sensor:Core:validEndAzimuthDeg", end_azimuth)
-
-    elevation_attribute = prim.GetAttribute("omni:sensor:Core:emitterState:s001:elevationDeg")
-    existing_value = elevation_attribute.Get()
-    existing = (
-        [] if existing_value is None or isinstance(existing_value, float) else list(existing_value)
-    )
-    if existing:
-        current_span = max(existing) - min(existing)
-        if current_span > 1e-6:
-            center = (max(existing) + min(existing)) / 2.0
-            scale = float(config.vertical_fov_deg) / current_span
-            requested_elevations = [(value - center) * scale for value in existing]
-            if not elevation_attribute.Set(requested_elevations):
-                raise RuntimeError("LiDAR elevation override write failed")
-            effective_elevations = elevation_attribute.Get()
-            if effective_elevations is None or not np.allclose(
-                effective_elevations,
-                requested_elevations,
-                rtol=1e-6,
-                atol=1e-6,
-            ):
-                raise RuntimeError("LiDAR elevation override readback mismatch")
-
-    _LOG.info(
-        "LiDAR runtime overrides:\n"
-        "  range: %.3f to %.3f m\n"
-        "  rotation rate: %.3f Hz\n"
-        "  azimuth: %.3f to %.3f deg",
-        near_range,
-        far_range,
-        scan_rate,
-        effective_start,
-        effective_end,
-    )
+def _apply_vertical_fov(prim: _PrimHandle, vertical_fov_deg: float) -> None:
+    states = []
+    for attribute in prim.GetAttributes():
+        name = str(attribute.GetName())
+        if name.startswith("omni:sensor:Core:emitterState:") and name.endswith(":elevationDeg"):
+            values = attribute.Get()
+            if values is not None:
+                states.append((attribute, np.asarray(values, dtype=np.float64)))
+    elevations = np.concatenate([values for _, values in states]) if states else np.array([])
+    if elevations.size < 2 or not np.all(np.isfinite(elevations)):
+        raise RuntimeError("3-D LiDAR profile requires finite emitter elevation arrays")
+    low, high = float(elevations.min()), float(elevations.max())
+    if high - low <= 1e-6:
+        raise RuntimeError("3-D LiDAR profile must contain multiple elevation layers")
+    center = (low + high) / 2.0
+    for attribute, values in states:
+        requested = ((values - center) * vertical_fov_deg / (high - low)).tolist()
+        if not attribute.Set(requested):
+            raise RuntimeError(f"LiDAR elevation write failed: {attribute.GetName()}")
+        effective = attribute.Get()
+        if effective is None or not np.allclose(effective, requested, rtol=1e-6, atol=1e-6):
+            raise RuntimeError(f"LiDAR elevation readback mismatch: {attribute.GetName()}")
+    _LOG.info("LiDAR %s: vertical FOV %.3f deg", prim.GetPath(), vertical_fov_deg)
 
 
 def spawn_lidar_3d(
@@ -194,29 +112,28 @@ def spawn_lidar_3d(
     from isaacsim.sensors.rtx import LidarRtx
 
     lidar_prim_path = f"{chassis_path}/lidar_3d"
+    if lidar_cfg.profile_name is None:
+        raise ValueError("3-D LiDAR requires a named native USD model")
     lidar_kwargs: dict[str, str | npt.NDArray[np.float32]] = {
         "prim_path": lidar_prim_path,
-        "config_file_name": _resolve_lidar_profile(lidar_cfg),
+        "name": "lidar_3d",
+        "config_file_name": lidar_cfg.profile_name,
         "translation": np.asarray(lidar_cfg.local_translation, dtype=np.float32),
+        "orientation": np.asarray(rpy_deg_to_quat(lidar_cfg.local_orientation_rpy_deg), dtype=np.float32),
     }
-    if any(abs(value) > 0.01 for value in lidar_cfg.local_orientation_rpy_deg):
-        lidar_kwargs["orientation"] = np.asarray(
-            rpy_deg_to_quat(lidar_cfg.local_orientation_rpy_deg), dtype=np.float32
-        )
-    if lidar_cfg.usd_profile is not None:
-        lidar_kwargs["name"] = lidar_cfg.usd_profile
     if lidar_cfg.variant is not None:
         lidar_kwargs["variant"] = lidar_cfg.variant
 
     lidar = LidarRtx(**lidar_kwargs)
-    resolved_prim_path = _resolve_omnilidar_prim_path(stage, lidar_prim_path)
-    _apply_lidar_runtime_overrides(stage, resolved_prim_path, lidar_cfg)
+    prim = resolve_omnilidar_prim(stage, lidar_prim_path)
+    apply_range_and_scan_overrides(prim, lidar_cfg)
+    _apply_vertical_fov(prim, lidar_cfg.vertical_fov_deg)
     lidar.initialize()
     lidar.attach_annotator(_POINT_CLOUD_ANNOTATOR)
     point_cloud_annotator = lidar.get_annotators()[_POINT_CLOUD_ANNOTATOR]
     return Lidar3DSpawnHandles(
         lidar=lidar,
-        lidar_prim_path=resolved_prim_path,
+        lidar_prim_path=str(prim.GetPath()),
         render_product_path=lidar.get_render_product_path(),
         point_cloud_annotator=point_cloud_annotator,
     )

@@ -1,10 +1,15 @@
-"""Broadband DNI using NASA TM-102299's plane-parallel Beer approximation."""
+"""Appelbaum–Flood Beer-law DNI, NASA TM-103623 equations 6–7.
+
+The source supports secant air mass up to about 80 degrees zenith. Values
+between 80 and 90 degrees retain that approximation for rendering continuity;
+they are outside its stated accuracy domain. See assets/atmosphere/README.md.
+"""
 
 import math
 
 
 def compute_direct_intensity(solar_constant: float, tau: float, zenith_angle_rad: float) -> float:
-    """Return I0 exp(-tau/cos(z)); the secant approximation degrades above z=80°."""
+    """Return I0 exp(-tau*m(z)), with m(z)=sec(z) and zero below the horizon."""
     if not math.isfinite(solar_constant) or solar_constant < 0:
         raise ValueError("solar_constant must be finite and >= 0")
     if not math.isfinite(tau) or tau < 0:

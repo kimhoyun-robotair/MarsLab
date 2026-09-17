@@ -6,32 +6,24 @@ from __future__ import annotations
 
 import logging
 import math
+from copy import deepcopy
 from dataclasses import dataclass, field
-from importlib import import_module
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional
 
 import numpy as np
 
+from marslab.robots.rover_control import constrain_ackermann_twist
+
 if TYPE_CHECKING:
+    from marslab.ros2_bridge.depth_publisher import DepthPublisher
     from marslab.ros2_bridge.imu_noise_publisher import ImuNoiseContext
+    from marslab.ros2_bridge.lidar_scan_publisher import LidarScanPublisher
     from marslab.ros2_bridge.odometry_publisher import GroundTruthPosePublisherContext
     from marslab.ros2_bridge.wheel_odometry_publisher import WheelOdometryContext
+    from marslab.sensors.imu_spawner import IMUSample
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_GRACE_STEPS = 120
-
-
-def _log_once(
-    target_logger: logging.Logger,
-    exc: BaseException,
-    category: str,
-    step_count: int,
-    grace_steps: int = _DEFAULT_GRACE_STEPS,
-) -> None:
-    """Log an exception during the grace period and stay silent afterwards."""
-    if step_count < grace_steps:
-        target_logger.error("%s (step=%d): %r", category, step_count, exc)
+_STEERING_STOP_WINDOW_SECONDS = 0.2
 
 
 @dataclass
@@ -42,6 +34,30 @@ class ControlState:
     current_steer_targets: np.ndarray
     step_count: int = 0
     latest_twist: Dict[str, float] = field(default_factory=lambda: {"v": 0.0, "w": 0.0})
+    last_command_sequence: float = 0
+    last_command_time: float | None = None
+    command_timed_out: bool = False
+    brake_positions: np.ndarray | None = None
+    steering_phase: Literal["drive", "brake", "align"] = "drive"
+    steering_goal: np.ndarray | None = None
+    drive_basis: np.ndarray | None = None
+    drive_twist_basis: tuple[float, float] = (0.0, 0.0)
+    settled_steps: int = 0
+    brake_motion_samples: list[tuple[float, np.ndarray]] = field(default_factory=list)
+
+
+@dataclass
+class EpisodeState:
+    """Stop begins a new time domain; Pause preserves the current one."""
+
+    index: int = 0
+    stop_pending: bool = False
+    restart_pending: bool = False
+    reinitializing: bool = False
+    last_physics_step: int = -1
+    last_stamp_ns: int | None = None
+    last_imu_stamp_ns: int | None = None
+    stale_imu_reported: bool = False
 
 
 @dataclass
@@ -61,6 +77,7 @@ class AtmosphereLoopState:
     update_interval: int = 60
     hdri_dir: str = ""
     sky_dome_config: Any = None
+    pending_physics_seconds: float = 0.0
 
 
 @dataclass
@@ -78,6 +95,7 @@ class LoopContext:
     track_steer: float
     track_middle: float
     wheel_radius: float
+    steering_axle_offset: float
     v_max: float
     w_max: float
     physics_dt: float
@@ -87,6 +105,10 @@ class LoopContext:
     decel_multiplier: float
     max_steer_angle: float
     steer_ramp_rate: float
+    steering_alignment_tolerance: float
+    steering_stop_speed: float
+    command_timeout: float
+    brake_stiffness: float
     control: ControlState
     atmosphere: AtmosphereLoopState
     odom_ctx: Optional["GroundTruthPosePublisherContext"]
@@ -95,6 +117,8 @@ class LoopContext:
     ackermann_fn: Callable[..., Any]
     spin_once: Optional[Callable[..., None]] = None
     imu_noise_ctx: Optional["ImuNoiseContext"] = None
+    depth_publisher: DepthPublisher | None = None
+    lidar_scan_publisher: LidarScanPublisher | None = None
     update_sun_fn: Optional[Callable[..., None]] = None
     update_sky_fn: Optional[Callable[..., None]] = None
     configure_fog_fn: Optional[Callable[..., None]] = None
@@ -104,6 +128,11 @@ class LoopContext:
     compute_diffuse_fn: Optional[Callable[..., float]] = None
     compute_sky_dome_fn: Optional[Callable[..., Any]] = None
     atmo_panel_update: Optional[Callable[[], None]] = None
+    reset_articulation: Optional[Callable[[], None]] = None
+    reset_depth_acquisition: Optional[Callable[[], None]] = None
+    read_imu_sample: Optional[Callable[[], "IMUSample | None"]] = None
+    publish_raw_imu: Optional[Callable[..., None]] = None
+    episode: EpisodeState = field(default_factory=EpisodeState)
 
 
 def _apply_ramp(
@@ -113,16 +142,150 @@ def _apply_ramp(
     decel_multiplier: float,
     ramp_enabled: bool,
 ) -> np.ndarray:
-    """Shared drive-ramp kernel."""
+    """Ramp one common scale so wheel-speed ratios survive acceleration."""
     if not ramp_enabled:
         current[...] = command
         return current
     delta = command - current
-    is_decel = np.abs(command) < np.abs(current)
-    step_lim = np.where(is_decel, per_step_limit * decel_multiplier, per_step_limit)
-    delta = np.clip(delta, -step_lim, step_lim)
-    current[...] = current + delta
+    largest_delta = float(np.max(np.abs(delta)))
+    is_decel = np.max(np.abs(command)) < np.max(np.abs(current))
+    step_limit = per_step_limit * (decel_multiplier if is_decel else 1.0)
+    if largest_delta <= step_limit:
+        current[...] = command
+    else:
+        current[...] += delta * (step_limit / largest_delta)
     return current
+
+
+def _coordinate_steering(
+    ctx: LoopContext,
+    steer_angles: np.ndarray,
+    wheel_velocities: np.ndarray,
+    v: float,
+    w: float,
+    steer_per_step_limit: float,
+    simulation_time: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Stop before changing wheel geometry, then drive after measured alignment."""
+    ctl = ctx.control
+    held = ctl.current_steer_targets
+    zero_drive = np.zeros_like(wheel_velocities)
+    if not np.any(wheel_velocities):
+        ctl.steering_phase = "drive"
+        ctl.steering_goal = held.copy()
+        ctl.drive_basis = None
+        ctl.drive_twist_basis = (0.0, 0.0)
+        ctl.settled_steps = 0
+        ctl.brake_motion_samples.clear()
+        return held.copy(), zero_drive
+
+    measured_steer = ctx.articulation.get_joint_positions(joint_indices=ctx.steer_indices)
+    measured_drive = ctx.articulation.get_joint_velocities(joint_indices=ctx.drive_indices)
+    drive_positions = ctx.articulation.get_joint_positions(joint_indices=ctx.drive_indices)
+    if measured_steer is None or measured_drive is None or drive_positions is None:
+        raise RuntimeError("Steering coordination requires live joint feedback")
+    measured_steer = np.asarray(measured_steer).reshape(-1)
+    measured_drive = np.asarray(measured_drive).reshape(-1)
+    drive_positions = np.asarray(drive_positions).reshape(-1)
+    if not all(np.isfinite(values).all() for values in (measured_steer, measured_drive, drive_positions)):
+        raise RuntimeError("Steering coordination received nonfinite joint feedback")
+
+    tolerance = ctx.steering_alignment_tolerance
+    if ctl.steering_goal is None:
+        ctl.steering_goal = held.copy()
+    requested_change = np.max(np.abs(steer_angles - ctl.steering_goal)) > tolerance
+    tracking_error = np.max(np.abs(measured_steer - ctl.steering_goal)) > tolerance
+    if ctl.steering_phase == "drive" and (
+        requested_change or tracking_error or ctl.drive_basis is None
+    ):
+        ctl.steering_phase = "brake"
+        ctl.settled_steps = 0
+        ctl.brake_motion_samples.clear()
+
+    if ctl.steering_phase == "brake":
+        stopped = False
+        history = ctl.brake_motion_samples
+        if np.any(ctl.current_drive_targets):
+            history.clear()
+        elif not history or simulation_time > history[-1][0]:
+            history.append((simulation_time, drive_positions.copy()))
+            while len(history) > 2 and history[1][0] <= simulation_time - _STEERING_STOP_WINDOW_SECONDS:
+                history.pop(0)
+            duration = simulation_time - history[0][0]
+            if duration >= _STEERING_STOP_WINDOW_SECONDS - 1e-9:
+                # Position excursion rejects motion without relying on noisy solver velocities.
+                positions = np.unwrap(np.stack([sample[1] for sample in history]), axis=0)
+                stopped = bool(np.max(np.ptp(positions, axis=0)) / duration <= ctx.steering_stop_speed)
+        ctl.settled_steps = ctl.settled_steps + 1 if stopped else 0
+        if ctl.settled_steps < 3:
+            return held.copy(), zero_drive
+        ctl.steering_phase = "align"
+        ctl.settled_steps = 0
+        history.clear()
+        ctl.steering_goal = steer_angles.copy()
+        magnitude = float(np.max(np.abs(wheel_velocities)))
+        ctl.drive_basis = wheel_velocities / magnitude
+        ctl.drive_twist_basis = (v / magnitude, w / magnitude)
+
+    if ctl.steering_phase == "align":
+        if np.max(np.abs(steer_angles - ctl.steering_goal)) > tolerance:
+            ctl.steering_goal = steer_angles.copy()
+            magnitude = float(np.max(np.abs(wheel_velocities)))
+            ctl.drive_basis = wheel_velocities / magnitude
+            ctl.drive_twist_basis = (v / magnitude, w / magnitude)
+            ctl.settled_steps = 0
+        ramped = held + np.clip(
+            ctl.steering_goal - held, -steer_per_step_limit, steer_per_step_limit
+        )
+        aligned = np.max(np.abs(ramped - ctl.steering_goal)) < 1e-6 and (
+            np.max(np.abs(measured_steer - ctl.steering_goal)) <= tolerance
+        )
+        ctl.settled_steps = ctl.settled_steps + 1 if aligned else 0
+        if ctl.settled_steps >= 3:
+            ctl.steering_phase = "drive"
+            ctl.settled_steps = 0
+        return ramped, zero_drive
+
+    # Small intent changes keep the committed steering geometry and speed ratios.
+    basis = ctl.drive_basis
+    if basis is None:
+        raise RuntimeError("Driving requires an aligned wheel-speed basis")
+    scale = float(np.dot(wheel_velocities, basis) / np.dot(basis, basis))
+    limit = float(np.max(np.abs(wheel_velocities)))
+    unit_v, unit_w = ctl.drive_twist_basis
+    if unit_v:
+        limit = min(limit, ctx.v_max / abs(unit_v))
+    if unit_w:
+        limit = min(limit, ctx.w_max / abs(unit_w))
+    return held.copy(), basis * float(np.clip(scale, -limit, limit))
+
+
+def _apply_wheel_drive_targets(
+    ctx: LoopContext, velocities: np.ndarray, drive_indices: np.ndarray
+) -> None:
+    """Latch wheel angles at rest; release position feedback before driving."""
+    control = ctx.control
+    hold = ctx.brake_stiffness > 0.0 and not np.any(velocities)
+    was_holding = control.brake_positions is not None
+    if hold and not was_holding:
+        positions = ctx.articulation.get_joint_positions(joint_indices=drive_indices)
+        if positions is None or not np.all(np.isfinite(positions)):
+            raise RuntimeError("Cannot engage wheel brake without finite measured joint positions")
+        control.brake_positions = np.asarray(positions, dtype=np.float32).copy()
+        ctx.articulation.set_joint_position_targets(
+            control.brake_positions, joint_indices=drive_indices
+        )
+    if hold != was_holding:
+        stiffness = ctx.brake_stiffness if hold else 0.0
+        gains = np.full((1, len(drive_indices)), stiffness, dtype=np.float32)
+        ctx.articulation.set_gains(kps=gains, joint_indices=drive_indices)
+        applied, _ = ctx.articulation.get_gains(joint_indices=drive_indices)
+        if not np.allclose(applied, gains):
+            raise RuntimeError("Wheel brake stiffness was not applied to the articulation")
+        if not hold:
+            control.brake_positions = None
+        logger.info("Wheel parking brake %s", "engaged" if hold else "released")
+    ctx.articulation.set_joint_velocity_targets(velocities, joint_indices=drive_indices)
 
 
 def build_atmosphere_loop_state(
@@ -156,99 +319,186 @@ def build_atmosphere_loop_state(
     )
 
 
+def _reset_episode_state(
+    ctx: LoopContext, initial_atmosphere: dict[str, Any], initial_elapsed: float
+) -> None:
+    from marslab.ros2_bridge.imu_noise_publisher import reset_imu_noise
+    from marslab.ros2_bridge.wheel_odometry_publisher import reset_wheel_odometry
+
+    state = ctx.episode
+    state.index += 1
+    state.stop_pending = False
+    state.restart_pending = True
+    state.last_stamp_ns = None
+    state.last_imu_stamp_ns = None
+    state.stale_imu_reported = False
+    ctx.control.step_count = 0
+    ctx.control.current_drive_targets.fill(0.0)
+    ctx.control.current_steer_targets.fill(0.0)
+    ctx.control.latest_twist.update(v=0.0, w=0.0, sequence=0)
+    ctx.control.last_command_sequence = 0
+    ctx.control.last_command_time = None
+    ctx.control.command_timed_out = False
+    ctx.control.brake_positions = None
+    ctx.control.steering_phase = "drive"
+    ctx.control.steering_goal = None
+    ctx.control.drive_basis = None
+    ctx.control.drive_twist_basis = (0.0, 0.0)
+    ctx.control.settled_steps = 0
+    ctx.control.brake_motion_samples.clear()
+    if ctx.wheel_odom_ctx is not None:
+        reset_wheel_odometry(ctx.wheel_odom_ctx)
+    if ctx.imu_noise_ctx is not None:
+        reset_imu_noise(ctx.imu_noise_ctx)
+    if ctx.reset_depth_acquisition is not None:
+        ctx.reset_depth_acquisition()
+    if ctx.depth_publisher is not None:
+        ctx.depth_publisher.reset()
+    if ctx.lidar_scan_publisher is not None:
+        ctx.lidar_scan_publisher.reset()
+    atmo = ctx.atmosphere
+    atmo.atmosphere_dict.clear()
+    atmo.atmosphere_dict.update(deepcopy(initial_atmosphere))
+    atmo.elapsed = initial_elapsed
+    atmo.auto_peak_el = 0.0
+    atmo.last_auto_angles = None
+    atmo.pending_physics_seconds = 0.0
+    _update_atmosphere(ctx, advance_seconds=0.0)
+    logger.info("Simulation episode %d reset after Stop", state.index)
+
+
 def run_main_loop(ctx: LoopContext) -> int:
-    """Drive the Stage 3 monolithic runtime until the sim stops."""
+    """Publish completed physics snapshots and preserve state across Pause."""
+    import omni.timeline
+    from isaacsim.core.simulation_manager import SimulationManager
+
     ctl = ctx.control
     atmo = ctx.atmosphere
-    odom_ctx = ctx.odom_ctx
-
+    episode = ctx.episode
+    initial_atmosphere = deepcopy(atmo.atmosphere_dict)
+    initial_elapsed = atmo.elapsed
     drive_idx_arr = np.asarray(ctx.drive_indices, dtype=np.int32)
     steer_idx_arr = np.asarray(ctx.steer_indices, dtype=np.int32)
-
     per_step_limit = ctx.max_wheel_accel_rate * ctx.physics_dt
     steer_per_step_limit = ctx.steer_ramp_rate * ctx.physics_dt
-    drive_ramp_enabled = ctx.max_wheel_accel_rate > 0
-    steer_ramp_enabled = ctx.steer_ramp_rate > 0
+    timeline = omni.timeline.get_timeline_interface()
+    callback_name = "marslab_runtime_episode"
 
+    def timeline_event(event: Any) -> None:
+        if event.type == int(omni.timeline.TimelineEventType.STOP):
+            if not episode.reinitializing:
+                episode.stop_pending = True
+        elif event.type == int(omni.timeline.TimelineEventType.PAUSE):
+            logger.info("Simulation paused at physics step %d", episode.last_physics_step)
+
+    ctx.world.add_timeline_callback(callback_name, timeline_event)
+    episode.last_physics_step = SimulationManager.get_num_physics_steps()
     iterations = 0
     try:
         while ctx.simulation_app.is_running():
             iterations += 1
             if ctx.spin_once is not None:
                 ctx.spin_once()
-
-            if ctx.articulation is not None:
-                v_raw = ctl.latest_twist["v"]
-                w_raw = ctl.latest_twist["w"]
-                v = float(np.clip(v_raw, -ctx.v_max, ctx.v_max))
-                w = float(np.clip(w_raw, -ctx.w_max, ctx.w_max))
-
-                steer_angles, wheel_vels = ctx.ackermann_fn(
-                    v,
-                    w,
-                    ctx.wheelbase,
-                    ctx.track_steer,
-                    ctx.track_middle,
-                    ctx.wheel_radius,
-                )
-                if ctx.negate_steer:
-                    steer_angles = -steer_angles
-
-                steer_angles = np.clip(steer_angles, -ctx.max_steer_angle, ctx.max_steer_angle)
-
-                if steer_ramp_enabled:
-                    s_delta = steer_angles - ctl.current_steer_targets
-                    s_delta = np.clip(s_delta, -steer_per_step_limit, steer_per_step_limit)
-                    ctl.current_steer_targets = ctl.current_steer_targets + s_delta
-                    ramped_steer = ctl.current_steer_targets
-                else:
-                    ramped_steer = steer_angles
-
-                ramped_vels = _apply_ramp(
-                    wheel_vels,
-                    ctl.current_drive_targets,
-                    per_step_limit,
-                    ctx.decel_multiplier,
-                    drive_ramp_enabled,
-                )
-
+            if episode.stop_pending:
+                _reset_episode_state(ctx, initial_atmosphere, initial_elapsed)
+            if not timeline.is_playing():
+                ctx.simulation_app.update()
+                continue
+            if episode.restart_pending:
+                if ctx.reset_articulation is None:
+                    raise RuntimeError("Missing articulation reset owner for Stop/Play")
+                episode.reinitializing = True
                 try:
-                    ctx.articulation.set_joint_position_targets(
-                        ramped_steer, joint_indices=steer_idx_arr
+                    ctx.reset_articulation()
+                finally:
+                    episode.reinitializing = False
+                episode.restart_pending = False
+                episode.last_physics_step = SimulationManager.get_num_physics_steps()
+                logger.info("Simulation episode %d ready after Play", episode.index)
+
+            before_step = SimulationManager.get_num_physics_steps()
+            before_time = SimulationManager.get_simulation_time()
+            sequence = ctl.latest_twist.get("sequence", 0)
+            if sequence != ctl.last_command_sequence:
+                ctl.last_command_sequence = sequence
+                ctl.last_command_time = before_time
+                ctl.command_timed_out = False
+            v = ctl.latest_twist["v"]
+            w = ctl.latest_twist["w"]
+            if not math.isfinite(v) or not math.isfinite(w):
+                logger.error("Non-finite control state; requesting a controlled stop")
+                ctl.latest_twist.update(v=0.0, w=0.0)
+                v = w = 0.0
+            if ctl.last_command_time is None:
+                v = w = 0.0
+            elif before_time - ctl.last_command_time >= ctx.command_timeout:
+                if not ctl.command_timed_out and (v != 0.0 or w != 0.0):
+                    logger.warning(
+                        "cmd_vel timed out after %.3f simulation seconds", ctx.command_timeout
                     )
-                    ctx.articulation.set_joint_velocity_targets(
-                        ramped_vels, joint_indices=drive_idx_arr
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    _log_once(logger, exc, "joint_target_set_failed", ctl.step_count)
-
-                if ctx.debug_logging and ctl.step_count % 60 == 0:
-                    _debug_log_step(
-                        ctx, steer_idx_arr, drive_idx_arr, v, w, steer_angles, ramped_vels
-                    )
-
-            if odom_ctx is not None and odom_ctx.publisher is not None:
-                _publish_ground_truth_pose(ctx, ctl.step_count)
-
-            if ctx.wheel_odom_ctx is not None and ctx.wheel_odom_ctx.publisher is not None:
-                _publish_wheel_odometry(ctx, ctl.step_count)
-
-            if ctx.imu_noise_ctx is not None and ctx.imu_noise_ctx.publisher is not None:
-                _publish_imu_with_noise(ctx, ctl.step_count)
-
-            if ctl.step_count % atmo.update_interval == 0 and ctl.step_count > 0:
-                _update_atmosphere(ctx)
-
-            ctl.step_count += 1
+                ctl.command_timed_out = True
+                v = w = 0.0
+            v = float(np.clip(v, -ctx.v_max, ctx.v_max))
+            w = float(np.clip(w, -ctx.w_max, ctx.w_max))
+            v, w = constrain_ackermann_twist(
+                v, w, ctx.wheelbase, ctx.track_steer, ctx.max_steer_angle,
+                ctx.steering_axle_offset,
+            )
+            steer_angles, wheel_vels = ctx.ackermann_fn(
+                v, w, ctx.wheelbase, ctx.track_steer, ctx.track_middle, ctx.wheel_radius,
+                ctx.steering_axle_offset,
+            )
+            if ctx.negate_steer:
+                steer_angles = -steer_angles
+            ramped_steer, wheel_vels = _coordinate_steering(
+                ctx, steer_angles, wheel_vels, v, w, steer_per_step_limit, before_time
+            )
+            ramped_vels = _apply_ramp(
+                wheel_vels,
+                ctl.current_drive_targets.copy(),
+                per_step_limit,
+                ctx.decel_multiplier,
+                ctx.max_wheel_accel_rate > 0,
+            )
+            ctx.articulation.set_joint_position_targets(ramped_steer, joint_indices=steer_idx_arr)
+            _apply_wheel_drive_targets(ctx, ramped_vels, drive_idx_arr)
             ctx.world.step(render=True)
+            after_step = SimulationManager.get_num_physics_steps()
+            if episode.stop_pending or after_step <= before_step:
+                continue
+            completed_time = SimulationManager.get_simulation_time()
+            stamp_ns = int(completed_time * 1_000_000_000)
+            if episode.last_stamp_ns is not None and stamp_ns <= episode.last_stamp_ns:
+                raise RuntimeError("Physics time failed to advance within the current episode")
+            episode.last_physics_step = after_step
+            episode.last_stamp_ns = stamp_ns
+            ctl.current_steer_targets[:] = ramped_steer
+            ctl.current_drive_targets[:] = ramped_vels
+            previous_step_count = ctl.step_count
+            ctl.step_count += after_step - before_step
+            _publish_ground_truth_pose(ctx, stamp_ns)
+            _publish_wheel_odometry(ctx, stamp_ns)
+            if ctx.publish_raw_imu is not None:
+                _publish_imu_sample(ctx, stamp_ns)
+            if ctx.depth_publisher is not None:
+                ctx.depth_publisher.publish_latest()
+            if ctx.lidar_scan_publisher is not None:
+                ctx.lidar_scan_publisher.publish_latest()
+            atmo.pending_physics_seconds += completed_time - before_time
+            if ctl.step_count // atmo.update_interval > previous_step_count // atmo.update_interval:
+                _update_atmosphere(ctx, advance_seconds=atmo.pending_physics_seconds)
+                atmo.pending_physics_seconds = 0.0
+            if ctx.debug_logging and ctl.step_count % 60 == 0:
+                _debug_log_step(ctx, steer_idx_arr, drive_idx_arr, v, w, steer_angles, ramped_vels)
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt -- shutting down.")
         return 0
+    finally:
+        ctx.world.remove_timeline_callback(callback_name)
 
     if iterations == 0:
         logger.error("Simulation App was not running before the first simulation step.")
         return 1
-
     return 0
 
 
@@ -282,8 +532,10 @@ def _debug_log_step(
                 ramped_vels,
                 d_vel,
             )
-    except Exception as exc:  # noqa: BLE001
-        _log_once(logger, exc, "articulation_probe_failed", ctx.control.step_count)
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "Articulation diagnostic failed at physics step %d", ctx.control.step_count
+        )
     try:
         imu_frame = ctx.imu.get_current_frame()
         if imu_frame is not None and "lin_acc" in imu_frame:
@@ -295,113 +547,85 @@ def _debug_log_step(
                 la[1],
                 la[2],
             )
-    except Exception as exc:  # noqa: BLE001
-        _log_once(logger, exc, "imu_frame_fetch_failed", ctx.control.step_count)
+    except Exception:  # noqa: BLE001
+        logger.exception("IMU diagnostic failed at physics step %d", ctx.control.step_count)
 
 
-def _publish_ground_truth_pose(ctx: LoopContext, step_count: int) -> None:
-    """Delegate GT pose publish to the canonical ground-truth publisher."""
-    odom_ctx = ctx.odom_ctx
-    if odom_ctx is None:
+def _publish_ground_truth_pose(ctx: LoopContext, stamp_ns: int) -> None:
+    if ctx.odom_ctx is None:
         return
-
     from marslab.ros2_bridge.odometry_publisher import publish_ground_truth_pose
 
-    try:
-        rover_poses_odom = ctx.articulation.get_world_poses()
-        if rover_poses_odom is None:
-            _log_once(
-                logger,
-                RuntimeError("get_world_poses returned None"),
-                "world_pose_query_failed",
-                step_count,
-            )
-            return
-        _rp, _rq = rover_poses_odom
-        cur_pos = _rp[0] if _rp.ndim == 2 else _rp
-        cur_quat = _rq[0] if _rq.ndim == 2 else _rq
-
-        try:
-            lin_vel = ctx.articulation.get_linear_velocities()
-            ang_vel = ctx.articulation.get_angular_velocities()
-        except Exception as vel_exc:  # noqa: BLE001
-            _log_once(logger, vel_exc, "velocity_query_failed", step_count)
-            lin_vel = None
-            ang_vel = None
-        if lin_vel is not None and ang_vel is not None:
-            lv = lin_vel[0] if lin_vel.ndim == 2 else lin_vel
-            av = ang_vel[0] if ang_vel.ndim == 2 else ang_vel
-        else:
-            lv = np.zeros(3, dtype=np.float32)
-            av = np.zeros(3, dtype=np.float32)
-
-        publish_ground_truth_pose(
-            odom_ctx,
-            cur_pos_world=cur_pos,
-            cur_quat_world=cur_quat,
-            linear_vel_world=lv,
-            angular_vel_world=av,
-        )
-    except Exception as odom_exc:  # noqa: BLE001
-        _log_once(logger, odom_exc, "odom_publish_failed", step_count)
+    poses = ctx.articulation.get_world_poses()
+    if poses is None:
+        raise RuntimeError("Completed physics step has no ground-truth pose")
+    positions, orientations = poses
+    linear = ctx.articulation.get_linear_velocities()
+    angular = ctx.articulation.get_angular_velocities()
+    if linear is None or angular is None:
+        raise RuntimeError("Completed physics step has no ground-truth velocity")
+    publish_ground_truth_pose(
+        ctx.odom_ctx,
+        cur_pos_world=positions[0] if positions.ndim == 2 else positions,
+        cur_quat_world=orientations[0] if orientations.ndim == 2 else orientations,
+        linear_vel_world=linear[0] if linear.ndim == 2 else linear,
+        angular_vel_world=angular[0] if angular.ndim == 2 else angular,
+        stamp_ns=stamp_ns,
+    )
 
 
-def _publish_wheel_odometry(ctx: LoopContext, step_count: int) -> None:
-    """Integrate wheel joint velocities and publish noisy odometry."""
-    wheel_ctx = ctx.wheel_odom_ctx
-    if wheel_ctx is None:
+def _publish_wheel_odometry(ctx: LoopContext, stamp_ns: int) -> None:
+    if ctx.wheel_odom_ctx is None:
         return
-
     from marslab.ros2_bridge.wheel_odometry_publisher import publish_wheel_odometry
 
-    try:
-        jv = ctx.articulation.get_joint_velocities()
-        if jv is None:
-            _log_once(
-                logger,
-                RuntimeError("get_joint_velocities returned None"),
-                "joint_velocity_query_failed",
-                step_count,
-            )
-            return
-        publish_wheel_odometry(wheel_ctx, jv)
-    except Exception as exc:  # noqa: BLE001
-        _log_once(logger, exc, "wheel_odom_publish_failed", step_count)
+    velocities = ctx.articulation.get_joint_velocities()
+    if velocities is None:
+        raise RuntimeError("Completed physics step has no wheel velocities")
+    positions = ctx.articulation.get_joint_positions()
+    if positions is None:
+        raise RuntimeError("Completed physics step has no steering positions")
+    publish_wheel_odometry(ctx.wheel_odom_ctx, velocities, positions, stamp_ns=stamp_ns)
 
 
-def _publish_imu_with_noise(ctx: LoopContext, step_count: int) -> None:
-    """Read the PhysX IMU frame, inject seeded Gaussian noise, publish."""
-    imu_ctx = ctx.imu_noise_ctx
-    if imu_ctx is None:
+def _publish_imu_sample(ctx: LoopContext, physics_stamp_ns: int) -> None:
+    if ctx.read_imu_sample is None or ctx.publish_raw_imu is None:
         return
+    sample = ctx.read_imu_sample()
+    if sample is None:
+        return
+    previous = ctx.episode.last_imu_stamp_ns
+    if previous is not None and sample.stamp_ns <= previous:
+        return
+    # Native IMU time is float32; allow its quantization relative to the physics clock.
+    timestamp_tolerance_ns = max(
+        1, math.ceil(float(np.spacing(np.float32(physics_stamp_ns * 1e-9))) * 1e9)
+    )
+    if sample.stamp_ns > physics_stamp_ns + timestamp_tolerance_ns:
+        if not ctx.episode.stale_imu_reported:
+            logger.warning("Discarding an IMU sample outside the current simulation time domain")
+            ctx.episode.stale_imu_reported = True
+        return
+    ctx.publish_raw_imu(
+        sample.stamp_seconds,
+        sample.linear_acceleration,
+        sample.angular_velocity,
+        sample.orientation_xyzw,
+    )
+    if ctx.imu_noise_ctx is not None:
+        from marslab.ros2_bridge.imu_noise_publisher import publish_imu_with_noise
 
-    from marslab.ros2_bridge.imu_noise_publisher import publish_imu_with_noise
-
-    try:
-        _imu_sensor = vars(import_module("isaacsim.sensors.physics"))["_sensor"]
-    except (ImportError, KeyError):
-        try:
-            _imu_sensor = vars(import_module("omni.isaac.sensor"))["_sensor"]
-        except (ImportError, KeyError):
-            return
-
-    try:
-        imu_interface = _imu_sensor.acquire_imu_sensor_interface()
-        reading = imu_interface.get_sensor_reading(
-            imu_ctx.imu_prim_path, use_latest_data=True, read_gravity=True
+        publish_imu_with_noise(
+            ctx.imu_noise_ctx,
+            sample.linear_acceleration,
+            sample.angular_velocity,
+            orientation_wxyz=sample.orientation_xyzw[[3, 0, 1, 2]],
+            stamp_ns=sample.stamp_ns,
         )
-        lin_acc = np.array(
-            [reading.lin_acc_x, reading.lin_acc_y, reading.lin_acc_z], dtype=np.float64
-        )
-        ang_vel = np.array(
-            [reading.ang_vel_x, reading.ang_vel_y, reading.ang_vel_z], dtype=np.float64
-        )
-        publish_imu_with_noise(imu_ctx, lin_acc, ang_vel)
-    except Exception as exc:  # noqa: BLE001
-        _log_once(logger, exc, "imu_noise_publish_failed", step_count)
+    ctx.episode.last_imu_stamp_ns = sample.stamp_ns
 
 
-def _update_atmosphere(ctx: LoopContext) -> None:
+def _update_atmosphere(ctx: LoopContext, *, advance_seconds: float | None = None) -> None:
     """Step the dynamic atmosphere sweep and push updates into the stage."""
     atmo = ctx.atmosphere
     state = atmo.atmosphere_dict
@@ -423,7 +647,11 @@ def _update_atmosphere(ctx: LoopContext) -> None:
             atmo.elapsed = phase * atmo.sol_duration
             dyn_sun_pos = ctx.compute_sun_fn(*angles)
         else:
-            step = ctx.physics_dt * atmo.update_interval * atmo.time_scale
+            step = (
+                ctx.physics_dt * atmo.update_interval
+                if advance_seconds is None
+                else advance_seconds
+            ) * atmo.time_scale
             atmo.elapsed += step
             sweep = ctx.compute_sol_sun_fn(
                 time_of_sol_fraction=(atmo.elapsed % atmo.sol_duration) / atmo.sol_duration,
@@ -458,9 +686,7 @@ def _update_atmosphere(ctx: LoopContext) -> None:
     ):
         return
 
-    direct = ctx.compute_direct_fn(
-        atmo.solar_constant, current_tau, dyn_sun_pos.zenith_angle_rad
-    )
+    direct = ctx.compute_direct_fn(atmo.solar_constant, current_tau, dyn_sun_pos.zenith_angle_rad)
     diffuse = ctx.compute_diffuse_fn(current_tau)
     dyn_sky = ctx.compute_sky_dome_fn(
         current_tau,

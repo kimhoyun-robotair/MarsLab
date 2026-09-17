@@ -9,6 +9,7 @@ class RuntimeConfig(StrictConfigModel):
     headless: bool
     ros2_enabled: bool
     atmosphere_enabled: bool
+    enable_motion_bvh: bool = True
 
 
 class WheelOdomConfig(StrictConfigModel):

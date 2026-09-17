@@ -1,22 +1,10 @@
-"""Pure-Python rover control primitives (Ackermann command).
+"""Compute feasible Ackermann commands without Isaac or ROS dependencies.
 
-Pure NumPy: no Isaac Sim, no ROS2, no IO -- can be unit-tested without
-booting any simulation.
-
-Contents:
-    * ``ackermann_command`` -- ICR-based steer angles + Euclidean
-      per-wheel angular velocities for a 6-wheel rocker-bogie rover.
-
-The per-step ramp / clamp limiters live inline in
-``marslab.runtime.main_loop`` (single-source: the runtime owns the
-ramp state across ticks), so this module only exposes the
-stateless command computation.
-
-Coordinate convention (internal):
-    X+ = rover forward, Y+ = rover left, Z+ = up.
-    Steer angle positive = wheel turns left (CCW from above).
+Axes are X forward, Y left, Z up; positive steering turns left.
+The runtime owns acceleration and steering ramp state.
 """
 
+import math
 from typing import Tuple
 
 import numpy as np
@@ -28,6 +16,33 @@ _EPS_W = 1e-6
 _EPS_DY = 1e-9
 
 
+def constrain_ackermann_twist(
+    v: float,
+    w: float,
+    wheelbase: float,
+    track_steer: float,
+    max_steer_angle: float,
+    steering_axle_offset: float = 0.0,
+) -> tuple[float, float]:
+    """Preserve a feasible point turn or limit yaw to an exterior rolling arc."""
+    if not all(math.isfinite(value) for value in (
+        v, w, wheelbase, track_steer, max_steer_angle, steering_axle_offset
+    )):
+        raise ValueError("Ackermann command and geometry must be finite")
+    if wheelbase <= 0.0 or track_steer <= 0.0 or not 0.0 < max_steer_angle < math.pi / 2.0:
+        raise ValueError("Ackermann geometry must be positive and steering limit below pi/2")
+    if abs(steering_axle_offset) >= wheelbase / 2.0:
+        raise ValueError("steering axle offset must lie between front and rear axles")
+    longest_arm = wheelbase / 2.0 + abs(steering_axle_offset)
+    if abs(v) < 1e-6:
+        if abs(w) >= _EPS_W and math.atan2(longest_arm, track_steer / 2.0) > max_steer_angle:
+            raise ValueError("steering limit is insufficient for a point turn")
+        return 0.0, w
+    min_radius = track_steer / 2.0 + longest_arm / math.tan(max_steer_angle)
+    yaw_limit = abs(v) / min_radius
+    return v, max(-yaw_limit, min(w, yaw_limit))
+
+
 def ackermann_command(
     v: float,
     w: float,
@@ -35,6 +50,7 @@ def ackermann_command(
     track_steer: float,
     track_middle: float,
     wheel_radius: float,
+    steering_axle_offset: float = 0.0,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Compute Ackermann steer angles and per-wheel angular velocities.
 
@@ -45,6 +61,7 @@ def ackermann_command(
         track_steer: Lateral distance between front/rear steerable wheels (m).
         track_middle: Lateral distance between middle non-steerable wheels (m).
         wheel_radius: Wheel rolling radius (m).
+        steering_axle_offset: Steering axle midpoint ahead of the middle axle (m).
 
     Returns:
         Tuple of two arrays:
@@ -53,8 +70,14 @@ def ackermann_command(
                 ``[LF, LM, LR, RF, RM, RR]`` in rad/s.
 
     Raises:
-        ValueError: If any geometric parameter is non-positive.
+        ValueError: If commands or geometry are non-finite, or geometry is non-positive.
     """
+    if not all(
+        math.isfinite(value) for value in (
+            v, w, wheelbase, track_steer, track_middle, wheel_radius, steering_axle_offset
+        )
+    ):
+        raise ValueError("Ackermann command and geometry must be finite")
     if wheelbase <= 0.0:
         raise ValueError(f"wheelbase must be > 0, got {wheelbase}")
     if track_steer <= 0.0:
@@ -63,10 +86,14 @@ def ackermann_command(
         raise ValueError(f"track_middle must be > 0, got {track_middle}")
     if wheel_radius <= 0.0:
         raise ValueError(f"wheel_radius must be > 0, got {wheel_radius}")
+    if abs(steering_axle_offset) >= wheelbase / 2.0:
+        raise ValueError("steering axle offset must lie between front and rear axles")
 
     half_wb = wheelbase / 2.0
     half_ts = track_steer / 2.0
     half_tm = track_middle / 2.0
+    front_x = half_wb + steering_axle_offset
+    rear_x = -half_wb + steering_axle_offset
 
     # Straight: no angular velocity -> all steer zero, uniform drive.
     if abs(w) < _EPS_W:
@@ -81,10 +108,10 @@ def ackermann_command(
 
     # Steerable wheel positions -- order: [LF, LR, RF, RR].
     steer_xy = [
-        (+half_wb, +half_ts),  # LF: front-left
-        (-half_wb, +half_ts),  # LR: rear-left
-        (+half_wb, -half_ts),  # RF: front-right
-        (-half_wb, -half_ts),  # RR: rear-right
+        (front_x, +half_ts),  # LF: front-left
+        (rear_x, +half_ts),  # LR: rear-left
+        (front_x, -half_ts),  # RF: front-right
+        (rear_x, -half_ts),  # RR: rear-right
     ]
 
     steer_angles = np.zeros(4, dtype=np.float32)
@@ -98,15 +125,8 @@ def ackermann_command(
             # clamps.
             steer_angles[i] = float(np.copysign(np.pi / 2.0, x_w if x_w != 0.0 else 1.0))
         else:
-            # arctan2(x_w, dy) instead of arctan(x_w/dy): the division
-            # form silently drops the sign of dy so tight turns
-            # (R < half_ts, dy < 0 on the inside wheel) land in the
-            # wrong quadrant and the "dy == 0" branch above is never
-            # reached for small-but-nonzero dy.  The result is wrapped
-            # into the principal wheel-axis range (-pi/2, pi/2] -- a
-            # real steer joint has +/-40 deg limits, so values outside
-            # (-pi/2, pi/2) must flip the wheel by pi and let the drive
-            # velocity compensate (see below).
+            # Keep the wheel axis within +/-90 degrees; drive signs account
+            # for the pi reversal on the inner side of the rotation center.
             theta = float(np.arctan2(x_w, dy))
             if theta > np.pi / 2.0:
                 theta -= np.pi
@@ -127,12 +147,12 @@ def ackermann_command(
     # the principal range, omega_wheel has the sign of (w * dy) --
     # exactly the original copysign(w, w*dy) convention.
     drive_xy = [
-        (+half_wb, +half_ts),  # LF
+        (front_x, +half_ts),  # LF
         (0.0, +half_tm),  # LM
-        (-half_wb, +half_ts),  # LR
-        (+half_wb, -half_ts),  # RF
+        (rear_x, +half_ts),  # LR
+        (front_x, -half_ts),  # RF
         (0.0, -half_tm),  # RM
-        (-half_wb, -half_ts),  # RR
+        (rear_x, -half_ts),  # RR
     ]
 
     wheel_velocities = np.zeros(6, dtype=np.float32)

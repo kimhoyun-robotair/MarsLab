@@ -12,7 +12,6 @@ from marslab.config.schema.rover_ros2 import Ros2BridgeConfig
 from marslab.ros2_bridge.cmd_vel_subscriber import create_cmd_vel_subscriber
 from marslab.ros2_bridge.imu_noise_publisher import create_imu_noise_publisher
 from marslab.ros2_bridge.odometry_publisher import create_ground_truth_pose_publisher
-from marslab.ros2_bridge.robot_description_publisher import publish_robot_description
 from marslab.ros2_bridge.sensor_graph_builder import _ns_topic
 from marslab.ros2_bridge.tf_broadcaster import publish_static_sensor_tfs
 from marslab.ros2_bridge.wheel_odometry_publisher import create_wheel_odometry_publisher
@@ -85,20 +84,6 @@ def create_static_tf_setup(
     )
 
 
-def create_robot_description_setup(
-    node: Any,
-    config: Ros2BridgeConfig,
-    urdf_path: str | None,
-) -> Any | None:
-    if config.publish_robot_description and urdf_path:
-        return publish_robot_description(
-            node,
-            urdf_path,
-            topic=_ns_topic(config.namespace, config.topics.robot_description),
-        )
-    return None
-
-
 def create_ground_truth_setup(node: Any, config: Ros2BridgeConfig, qos: QosBundle) -> Any:
     odom = config.odom_publisher
     return create_ground_truth_pose_publisher(
@@ -126,8 +111,13 @@ def create_wheel_odometry_setup(
         topic=_ns_topic(config.namespace, config.topics.odom),
         left_indices=params["left_indices"],
         right_indices=params["right_indices"],
+        steering_indices=params["steering_indices"],
         wheel_radius=float(params["wheel_radius"]),
-        track_width=float(params["track_width"]),
+        wheelbase=float(params["wheelbase"]),
+        steering_axle_offset=float(params["steering_axle_offset"]),
+        track_steer=float(params["track_steer"]),
+        track_middle=float(params["track_middle"]),
+        negate_steer=bool(params["negate_steer"]),
         slip_left=float(params.get("slip_left", 0.0)),
         slip_right=float(params.get("slip_right", 0.0)),
         sigma_omega=float(params.get("sigma_omega", 0.0)),
@@ -173,7 +163,6 @@ __all__ = [
     "create_ground_truth_setup",
     "create_noisy_imu_setup",
     "create_rclpy_node",
-    "create_robot_description_setup",
     "create_static_tf_setup",
     "create_wheel_odometry_setup",
     "resolve_qos_bundle",
