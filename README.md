@@ -48,6 +48,16 @@
 
 ---
 
+> [!IMPORTANT]
+> **🚧 Scene Generation v2.0 — In Development**
+>
+> We are preparing Version 2.0 of MarsLab's scene-generation pipeline,
+> with improved photorealism and more detailed modeling of the Martian
+> environment and its physical properties.
+>
+> Scene-generation tools are currently not included in this repository.
+> Please stay tuned for future updates.
+
 ## 🧭 Overview
 
 Every run is defined by one validated configuration document,
