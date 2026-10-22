@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run MarsLab from one validated configuration document.
+"""Run one selected MarsLab vehicle from the shared configuration document.
 The entry point sequences startup, loop execution, and cleanup.
 Isaac and ROS boundaries open only after preflight."""
 
@@ -20,16 +20,27 @@ from marslab.sim.world_setup import create_world
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="MarsLab: Isaac Sim Mars rover simulation.",
+        description="MarsLab: Isaac Sim Mars rover or coaxial drone simulation.",
         allow_abbrev=False,
     )
     parser.add_argument("--config", required=True, help="Path to the MarsLab config YAML.")
-    config_path = parser.parse_args().config
+    vehicle = parser.add_mutually_exclusive_group()
+    vehicle.add_argument("--rover", dest="robot", action="store_const", const="rover",
+                         help="Spawn the Perseverance-like rover (default).")
+    vehicle.add_argument("--drone", dest="robot", action="store_const", const="drone",
+                         help="Spawn the Ingenuity-like Mars drone.")
+    parser.set_defaults(robot="rover")
+    args = parser.parse_args()
+    config_path = args.config
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(levelname)s: %(message)s")
 
-    config = prepare_config(config_path)
+    config = prepare_config(config_path, robot=args.robot)
     mars = config.mars_env
     atmosphere = prepare_atmosphere(config)
+    if args.robot == "drone":
+        from marslab.runtime.drone import run_drone
+
+        return run_drone(config, atmosphere)
     simulation_app = boot_simulation_app(config.runtime)
     resources = CleanupResources(simulation_app=simulation_app)
     try:

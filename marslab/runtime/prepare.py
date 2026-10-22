@@ -15,12 +15,21 @@ def _require_file(path: Path, label: str) -> None:
         raise FileNotFoundError(f"{label} file not found: {path}")
 
 
-def prepare_config(config_path: str | Path) -> MarsLabConfig:
+def prepare_config(config_path: str | Path, *, robot: str = "rover") -> MarsLabConfig:
     """Load the resolved config and verify its required file inputs."""
     input_path = Path(config_path)
     _require_file(input_path, "Config")
 
     config = load_config(input_path)
     _require_file(config.scene.usdz_path, "Scene USDZ")
-    check_rover_config(config.rover)
+    if robot == "rover":
+        check_rover_config(config.rover)
+    elif robot == "drone":
+        if config.drone is None:
+            raise ValueError("--drone requires a drone section in the MarsLab YAML")
+        asset = config.drone.asset_url
+        if asset and "://" not in asset:
+            _require_file(Path(asset), "Drone USD")
+    else:
+        raise ValueError(f"Unknown robot option: {robot}")
     return config

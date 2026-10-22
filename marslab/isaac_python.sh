@@ -3,6 +3,7 @@
 # Keep the ROS 2 Jazzy companion in its own terminal and use this wrapper for
 # the single runtime command:
 #   marslab/isaac_python.sh marslab/main.py --config configs/config.yaml
+# Add --rover or --drone to choose the vehicle; the default is --rover.
 # The wrapper leaves the caller's shell unchanged.
 
 set -euo pipefail

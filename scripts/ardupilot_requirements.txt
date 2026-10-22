@@ -1,0 +1,13 @@
+# Local dependency-build environment; no test or lint packages.
+empy==3.3.4
+future
+lxml
+numpy
+pexpect
+psutil
+pymavlink==2.4.49
+pyparsing
+pyserial
+PyYAML
+setuptools
+dronecan

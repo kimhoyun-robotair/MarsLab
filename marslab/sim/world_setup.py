@@ -17,6 +17,7 @@ def create_world(
     solver_type: str = "TGS",
     solver_position_iteration_count: int = 16,
     solver_velocity_iteration_count: int = 4,
+    rendering_dt: float | None = None,
 ) -> Tuple[Any, Any]:
     """Create the Isaac Sim ``World`` and apply Mars physics defaults.
 
@@ -45,7 +46,7 @@ def create_world(
     world = World(
         stage_units_in_meters=1.0,
         physics_dt=physics_dt,
-        rendering_dt=physics_dt,
+        rendering_dt=physics_dt if rendering_dt is None else rendering_dt,
     )
 
     physics_ctx = world.get_physics_context()

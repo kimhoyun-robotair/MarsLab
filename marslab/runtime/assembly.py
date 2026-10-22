@@ -12,7 +12,7 @@ from typing import Final, Protocol
 
 import numpy as np
 
-from marslab.config.schema.rover import RoverConfig
+from marslab.config.schema.rover import RoverConfig, SpawnConfig
 from marslab.config.schema.scenario import RenderingConfig
 from marslab.robots.rover import SpawnedRover
 from marslab.ros2_bridge.sensor_graph import SensorGraphHandle
@@ -219,17 +219,16 @@ def _add_fallback_light_if_missing(stage: StageHandle) -> bool:
     return True
 
 
-def _resolve_spawn_position(
+def resolve_spawn_position(
     *,
     stage: StageHandle,
     terrain_prim_path: str,
-    rover: RoverConfig,
+    spawn: SpawnConfig,
 ) -> tuple[SpawnPosition, SpawnPosition]:
-    """Resolve the legacy DEM-relative rover pose before the first reset."""
-    spawn = rover.spawn
+    """Resolve a vehicle pose relative to the selected Mars terrain."""
     z_offset = spawn.z_offset
     if z_offset is None:
-        raise RuntimeError("rover.spawn.z_offset is required")
+        raise RuntimeError("spawn.z_offset is required")
     dem_center_x, dem_center_y, _ = _sample_dem_elevation(stage, terrain_prim_path)
 
     match spawn.mode:
@@ -243,7 +242,7 @@ def _resolve_spawn_position(
             spawn_y = float(spawn.xy[1])
         case unknown:
             raise RuntimeError(
-                f"Unknown spawn.mode='{unknown}' in rover YAML; expected one of "
+                f"Unknown spawn.mode='{unknown}' in vehicle YAML; expected one of "
                 "dem_center | dem_relative | absolute"
             )
 
@@ -258,6 +257,36 @@ def _resolve_spawn_position(
     return spawn_xyz, spawn_rpy
 
 
+def assemble_environment(
+    *, world: WorldHandle, stage: StageHandle, scene_path: str,
+    render_config: RenderingConfig, atmosphere_init: AtmosphereInit,
+    atmosphere_enabled: bool,
+) -> None:
+    """Load the same terrain and atmosphere for either vehicle option."""
+    from marslab.rendering.atmosphere_fog import configure_atmosphere_fog
+    from marslab.rendering.render_settings import set_render_mode
+    from marslab.rendering.sky_renderer import configure_sky_dome
+    from marslab.rendering.sun_renderer import configure_sun_light
+    from marslab.sim.physics_scene import normalize_reference_physics
+    from marslab.sim.point_instancer import normalize_external_prototypes
+
+    _reference_user_usda(stage, scene_path)
+    normalize_reference_physics(
+        stage, _TERRAIN_PRIM_PATH, world.get_physics_context().prim_path,
+        atmosphere_init.gravity,
+    )
+    normalize_external_prototypes(stage, _TERRAIN_PRIM_PATH)
+    set_render_mode(render_config)
+    if atmosphere_enabled:
+        configure_sun_light(stage, atmosphere_init.sun_pos,
+                            atmosphere_init.direct_intensity, render_config)
+        configure_sky_dome(stage, atmosphere_init.sky_params,
+                           atmosphere_init.diffuse_fraction, render_config)
+        configure_atmosphere_fog(stage, atmosphere_init.tau, render_config)
+    else:
+        _add_fallback_light_if_missing(stage)
+
+
 def assemble_pre_reset(
     *,
     world: WorldHandle,
@@ -270,20 +299,12 @@ def assemble_pre_reset(
     ros2_enabled: bool,
 ) -> PreResetAssembly:
     """Perform the exact scene-to-reset sequence retained from ``main.py``."""
-    from marslab.rendering.atmosphere_fog import configure_atmosphere_fog  # noqa: PLC0415
-    from marslab.rendering.render_settings import set_render_mode  # noqa: PLC0415
-    from marslab.rendering.sky_renderer import configure_sky_dome  # noqa: PLC0415
-    from marslab.rendering.sun_renderer import configure_sun_light  # noqa: PLC0415
     from marslab.robots.differential import configure_rocker_differential  # noqa: PLC0415
     from marslab.robots.drive_api_setup import configure_drives  # noqa: PLC0415
     from marslab.robots.rover import apply_spawn_pose, spawn_rover  # noqa: PLC0415
     from marslab.ros2_bridge.sensor_graph import build_sensor_graph  # noqa: PLC0415
     from marslab.sensors.sensor_spawner import spawn_sensors  # noqa: PLC0415
-    from marslab.sim.physics_scene import (  # noqa: PLC0415
-        normalize_reference_physics,
-        validate_world_physics,
-    )
-    from marslab.sim.point_instancer import normalize_external_prototypes  # noqa: PLC0415
+    from marslab.sim.physics_scene import validate_world_physics  # noqa: PLC0415
     from marslab.sim.spawn_clearance import resolve_spawn_clearance  # noqa: PLC0415
 
     articulation_factory = import_module(
@@ -293,34 +314,16 @@ def assemble_pre_reset(
     ros2_config = rover.ros2.model_dump(mode="python")
     world_scene_path = world.get_physics_context().prim_path
 
-    _reference_user_usda(stage, scene_path)
-    normalize_reference_physics(
-        stage, _TERRAIN_PRIM_PATH, world_scene_path, atmosphere_init.gravity
+    assemble_environment(
+        world=world, stage=stage, scene_path=scene_path,
+        render_config=render_config, atmosphere_init=atmosphere_init,
+        atmosphere_enabled=atmosphere_enabled,
     )
-    normalize_external_prototypes(stage, _TERRAIN_PRIM_PATH)
 
-    set_render_mode(render_config)
-    if atmosphere_enabled:
-        configure_sun_light(
-            stage,
-            atmosphere_init.sun_pos,
-            atmosphere_init.direct_intensity,
-            render_config,
-        )
-        configure_sky_dome(
-            stage,
-            atmosphere_init.sky_params,
-            atmosphere_init.diffuse_fraction,
-            render_config,
-        )
-        configure_atmosphere_fog(stage, atmosphere_init.tau, render_config)
-    else:
-        _add_fallback_light_if_missing(stage)
-
-    spawn_xyz, spawn_rpy = _resolve_spawn_position(
+    spawn_xyz, spawn_rpy = resolve_spawn_position(
         stage=stage,
         terrain_prim_path=_TERRAIN_PRIM_PATH,
-        rover=rover,
+        spawn=rover.spawn,
     )
     spawned_rover = spawn_rover(stage, rover, spawn_xyz)
     configure_rocker_differential(stage, spawned_rover.chassis_path)
@@ -374,4 +377,6 @@ __all__ = [
     "StageHandle",
     "WorldHandle",
     "assemble_pre_reset",
+    "assemble_environment",
+    "resolve_spawn_position",
 ]

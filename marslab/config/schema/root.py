@@ -7,6 +7,7 @@ from pathlib import Path
 from pydantic import model_validator
 
 from marslab.config.schema.common import StrictConfigModel
+from marslab.config.schema.drone import DroneConfig
 from marslab.config.schema.rover import RoverConfig
 from marslab.config.schema.runtime import RuntimeConfig, WheelOdomConfig
 from marslab.config.schema.scenario import MarsEnvConfig, RenderingConfig
@@ -23,6 +24,7 @@ class MarsLabConfig(StrictConfigModel):
     rendering: RenderingConfig
     rover: RoverConfig
     wheel_odom: WheelOdomConfig
+    drone: DroneConfig | None = None
 
     @model_validator(mode="after")
     def check_wheel_tf_owner(self) -> "MarsLabConfig":

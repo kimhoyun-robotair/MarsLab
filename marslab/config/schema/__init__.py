@@ -3,6 +3,7 @@ Domain modules retain ownership of nested schema definitions.
 This package imports no Isaac or ROS runtime bindings."""
 
 from marslab.config.schema.root import MarsLabConfig, SceneConfig
+from marslab.config.schema.drone import DroneConfig
 from marslab.config.schema.rover import (
     ChassisConfig,
     ControlConfig,
@@ -42,6 +43,7 @@ __all__ = [
     "ControlConfig",
     "DepthSensorConfig",
     "DynamicAtmosphereConfig",
+    "DroneConfig",
     "FogConfig",
     "IMUConfig",
     "Lidar3DConfig",

@@ -65,6 +65,12 @@ def load_config(path: str | Path) -> MarsLabConfig:
                 if isinstance(profile_path, str):
                     lidar_3d["profile_json_path"] = _anchor_path(profile_path, declaring_path)
 
+    drone = data.get("drone")
+    if isinstance(drone, dict):
+        asset = drone.get("asset_url")
+        if isinstance(asset, str) and asset and "://" not in asset:
+            drone["asset_url"] = _anchor_path(asset, declaring_path)
+
     return MarsLabConfig.model_validate_json(json.dumps(data, allow_nan=True))
 
 

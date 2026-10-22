@@ -7,7 +7,7 @@ cloned anywhere without changing paths for a particular computer.
 
 Runtime loads a prebuilt scene through `scene.usdz_path`. Terrain generation,
 asset conversion, and experiment/evaluation tools are outside this distribution.
-The configuration controls loading, rover dynamics, sensing, lighting, and ROS
+The configuration controls loading, rover/drone dynamics, sensing, lighting, and ROS
 interfaces.
 
 The configuration is validated with strict Pydantic schemas before Isaac Sim
@@ -42,7 +42,23 @@ default rather than removing the subsystem.
 | `mars_env` | Gravity, dust, sunlight, sol timing | Adjust dust and solar position for a scenario. |
 | `rendering` | Renderer, sky, sun, fog | Choose speed or image quality. |
 | `rover` | Spawn, physics, sensors, control, ROS | Tune only the relevant subsection. |
+| `drone` | Flight backend, ArduPilot MVP, coaxial actuators and navigation sensors | Select `--drone`; see [drone settings](docs/DRONE.md). |
 | `wheel_odom` | Dynamic odometry TF ownership | Decide whether MarsLab or an external estimator owns TF. |
+
+`--rover` and `--drone` select separate runtime paths; omitting both selects the rover.
+The drone runs at `drone.simulation.physics_hz` independently of the rover's
+`mars_env.physics_dt`. Both use `mars_env.gravity` and the same scene and atmosphere.
+The external drone ROS stack also reads this file, so mass, inertia, sensor mounts,
+actuator coefficients and gravity stay consistent across processes. Launch both processes
+with the same config path. A config without `drone` continues to support the rover.
+
+`drone.flight_backend` defaults to `ardupilot`; `external_wrench` is the replacement
+controller boundary. `drone.ardupilot.navigation` explicitly selects `sim_truth`
+for the MVP, or `ekf3`. ArduPilot is built with this YAML's Mars gravity, rather
+than using Earth gravity in the simulator. Native vehicle parameters are generated
+from the plant, and `parameter_overrides` exposes explicit native policy/tuning
+changes. `drone.flight` sets native takeoff height, takeoff speed and landing
+speed. See [operator behavior and backend contract](docs/DRONE.md).
 
 ## Scene selection and rover spawn
 

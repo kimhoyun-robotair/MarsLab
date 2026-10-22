@@ -10,6 +10,8 @@
 !/docs/
 !/launch/
 !/marslab/
+!/ros2_ws/
+!/scripts/
 
 # Keep rover assets and atmosphere references; scenes are external downloads.
 /assets/*
@@ -31,6 +33,19 @@
 !/marslab/**/
 !/marslab/**/*.py
 !/marslab/isaac_python.sh
+
+# Ingenuity ROS companion sources and launch helpers only.
+/ros2_ws/*
+!/ros2_ws/src/
+/ros2_ws/build/
+/ros2_ws/install/
+/ros2_ws/log/
+/scripts/*
+!/scripts/build_drone_ros.sh
+!/scripts/run_drone_stack.sh
+!/scripts/run_drone_keyboard.sh
+!/scripts/build_ardupilot.sh
+!/scripts/ardupilot_requirements.txt
 
 # Ignore local instructions, environments, caches, and credentials.
 AGENTS.md

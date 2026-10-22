@@ -2,7 +2,7 @@
 
 # 🚀 MarsLab
 
-### A Martian Rover Simulator for Planetary Rover Autonomous Navigation
+### A Martian Rover and Drone Simulator for Planetary Robotics
 
 **Hoyun Kim · Beomsu Kim · Giseop Kim**<br />
 *Department of Robotics and Mechatronics Engineering, DGIST*
@@ -41,8 +41,8 @@
 <br />
 
 > **MarsLab** is a configuration-driven NVIDIA Isaac Sim 5.x platform for
-> controlled planetary-rover autonomy and navigation research. It combines
-> Martian terrain, an M2020 rover, physically grounded sensors, atmospheric
+> controlled planetary-robotics autonomy and navigation research. It combines
+> Martian terrain, an M2020 rover or Ingenuity-like drone, vehicle sensors, atmospheric
 > rendering, vehicle control, evaluation ground truth, wheel odometry, and an
 > optional ROS 2 Jazzy bridge in one runtime.
 
@@ -63,10 +63,10 @@
 Every run is defined by one validated configuration document,
 [`configs/config.yaml`](configs/config.yaml). MarsLab validates the configuration
 and required assets before Isaac Sim starts, loads the selected scene, spawns
-the rover, runs the simulation loop, and releases runtime resources in reverse
+one selected vehicle, runs the simulation loop, and releases runtime resources in reverse
 order at shutdown.
 
-This repository provides the rover runtime for prebuilt USDZ environments.
+This repository provides rover and drone runtimes for prebuilt USDZ environments.
 Scene generation, trajectory followers, and experiment/evaluation pipelines
 are outside the current distribution. External applications can use the ROS
 interfaces below.
@@ -78,6 +78,10 @@ flowchart LR
 
     ISAAC --> ENV["🏜️ Mars Environment"]
     ISAAC --> ROVER["🛞 M2020 Rover"]
+    ISAAC --> DRONE["Ingenuity-like Drone (--drone)"]
+    DRONE --> AIRSENSOR["Navcam / RTE / IMU / Laser Range"]
+    AIRSENSOR --> FLIGHT["ROS 2 Navigation and Flight Control"]
+    FLIGHT --> DRONE
 
     ROVER --> SENSOR["📡 RGB / Depth / LiDAR / IMU"]
     ROVER --> ODOM["🧭 Wheel Odometry"]
@@ -97,6 +101,10 @@ flowchart LR
   estimates and a passive rocker differential; configure chassis damping, wheel
   contact, rocker-bogie damping, steering, drive gains, control limits, and spawn
   behavior. The controller supports curved driving and pivot turns.
+- **Ingenuity-like drone** — select `--drone` for the same terrain and atmosphere,
+  with Mars-gravity ArduPilot SITL control, an explicit simulation-state navigation
+  MVP, coaxial collective/cyclic actuation, and a replaceable flight backend.
+  See the [drone MVP and backend interface](docs/DRONE.md).
 - 📷 **Multi-modal sensing** — RGB, depth, camera PointCloud2, CameraInfo, 2-D
   LaserScan, 3-D LiDAR, raw/noisy IMU, and configurable wheel-odometry and optional
   depth noise derived from the sensor seed.
@@ -246,6 +254,41 @@ export ISAAC_SIM_PATH=/path/to/isaacsim
 ## 🚀 Quick Start
 
 MarsLab and its ROS 2 companion run in **separate terminals**.
+
+Select one vehicle per run. Omitting the vehicle switch retains the rover default;
+`--rover` and `--drone` are mutually exclusive.
+
+```bash
+marslab/isaac_python.sh marslab/main.py --config configs/config.yaml --rover
+marslab/isaac_python.sh marslab/main.py --config configs/config.yaml --drone
+```
+
+For the drone, first build Mars-gravity ArduPilot SITL and the ROS package:
+
+```bash
+scripts/build_ardupilot.sh
+scripts/build_drone_ros.sh
+```
+
+Run these in two further terminals after launching Isaac Sim with `--drone`:
+
+```bash
+scripts/run_drone_stack.sh
+scripts/run_drone_keyboard.sh
+```
+
+The stack starts ArduPilot and reads `configs/config.yaml`; for a different config, pass
+`marslab_config:=/absolute/path/to/config.yaml` to `run_drone_stack.sh`.
+Use the same `ROS_DOMAIN_ID` in every terminal (the default is `0`). In the keyboard
+terminal, `T` starts takeoff, `L` lands, and `X` stops the motors immediately.
+Motion commands persist until changed; Space requests zero velocity and cancels
+an automatic climb/descent. Different motion axes can be combined. The default MVP
+uses Isaac state through ArduPilot's simulation AHRS, and does not depend on visual
+features for flight control. Native policies and the generated vehicle parameters
+are described in the drone guide. Gravity remains 3.72 m/s²; rebuild SITL after changing it.
+The drone uses NVIDIA's installed Ingenuity asset; `drone.asset_url` can select
+a local copy. The rover's `robot_state_publisher` companion below applies to
+`--rover`. Drone setup, topics, and model limits are described in [DRONE.md](docs/DRONE.md).
 
 <table>
 <tr>

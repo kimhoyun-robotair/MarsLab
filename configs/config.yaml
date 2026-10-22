@@ -182,3 +182,90 @@ rover:
 
 wheel_odom:
   publish_tf: true
+
+# Select with --drone. This configuration also drives the external ROS flight stack.
+# The rigid-body inertia, effectiveness, gains, and noise are simulation assumptions.
+drone:
+  flight_backend: ardupilot  # ardupilot MVP or external_wrench for another flight backend.
+  ardupilot:
+    json_bind: 127.0.0.1
+    json_port: 9002
+    mavlink_port: 14560
+    instance: 0
+    navigation: sim_truth  # Explicit MVP: native ArduPilot simulation-state navigation.
+    rate_bandwidth_radps: [10.0, 10.0, 8.0]  # Model-derived rate-loop configuration.
+    attitude_p: [4.0, 4.0, 3.0]
+    rsc_setpoint: 0.7
+    home_latitude_deg: -35.363261  # SITL coordinate bookkeeping, not Mars GNSS.
+    home_longitude_deg: 149.165230
+    home_altitude_m: 584.0
+    parameter_overrides: {}  # Explicit native ArduPilot parameter overrides; see docs/DRONE.md.
+  asset_url: ""  # NVIDIA asset root + /Isaac/Robots/NASA/Ingenuity/ingenuity.usd
+  asset_scale: 0.0  # 0 uses the source USD's metres-per-unit.
+  prim_path: /World/Ingenuity
+  spawn:
+    mode: dem_center
+    xy: [0.0, 0.0]
+    z_offset: 0.328  # Body origin above the local DEM, including landing gear.
+    orientation_rpy: [0.0, 0.0, 0.0]
+  mass_kg: 1.8
+  inertia_kgm2: [0.025, 0.025, 0.045]
+  foot_z_m: -0.30
+  foot_radius_m: 0.025
+  foot_xy_m: 0.17
+  publish_ground_truth: false
+  simulation:
+    physics_hz: 500
+    render_hz: 60
+    real_time: true
+    duration_seconds: 0.0
+  actuators:
+    rotor_rpm: 2400.0
+    spool_up_seconds: 1.0
+    spool_down_seconds: 1.5
+    max_thrust_ratio: 1.6
+    max_torque_nm: [0.35, 0.35, 0.12]
+    servo_frequency_hz: 12.0  # 2018 demonstrator servo model, not flight identification.
+    servo_damping_ratio: 0.85
+    collective_min_deg: -4.5
+    collective_hover_deg: 8.0  # Selected simulation trim.
+    collective_max_deg: 17.5
+    cyclic_limit_deg: 10.0
+    rotor_inertia_kgm2: 0.00015
+    rotor_drag_hover_nm: 0.20
+    rotor_drag_per_collective_deg: 0.012
+    motor_speed_kp: 0.015
+    motor_speed_ki: 0.025
+    motor_max_torque_nm: 0.7
+    collective_feedforward: true
+  sensors:
+    seed: 42
+    imu_hz: 500  # Processed stream; not the BMI160 raw hardware rates.
+    # Smooth PhysX contact/finite-difference noise before adding sensor noise.
+    # At 500 Hz these boxcar windows add roughly 6 ms / 3 ms of group delay.
+    imu_acceleration_filter_size: 7
+    imu_angular_velocity_filter_size: 4
+    imu_accel_sigma: 0.03
+    imu_gyro_sigma: 0.002
+    imu_accel_bias: [0.004, -0.003, 0.006]
+    imu_gyro_bias: [0.0002, -0.0001, 0.00015]
+    nav_hz: 30
+    nav_position: [0.0, 0.0, -0.20]
+    nav_resolution: [640, 480]
+    nav_central_pixel_scale_rad: 0.00357  # Rectified pinhole approximation.
+    rte_hz: 1  # Simulation acquisition choice.
+    rte_position: [0.05, 0.0, -0.20]
+    rte_resolution: [4208, 3120]
+    rte_angle_below_horizon_deg: 45.0
+    rte_horizontal_fov_deg: 102.0
+    rte_vertical_fov_deg: 82.0
+    range_hz: 50
+    range_position: [0.0, 0.0, -0.21]
+    range_min_m: 0.05
+    range_max_m: 40.0
+    range_sigma_m: 0.02
+    range_beam_divergence_rad: 0.004
+  flight:
+    takeoff_height_m: 3.0  # Native ArduPilot takeoff altitude above its arming home.
+    takeoff_speed_mps: 1.0
+    landing_speed_mps: 0.3  # Native LAND descent; rigid feet have no strut compliance.
