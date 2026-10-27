@@ -13,3 +13,7 @@
 
 **🪐 2026.10.27. MarsLab Version 1.03 Released**
 - MarsLab now supports all four Mars rovers: Perseverance, Curiosity, Opportunity, and Spirit!!
+
+**🪐 2026.10.28. Rendering Update**
+
+- Changed the default anti-aliasing mode to DLAA to reduce flickering and documented DLSS/DLAA configuration and performance tradeoffs.

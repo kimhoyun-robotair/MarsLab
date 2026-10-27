@@ -63,7 +63,13 @@ class FogConfig(StrictConfigModel):
 
 
 class RayTracingConfig(StrictConfigModel):
-    antialiasing_op: int = Field(default=3, ge=0, le=5)
+    antialiasing_op: int = Field(default=4, ge=0, le=5)
+    # 4 for DLAA
+    # 3 for DLSS, 
+    # Choosing DLSS may cause screen shimmering or flickering,
+    # but it prioritizes a balance between performance and image quality.
+    # In contrast, choosing DLAA results in little to no screen shimmering or flickering,
+    # but may increase GPU resource usage, including VRAM consumption.
     dlss_exec_mode: int = Field(default=1, ge=0, le=3)
     denoiser_indirect_diffuse: bool = True
     denoiser_reflections: bool = True

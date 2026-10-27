@@ -388,6 +388,8 @@ runtime:
 
 rendering:
   mode: ray_tracing
+  ray_tracing:
+    antialiasing_op: 4  # DLAA; use 3 for DLSS
 
 wheel_odom:
   publish_tf: true
@@ -449,6 +451,33 @@ mesh loader decoded all 52 mission DAE files and 187 texture bindings without
 errors. Generation tools, test code, raw logs and execution-hash reports stay
 under the ignored `tmp/` directory, including `tmp/stress_articulation/` and
 `tmp/texture_fix/`.
+
+### Choosing DLSS or DLAA
+
+MarsLab defaults to **DLAA**. DLSS prioritizes a balance between performance and
+image quality by reconstructing a higher-resolution image from a lower-resolution
+render, but may cause viewport-edge shimmering or flickering in some setups.
+DLAA renders at native resolution and eliminated the observed edge flicker in
+our Isaac Sim 5.1 / RTX 5090 tests. It may increase GPU resource usage, including
+VRAM consumption, compared with DLSS; the actual cost depends on the scene,
+resolution, and hardware.
+
+To switch modes, edit `rendering.ray_tracing.antialiasing_op` in the scenario YAML
+passed to `--config`, normally [`configs/config.yaml`](configs/config.yaml).
+Update these fields within its existing `rendering` block, then restart MarsLab:
+
+```yaml
+rendering:
+  mode: ray_tracing
+  ray_tracing:
+    antialiasing_op: 4  # 4 = DLAA (default), 3 = DLSS
+    dlss_exec_mode: 1  # DLSS only: 1 = Balanced
+```
+
+Use `3` for DLSS or `4` for DLAA. `dlss_exec_mode` selects the DLSS quality mode
+and does not select DLAA. If `antialiasing_op` is omitted, `RayTracingConfig` in
+[`marslab/config/schema/scenario.py`](marslab/config/schema/scenario.py) supplies
+the default value `4`; an explicit YAML value takes precedence.
 
 For renderer modes, scene and spawn selection, atmosphere tuning, rover physics,
 sensor profiles, ROS QoS, frame ownership, and odometry parameters, read the
@@ -608,11 +637,12 @@ Planned improvements include:
 
 - [x] Add 2D LiDAR.
 - [x] Support four heterogeneous Mars rovers: Perseverance, Curiosity, Opportunity, and Spirit.
+- [x] Mitigate DLSS-related viewport edge flickering by defaulting to DLAA.
 - [ ] Support Aerial Robots like Ingenuity.
 - [ ] Support Simultaneous Simulation of Multiple Robots.
+- [ ] Support Rock Distribution for customizable Mars Scene.
 - [ ] Integrate evaluation workflows for TUM, path planning, and SLAM.
 - [ ] Extend the existing Gaussian noise with sensor bias and time-varying drift models.
-- [ ] Resolve vibration issues during runtime rendering.
 - [ ] Improve the realism of sky and light rendering.
 - [ ] Add photorealistic scene generation.
 - [ ] Add wheel traces (more sophisticated wheel-soil interaction).

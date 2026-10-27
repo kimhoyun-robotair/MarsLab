@@ -29,6 +29,8 @@ mars_env:
 
 rendering:
   mode: ray_tracing
+  ray_tracing:
+    antialiasing_op: 4 # DLAA, 3 for DLSS
   sky_dome_hdri_dir: ../assets/mars_sky/
   sun_intensity_scale: 30.0
   sun_color: [1.0, 0.95, 0.85]
