@@ -358,7 +358,7 @@ rover:
     track_middle: 2.3825056850910187
     # Shared MarsLab command cap; not the flight rover's maximum speed.
     max_linear_velocity: 4.0
-    max_angular_velocity: 0.04
+    max_angular_velocity: 0.7
     command_timeout: 0.5
     drive_joint_names: [LF_DRIVE, LM_DRIVE, LR_DRIVE, RF_DRIVE, RM_DRIVE, RR_DRIVE]
     steer_joint_names: [LF_STEER, LR_STEER, RF_STEER, RR_STEER]
