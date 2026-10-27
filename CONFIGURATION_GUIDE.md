@@ -64,8 +64,8 @@ marslab/isaac_python.sh marslab/main.py --config configs/config.yaml --robot cur
 
 These mission models use pinhole rendering of the retained calibration data.
 Their camera positions and intrinsics differ by mission; Spirit and Opportunity
-share a mobility geometry model. Physical assumptions and source distinctions
-are recorded in each model's `DERIVATION.md` and `model_metadata.json`.
+share a mobility geometry model. All four profiles default to
+`control.max_linear_velocity: 4.0` m/s as a shared simulation command cap.
 
 To override a profile value for a scenario, add only the relevant values to the
 scenario's `rover` mapping:
@@ -308,12 +308,6 @@ stiffnesses remain zero; damping is configurable. Startup validates the coupling
 before physics begins. `chassis.container_prim_name`, `rigid_body_prim_name`, and
 `joints_prim_name` identify the selected asset's hierarchy.
 
-The NASA visual sources for the other missions and their provenance are
-documented in [LICENSE-NASA-3D-RESOURCES.txt](LICENSE-NASA-3D-RESOURCES.txt).
-Visual geometry, official mission totals, and authored simulation estimates
-have different evidentiary status; these visual sources do not supply NASA
-URDFs or flight link-by-link mass and inertia tensors.
-
 ### Default Perseverance rover and LiDAR assets
 
 `rover.usd_path` selects `assets/robots/perseverance/m2020_lidar.usda`, which composes
@@ -321,15 +315,10 @@ the base `m2020.usd` and both sensor USD assets. Preserve the base rover's
 configuration layers and textures alongside it. `rover.urdf_source_path` selects
 `assets/robots/perseverance/m2020_lidar.urdf`; its mesh references use the local files in
 `assets/robots/perseverance/meshes/` and the sensor OBJ/MTL files.
-See the [M2020 notice](assets/robots/perseverance/LICENSE.md) for source and
-rights information.
 
 The attachments add **5.688155 kg**, bringing the authored rover mass to
 **957.328155 kg**. Their mass is merged into the chassis rigid body.
-The [sensor asset guide](assets/robots/sensors/README.md) and
-[mass-property record](assets/robots/sensors/mass_properties.json) describe the
-construction assumptions and resulting COM/inertia. JSON records and previews
-document the supplied assets; runtime reads the authored USD/URDF. Blender
+Runtime reads the authored USD/URDF; design records are not runtime inputs. Blender
 working files, asset generation, and rebuild commands are outside this
 distribution.
 
@@ -420,15 +409,9 @@ Its LiDAR attachments and synthetic depth are simulation additions. Historical
 mission profiles can set `lidar_2d: null` and `lidar_3d: null` to omit LiDAR
 acquisition and publication.
 
-The mission camera calibration, instrument inventory, source URLs, and fidelity
-limits are retained in the per-rover sensor records:
-[Curiosity](assets/robots/curiosity/sensors.json),
-[Spirit](assets/robots/spirit/sensors.json), and
-[Opportunity](assets/robots/opportunity/sensors.json).
-The [NASA NAIF notice](LICENSE-NAIF.txt) records their source-data rights and
-attribution; the raw mission kernels are not distributed here. Science instrument
-metadata does not imply that the simulator reproduces spectra, radiation,
-chemistry, detector response, or a complete flight engineering telemetry system.
+Science instrument metadata does not imply that the simulator reproduces spectra,
+radiation, chemistry, detector response, or a complete flight engineering telemetry
+system.
 
 ### Camera and depth
 

@@ -7,8 +7,10 @@
 !/assets/
 !/configs/
 !/docs/
+!/techreport/
 !/launch/
 !/marslab/
+!/UPDATE_LOG.md
 
 # Keep rover assets and atmosphere references; scenes are external downloads.
 /assets/*

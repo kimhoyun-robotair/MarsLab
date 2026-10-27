@@ -354,10 +354,14 @@ marslab/isaac_python.sh marslab/main.py --config configs/config.yaml --robot cur
 
 | Robot | Profile | Model and source notes |
 |:---|:---|:---|
-| Perseverance (default) | [perseverance.yaml](configs/robots/perseverance.yaml) | Existing M2020 research configuration |
-| Spirit | [spirit.yaml](configs/robots/spirit.yaml) | [NASA visual-derived model](assets/robots/spirit/DERIVATION.md) |
-| Opportunity | [opportunity.yaml](configs/robots/opportunity.yaml) | [NASA visual-derived model](assets/robots/opportunity/DERIVATION.md) |
-| Curiosity | [curiosity.yaml](configs/robots/curiosity.yaml) | [NASA visual-derived model](assets/robots/curiosity/DERIVATION.md) |
+| Perseverance (default) | [perseverance.yaml](configs/robots/perseverance.yaml) | [Technical report](techreport/perseverance_like.md) |
+| Spirit | [spirit.yaml](configs/robots/spirit.yaml) | [Technical report](techreport/spirit.md) |
+| Opportunity | [opportunity.yaml](configs/robots/opportunity.yaml) | [Technical report](techreport/opportunity.md) |
+| Curiosity | [curiosity.yaml](configs/robots/curiosity.yaml) | [Technical report](techreport/curiosity.md) |
+
+All four profiles use a **4 m/s linear command cap**. This is a shared MarsLab
+simulation setting; the reports retain the much lower flight-speed references
+separately. Scenario overrides can change this cap.
 
 | Section | Purpose |
 |:---|:---|
@@ -412,7 +416,7 @@ arm's optics housing. Its original NASA calibration reference pose is retained
 separately; the stowed mounting pose is derived from the NASA visualization
 geometry, not a flight calibration. USD cameras and their ROS TF use the same
 mounting pose. Startup rejects a camera configuration that disagrees with its
-authored USD pose; see each model's `DERIVATION.md` for the source and limits.
+authored USD pose; see the corresponding technical report for the source and limits.
 
 Curiosity has 22 rigid links and 21 movable joints, including five arm joints and
 mast pan/tilt. Its seven mast cameras follow `Body_MastTilt`; MAHLI follows
@@ -424,7 +428,7 @@ controller is supplied. Space ROS was consulted for comparison, while the
 runtime geometry and joint derivation use the documented NASA sources. The
 articulated model uses estimated link inertias rather than forcing the older
 NASA landing-test aggregate onto the deployed arm configuration; numerical
-values and source distinctions are in [Curiosity's derivation](assets/robots/curiosity/DERIVATION.md).
+values and source distinctions are in [Curiosity's technical report](techreport/curiosity.md).
 
 On 2026-10-23, the current mission assets each passed a separate 600-second
 wall-clock run in Isaac Sim 5.1 on an RTX 5090, with the full Jezero plain,
@@ -517,7 +521,7 @@ The default rover references `m2020_lidar.usda`; its companion uses
 `m2020_lidar.urdf`. Both add modeled sensor housings and mounts to the preserved
 rover asset, with merged chassis mass, COM and inertia. These are research
 attachments, not flight Perseverance instruments. See
-[mount assumptions and mass properties](assets/robots/sensors/mass_properties.json).
+[mount assumptions and mass properties in the Perseverance-like report](techreport/perseverance_like.md).
 
 ---
 

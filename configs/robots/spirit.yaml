@@ -1,18 +1,14 @@
 # Spirit: MarsLab-authored simulation model from NASA visual/source data.
 # This is not a NASA-issued URDF, flight dynamic model, or flight gain set.
-# Provenance: ../../LICENSE-NASA-3D-RESOURCES.txt
-# Sensor evidence: ../../assets/robots/spirit/sensors.json; ../../LICENSE-NAIF.txt
-# Model derivations: ../../assets/robots/spirit/
 # Camera calibration: NASA/JPL NAIF instrument kernels; individual URLs below.
 # Camera poses are chassis-relative FLU for ROS; USD optical transforms remain authored.
 # Images use a pinhole approximation; no CAHVOR/E distortion or detector physics.
 # Clip ranges, dynamics gains, angular caps, contact, and damping are simulation tuning.
 # Selected camera near clips skip measured opaque NASA visualization housing surfaces.
 # This render-only workaround preserves calibrated poses; it is not a flight near-plane specification.
-# Measured housing geometry and per-camera overrides: ../../assets/robots/spirit/DERIVATION.md
 # IMU at chassis reference and zero sensor/encoder noise are idealizations.
 # Real mission LiDAR and direct depth cameras are absent; synthetic depth is disabled.
-# Speed/wheel diameter: https://pds.nasa.gov/data/pds4/context-pds4/instrument_host/spacecraft.mer2_1.0.xml
+# Flight speed/wheel diameter: https://pds.nasa.gov/data/pds4/context-pds4/instrument_host/spacecraft.mer2_1.0.xml
 # MER 8 Hz uses documented accumulated IMU cadence, not a certified surface rate.
 # IMU: https://pds.nasa.gov/ds-view/pds/viewContext.jsp?identifier=urn:nasa:pds:context:instrument:imu.mer2&version=1.2
 # navcam_left: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer2_nl_20031204_c174.ti
@@ -24,7 +20,7 @@
 # hazcam_rear_left: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer2_rl_20031204_c60.ti
 # hazcam_rear_right: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer2_rr_20031204_c61.ti
 # microscopic_imager: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer2_mi_f2_20031204_c172.ti
-# MI mount is a geometry-derived fixed stowed-arm proxy; NASA kernel supplies optical calibration. See assets/robots/spirit/sensors.json pose_source.
+# MI mount is a geometry-derived fixed stowed-arm proxy; NASA kernel supplies optical calibration. See techreport/spirit.md.
 rover:
   name: spirit
   usd_path: ../../assets/robots/spirit/spirit.usda
@@ -225,7 +221,8 @@ rover:
     steering_axle_offset: 0.10577812464907765
     track_steer: 1.0609725341200829
     track_middle: 0.9500002264976501
-    max_linear_velocity: 0.05
+    # Shared MarsLab command cap; not the flight rover's maximum speed.
+    max_linear_velocity: 4.0
     max_angular_velocity: 0.07
     command_timeout: 0.5
     drive_joint_names: [LF_DRIVE, LM_DRIVE, LR_DRIVE, RF_DRIVE, RM_DRIVE, RR_DRIVE]

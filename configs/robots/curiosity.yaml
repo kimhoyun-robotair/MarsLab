@@ -1,21 +1,16 @@
 # Mast camera poses are relative to Body_MastTilt; MAHLI is relative to Body_ArmTurret.
 # MAHLI mount is approximated from NASA visual LED aperture geometry; official raw
-# calibration and reference pose remain in assets/robots/curiosity/sensors.json.
+# calibration and reference pose are documented in techreport/curiosity.md.
 # Curiosity: MarsLab-authored simulation model from NASA visual/source data.
-# This is not a NASA-issued URDF, flight dynamic model, or flight gain set.
-# Provenance: ../../LICENSE-NASA-3D-RESOURCES.txt
-# Sensor evidence: ../../assets/robots/curiosity/sensors.json; ../../LICENSE-NAIF.txt
-# Model derivations: ../../assets/robots/curiosity/
 # Camera calibration: NASA/JPL NAIF instrument kernels; individual URLs below.
 # Camera poses use mount-relative FLU for ROS; the default mount is the chassis.
 # Images use a pinhole approximation; no CAHVOR/E distortion or detector physics.
 # Clip ranges, dynamics gains, angular caps, contact, and damping are simulation tuning.
 # Selected camera near clips skip measured opaque NASA visualization housing surfaces.
 # Near clipping preserves the selected mount pose; MAHLI uses the documented visual-pose retarget.
-# Measured housing geometry and per-camera overrides: ../../assets/robots/curiosity/DERIVATION.md
 # IMU at chassis reference and zero sensor/encoder noise are idealizations.
 # Real mission LiDAR and direct depth cameras are absent; synthetic depth is disabled.
-# Speed and 8 Hz IMU: https://robotics.jpl.nasa.gov/media/documents/ROB-20-0040_R3.pdf
+# Flight speed reference and 8 Hz IMU: https://robotics.jpl.nasa.gov/media/documents/ROB-20-0040_R3.pdf
 # navcam_left_a: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_nla_20120731_c04.ti
 # mastcam_left: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_ml_20120731_c03.ti
 # mastcam_right: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_mr_20120731_c03.ti
@@ -361,7 +356,8 @@ rover:
     steering_axle_offset: 0.05399986743926999
     track_steer: 2.125
     track_middle: 2.3825056850910187
-    max_linear_velocity: 0.042
+    # Shared MarsLab command cap; not the flight rover's maximum speed.
+    max_linear_velocity: 4.0
     max_angular_velocity: 0.04
     command_timeout: 0.5
     drive_joint_names: [LF_DRIVE, LM_DRIVE, LR_DRIVE, RF_DRIVE, RM_DRIVE, RR_DRIVE]
