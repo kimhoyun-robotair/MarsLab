@@ -6,7 +6,7 @@ from math import atan, pi
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from marslab.config.schema.common import (
     FiniteFloat,
@@ -30,6 +30,15 @@ class SpawnConfig(StrictConfigModel):
 
 class ChassisConfig(StrictConfigModel):
     rigid_body_prim_name: NonEmptyString
+    container_prim_name: NonEmptyString = "Body_Chassis"
+    joints_prim_name: NonEmptyString = "joints"
+
+    @field_validator("rigid_body_prim_name", "container_prim_name", "joints_prim_name")
+    @classmethod
+    def check_prim_component(cls, value: str) -> str:
+        if not value.isascii() or not value.isidentifier():
+            raise ValueError("chassis prim names must be single USD identifiers")
+        return value
 
 
 class WheelsConfig(StrictConfigModel):
@@ -52,6 +61,10 @@ class SuspensionConfig(StrictConfigModel):
     bogie_damping: NonNegativeFloat
     rocker_joint_names: tuple[NonEmptyString, ...] = Field(min_length=1)
     bogie_joint_names: tuple[NonEmptyString, ...] = Field(min_length=1)
+    differential_joint_names: tuple[NonEmptyString, NonEmptyString] = (
+        "LEFT_DIFFERENTIAL",
+        "RIGHT_DIFFERENTIAL",
+    )
 
     @model_validator(mode="after")
     def check_joint_names(self) -> "SuspensionConfig":
@@ -63,6 +76,10 @@ class SuspensionConfig(StrictConfigModel):
             raise ValueError("bogie_joint_names must not contain duplicates")
         if rocker_names & bogie_names:
             raise ValueError("rocker_joint_names and bogie_joint_names must not overlap")
+        if len(set(self.differential_joint_names)) != 2:
+            raise ValueError("differential_joint_names must contain two distinct joints")
+        if not set(self.differential_joint_names) <= rocker_names:
+            raise ValueError("differential_joint_names must be members of rocker_joint_names")
         return self
 
 
@@ -166,6 +183,7 @@ class WheelOdometryConfig(StrictConfigModel):
 
 
 class RoverConfig(StrictConfigModel):
+    name: NonEmptyString = "perseverance"
     usd_path: Path
     urdf_source_path: Path
     prim_path: NonEmptyString

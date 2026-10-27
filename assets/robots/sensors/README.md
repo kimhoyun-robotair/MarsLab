@@ -1,6 +1,6 @@
 # Research LiDAR attachments
 
-These original Blender models add a planar scanner and a spinning 3-D scanner
+These MarsLab models add a planar scanner and a spinning 3-D scanner
 to the existing Perseverance mesh. They are simulated research equipment, not
 flight Perseverance instruments or exact vendor CAD. All dimensions are metres.
 
@@ -33,19 +33,19 @@ or detection of every object out to 200 m.
 
 ## Assets and ownership
 
-- `lidar_mounts.blend`: editable Blender source for housings, plates, struts and fasteners.
 - `lidar_2d.usda`, `lidar_3d.usda`: USD assets with visual materials and convex collision meshes.
 - Matching OBJ/MTL files provide the companion URDF visuals.
 - `mounts.json`: optical origins and geometric design assumptions.
 - `mass_properties.json`: source hashes, component masses, full inertia tensors,
   chassis and rover centre-of-mass changes.
-- `../rover/m2020_lidar.usda`: additive composition over the existing rover USD.
-- `../rover/m2020_lidar.urdf`: derived companion URDF with chassis visuals and
+- `../perseverance/m2020_lidar.usda`: additive composition over the existing rover USD.
+- `../perseverance/m2020_lidar.urdf`: derived companion URDF with chassis visuals and
   merged inertial properties; its original articulation joints are retained.
 
-The Blender source, previews and JSON files document asset construction; runtime
-loads the supplied USD assets and does not run an asset builder. In particular,
-the JSON design assumptions are not the active sensor range configuration.
+The previews and JSON files document asset construction. The Blender editing
+source is not distributed. Runtime loads the supplied USD assets and does not
+run an asset builder. The JSON design assumptions are not the active sensor
+range configuration.
 
 Both assemblies belong to the existing chassis rigid body. The supplied URDF
 adds no sensor links or joints. MarsLab publishes the `lidar_link` and

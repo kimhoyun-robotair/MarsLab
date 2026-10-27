@@ -13,7 +13,7 @@ from marslab.ros2_bridge.cmd_vel_subscriber import create_cmd_vel_subscriber
 from marslab.ros2_bridge.imu_noise_publisher import create_imu_noise_publisher
 from marslab.ros2_bridge.odometry_publisher import create_ground_truth_pose_publisher
 from marslab.ros2_bridge.sensor_graph_builder import _ns_topic
-from marslab.ros2_bridge.tf_broadcaster import publish_static_sensor_tfs
+from marslab.ros2_bridge.tf_broadcaster import SensorFrameSpec, publish_static_sensor_tfs
 from marslab.ros2_bridge.wheel_odometry_publisher import create_wheel_odometry_publisher
 
 
@@ -73,7 +73,7 @@ def create_cmd_vel_setup(
 def create_static_tf_setup(
     node: Any,
     config: Ros2BridgeConfig,
-    sensor_frames: Iterable[tuple[str, Any]],
+    sensor_frames: Iterable[SensorFrameSpec],
     qos: QosBundle,
 ) -> Any:
     return publish_static_sensor_tfs(

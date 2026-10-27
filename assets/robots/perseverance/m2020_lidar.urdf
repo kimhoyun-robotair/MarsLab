@@ -16,7 +16,7 @@
     <visual name="VisGeom_CHASSIS">
       <origin xyz="0.09002 0 1.13338" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/CHASSIS.gltf" scale="1 1 1" />
+        <mesh filename="meshes/CHASSIS.gltf" scale="1 1 1" />
       </geometry>
     </visual>
     <visual name="MarsLab_lidar_2d_mount">
@@ -48,7 +48,7 @@
     <visual name="VisGeom_CenterDifferential">
       <origin xyz="0.142 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/CenterDifferential.gltf" scale="1 1 1" />
+        <mesh filename="meshes/CenterDifferential.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -61,7 +61,7 @@
     <visual name="VisGeom_Left_Rocker">
       <origin xyz="-0.214 -0.79959 0.2405" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Left_Rocker.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Left_Rocker.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -74,7 +74,7 @@
     <visual name="VisGeom_Left_Bogie">
       <origin xyz="0.54 -0.91959 0.4705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Left_Bogie.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Left_Bogie.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -87,7 +87,7 @@
     <visual name="VisGeom_Steer_LeftRear">
       <origin xyz="1.165 -1.0625 0.8705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Steer_LeftRear.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Steer_LeftRear.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -100,7 +100,7 @@
     <visual name="VisGeom_Wheel_LeftRear">
       <origin xyz="1.165 -1.0625 0.8705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Wheel_LeftRear.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Wheel_LeftRear.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -113,7 +113,7 @@
     <visual name="VisGeom_Wheel_LeftMiddle">
       <origin xyz="0.09002 -1.1845 0.8705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Wheel_LeftMiddle.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Wheel_LeftMiddle.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -126,7 +126,7 @@
     <visual name="VisGeom_Steer_LeftFront">
       <origin xyz="-1.095 -1.0625 0.8705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Steer_LeftFront.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Steer_LeftFront.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -139,7 +139,7 @@
     <visual name="VisGeom_Wheel_LeftFront">
       <origin xyz="-1.095 -1.0625 0.8705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Wheel_LeftFront.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Wheel_LeftFront.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -152,7 +152,7 @@
     <visual name="VisGeom_Right_Rocker">
       <origin xyz="-0.214 0.79959 0.2405" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Right_Rocker.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Right_Rocker.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -165,7 +165,7 @@
     <visual name="VisGeom_Right_Bogie">
       <origin xyz="0.54 0.91959 0.4705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Right_Bogie.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Right_Bogie.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -178,7 +178,7 @@
     <visual name="VisGeom_Steer_RightRear">
       <origin xyz="1.165 1.0625 0.8705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Steer_RightRear.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Steer_RightRear.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -191,7 +191,7 @@
     <visual name="VisGeom_Wheel_RightRear">
       <origin xyz="1.165 1.0625 0.8705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Wheel_RightRear.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Wheel_RightRear.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -204,7 +204,7 @@
     <visual name="VisGeom_Wheel_RightMiddle">
       <origin xyz="0.09002 1.1845 0.8705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Wheel_RightMiddle.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Wheel_RightMiddle.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -217,7 +217,7 @@
     <visual name="VisGeom_Steer_RightFront">
       <origin xyz="-1.095 1.0625 0.8705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Steer_RightFront.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Steer_RightFront.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -230,7 +230,7 @@
     <visual name="VisGeom_Wheel_RightFront">
       <origin xyz="-1.095 1.0625 0.8705" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/Wheel_RightFront.gltf" scale="1 1 1" />
+        <mesh filename="meshes/Wheel_RightFront.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -243,7 +243,7 @@
     <visual name="VisGeom_RSM">
       <origin xyz="-0.714017 0.559028 -0.78589" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/RSM.gltf" scale="1 1 1" />
+        <mesh filename="meshes/RSM.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -256,7 +256,7 @@
     <visual name="VisGeom_RSM_HEAD">
       <origin xyz="-0.714017 0.559028 -0.78589" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/RSM_Head.gltf" scale="1 1 1" />
+        <mesh filename="meshes/RSM_Head.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -269,7 +269,7 @@
     <visual name="VisGeom_HGA_AZ">
       <origin xyz="0.46 -0.475 0.0005" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/HGA_AZ.gltf" scale="1 1 1" />
+        <mesh filename="meshes/HGA_AZ.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>
@@ -282,7 +282,7 @@
     <visual name="VisGeom_HGA_EL">
       <origin xyz="0.46 -0.475 -0.2475" rpy="0 0 0" />
       <geometry>
-        <mesh filename="../../m2020-urdf-models/rover/meshes/HGA_EL.gltf" scale="1 1 1" />
+        <mesh filename="meshes/HGA_EL.gltf" scale="1 1 1" />
       </geometry>
     </visual>
   </link>

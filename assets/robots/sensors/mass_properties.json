@@ -1,13 +1,13 @@
 {
-  "source_usd": "assets/robots/rover/m2020.usd",
-  "source_urdf": "assets/m2020-urdf-models/rover/m2020.urdf",
+  "source_usd": "assets/robots/perseverance/m2020.usd",
+  "source_urdf": "https://github.com/kimhoyun-robotair/m2020-urdf-models/blob/8b591ec417d34d3b152e067b378fe45f2b5810dc/rover/m2020.urdf",
   "source_urdf_sha256": "e97537bade2f112679065791d6a354cd52e24a08af5156d710125e0119787eb0",
   "source_layers_sha256": {
-    "assets/robots/rover/m2020.usd": "f97c651331c7ceab6061bf39d20643010306d6921da3b6508718c4d23518071f",
-    "assets/robots/rover/configuration/m2020_physics.usd": "8b5cd9cb4812e861c35a20d19a23d366a8008be474072e9fc07ada9aeeee2ba7",
-    "assets/robots/rover/configuration/m2020_base.usd": "028791c4dbbdbd25e6d6e28e7f6c77c26279ff989b2265fb5f2a71c2ce8523f5",
-    "assets/robots/rover/configuration/m2020_sensor.usd": "60b00273a992b70b3dcc0a9279fde1b7f9bed94d85fce718af88bf2749728abf",
-    "assets/robots/rover/configuration/m2020_robot.usd": "6f8008396a6cdc4245bfd7747d5e5bd7d5f30c6b0ec2321ee5c9dd4d031f7492"
+    "assets/robots/perseverance/m2020.usd": "f97c651331c7ceab6061bf39d20643010306d6921da3b6508718c4d23518071f",
+    "assets/robots/perseverance/configuration/m2020_physics.usd": "8b5cd9cb4812e861c35a20d19a23d366a8008be474072e9fc07ada9aeeee2ba7",
+    "assets/robots/perseverance/configuration/m2020_base.usd": "028791c4dbbdbd25e6d6e28e7f6c77c26279ff989b2265fb5f2a71c2ce8523f5",
+    "assets/robots/perseverance/configuration/m2020_sensor.usd": "60b00273a992b70b3dcc0a9279fde1b7f9bed94d85fce718af88bf2749728abf",
+    "assets/robots/perseverance/configuration/m2020_robot.usd": "6f8008396a6cdc4245bfd7747d5e5bd7d5f30c6b0ec2321ee5c9dd4d031f7492"
   },
   "method": "Mass-weighted COM and parallel-axis tensor composition; original chassis inertia retained.",
   "assumptions": [
@@ -589,7 +589,7 @@
     ],
     "initial_static_support_margin_m": 1.0488270596595162
   },
-  "output_usd": "assets/robots/rover/m2020_lidar.usda",
-  "output_urdf": "assets/robots/rover/m2020_lidar.urdf",
+  "output_usd": "assets/robots/perseverance/m2020_lidar.usda",
+  "output_urdf": "assets/robots/perseverance/m2020_lidar.urdf",
   "frames": "No sensor links or joints added; MarsLab owns lidar_link/lidar_2d_link static transforms."
 }

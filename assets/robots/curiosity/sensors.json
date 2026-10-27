@@ -1,0 +1,4886 @@
+{
+  "schema_version": 1,
+  "retrieved_at": "2026-10-22",
+  "coordinate_frame": {
+    "name": "ground_flu",
+    "axes": "X forward, Y left, Z up",
+    "origin": "Rover nominal ground between middle wheels",
+    "source_to_output_rotation": [
+      [
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        -1,
+        0
+      ],
+      [
+        0,
+        0,
+        -1
+      ]
+    ],
+    "source_url": "https://planetarydata.jpl.nasa.gov/w10n/msl/msl_places/document/PLACES_PDS_SIS.pdf",
+    "source_section": "2.1.1"
+  },
+  "rover_order": [
+    "spirit",
+    "opportunity",
+    "curiosity"
+  ],
+  "rover": "curiosity",
+  "mission": {
+    "name": "Curiosity",
+    "camera_count": 17,
+    "cameras": [
+      {
+        "name": "mastcam_left",
+        "kind": "camera",
+        "naif_frame": "MSL_MASTCAM_LEFT",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_ml_20120731_c03.ti",
+        "source_sha256": "d96cd383c86ccc86bb5716445caec613eb1caf8b6e57e1e2e7835ff7bca3aaff",
+        "calibration_file": "MSL_CAL_003_SN_3003_FILTER_0_FOCUS_02315-MCAML-FLIGHT.cahvor",
+        "calibration_resolution": [
+          1648,
+          1200
+        ],
+        "photoactive_resolution": [
+          1600,
+          1200
+        ],
+        "focal_length_mm": 34.0,
+        "pixel_size_mm": 0.0074,
+        "fx_pixels": 4645.242086,
+        "fy_pixels": 4644.882626,
+        "principal_point_pixels": [
+          829.187822,
+          601.335144
+        ],
+        "horizontal_fov_deg": 20.2215366,
+        "vertical_fov_deg": 14.750050040000001,
+        "position_ground_flu_m": [
+          0.767151,
+          -0.433709,
+          1.971648
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.023864439246027616,
+            0.006175847780580189,
+            -0.9996961275525996
+          ],
+          [
+            -0.9996962387833459,
+            -0.006306875347892701,
+            0.023825479759652844
+          ],
+          [
+            -0.006157816325950378,
+            0.9999610403548417,
+            0.006324481841116543
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          89.63762459657625,
+          0.35281911625815005,
+          -91.3674873995338
+        ],
+        "boresight_flu": [
+          0.9996961275525996,
+          -0.023825479759652844,
+          -0.006324481841116543
+        ],
+        "mount_group": "mast_reference_pose",
+        "reference_pose_note": "CAHVOR calibration mast pose near forward/level; use source reference POS/QUAT for articulation.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVOR",
+        "source_parameters": {
+          "CAHVOR_C": [
+            0.767151,
+            0.433709,
+            -1.971648
+          ],
+          "CAHVOR_A": [
+            0.999664,
+            0.025047,
+            0.006727
+          ],
+          "CAHVOR_H": [
+            712.373106,
+            4664.465028,
+            33.182389
+          ],
+          "CAHVOR_V": [
+            570.612488,
+            -14.279011,
+            4648.733195
+          ],
+          "CAHVOR_O": [
+            0.999627,
+            0.026908,
+            0.004759
+          ],
+          "CAHVOR_R": [
+            -0.000151,
+            -0.139189,
+            -1.250336
+          ],
+          "CAHVOR_E": null,
+          "CAHVOR_POS": [
+            0.80436,
+            0.55942,
+            -1.90608
+          ],
+          "CAHVOR_QUAT": [
+            1e-05,
+            -0.00325,
+            -0.00104,
+            0.99999
+          ],
+          "CAHVOR_DIMS": [
+            1648.0,
+            1200.0
+          ],
+          "CAHVOR_HS": [
+            4645.242086
+          ],
+          "CAHVOR_VS": [
+            4644.882626
+          ],
+          "CAHVOR_HC": [
+            829.187822
+          ],
+          "CAHVOR_VC": [
+            601.335144
+          ],
+          "CAHVOR_THETA": [
+            -1.571004
+          ],
+          "FOV_BOUNDARY": [
+            0.17483767,
+            0.12730492,
+            0.97633255,
+            -0.0,
+            0.12834274,
+            0.99172987,
+            -0.17476887,
+            0.12719345,
+            0.9763594,
+            -0.17553059,
+            -5.566e-05,
+            0.98447398,
+            -0.17480715,
+            -0.12735688,
+            0.97633124,
+            1.62e-05,
+            -0.12838394,
+            0.99172454,
+            0.1749107,
+            -0.12728511,
+            0.97632205,
+            0.17557293,
+            3.78e-05,
+            0.98446643
+          ],
+          "PIXEL_SAMPLES": [
+            1648.0
+          ],
+          "PIXEL_LINES": [
+            1200.0
+          ],
+          "PIXEL_SIZE": [
+            0.0074
+          ],
+          "FOCAL_LENGTH": [
+            34.0
+          ],
+          "IFOV_HORIZONTAL": [
+            0.0122778
+          ],
+          "IFOV_VERTICAL": [
+            0.01230196
+          ],
+          "BORESIGHT_PIXEL": [
+            829.18782212,
+            601.33514402
+          ]
+        }
+      },
+      {
+        "name": "mastcam_right",
+        "kind": "camera",
+        "naif_frame": "MSL_MASTCAM_RIGHT",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_mr_20120731_c03.ti",
+        "source_sha256": "e98360a88b9558511a47a683897896e63c0aa66b4f1fc7ef9bd69ffeb400f336",
+        "calibration_file": "MSL_CAL_003_SN_3004_FILTER_0_FOCUS_02702-MCAMR-FLIGHT.cahvor",
+        "calibration_resolution": [
+          1648,
+          1200
+        ],
+        "photoactive_resolution": [
+          1600,
+          1200
+        ],
+        "focal_length_mm": 100.0,
+        "pixel_size_mm": 0.0074,
+        "fx_pixels": 13376.370999,
+        "fy_pixels": 13370.635765,
+        "principal_point_pixels": [
+          859.446513,
+          534.294115
+        ],
+        "horizontal_fov_deg": 7.00805088,
+        "vertical_fov_deg": 5.11956214,
+        "position_ground_flu_m": [
+          0.872866,
+          -0.677208,
+          1.970931
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            0.02536656230082749,
+            0.0064777660932854066,
+            -0.9996572292858583
+          ],
+          [
+            -0.999653064827439,
+            0.007257868963866508,
+            -0.025319425728313284
+          ],
+          [
+            0.007091367861454289,
+            0.9999526798226726,
+            0.0066596259136311835
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          89.61841912685438,
+          -0.4063088548605288,
+          -88.54641056953018
+        ],
+        "boresight_flu": [
+          0.9996572292858583,
+          0.025319425728313284,
+          -0.0066596259136311835
+        ],
+        "mount_group": "mast_reference_pose",
+        "reference_pose_note": "CAHVOR calibration mast pose near forward/level; use source reference POS/QUAT for articulation.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVOR",
+        "source_parameters": {
+          "CAHVOR_C": [
+            0.872866,
+            0.677208,
+            -1.970931
+          ],
+          "CAHVOR_A": [
+            0.999741,
+            -0.022668,
+            0.001764
+          ],
+          "CAHVOR_H": [
+            1162.600942,
+            13353.117702,
+            -93.448986
+          ],
+          "CAHVOR_V": [
+            512.731806,
+            83.454058,
+            13371.22614
+          ],
+          "CAHVOR_O": [
+            0.999495,
+            -0.029483,
+            0.011824
+          ],
+          "CAHVOR_R": [
+            -0.000106,
+            1.436779,
+            -0.685884
+          ],
+          "CAHVOR_E": null,
+          "CAHVOR_POS": [
+            0.80436,
+            0.55942,
+            -1.90608
+          ],
+          "CAHVOR_QUAT": [
+            1e-05,
+            -0.00325,
+            -0.00104,
+            0.99999
+          ],
+          "CAHVOR_DIMS": [
+            1648.0,
+            1200.0
+          ],
+          "CAHVOR_HS": [
+            13376.370999
+          ],
+          "CAHVOR_VS": [
+            13370.635765
+          ],
+          "CAHVOR_HC": [
+            859.446513
+          ],
+          "CAHVOR_VC": [
+            534.294115
+          ],
+          "CAHVOR_THETA": [
+            -1.570787
+          ],
+          "FOV_BOUNDARY": [
+            0.06091935,
+            0.04433268,
+            0.99715768,
+            0.0,
+            0.04462814,
+            0.99900367,
+            -0.06080956,
+            0.04423678,
+            0.99716864,
+            -0.06106251,
+            -5.126e-05,
+            0.99813394,
+            -0.06083571,
+            -0.04440396,
+            0.99715962,
+            2.39e-05,
+            -0.04469527,
+            0.99900067,
+            0.06099392,
+            -0.0444053,
+            0.99714989,
+            0.06117482,
+            -3.5e-06,
+            0.99812707
+          ],
+          "PIXEL_SAMPLES": [
+            1648.0
+          ],
+          "PIXEL_LINES": [
+            1200.0
+          ],
+          "PIXEL_SIZE": [
+            0.0074
+          ],
+          "FOCAL_LENGTH": [
+            100.0
+          ],
+          "IFOV_HORIZONTAL": [
+            0.00425504
+          ],
+          "IFOV_VERTICAL": [
+            0.00426986
+          ],
+          "BORESIGHT_PIXEL": [
+            859.44651228,
+            534.29411479
+          ]
+        }
+      },
+      {
+        "name": "navcam_left_a",
+        "kind": "camera",
+        "naif_frame": "MSL_NAVCAM_LEFT_A",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_nla_20120731_c04.ti",
+        "source_sha256": "d9388434070d5ea90cba6d16d86dab262e06ec59ddc9b61bab8ad94bab8c039f",
+        "calibration_file": "MSL_CAL_004_SN_0216-NAVL-FLIGHT-RCE-A.cahvor",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 14.67,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 1226.338076,
+        "fy_pixels": 1226.021488,
+        "principal_point_pixels": [
+          503.457929,
+          506.499548
+        ],
+        "horizontal_fov_deg": 45.27706953,
+        "vertical_fov_deg": 45.28806678,
+        "position_ground_flu_m": [
+          0.919577,
+          -0.345256,
+          1.987225
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.017462969244009037,
+            0.015092421589890447,
+            -0.9997335962723949
+          ],
+          [
+            -0.9998235571639453,
+            0.006657602579537327,
+            0.017565046767032303
+          ],
+          [
+            0.006920928060447419,
+            0.9998639383128317,
+            0.014973497131136895
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          89.14202919839471,
+          -0.3965431339063989,
+          -91.00062926390746
+        ],
+        "boresight_flu": [
+          0.9997335962723949,
+          -0.017565046767032303,
+          -0.014973497131136895
+        ],
+        "mount_group": "mast_reference_pose",
+        "reference_pose_note": "CAHVOR calibration mast pose near forward/level; use source reference POS/QUAT for articulation.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVOR",
+        "source_parameters": {
+          "CAHVOR_C": [
+            0.919577,
+            0.345256,
+            -1.987225
+          ],
+          "CAHVOR_A": [
+            0.99988,
+            0.01098,
+            0.01094
+          ],
+          "CAHVOR_H": [
+            490.02493,
+            1231.763481,
+            -3.042639
+          ],
+          "CAHVOR_V": [
+            492.93483,
+            13.778703,
+            1231.460873
+          ],
+          "CAHVOR_O": [
+            0.99959,
+            0.027364,
+            0.008413
+          ],
+          "CAHVOR_R": [
+            0.000274,
+            -0.004951,
+            0.021485
+          ],
+          "CAHVOR_E": null,
+          "CAHVOR_POS": [
+            0.80436,
+            0.55942,
+            -1.90608
+          ],
+          "CAHVOR_QUAT": [
+            1e-05,
+            -0.00325,
+            -0.00104,
+            0.99999
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            1226.338076
+          ],
+          "CAHVOR_VS": [
+            1226.021488
+          ],
+          "CAHVOR_HC": [
+            503.457929
+          ],
+          "CAHVOR_VC": [
+            506.499548
+          ],
+          "CAHVOR_THETA": [
+            -1.570946
+          ],
+          "FOV_BOUNDARY": [
+            0.36007422,
+            0.36023352,
+            0.86056863,
+            -0.0,
+            0.38556597,
+            0.92268027,
+            -0.35870457,
+            0.35875141,
+            0.86175893,
+            -0.38402517,
+            -5.142e-05,
+            0.92332262,
+            -0.35775756,
+            -0.35789264,
+            0.86250936,
+            4.23e-06,
+            -0.38444329,
+            0.92314861,
+            0.3591483,
+            -0.35920036,
+            0.86138702,
+            0.38580669,
+            4.813e-05,
+            0.92257964
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            14.67
+          ],
+          "IFOV_HORIZONTAL": [
+            0.04425911
+          ],
+          "IFOV_VERTICAL": [
+            0.04426986
+          ],
+          "BORESIGHT_PIXEL": [
+            503.45760356,
+            506.49914993
+          ]
+        }
+      },
+      {
+        "name": "navcam_right_a",
+        "kind": "camera",
+        "naif_frame": "MSL_NAVCAM_RIGHT_A",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_nra_20120731_c04.ti",
+        "source_sha256": "26bf935af224aceee07b29f79d62ed74ef4cabc68dea953c5f034ee1cfbf8cf9",
+        "calibration_file": "MSL_CAL_004_SN_0206-NAVR-FLIGHT-RCE-A.cahvor",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 14.67,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 1206.380901,
+        "fy_pixels": 1206.07888,
+        "principal_point_pixels": [
+          501.230884,
+          500.180268
+        ],
+        "horizontal_fov_deg": 45.67308306,
+        "vertical_fov_deg": 45.68814162,
+        "position_ground_flu_m": [
+          0.918496,
+          -0.76885,
+          1.987065
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.007226753297784843,
+            0.020396855597007983,
+            -0.9997658437446879
+          ],
+          [
+            -0.9999690518482072,
+            -0.00325640351032728,
+            0.007161786228005572
+          ],
+          [
+            -0.0031095630835662465,
+            0.9997866593018397,
+            0.020419757576832044
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          88.82994709316327,
+          0.17816512794328246,
+          -90.41406806969617
+        ],
+        "boresight_flu": [
+          0.9997658437446879,
+          -0.007161786228005572,
+          -0.020419757576832044
+        ],
+        "mount_group": "mast_reference_pose",
+        "reference_pose_note": "CAHVOR calibration mast pose near forward/level; use source reference POS/QUAT for articulation.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVOR",
+        "source_parameters": {
+          "CAHVOR_C": [
+            0.918496,
+            0.76885,
+            -1.987065
+          ],
+          "CAHVOR_A": [
+            0.999939,
+            -0.00132,
+            0.011008
+          ],
+          "CAHVOR_H": [
+            502.749189,
+            1205.712037,
+            9.43477
+          ],
+          "CAHVOR_V": [
+            486.867495,
+            -4.602833,
+            1211.505435
+          ],
+          "CAHVOR_O": [
+            0.996805,
+            0.01651,
+            -0.078154
+          ],
+          "CAHVOR_R": [
+            0.008154,
+            -0.008592,
+            0.007793
+          ],
+          "CAHVOR_E": null,
+          "CAHVOR_POS": [
+            0.80436,
+            0.55942,
+            -1.90608
+          ],
+          "CAHVOR_QUAT": [
+            1e-05,
+            -0.00325,
+            -0.00104,
+            0.99999
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            1206.380901
+          ],
+          "CAHVOR_VS": [
+            1206.07888
+          ],
+          "CAHVOR_HC": [
+            501.230884
+          ],
+          "CAHVOR_VC": [
+            500.180268
+          ],
+          "CAHVOR_THETA": [
+            -1.570833
+          ],
+          "FOV_BOUNDARY": [
+            0.36382354,
+            0.36377099,
+            0.85749816,
+            -0.0,
+            0.38906747,
+            0.92120926,
+            -0.36181179,
+            0.36181218,
+            0.85917645,
+            -0.38686666,
+            -9.141e-05,
+            0.92213566,
+            -0.36012719,
+            -0.36042839,
+            0.86046486,
+            2e-05,
+            -0.38738124,
+            0.92191961,
+            0.36211698,
+            -0.36240566,
+            0.85879766,
+            0.38933947,
+            -0.00013379,
+            0.92109433
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            14.67
+          ],
+          "IFOV_HORIZONTAL": [
+            0.04464622
+          ],
+          "IFOV_VERTICAL": [
+            0.04466094
+          ],
+          "BORESIGHT_PIXEL": [
+            501.23083936,
+            500.18012365
+          ]
+        }
+      },
+      {
+        "name": "navcam_left_b",
+        "kind": "camera",
+        "naif_frame": "MSL_NAVCAM_LEFT_B",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_nlb_20130530_c05.ti",
+        "source_sha256": "7a004362bf882a795a8fa82d16dc4f78346d7ab8555ecf11fe8942ad29ae05f1",
+        "calibration_file": "MSL_CAL_005_SN_0215-NAVL-FLIGHT-RCE-B.cahvor",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 14.67,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 1224.672774,
+        "fy_pixels": 1224.792081,
+        "principal_point_pixels": [
+          507.177038,
+          502.629022
+        ],
+        "horizontal_fov_deg": 45.32356488,
+        "vertical_fov_deg": 45.319053450000006,
+        "position_ground_flu_m": [
+          0.919405,
+          -0.345366,
+          1.939156
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.004710205383789822,
+            0.008920164270691018,
+            -0.9999491210229781
+          ],
+          [
+            -0.9999888094600641,
+            0.00039946838719354203,
+            0.004713955838933893
+          ],
+          [
+            0.0004414973230987224,
+            0.9999601347525768,
+            0.008918182871088498
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          89.48901893721384,
+          -0.025295934101660613,
+          -90.26987591335215
+        ],
+        "boresight_flu": [
+          0.9999491210229781,
+          -0.004713955838933893,
+          -0.008918182871088498
+        ],
+        "mount_group": "mast_reference_pose",
+        "reference_pose_note": "CAHVOR calibration mast pose near forward/level; use source reference POS/QUAT for articulation.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVOR",
+        "source_parameters": {
+          "CAHVOR_C": [
+            0.919405,
+            0.345366,
+            -1.939156
+          ],
+          "CAHVOR_A": [
+            0.999998,
+            0.001181,
+            0.001677
+          ],
+          "CAHVOR_H": [
+            505.730471,
+            1225.270655,
+            0.318254
+          ],
+          "CAHVOR_V": [
+            500.573345,
+            1.09336,
+            1225.633038
+          ],
+          "CAHVOR_O": [
+            0.999969,
+            -0.007128,
+            0.00343
+          ],
+          "CAHVOR_R": [
+            7.2e-05,
+            -0.000111,
+            0.007809
+          ],
+          "CAHVOR_E": null,
+          "CAHVOR_POS": [
+            0.80436,
+            0.55942,
+            -1.90608
+          ],
+          "CAHVOR_QUAT": [
+            1e-05,
+            -0.00325,
+            -0.00104,
+            0.99999
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            1224.672774
+          ],
+          "CAHVOR_VS": [
+            1224.792081
+          ],
+          "CAHVOR_HC": [
+            507.177038
+          ],
+          "CAHVOR_VC": [
+            502.629022
+          ],
+          "CAHVOR_THETA": [
+            -1.570821
+          ],
+          "FOV_BOUNDARY": [
+            0.36057757,
+            0.36053323,
+            0.8602323,
+            0.0,
+            0.38625051,
+            0.92239392,
+            -0.35974487,
+            0.35971385,
+            0.86092368,
+            -0.38479601,
+            2.7e-07,
+            0.92300164,
+            -0.3581226,
+            -0.35808823,
+            0.86227665,
+            4.48e-06,
+            -0.38425767,
+            0.92322589,
+            0.35895674,
+            -0.35889931,
+            0.86159233,
+            0.38578506,
+            2.79e-06,
+            0.92258869
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            14.67
+          ],
+          "IFOV_HORIZONTAL": [
+            0.04430456
+          ],
+          "IFOV_VERTICAL": [
+            0.04430015
+          ],
+          "BORESIGHT_PIXEL": [
+            507.17703789,
+            502.62902172
+          ]
+        }
+      },
+      {
+        "name": "navcam_right_b",
+        "kind": "camera",
+        "naif_frame": "MSL_NAVCAM_RIGHT_B",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_nrb_20130530_c05.ti",
+        "source_sha256": "7228186208a9b374d6d070f616151d9aa06a597f9963656c30d129cd44302ad0",
+        "calibration_file": "MSL_CAL_005_SN_0218-NAVR-FLIGHT-RCE-B.cahvor",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 14.67,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 1220.337925,
+        "fy_pixels": 1219.961039,
+        "principal_point_pixels": [
+          509.167383,
+          517.250162
+        ],
+        "horizontal_fov_deg": 45.474375540000004,
+        "vertical_fov_deg": 45.48676407,
+        "position_ground_flu_m": [
+          0.919104,
+          -0.768966,
+          1.939388
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.003723993393775016,
+            0.008041200536424056,
+            -0.9999607347126865
+          ],
+          [
+            -0.9999801933521559,
+            0.005043857013300097,
+            0.003764626118796468
+          ],
+          [
+            0.005073931078371205,
+            0.9999549482853527,
+            0.008022257977000109
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          89.5403476284584,
+          -0.29071608374346947,
+          -90.21337234421466
+        ],
+        "boresight_flu": [
+          0.9999607347126865,
+          -0.003764626118796468,
+          -0.008022257977000109
+        ],
+        "mount_group": "mast_reference_pose",
+        "reference_pose_note": "CAHVOR calibration mast pose near forward/level; use source reference POS/QUAT for articulation.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVOR",
+        "source_parameters": {
+          "CAHVOR_C": [
+            0.919104,
+            0.768966,
+            -1.939388
+          ],
+          "CAHVOR_A": [
+            0.999917,
+            0.001877,
+            0.012745
+          ],
+          "CAHVOR_H": [
+            506.913101,
+            1221.276031,
+            0.315425
+          ],
+          "CAHVOR_V": [
+            501.647485,
+            7.113463,
+            1226.438717
+          ],
+          "CAHVOR_O": [
+            0.99986,
+            0.001297,
+            0.016707
+          ],
+          "CAHVOR_R": [
+            1.6e-05,
+            0.00171,
+            -0.004983
+          ],
+          "CAHVOR_E": null,
+          "CAHVOR_POS": [
+            0.80436,
+            0.55942,
+            -1.90608
+          ],
+          "CAHVOR_QUAT": [
+            1e-05,
+            -0.00325,
+            -0.00104,
+            0.99999
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            1220.337925
+          ],
+          "CAHVOR_VS": [
+            1219.961039
+          ],
+          "CAHVOR_HC": [
+            509.167383
+          ],
+          "CAHVOR_VC": [
+            517.250162
+          ],
+          "CAHVOR_THETA": [
+            -1.570797
+          ],
+          "FOV_BOUNDARY": [
+            0.36023167,
+            0.36034364,
+            0.86045663,
+            -0.0,
+            0.38595358,
+            0.9225182,
+            -0.35980956,
+            0.35991235,
+            0.86081367,
+            -0.38624091,
+            -6.15e-06,
+            0.92239794,
+            -0.36085188,
+            -0.36096538,
+            0.85993599,
+            1.64e-06,
+            -0.38725515,
+            0.92197259,
+            0.36128168,
+            -0.36138439,
+            0.85957947,
+            0.38676853,
+            3.27e-06,
+            0.92217683
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            14.67
+          ],
+          "IFOV_HORIZONTAL": [
+            0.04445198
+          ],
+          "IFOV_VERTICAL": [
+            0.04446409
+          ],
+          "BORESIGHT_PIXEL": [
+            509.16738241,
+            517.25016168
+          ]
+        }
+      },
+      {
+        "name": "hazcam_front_left_a",
+        "kind": "camera",
+        "naif_frame": "MSL_HAZCAM_FRONT_LEFT_A",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hfla_20120731_c03.ti",
+        "source_sha256": "1fbcd2261994f0ba9c6b11e0ab4f9a9d7ff2428b70fae1c2e4871b744e869161",
+        "calibration_file": "MSL_CAL_003_SN_0205-FHAZL-FLIGHT-RCE-A.cahvore",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 5.58,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 455.104166,
+        "fy_pixels": 455.167156,
+        "principal_point_pixels": [
+          505.512289,
+          524.155729
+        ],
+        "horizontal_fov_deg": 125.71466952,
+        "vertical_fov_deg": 125.73709368,
+        "position_ground_flu_m": [
+          1.032819,
+          0.088715,
+          0.708463
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.01085829898074223,
+            0.6880577500375117,
+            -0.72557468944042
+          ],
+          [
+            -0.9999115171095839,
+            -0.0018948431510737052,
+            0.01316691007955306
+          ],
+          [
+            0.007684744293404902,
+            0.725653458740982,
+            0.6880174434724711
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          46.52501942229367,
+          -0.440307748472513,
+          -90.62216530222983
+        ],
+        "boresight_flu": [
+          0.72557468944042,
+          -0.01316691007955306,
+          -0.6880174434724711
+        ],
+        "mount_group": "body",
+        "reference_pose_note": "Rigid body-fixed camera.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVORE3,0.37",
+        "source_parameters": {
+          "CAHVOR_C": [
+            1.032819,
+            -0.088715,
+            -0.708463
+          ],
+          "CAHVOR_A": [
+            0.706251,
+            -3.1e-05,
+            0.707962
+          ],
+          "CAHVOR_H": [
+            356.481676,
+            455.08774,
+            358.438893
+          ],
+          "CAHVOR_V": [
+            47.94513,
+            -0.87866,
+            692.543761
+          ],
+          "CAHVOR_O": [
+            0.704987,
+            -0.000211,
+            0.709221
+          ],
+          "CAHVOR_R": [
+            3e-06,
+            -0.014403,
+            -0.007247
+          ],
+          "CAHVOR_E": [
+            0.002111,
+            0.002025,
+            0.002171
+          ],
+          "CAHVOR_POS": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "CAHVOR_QUAT": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            455.104166
+          ],
+          "CAHVOR_VS": [
+            455.167156
+          ],
+          "CAHVOR_HC": [
+            505.512289
+          ],
+          "CAHVOR_VC": [
+            524.155729
+          ],
+          "CAHVOR_THETA": [
+            -1.570994
+          ],
+          "FOV_BOUNDARY": [
+            0.69550765,
+            0.71720665,
+            -0.04340201,
+            -0.0,
+            0.89047955,
+            0.45502326,
+            -0.6967983,
+            0.71496287,
+            -0.05744759,
+            -0.88969234,
+            0.01436066,
+            0.45633464,
+            -0.72426846,
+            -0.68913474,
+            -0.02298944,
+            -0.00895172,
+            -0.88942201,
+            0.45699929,
+            0.70874217,
+            -0.70531397,
+            -0.01472224,
+            0.89003227,
+            0.00551332,
+            0.45586418
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            5.58
+          ],
+          "IFOV_HORIZONTAL": [
+            0.12288824
+          ],
+          "IFOV_VERTICAL": [
+            0.12291016
+          ],
+          "BORESIGHT_PIXEL": [
+            505.512548,
+            524.15598937
+          ]
+        }
+      },
+      {
+        "name": "hazcam_front_right_a",
+        "kind": "camera",
+        "naif_frame": "MSL_HAZCAM_FRONT_RIGHT_A",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hfra_20120731_c03.ti",
+        "source_sha256": "451cbc47f8df724b49f762285151b6628ff10641b14e492d8f2a73704173425b",
+        "calibration_file": "MSL_CAL_003_SN_0213-FHAZR-FLIGHT-RCE-A.cahvore",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 5.58,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 454.374183,
+        "fy_pixels": 454.440018,
+        "principal_point_pixels": [
+          511.933001,
+          520.990477
+        ],
+        "horizontal_fov_deg": 125.98468014,
+        "vertical_fov_deg": 125.99906351999999,
+        "position_ground_flu_m": [
+          1.032635,
+          -0.077859,
+          0.708165
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            0.00013602718506295215,
+            0.6916397660806163,
+            -0.7222426292268793
+          ],
+          [
+            -0.9999999360754276,
+            -0.0001447455505473646,
+            -0.0003269523918050025
+          ],
+          [
+            -0.0003306746827837307,
+            0.7222426275322414,
+            0.6916397021785101
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          46.23995093832582,
+          0.018946264060617314,
+          -89.99220621594671
+        ],
+        "boresight_flu": [
+          0.7222426292268793,
+          0.0003269523918050025,
+          -0.6916397021785101
+        ],
+        "mount_group": "body",
+        "reference_pose_note": "Rigid body-fixed camera.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVORE3,0.37",
+        "source_parameters": {
+          "CAHVOR_C": [
+            1.032635,
+            0.077859,
+            -0.708165
+          ],
+          "CAHVOR_A": [
+            0.707644,
+            0.000621,
+            0.706569
+          ],
+          "CAHVOR_H": [
+            361.994749,
+            454.692082,
+            361.588451
+          ],
+          "CAHVOR_V": [
+            47.582648,
+            0.251849,
+            689.697496
+          ],
+          "CAHVOR_O": [
+            0.706118,
+            0.000198,
+            0.708094
+          ],
+          "CAHVOR_R": [
+            5e-06,
+            -0.014656,
+            -0.007313
+          ],
+          "CAHVOR_E": [
+            0.002169,
+            0.00136,
+            0.001698
+          ],
+          "CAHVOR_POS": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "CAHVOR_QUAT": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            454.374183
+          ],
+          "CAHVOR_VS": [
+            454.440018
+          ],
+          "CAHVOR_HC": [
+            511.933001
+          ],
+          "CAHVOR_VC": [
+            520.990477
+          ],
+          "CAHVOR_THETA": [
+            -1.57073
+          ],
+          "FOV_BOUNDARY": [
+            0.69815069,
+            0.71371143,
+            -0.05658285,
+            -0.0,
+            0.89184555,
+            0.45234004,
+            -0.69791029,
+            0.71376015,
+            -0.05888701,
+            -0.89118977,
+            0.00766687,
+            0.45356589,
+            -0.71409254,
+            -0.69950231,
+            -0.02771941,
+            0.00035812,
+            -0.89015694,
+            0.45565391,
+            0.71468862,
+            -0.69895775,
+            -0.02604305,
+            0.89070161,
+            0.00788627,
+            0.45452002
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            5.58
+          ],
+          "IFOV_HORIZONTAL": [
+            0.12315218
+          ],
+          "IFOV_VERTICAL": [
+            0.12316624
+          ],
+          "BORESIGHT_PIXEL": [
+            511.93296618,
+            520.99060181
+          ]
+        }
+      },
+      {
+        "name": "hazcam_front_left_b",
+        "kind": "camera",
+        "naif_frame": "MSL_HAZCAM_FRONT_LEFT_B",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hflb_20120731_c03.ti",
+        "source_sha256": "c7b2243118acc4e71dc15472fc696cbb102a9072814472ac7003ecd650e22a9b",
+        "calibration_file": "MSL_CAL_003_SN_0208-FHAZL-FLIGHT-RCE-B.cahvore",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 5.58,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 453.755256,
+        "fy_pixels": 453.824156,
+        "principal_point_pixels": [
+          501.352813,
+          515.658123
+        ],
+        "horizontal_fov_deg": 125.95418450999999,
+        "vertical_fov_deg": 125.91902400000001,
+        "position_ground_flu_m": [
+          1.033039,
+          0.17145,
+          0.707908
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.01065377384875195,
+            0.7010272451750121,
+            -0.7130549057576935
+          ],
+          [
+            -0.9997141181033299,
+            0.0077974603509414955,
+            0.022602691807769502
+          ],
+          [
+            0.021405120127230406,
+            0.7130918602356986,
+            0.7007437617973704
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          45.50039476050842,
+          -1.2265167161571828,
+          -90.61056772137067
+        ],
+        "boresight_flu": [
+          0.7130549057576935,
+          -0.022602691807769502,
+          -0.7007437617973704
+        ],
+        "mount_group": "body",
+        "reference_pose_note": "Rigid body-fixed camera.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVORE3,0.37",
+        "source_parameters": {
+          "CAHVOR_C": [
+            1.033039,
+            -0.17145,
+            -0.707908
+          ],
+          "CAHVOR_A": [
+            0.706662,
+            0.00032,
+            0.707551
+          ],
+          "CAHVOR_H": [
+            356.71795,
+            453.90141,
+            352.099828
+          ],
+          "CAHVOR_V": [
+            43.301107,
+            3.702505,
+            685.544287
+          ],
+          "CAHVOR_O": [
+            0.704793,
+            -0.000541,
+            0.709413
+          ],
+          "CAHVOR_R": [
+            8e-06,
+            -0.013391,
+            -0.007308
+          ],
+          "CAHVOR_E": [
+            0.001868,
+            0.001572,
+            0.001665
+          ],
+          "CAHVOR_POS": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "CAHVOR_QUAT": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            453.755256
+          ],
+          "CAHVOR_VS": [
+            453.824156
+          ],
+          "CAHVOR_HC": [
+            501.352813
+          ],
+          "CAHVOR_VC": [
+            515.658123
+          ],
+          "CAHVOR_THETA": [
+            -1.570892
+          ],
+          "FOV_BOUNDARY": [
+            0.70145564,
+            0.71195188,
+            -0.03293194,
+            -0.0,
+            0.89196262,
+            0.45210916,
+            -0.70368865,
+            0.7082162,
+            -0.05702711,
+            -0.89082506,
+            0.01183542,
+            0.45419228,
+            -0.72438076,
+            -0.68868327,
+            -0.03143019,
+            -0.01558763,
+            -0.88933349,
+            0.4569934,
+            0.69712788,
+            -0.71682265,
+            -0.01334186,
+            0.8907552,
+            -0.00391065,
+            0.45446659
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            5.58
+          ],
+          "IFOV_HORIZONTAL": [
+            0.12312237
+          ],
+          "IFOV_VERTICAL": [
+            0.123088
+          ],
+          "BORESIGHT_PIXEL": [
+            501.35285384,
+            515.65797749
+          ]
+        }
+      },
+      {
+        "name": "hazcam_front_right_b",
+        "kind": "camera",
+        "naif_frame": "MSL_HAZCAM_FRONT_RIGHT_B",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hfrb_20120731_c03.ti",
+        "source_sha256": "7c09799d66f75cade51ddb328a2bb7b1b9d14da1d0e417b6cbf7cb187e4d99fb",
+        "calibration_file": "MSL_CAL_003_SN_0209-FHAZR-FLIGHT-RCE-B.cahvore",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 5.58,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 453.773752,
+        "fy_pixels": 453.745949,
+        "principal_point_pixels": [
+          509.65856,
+          511.072128
+        ],
+        "horizontal_fov_deg": 126.11626863000001,
+        "vertical_fov_deg": 126.12435033,
+        "position_ground_flu_m": [
+          1.033137,
+          0.004912,
+          0.708098
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.00043586119283378166,
+            0.705181693136283,
+            -0.709026508453997
+          ],
+          [
+            -0.9999657712708577,
+            0.005550870443676321,
+            0.006135480746970034
+          ],
+          [
+            0.008262342990913706,
+            0.7090049135956414,
+            0.7051551362540994
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          45.15597629763936,
+          -0.4734027686165315,
+          -90.02497386004488
+        ],
+        "boresight_flu": [
+          0.709026508453997,
+          -0.006135480746970034,
+          -0.7051551362540994
+        ],
+        "mount_group": "body",
+        "reference_pose_note": "Rigid body-fixed camera.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVORE3,0.37",
+        "source_parameters": {
+          "CAHVOR_C": [
+            1.033137,
+            -0.004912,
+            -0.708098
+          ],
+          "CAHVOR_A": [
+            0.709687,
+            0.002072,
+            0.704514
+          ],
+          "CAHVOR_H": [
+            362.792814,
+            454.822103,
+            356.624024
+          ],
+          "CAHVOR_V": [
+            43.031434,
+            3.578514,
+            682.067149
+          ],
+          "CAHVOR_O": [
+            0.708524,
+            0.004189,
+            0.705675
+          ],
+          "CAHVOR_R": [
+            7e-06,
+            -0.014649,
+            -0.00712
+          ],
+          "CAHVOR_E": [
+            0.002889,
+            0.002264,
+            0.002178
+          ],
+          "CAHVOR_POS": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "CAHVOR_QUAT": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            453.773752
+          ],
+          "CAHVOR_VS": [
+            453.745949
+          ],
+          "CAHVOR_HC": [
+            509.65856
+          ],
+          "CAHVOR_VC": [
+            511.072128
+          ],
+          "CAHVOR_THETA": [
+            -1.570756
+          ],
+          "FOV_BOUNDARY": [
+            0.70592158,
+            0.70667818,
+            -0.04775643,
+            0.0,
+            0.89240416,
+            0.45123699,
+            -0.70645202,
+            0.70675711,
+            -0.03768189,
+            -0.89026151,
+            0.00094128,
+            0.45544874,
+            -0.70821674,
+            -0.70543114,
+            -0.02821277,
+            -0.0013171,
+            -0.89058907,
+            0.45480697,
+            0.70561365,
+            -0.70756566,
+            -0.03821272,
+            0.89266507,
+            -0.0004616,
+            0.45072039
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            5.58
+          ],
+          "IFOV_HORIZONTAL": [
+            0.12328081
+          ],
+          "IFOV_VERTICAL": [
+            0.12328871
+          ],
+          "BORESIGHT_PIXEL": [
+            509.65835283,
+            511.07211939
+          ]
+        }
+      },
+      {
+        "name": "hazcam_rear_left_a",
+        "kind": "camera",
+        "naif_frame": "MSL_HAZCAM_BACK_LEFT_A",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hbla_20120731_c03.ti",
+        "source_sha256": "6158c5c3f79acefafe2a06439a65131fc59602f3f37eb6cef93e8f112b875240",
+        "calibration_file": "MSL_CAL_003_SN_0211-RHAZL-FLIGHT-RCE-A.cahvore",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 5.58,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 451.300295,
+        "fy_pixels": 451.276945,
+        "principal_point_pixels": [
+          495.034761,
+          513.488201
+        ],
+        "horizontal_fov_deg": 126.79688076000001,
+        "vertical_fov_deg": 126.73527569999999,
+        "position_ground_flu_m": [
+          -0.976174,
+          0.455344,
+          0.779765
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            0.019927791733727978,
+            -0.7064260524059411,
+            0.7075062654130886
+          ],
+          [
+            0.9994893971693208,
+            -0.003602173048213633,
+            -0.031748532177700545
+          ],
+          [
+            0.0249765502566893,
+            0.7077776888483343,
+            0.7059935659096235
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          45.07230495026118,
+          -1.4311997465752622,
+          88.85778968102869
+        ],
+        "boresight_flu": [
+          -0.7075062654130886,
+          0.031748532177700545,
+          -0.7059935659096235
+        ],
+        "mount_group": "body",
+        "reference_pose_note": "Rigid body-fixed camera.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVORE3,0.37",
+        "source_parameters": {
+          "CAHVOR_C": [
+            -0.976174,
+            -0.455344,
+            -0.779765
+          ],
+          "CAHVOR_A": [
+            -0.704643,
+            0.004698,
+            0.709546
+          ],
+          "CAHVOR_H": [
+            -351.443149,
+            -448.967093,
+            351.635654
+          ],
+          "CAHVOR_V": [
+            -41.627897,
+            0.777433,
+            682.339745
+          ],
+          "CAHVOR_O": [
+            -0.705089,
+            0.005337,
+            0.709099
+          ],
+          "CAHVOR_R": [
+            1e-06,
+            -0.014583,
+            -0.007091
+          ],
+          "CAHVOR_E": [
+            0.002373,
+            0.001932,
+            0.001475
+          ],
+          "CAHVOR_POS": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "CAHVOR_QUAT": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            451.300295
+          ],
+          "CAHVOR_VS": [
+            451.276945
+          ],
+          "CAHVOR_HC": [
+            495.034761
+          ],
+          "CAHVOR_VC": [
+            513.488201
+          ],
+          "CAHVOR_THETA": [
+            -1.570692
+          ],
+          "FOV_BOUNDARY": [
+            0.70325154,
+            0.71008224,
+            -0.03493552,
+            -0.0,
+            0.89357846,
+            0.44890705,
+            -0.70692431,
+            0.70382776,
+            -0.06988924,
+            -0.89379638,
+            0.01403502,
+            0.44825333,
+            -0.72915685,
+            -0.68082222,
+            -0.06936416,
+            -0.02532015,
+            -0.89404382,
+            0.4472634,
+            0.68532869,
+            -0.72733038,
+            -0.03626444,
+            0.89430563,
+            -0.01146908,
+            0.44730963
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            5.58
+          ],
+          "IFOV_HORIZONTAL": [
+            0.12394612
+          ],
+          "IFOV_VERTICAL": [
+            0.1238859
+          ],
+          "BORESIGHT_PIXEL": [
+            495.03437919,
+            513.48789531
+          ]
+        }
+      },
+      {
+        "name": "hazcam_rear_right_a",
+        "kind": "camera",
+        "naif_frame": "MSL_HAZCAM_BACK_RIGHT_A",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hbra_20120731_c03.ti",
+        "source_sha256": "7b1159ab55690b3f4623a72a7886fbf87b4c0c547e26a9f8aa7dd4a26beaece1",
+        "calibration_file": "MSL_CAL_003_SN_0217-RHAZR-FLIGHT-RCE-A.cahvore",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 5.58,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 452.033814,
+        "fy_pixels": 451.924769,
+        "principal_point_pixels": [
+          498.436837,
+          525.515557
+        ],
+        "horizontal_fov_deg": 126.43239609,
+        "vertical_fov_deg": 126.49393977,
+        "position_ground_flu_m": [
+          -0.976811,
+          0.555458,
+          0.779633
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            0.016708128487481516,
+            -0.6889739443871239,
+            0.7245935014876232
+          ],
+          [
+            0.9996615436216849,
+            -0.002942247141616002,
+            -0.02584843100979158
+          ],
+          [
+            0.019940828627620037,
+            0.7247801371018705,
+            0.6886915973178691
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          46.46254915831528,
+          -1.1426010522310501,
+          89.04245979484888
+        ],
+        "boresight_flu": [
+          -0.7245935014876232,
+          0.02584843100979158,
+          -0.6886915973178691
+        ],
+        "mount_group": "body",
+        "reference_pose_note": "Rigid body-fixed camera.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVORE3,0.37",
+        "source_parameters": {
+          "CAHVOR_C": [
+            -0.976811,
+            -0.555458,
+            -0.779633
+          ],
+          "CAHVOR_A": [
+            -0.703069,
+            0.002937,
+            0.711116
+          ],
+          "CAHVOR_H": [
+            -352.302693,
+            -450.566058,
+            354.46705
+          ],
+          "CAHVOR_V": [
+            -48.105738,
+            0.171962,
+            691.439373
+          ],
+          "CAHVOR_O": [
+            -0.702286,
+            3.7e-05,
+            0.711895
+          ],
+          "CAHVOR_R": [
+            1e-05,
+            -0.01408,
+            -0.007074
+          ],
+          "CAHVOR_E": [
+            0.002512,
+            0.002172,
+            0.001812
+          ],
+          "CAHVOR_POS": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "CAHVOR_QUAT": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            452.033814
+          ],
+          "CAHVOR_VS": [
+            451.924769
+          ],
+          "CAHVOR_HC": [
+            498.436837
+          ],
+          "CAHVOR_VC": [
+            525.515557
+          ],
+          "CAHVOR_THETA": [
+            -1.570667
+          ],
+          "FOV_BOUNDARY": [
+            0.69329031,
+            0.71865924,
+            -0.05364184,
+            -0.0,
+            0.89306314,
+            0.44993135,
+            -0.69637731,
+            0.71498897,
+            -0.06204372,
+            -0.89049386,
+            0.01985432,
+            0.45456187,
+            -0.732349,
+            -0.68037274,
+            -0.02752948,
+            -0.0176294,
+            -0.89276006,
+            0.45018738,
+            0.70157134,
+            -0.71202211,
+            -0.02867354,
+            0.89482347,
+            0.00187226,
+            0.44641622
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            5.58
+          ],
+          "IFOV_HORIZONTAL": [
+            0.12358983
+          ],
+          "IFOV_VERTICAL": [
+            0.12364999
+          ],
+          "BORESIGHT_PIXEL": [
+            498.43698028,
+            525.51575933
+          ]
+        }
+      },
+      {
+        "name": "hazcam_rear_left_b",
+        "kind": "camera",
+        "naif_frame": "MSL_HAZCAM_BACK_LEFT_B",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hblb_20120731_c03.ti",
+        "source_sha256": "93fbd1fa08fd3355f50480df1adc4a0254ef5afcbdddd8f79429ee40430c26e3",
+        "calibration_file": "MSL_CAL_003_SN_0212-RHAZL-FLIGHT-RCE-B.cahvore",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 5.58,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 456.444113,
+        "fy_pixels": 456.501796,
+        "principal_point_pixels": [
+          507.648783,
+          516.17542
+        ],
+        "horizontal_fov_deg": 125.2986768,
+        "vertical_fov_deg": 125.28405812999999,
+        "position_ground_flu_m": [
+          -0.975657,
+          -0.552157,
+          0.780044
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            0.003088393138644074,
+            -0.7015603065911357,
+            0.7126033946337702
+          ],
+          [
+            0.9999726597817546,
+            -0.002621189765976828,
+            -0.006914409100852164
+          ],
+          [
+            0.006718743693904768,
+            0.7126052663150634,
+            0.7015330305147529
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          45.44859786308813,
+          -0.3849585535967616,
+          89.82304383228504
+        ],
+        "boresight_flu": [
+          -0.7126033946337702,
+          0.006914409100852164,
+          -0.7015330305147529
+        ],
+        "mount_group": "body",
+        "reference_pose_note": "Rigid body-fixed camera.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVORE3,0.37",
+        "source_parameters": {
+          "CAHVOR_C": [
+            -0.975657,
+            0.552157,
+            -0.780044
+          ],
+          "CAHVOR_A": [
+            -0.705382,
+            0.001497,
+            0.708826
+          ],
+          "CAHVOR_H": [
+            -359.390139,
+            -455.682421,
+            359.500729
+          ],
+          "CAHVOR_V": [
+            -40.522581,
+            -0.430925,
+            687.887119
+          ],
+          "CAHVOR_O": [
+            -0.706341,
+            0.000162,
+            0.707872
+          ],
+          "CAHVOR_R": [
+            4e-06,
+            -0.014132,
+            -0.00714
+          ],
+          "CAHVOR_E": [
+            0.002847,
+            0.001342,
+            0.00022
+          ],
+          "CAHVOR_POS": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "CAHVOR_QUAT": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            456.444113
+          ],
+          "CAHVOR_VS": [
+            456.501796
+          ],
+          "CAHVOR_HC": [
+            507.648783
+          ],
+          "CAHVOR_VC": [
+            516.17542
+          ],
+          "CAHVOR_THETA": [
+            -1.570701
+          ],
+          "FOV_BOUNDARY": [
+            0.70369832,
+            0.71020695,
+            -0.02036581,
+            0.0,
+            0.88724754,
+            0.46129361,
+            -0.70453621,
+            0.70943457,
+            -0.01820246,
+            -0.88732931,
+            0.00539029,
+            0.4611048,
+            -0.71409293,
+            -0.699784,
+            -0.01932977,
+            -0.00473481,
+            -0.88904816,
+            0.45778919,
+            0.7056509,
+            -0.70821436,
+            -0.02211852,
+            0.88908356,
+            0.0005312,
+            0.45774462
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            5.58
+          ],
+          "IFOV_HORIZONTAL": [
+            0.1224816
+          ],
+          "IFOV_VERTICAL": [
+            0.12246731
+          ],
+          "BORESIGHT_PIXEL": [
+            507.64864218,
+            516.17552915
+          ]
+        }
+      },
+      {
+        "name": "hazcam_rear_right_b",
+        "kind": "camera",
+        "naif_frame": "MSL_HAZCAM_BACK_RIGHT_B",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hbrb_20120731_c03.ti",
+        "source_sha256": "a9b5943004636366646876f262460b46e4c864ba600f05e8988fe31c82adbdd7",
+        "calibration_file": "MSL_CAL_003_SN_0207-RHAZR-FLIGHT-RCE-B.cahvore",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 5.58,
+        "pixel_size_mm": 0.012,
+        "fx_pixels": 452.185301,
+        "fy_pixels": 452.297746,
+        "principal_point_pixels": [
+          516.315156,
+          500.449382
+        ],
+        "horizontal_fov_deg": 126.60257213999999,
+        "vertical_fov_deg": 126.57576954000001,
+        "position_ground_flu_m": [
+          -0.975248,
+          -0.451863,
+          0.780144
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.015263453910240013,
+            -0.7234271388079583,
+            0.6902319912977528
+          ],
+          [
+            0.9998762899596003,
+            -0.01366594689973907,
+            0.007787597316163282
+          ],
+          [
+            0.0037989144969557105,
+            0.690265468302931,
+            0.7235462331580341
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          43.651521080828424,
+          -0.21766229095011094,
+          90.87457176176487
+        ],
+        "boresight_flu": [
+          -0.6902319912977528,
+          -0.007787597316163282,
+          -0.7235462331580341
+        ],
+        "mount_group": "body",
+        "reference_pose_note": "Rigid body-fixed camera.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVORE3,0.37",
+        "source_parameters": {
+          "CAHVOR_C": [
+            -0.975248,
+            0.451863,
+            -0.780144
+          ],
+          "CAHVOR_A": [
+            -0.707819,
+            -0.002525,
+            0.706389
+          ],
+          "CAHVOR_H": [
+            -368.993223,
+            -453.445875,
+            359.560463
+          ],
+          "CAHVOR_V": [
+            -34.747153,
+            -7.474462,
+            673.616807
+          ],
+          "CAHVOR_O": [
+            -0.704369,
+            -0.001355,
+            0.709832
+          ],
+          "CAHVOR_R": [
+            2.5e-05,
+            -0.015148,
+            -0.00709
+          ],
+          "CAHVOR_E": [
+            0.002469,
+            0.002745,
+            0.001958
+          ],
+          "CAHVOR_POS": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "CAHVOR_QUAT": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            452.185301
+          ],
+          "CAHVOR_VS": [
+            452.297746
+          ],
+          "CAHVOR_HC": [
+            516.315156
+          ],
+          "CAHVOR_VC": [
+            500.449382
+          ],
+          "CAHVOR_THETA": [
+            -1.570664
+          ],
+          "FOV_BOUNDARY": [
+            0.7133924,
+            0.69855885,
+            -0.05555908,
+            -0.0,
+            0.89625418,
+            0.4435408,
+            -0.71205123,
+            0.69992798,
+            -0.0555326,
+            -0.89417896,
+            -0.00982765,
+            0.44760184,
+            -0.69422007,
+            -0.71846431,
+            -0.04321493,
+            0.00638918,
+            -0.89024752,
+            0.45543225,
+            0.70561308,
+            -0.7071991,
+            -0.04449287,
+            0.89256984,
+            -0.00351735,
+            0.45089545
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.012
+          ],
+          "FOCAL_LENGTH": [
+            5.58
+          ],
+          "IFOV_HORIZONTAL": [
+            0.12375618
+          ],
+          "IFOV_VERTICAL": [
+            0.12372998
+          ],
+          "BORESIGHT_PIXEL": [
+            516.31492084,
+            500.44907079
+          ]
+        }
+      },
+      {
+        "name": "chemcam_rmi",
+        "kind": "camera",
+        "naif_frame": "MSL_CHEMCAM_RMI",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_chrmi_20120731_c03.ti",
+        "source_sha256": "0f5014fa908662ff0350b917998b59f87b003e2a2ed01d9ae3634b12f63d2411",
+        "calibration_file": "MSL_CAL_003_SN_0001_FOCUS_12658-RMI-FLIGHT.cahv",
+        "calibration_resolution": [
+          1024,
+          1024
+        ],
+        "photoactive_resolution": [
+          1024,
+          1024
+        ],
+        "focal_length_mm": 717.0,
+        "pixel_size_mm": 0.014,
+        "fx_pixels": 48250.0789,
+        "fy_pixels": 47598.176078,
+        "principal_point_pixels": [
+          7644.119676,
+          -10566.326805
+        ],
+        "horizontal_fov_deg": 1.1571152999999998,
+        "vertical_fov_deg": 1.15488516,
+        "position_ground_flu_m": [
+          0.880676,
+          -0.447699,
+          2.119346
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.001722588306538016,
+            0.009753185538762602,
+            -0.9999509528278738
+          ],
+          [
+            -0.9999965644891884,
+            0.0019588864030151846,
+            0.001741773200155184
+          ],
+          [
+            0.0019757781623641582,
+            0.9999505178437114,
+            0.009749777676776565
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          89.44136894690217,
+          -0.11320382360994327,
+          -90.0986972812567
+        ],
+        "boresight_flu": [
+          0.9999509528278738,
+          -0.001741773200155184,
+          -0.009749777676776565
+        ],
+        "mount_group": "mast_reference_pose",
+        "reference_pose_note": "CAHVOR calibration mast pose near forward/level; use source reference POS/QUAT for articulation.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHV",
+        "source_parameters": {
+          "CAHVOR_C": [
+            0.880676,
+            0.447699,
+            -2.119346
+          ],
+          "CAHVOR_A": [
+            0.964824,
+            0.147578,
+            -0.217568
+          ],
+          "CAHVOR_H": [
+            409.260658,
+            48849.782484,
+            -184.218596
+          ],
+          "CAHVOR_V": [
+            16.866533,
+            171.217481,
+            48756.579332
+          ],
+          "CAHVOR_O": null,
+          "CAHVOR_R": null,
+          "CAHVOR_E": null,
+          "CAHVOR_POS": [
+            0.80436,
+            0.55942,
+            -1.90608
+          ],
+          "CAHVOR_QUAT": [
+            1e-05,
+            -0.00325,
+            -0.00104,
+            0.99999
+          ],
+          "CAHVOR_DIMS": [
+            1024.0,
+            1024.0
+          ],
+          "CAHVOR_HS": [
+            48250.0789
+          ],
+          "CAHVOR_VS": [
+            47598.176078
+          ],
+          "CAHVOR_HC": [
+            7644.119676
+          ],
+          "CAHVOR_VC": [
+            -10566.326805
+          ],
+          "CAHVOR_THETA": [
+            -1.535886
+          ],
+          "FOV_BOUNDARY": [
+            0.01010592,
+            0.01008067,
+            0.99989812,
+            0.0,
+            0.0101019,
+            0.99994897,
+            -0.01013631,
+            0.01012175,
+            0.9998974,
+            -0.01011328,
+            4.89e-06,
+            0.99994886,
+            -0.01008872,
+            -0.0100633,
+            0.99989847,
+            -4.6e-07,
+            -0.01005423,
+            0.99994945,
+            0.01005742,
+            -0.01004253,
+            0.99989899,
+            0.0100819,
+            -5.26e-06,
+            0.99994918
+          ],
+          "PIXEL_SAMPLES": [
+            1024.0
+          ],
+          "PIXEL_LINES": [
+            1024.0
+          ],
+          "PIXEL_SIZE": [
+            0.014
+          ],
+          "FOCAL_LENGTH": [
+            717.0
+          ],
+          "IFOV_HORIZONTAL": [
+            0.0011311
+          ],
+          "IFOV_VERTICAL": [
+            0.00112892
+          ],
+          "BORESIGHT_PIXEL": [
+            7644.09777601,
+            -10566.33028286
+          ]
+        }
+      },
+      {
+        "name": "mahli",
+        "kind": "camera",
+        "naif_frame": "MSL_MAHLI",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_mahli_20120731_c02.ti",
+        "source_sha256": "d319b396a210830e382021cb9494625d6e8e073fc40e56dab9e10241e4485682",
+        "calibration_file": "MSL_CAL_002_SN_3002_FOCUS_12594-MAHLI-FLIGHT.cahvor",
+        "calibration_resolution": [
+          1648,
+          1200
+        ],
+        "photoactive_resolution": [
+          1600,
+          1200
+        ],
+        "focal_length_mm": 20.0,
+        "pixel_size_mm": 0.0074,
+        "fx_pixels": 2834.756414,
+        "fy_pixels": 2834.593957,
+        "principal_point_pixels": [
+          833.771443,
+          596.720506
+        ],
+        "horizontal_fov_deg": 32.27294853,
+        "vertical_fov_deg": 23.81326706,
+        "position_ground_flu_m": [
+          2.30587,
+          0.404252,
+          1.883873
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            0.1193142389722469,
+            -0.07752388261846371,
+            -0.9898253179234366
+          ],
+          [
+            0.86760421188713,
+            0.49285849569082435,
+            0.065980563358385
+          ],
+          [
+            0.4827287477395414,
+            -0.8666490355669567,
+            0.12606508341597972
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          -81.72365126735423,
+          -28.863773008933677,
+          82.16971408049103
+        ],
+        "boresight_flu": [
+          0.9898253179234366,
+          -0.065980563358385,
+          -0.12606508341597972
+        ],
+        "mount_group": "arm_reference_pose",
+        "reference_pose_note": "CAHVOR calibration arm reference pose; arm not stowed. Retarget via CAHVOR_POS/QUAT and arm kinematics before use on a different arm pose.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVOR",
+        "source_parameters": {
+          "CAHVOR_C": [
+            2.30587,
+            -0.404252,
+            -1.883873
+          ],
+          "CAHVOR_A": [
+            0.990175,
+            0.062353,
+            0.125165
+          ],
+          "CAHVOR_H": [
+            1153.714003,
+            -2407.630832,
+            -1266.203131
+          ],
+          "CAHVOR_V": [
+            813.35867,
+            1434.434517,
+            -2381.562018
+          ],
+          "CAHVOR_O": [
+            0.987321,
+            0.099893,
+            0.123364
+          ],
+          "CAHVOR_R": [
+            0.001413,
+            0.039832,
+            -0.102819
+          ],
+          "CAHVOR_E": null,
+          "CAHVOR_POS": [
+            2.348408,
+            -0.402685,
+            -1.881315
+          ],
+          "CAHVOR_QUAT": [
+            0.859133374,
+            -0.009551398,
+            0.069324227,
+            0.506944542
+          ],
+          "CAHVOR_DIMS": [
+            1648.0,
+            1200.0
+          ],
+          "CAHVOR_HS": [
+            2834.756414
+          ],
+          "CAHVOR_VS": [
+            2834.593957
+          ],
+          "CAHVOR_HC": [
+            833.771443
+          ],
+          "CAHVOR_VC": [
+            596.720506
+          ],
+          "CAHVOR_THETA": [
+            -1.570447
+          ],
+          "FOV_BOUNDARY": [
+            0.27208162,
+            0.19796979,
+            0.94168973,
+            -0.0,
+            0.2062844,
+            0.97849208,
+            -0.27242813,
+            0.19833703,
+            0.94151226,
+            -0.27804159,
+            -2.378e-05,
+            0.96056904,
+            -0.27226745,
+            -0.19835596,
+            0.94155475,
+            8.632e-05,
+            -0.20635044,
+            0.97847815,
+            0.27211435,
+            -0.19809768,
+            0.94165338,
+            0.27781073,
+            -6.865e-05,
+            0.96063583
+          ],
+          "PIXEL_SAMPLES": [
+            1648.0
+          ],
+          "PIXEL_LINES": [
+            1200.0
+          ],
+          "PIXEL_SIZE": [
+            0.0074
+          ],
+          "FOCAL_LENGTH": [
+            20.0
+          ],
+          "IFOV_HORIZONTAL": [
+            0.01959499
+          ],
+          "IFOV_VERTICAL": [
+            0.01986094
+          ],
+          "BORESIGHT_PIXEL": [
+            833.77144276,
+            596.72050652
+          ]
+        }
+      },
+      {
+        "name": "mardi",
+        "kind": "camera",
+        "naif_frame": "MSL_MARDI",
+        "source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_mardi_20120731_c02.ti",
+        "source_sha256": "34192d5c59ae8671eeec078c82764bac60e912889a0d286b3cdea9270bc1fed0",
+        "calibration_file": "MSL_CAL_002_SN_3001-MARDI-FLIGHT.cahvor",
+        "calibration_resolution": [
+          1648,
+          1200
+        ],
+        "photoactive_resolution": [
+          1600,
+          1200
+        ],
+        "focal_length_mm": 9.7,
+        "pixel_size_mm": 0.0074,
+        "fx_pixels": 1302.58719,
+        "fy_pixels": 1301.254725,
+        "principal_point_pixels": [
+          817.983943,
+          587.477313
+        ],
+        "horizontal_fov_deg": 72.65307339,
+        "vertical_fov_deg": 52.81579413,
+        "position_ground_flu_m": [
+          0.761636,
+          0.648275,
+          0.701654
+        ],
+        "usd_camera_rotation_matrix_flu": [
+          [
+            -0.0027549093040918926,
+            -0.9999406991251991,
+            -0.010536066995526122
+          ],
+          [
+            0.9999769397615905,
+            -0.0026893024226190233,
+            -0.006235992104234453
+          ],
+          [
+            0.006207287633951476,
+            -0.010553003623977507,
+            0.9999250490385475
+          ]
+        ],
+        "usd_camera_rpy_deg_flu": [
+          -0.6046654417131514,
+          -0.35565366758828426,
+          90.15784791673772
+        ],
+        "boresight_flu": [
+          0.010536066995526122,
+          0.006235992104234453,
+          -0.9999250490385475
+        ],
+        "mount_group": "body",
+        "reference_pose_note": "Rigid body-fixed camera.",
+        "rendering_fidelity": "Pinhole approximation. Orientation uses central ray of linear CAHV portion; CAHVOR/E radial/fisheye distortion and detector response are not reproduced. Full original coefficients retained below.",
+        "source_model": "CAHVOR",
+        "source_parameters": {
+          "CAHVOR_C": [
+            0.761636,
+            -0.648275,
+            -0.701654
+          ],
+          "CAHVOR_A": [
+            0.001309,
+            -0.001977,
+            0.999997
+          ],
+          "CAHVOR_H": [
+            -2.440923,
+            -1304.19732,
+            815.411187
+          ],
+          "CAHVOR_V": [
+            1302.018084,
+            -4.684829,
+            585.765467
+          ],
+          "CAHVOR_O": [
+            0.000806,
+            -0.002426,
+            0.999997
+          ],
+          "CAHVOR_R": [
+            -1.1e-05,
+            -0.320914,
+            0.113923
+          ],
+          "CAHVOR_E": null,
+          "CAHVOR_POS": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "CAHVOR_QUAT": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "CAHVOR_DIMS": [
+            1648.0,
+            1200.0
+          ],
+          "CAHVOR_HS": [
+            1302.58719
+          ],
+          "CAHVOR_VS": [
+            1301.254725
+          ],
+          "CAHVOR_HC": [
+            817.983943
+          ],
+          "CAHVOR_VC": [
+            587.477313
+          ],
+          "CAHVOR_THETA": [
+            -1.570782
+          ],
+          "FOV_BOUNDARY": [
+            0.56792025,
+            0.41206776,
+            0.71250737,
+            0.0,
+            0.44460906,
+            0.89572472,
+            -0.56718115,
+            0.41156337,
+            0.71338709,
+            -0.59225612,
+            -0.00092591,
+            0.80574923,
+            -0.56510848,
+            -0.4125648,
+            0.71445272,
+            -0.00052784,
+            -0.44490808,
+            0.89557608,
+            0.56492856,
+            -0.41447897,
+            0.71348645,
+            0.5925165,
+            -0.00163335,
+            0.80555665
+          ],
+          "PIXEL_SAMPLES": [
+            1648.0
+          ],
+          "PIXEL_LINES": [
+            1200.0
+          ],
+          "PIXEL_SIZE": [
+            0.0074
+          ],
+          "FOCAL_LENGTH": [
+            9.7
+          ],
+          "IFOV_HORIZONTAL": [
+            0.04411237
+          ],
+          "IFOV_VERTICAL": [
+            0.04404987
+          ],
+          "BORESIGHT_PIXEL": [
+            817.9839437,
+            587.47731328
+          ]
+        }
+      }
+    ],
+    "science_instruments": [
+      {
+        "id": "mastcam",
+        "name": "Mast Camera",
+        "proposed_simulation_mode": "rendered_camera",
+        "components": [
+          "mastcam_left",
+          "mastcam_right"
+        ],
+        "source_url": "https://science.nasa.gov/mission/msl-curiosity/science-instruments/"
+      },
+      {
+        "id": "mahli",
+        "name": "Mars Hand Lens Imager",
+        "proposed_simulation_mode": "rendered_camera",
+        "components": [
+          "mahli"
+        ],
+        "source_url": "https://science.nasa.gov/mission/msl-curiosity/science-instruments/"
+      },
+      {
+        "id": "mardi",
+        "name": "Mars Descent Imager",
+        "proposed_simulation_mode": "rendered_camera",
+        "components": [
+          "mardi"
+        ],
+        "source_url": "https://science.nasa.gov/mission/msl-curiosity/science-instruments/"
+      },
+      {
+        "id": "chemcam",
+        "name": "Chemistry and Camera",
+        "proposed_simulation_mode": "mixed_camera_and_metadata",
+        "components": [
+          "chemcam_rmi",
+          "chemcam_libs_uv_spectrometer",
+          "chemcam_libs_violet_spectrometer",
+          "chemcam_libs_visible_nir_spectrometer",
+          "chemcam_libs_laser"
+        ],
+        "source_url": "https://science.nasa.gov/mission/msl-curiosity/science-instruments/"
+      },
+      {
+        "id": "apxs",
+        "name": "Alpha Particle X-ray Spectrometer",
+        "proposed_simulation_mode": "metadata_interface",
+        "components": [
+          "apxs"
+        ],
+        "source_url": "https://science.nasa.gov/mission/msl-curiosity/science-instruments/"
+      },
+      {
+        "id": "chemin",
+        "name": "Chemistry and Mineralogy",
+        "proposed_simulation_mode": "metadata_interface",
+        "components": [
+          "chemin_xray_diffraction_fluorescence"
+        ],
+        "source_url": "https://science.nasa.gov/mission/msl-curiosity/science-instruments/"
+      },
+      {
+        "id": "sam",
+        "name": "Sample Analysis at Mars",
+        "proposed_simulation_mode": "metadata_interface",
+        "components": [
+          "sam_quadrupole_mass_spectrometer",
+          "sam_gas_chromatograph",
+          "sam_tunable_laser_spectrometer"
+        ],
+        "source_url": "https://science.nasa.gov/mission/msl-curiosity/science-instruments/"
+      },
+      {
+        "id": "rad",
+        "name": "Radiation Assessment Detector",
+        "proposed_simulation_mode": "metadata_interface",
+        "components": [
+          "rad_charged_neutral_particle_detectors"
+        ],
+        "source_url": "https://science.nasa.gov/mission/msl-curiosity/science-instruments/"
+      },
+      {
+        "id": "dan",
+        "name": "Dynamic Albedo of Neutrons",
+        "proposed_simulation_mode": "metadata_interface",
+        "components": [
+          "dan_pulsed_neutron_generator",
+          "dan_thermal_neutron_detector",
+          "dan_epithermal_neutron_detector"
+        ],
+        "source_url": "https://science.nasa.gov/mission/msl-curiosity/science-instruments/"
+      },
+      {
+        "id": "rems",
+        "name": "Rover Environmental Monitoring Station",
+        "proposed_simulation_mode": "metadata_interface",
+        "components": [
+          "rems_boom1_wind_sensor_1",
+          "rems_boom1_wind_sensor_2",
+          "rems_boom1_wind_sensor_3",
+          "rems_boom1_air_temperature",
+          "rems_boom1_ground_temperature",
+          "rems_boom2_wind_sensor_1",
+          "rems_boom2_wind_sensor_2",
+          "rems_boom2_wind_sensor_3",
+          "rems_boom2_air_temperature",
+          "rems_boom2_humidity",
+          "rems_pressure",
+          "rems_uv"
+        ],
+        "source_url": "https://science.nasa.gov/mission/msl-curiosity/science-instruments/"
+      }
+    ],
+    "engineering_sensors": [
+      {
+        "id": "imu",
+        "name": "LN-200 IMU",
+        "axes": {
+          "gyroscope": 3,
+          "accelerometer": 3
+        },
+        "sampling_frequency_hz": 8,
+        "noise_accuracy": "Not published in JPL mobility paper; do not invent NASA flight noise values.",
+        "proposed_simulation_mode": "dynamic_ideal_imu"
+      },
+      {
+        "id": "wheel_drive_encoders",
+        "quantity": 6,
+        "sampling_frequency_hz": 64,
+        "ticks_per_output_revolution": 147456,
+        "proposed_simulation_mode": "joint_state_interface"
+      },
+      {
+        "id": "wheel_steer_encoders",
+        "quantity": 4,
+        "sampling_frequency_hz": 64,
+        "ticks_per_output_revolution": 147456,
+        "proposed_simulation_mode": "joint_state_interface"
+      },
+      {
+        "id": "suspension_resolvers",
+        "quantity": 3,
+        "sampling_frequency_hz": 64,
+        "angle_accuracy_deg": [
+          0.51,
+          0.65
+        ],
+        "proposed_simulation_mode": "joint_state_interface"
+      },
+      {
+        "id": "engineering_health_telemetry",
+        "channels": [
+          "motor_current",
+          "motor_temperature",
+          "body_temperature",
+          "power_generation",
+          "battery_storage"
+        ],
+        "proposed_simulation_mode": "metadata_interface",
+        "quantity_note": "Public mission pages describe classes; exhaustive channel count and calibration unavailable."
+      }
+    ],
+    "engineering_source_url": "https://robotics.jpl.nasa.gov/media/documents/ROB-20-0040_R3.pdf",
+    "non_camera_locations": {
+      "MSL_ROVER": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          0.09000000000000001,
+          0.0,
+          -1.1205
+        ],
+        "position_ground_flu_m": [
+          0.09000000000000001,
+          -0.0,
+          1.1205
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_HAZCAM_BACK_LEFT_A": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          -0.9762,
+          -0.4553,
+          -0.7797999999999999
+        ],
+        "position_ground_flu_m": [
+          -0.9762,
+          0.4553,
+          0.7797999999999999
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_HAZCAM_BACK_LEFT_B": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          -0.9757,
+          0.5522,
+          -0.78
+        ],
+        "position_ground_flu_m": [
+          -0.9757,
+          -0.5522,
+          0.78
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_HAZCAM_BACK_RIGHT_A": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          -0.9768000000000001,
+          -0.5555,
+          -0.7796
+        ],
+        "position_ground_flu_m": [
+          -0.9768000000000001,
+          0.5555,
+          0.7796
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_HAZCAM_BACK_RIGHT_B": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          -0.9752,
+          0.45189999999999997,
+          -0.7801
+        ],
+        "position_ground_flu_m": [
+          -0.9752,
+          -0.45189999999999997,
+          0.7801
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_HAZCAM_FRONT_LEFT_A": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          1.0328,
+          -0.0887,
+          -0.7085
+        ],
+        "position_ground_flu_m": [
+          1.0328,
+          0.0887,
+          0.7085
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_HAZCAM_FRONT_LEFT_B": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          1.0330000000000001,
+          -0.1714,
+          -0.7079
+        ],
+        "position_ground_flu_m": [
+          1.0330000000000001,
+          0.1714,
+          0.7079
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_HAZCAM_FRONT_RIGHT_A": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          1.0326,
+          0.0779,
+          -0.7081999999999999
+        ],
+        "position_ground_flu_m": [
+          1.0326,
+          -0.0779,
+          0.7081999999999999
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_HAZCAM_FRONT_RIGHT_B": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          1.0331,
+          -0.0049,
+          -0.7081000000000001
+        ],
+        "position_ground_flu_m": [
+          1.0331,
+          0.0049,
+          0.7081000000000001
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_MARDI": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          0.7615999999999999,
+          -0.6483,
+          -0.7017
+        ],
+        "position_ground_flu_m": [
+          0.7615999999999999,
+          0.6483,
+          0.7017
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_RSM_HEAD": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76,
+        "source_position_m": [
+          0.8044,
+          0.5594,
+          -1.9061
+        ],
+        "position_ground_flu_m": [
+          0.8044,
+          -0.5594,
+          1.9061
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_MASTCAM_LEFT": {
+        "source_frame": "MSL_RSM_HEAD",
+        "source_center_id": -76205,
+        "source_position_m": [
+          -0.0374,
+          -0.1258,
+          -0.0653
+        ]
+      },
+      "MSL_MASTCAM_RIGHT": {
+        "source_frame": "MSL_RSM_HEAD",
+        "source_center_id": -76205,
+        "source_position_m": [
+          0.0678,
+          0.1179,
+          -0.0653
+        ]
+      },
+      "MSL_NAVCAM_LEFT_A": {
+        "source_frame": "MSL_RSM_HEAD",
+        "source_center_id": -76205,
+        "source_position_m": [
+          0.11510000000000001,
+          -0.2139,
+          -0.0819
+        ]
+      },
+      "MSL_NAVCAM_LEFT_B": {
+        "source_frame": "MSL_RSM_HEAD",
+        "source_center_id": -76205,
+        "source_position_m": [
+          0.1153,
+          -0.2138,
+          -0.033800000000000004
+        ]
+      },
+      "MSL_NAVCAM_RIGHT_A": {
+        "source_frame": "MSL_RSM_HEAD",
+        "source_center_id": -76205,
+        "source_position_m": [
+          0.1132,
+          0.2097,
+          -0.0817
+        ]
+      },
+      "MSL_NAVCAM_RIGHT_B": {
+        "source_frame": "MSL_RSM_HEAD",
+        "source_center_id": -76205,
+        "source_position_m": [
+          0.1141,
+          0.20980000000000001,
+          -0.034100000000000005
+        ]
+      },
+      "MSL_CHEMCAM_RMI": {
+        "source_frame": "MSL_RSM_HEAD",
+        "source_center_id": -76205,
+        "source_position_m": [
+          0.0752,
+          -0.1116,
+          -0.2138
+        ]
+      },
+      "MSL_CHEMCAM_LIBS_LASER": {
+        "source_frame": "MSL_CHEMCAM_RMI",
+        "source_center_id": -76243,
+        "source_position_m": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_CHEMCAM_LIBS_CAM": {
+        "source_frame": "MSL_CHEMCAM_RMI",
+        "source_center_id": -76243,
+        "source_position_m": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_RA_BASE": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.8275,
+          -0.5616,
+          0.2248
+        ],
+        "position_ground_flu_m": [
+          0.91752,
+          0.5616,
+          0.8957
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_RA_SHOULDER_AZ": {
+        "source_frame": "MSL_RA_BASE",
+        "source_center_id": -76300,
+        "source_position_m": [
+          0.285,
+          0.1095,
+          0.041
+        ]
+      },
+      "MSL_RA_SHOULDER_EL": {
+        "source_frame": "MSL_RA_SHOULDER_AZ",
+        "source_center_id": -76301,
+        "source_position_m": [
+          0.15589999999999998,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_RA_ELBOW": {
+        "source_frame": "MSL_RA_SHOULDER_EL",
+        "source_center_id": -76302,
+        "source_position_m": [
+          0.8262999999999999,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_RA_WRIST": {
+        "source_frame": "MSL_RA_ELBOW",
+        "source_center_id": -76303,
+        "source_position_m": [
+          0.7865,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_RA_TURRET": {
+        "source_frame": "MSL_RA_WRIST",
+        "source_center_id": -76304,
+        "source_position_m": [
+          -0.1444,
+          -0.1694,
+          -0.1674
+        ]
+      },
+      "MSL_RA_TURRET_HEAD": {
+        "source_frame": "MSL_RA_TURRET",
+        "source_center_id": -76305,
+        "source_position_m": [
+          0.0,
+          0.0,
+          -0.0718
+        ]
+      },
+      "MSL_MAHLI_REF": {
+        "source_frame": "MSL_MAHLI_REF",
+        "source_center_id": -76306,
+        "source_position_m": [
+          0.2983,
+          0.0,
+          -0.01
+        ]
+      },
+      "MSL_APXS_REF": {
+        "source_frame": "MSL_APXS_REF",
+        "source_center_id": -76306,
+        "source_position_m": [
+          0.299,
+          0.0,
+          -0.0102
+        ]
+      },
+      "MSL_PADS_REF": {
+        "source_frame": "MSL_PADS_REF",
+        "source_center_id": -76306,
+        "source_position_m": [
+          0.2915,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_DRT_REF": {
+        "source_frame": "MSL_DRT_REF",
+        "source_center_id": -76306,
+        "source_position_m": [
+          0.2966,
+          0.0,
+          -0.015000000000000001
+        ]
+      },
+      "MSL_CHIMRA_REF": {
+        "source_frame": "MSL_CHIMRA_REF",
+        "source_center_id": -76306,
+        "source_position_m": [
+          0.35579999999999995,
+          0.0,
+          -0.0741
+        ]
+      },
+      "MSL_MAHLI": {
+        "source_frame": "MSL_MAHLI_REF",
+        "source_center_id": -76310,
+        "source_position_m": [
+          -0.0425,
+          0.0022,
+          -0.0021
+        ]
+      },
+      "MSL_APXS": {
+        "source_frame": "MSL_APXS_REF",
+        "source_center_id": -76320,
+        "source_position_m": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_PADS": {
+        "source_frame": "MSL_PADS_REF",
+        "source_center_id": -76330,
+        "source_position_m": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_DRT": {
+        "source_frame": "MSL_DRT_REF",
+        "source_center_id": -76340,
+        "source_position_m": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_CHIMRA": {
+        "source_frame": "MSL_CHIMRA_REF",
+        "source_center_id": -76350,
+        "source_position_m": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_HGA_AZ": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.27240000000000003,
+          -0.3873,
+          -0.3078
+        ],
+        "position_ground_flu_m": [
+          -0.18238000000000004,
+          0.3873,
+          1.4283000000000001
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_HGA_EL": {
+        "source_frame": "MSL_HGA_AZ",
+        "source_center_id": -76122,
+        "source_position_m": [
+          0.0,
+          -0.0023,
+          -0.0
+        ]
+      },
+      "MSL_HGA": {
+        "source_frame": "MSL_HGA_EL",
+        "source_center_id": -76124,
+        "source_position_m": [
+          0.21000000000000002,
+          0.0,
+          0.0
+        ]
+      },
+      "MSL_DAN_PNG": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.87,
+          0.5,
+          0.31
+        ],
+        "position_ground_flu_m": [
+          -0.77998,
+          -0.5,
+          0.8105
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_DAN_DE": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.87,
+          -0.5,
+          0.31
+        ],
+        "position_ground_flu_m": [
+          -0.77998,
+          0.5,
+          0.8105
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_DAN_DE_CTN": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.95,
+          -0.5,
+          0.31
+        ],
+        "position_ground_flu_m": [
+          -0.85998,
+          0.5,
+          0.8105
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_DAN_DE_CETN": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.79,
+          -0.5,
+          0.31
+        ],
+        "position_ground_flu_m": [
+          -0.69998,
+          0.5,
+          0.8105
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_RAD": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.0746,
+          -0.35300000000000004,
+          -0.015000000000000001
+        ],
+        "position_ground_flu_m": [
+          0.16462,
+          0.35300000000000004,
+          1.1355
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_REMS_UVS": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.5156,
+          0.24649999999999997,
+          -0.0235
+        ],
+        "position_ground_flu_m": [
+          0.6056199999999999,
+          -0.24649999999999997,
+          1.1440000000000001
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_REMS_BOOM1_TIP": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.6057,
+          0.7323,
+          -0.4256
+        ],
+        "position_ground_flu_m": [
+          0.69572,
+          -0.7323,
+          1.5461
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_REMS_BOOM2_TIP": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.9181,
+          0.5662,
+          -0.3926
+        ],
+        "position_ground_flu_m": [
+          1.0081200000000001,
+          -0.5662,
+          1.5131000000000001
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_SAM_1_INLET": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.7127,
+          0.1754,
+          -0.0304
+        ],
+        "position_ground_flu_m": [
+          0.80272,
+          -0.1754,
+          1.1509
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_SAM_2_INLET": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.6462,
+          0.1519,
+          -0.0304
+        ],
+        "position_ground_flu_m": [
+          0.73622,
+          -0.1519,
+          1.1509
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CHEMIN_INLET": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.6747,
+          -0.1227,
+          -0.028399999999999998
+        ],
+        "position_ground_flu_m": [
+          0.76472,
+          0.1227,
+          1.1489
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_FD_RESTRAINT_PORT": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8249000000000001,
+          -0.4661,
+          -0.12769999999999998
+        ],
+        "position_ground_flu_m": [
+          -0.7348800000000001,
+          0.4661,
+          1.2482
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_FD_RESTRAINT_SBRD": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8246,
+          0.4674,
+          -0.1281
+        ],
+        "position_ground_flu_m": [
+          -0.73458,
+          -0.4674,
+          1.2486000000000002
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_FD_DECK_SIDE_PORT": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.4093,
+          -0.4424,
+          -0.00039999999999999996
+        ],
+        "position_ground_flu_m": [
+          0.49932,
+          0.4424,
+          1.1209
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_FD_DECK_FRONT_PORT": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.782,
+          -0.30269999999999997,
+          -0.0007
+        ],
+        "position_ground_flu_m": [
+          0.87202,
+          0.30269999999999997,
+          1.1212
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_FD_DECK_CENTER_PORT": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.782,
+          -0.001,
+          -0.0006
+        ],
+        "position_ground_flu_m": [
+          0.87202,
+          0.001,
+          1.1211
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_FD_DECK_CENTER_SBRD": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.7822,
+          0.22910000000000003,
+          -0.0005
+        ],
+        "position_ground_flu_m": [
+          0.87222,
+          -0.22910000000000003,
+          1.121
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_FD_DECK_FRONT_SBRD": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.7824000000000001,
+          0.43179999999999996,
+          -0.00039999999999999996
+        ],
+        "position_ground_flu_m": [
+          0.8724200000000001,
+          -0.43179999999999996,
+          1.1209
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_FD_OCM_PORT": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.9318,
+          -0.0936,
+          -0.016399999999999998
+        ],
+        "position_ground_flu_m": [
+          1.02182,
+          0.0936,
+          1.1369
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_FD_OCM_CENTER": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.9318,
+          0.0665,
+          -0.053399999999999996
+        ],
+        "position_ground_flu_m": [
+          1.02182,
+          -0.0665,
+          1.1739
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_FD_OCM_STARBOARD": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.9318,
+          0.1691,
+          0.0356
+        ],
+        "position_ground_flu_m": [
+          1.02182,
+          -0.1691,
+          1.0849
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_SCI_OBS_TRAY": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          1.159,
+          0.518,
+          0.158
+        ],
+        "position_ground_flu_m": [
+          1.24902,
+          -0.518,
+          0.9625
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_ENG_OBS_TRAY": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          1.222,
+          0.518,
+          0.158
+        ],
+        "position_ground_flu_m": [
+          1.31202,
+          -0.518,
+          0.9625
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_BIT_BOX_1_TARGET": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          1.14,
+          0.15,
+          0.3058
+        ],
+        "position_ground_flu_m": [
+          1.23002,
+          -0.15,
+          0.8147
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_BIT_BOX_2_TARGET": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          1.1504,
+          0.48410000000000003,
+          0.3882
+        ],
+        "position_ground_flu_m": [
+          1.24042,
+          -0.48410000000000003,
+          0.7323000000000001
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_OCM_LOCATION_1": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.9301,
+          0.2285,
+          -0.007500000000000001
+        ],
+        "position_ground_flu_m": [
+          1.0201200000000001,
+          -0.2285,
+          1.1280000000000001
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_OCM_LOCATION_2": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.9301,
+          0.14109999999999998,
+          0.0292
+        ],
+        "position_ground_flu_m": [
+          1.0201200000000001,
+          -0.14109999999999998,
+          1.0913000000000002
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_OCM_LOCATION_3": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.9301,
+          0.0915,
+          -0.0313
+        ],
+        "position_ground_flu_m": [
+          1.0201200000000001,
+          -0.0915,
+          1.1518000000000002
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_OCM_LOCATION_4": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.9301,
+          0.018199999999999997,
+          0.0176
+        ],
+        "position_ground_flu_m": [
+          1.0201200000000001,
+          -0.018199999999999997,
+          1.1029
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_OCM_LOCATION_5": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.9301,
+          -0.2088,
+          -0.0541
+        ],
+        "position_ground_flu_m": [
+          1.0201200000000001,
+          0.2088,
+          1.1746
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_OCM_LOCATION_6": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          0.9523999999999999,
+          -0.104,
+          0.08789999999999999
+        ],
+        "position_ground_flu_m": [
+          1.04242,
+          0.104,
+          1.0326
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_APXS_CALTARGET": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          1.049,
+          -0.39120000000000005,
+          0.4698
+        ],
+        "position_ground_flu_m": [
+          1.13902,
+          0.39120000000000005,
+          0.6507000000000001
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_MAHLI_CALTARGET": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          1.049,
+          -0.39120000000000005,
+          0.366
+        ],
+        "position_ground_flu_m": [
+          1.13902,
+          0.39120000000000005,
+          0.7545000000000001
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CCAM_CAL1": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8502,
+          0.5575000000000001,
+          -0.1906
+        ],
+        "position_ground_flu_m": [
+          -0.76018,
+          -0.5575000000000001,
+          1.3111000000000002
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CCAM_CAL2": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8502,
+          0.5313,
+          -0.1906
+        ],
+        "position_ground_flu_m": [
+          -0.76018,
+          -0.5313,
+          1.3111000000000002
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CCAM_CAL3": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8502,
+          0.5052,
+          -0.1906
+        ],
+        "position_ground_flu_m": [
+          -0.76018,
+          -0.5052,
+          1.3111000000000002
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CCAM_CAL4": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8502,
+          0.479,
+          -0.1906
+        ],
+        "position_ground_flu_m": [
+          -0.76018,
+          -0.479,
+          1.3111000000000002
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CCAM_CAL5": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8502,
+          0.4528,
+          -0.1906
+        ],
+        "position_ground_flu_m": [
+          -0.76018,
+          -0.4528,
+          1.3111000000000002
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CCAM_CAL6": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8365999999999999,
+          0.5445,
+          -0.1731
+        ],
+        "position_ground_flu_m": [
+          -0.7465799999999999,
+          -0.5445,
+          1.2936
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CCAM_CAL7": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8365999999999999,
+          0.5182,
+          -0.1731
+        ],
+        "position_ground_flu_m": [
+          -0.7465799999999999,
+          -0.5182,
+          1.2936
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CCAM_CAL8": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8365999999999999,
+          0.4921,
+          -0.1731
+        ],
+        "position_ground_flu_m": [
+          -0.7465799999999999,
+          -0.4921,
+          1.2936
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CCAM_CAL9": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8365999999999999,
+          0.4659,
+          -0.1731
+        ],
+        "position_ground_flu_m": [
+          -0.7465799999999999,
+          -0.4659,
+          1.2936
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_CCAM_CAL10": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.8356,
+          0.4385,
+          -0.1718
+        ],
+        "position_ground_flu_m": [
+          -0.74558,
+          -0.4385,
+          1.2923
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      },
+      "MSL_MCAM_CAL": {
+        "source_frame": "MSL_ROVER",
+        "source_center_id": -76000,
+        "source_position_m": [
+          -0.37520000000000003,
+          0.514,
+          -0.2189
+        ],
+        "position_ground_flu_m": [
+          -0.28518000000000004,
+          -0.514,
+          1.3394000000000001
+        ],
+        "position_note": "Composed mechanical-origin offset [+0.09002,0,-1.1205] m when source center is -76000; source -76 is NAV origin."
+      }
+    },
+    "non_camera_locations_source_url": "https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/spk/msl_struct_v02.cmt",
+    "physical": {
+      "nominal_mass_kg": 899,
+      "length_m": 3.0,
+      "width_m": 2.8,
+      "height_m": 2.1,
+      "wheel_diameter_m": 0.5,
+      "wheel_width_m": 0.4,
+      "science_payload_mass_kg": 75,
+      "source_url": "https://mars.nasa.gov/internal_resources/823/"
+    },
+    "published_whole_rover_inertia": {
+      "mass_kg": 899.18,
+      "diagonal_inertia_source_body_axes_kg_m2": [
+        774.84,
+        571.41,
+        405.09
+      ],
+      "source_url": "https://ntrs.nasa.gov/api/citations/20140003460/downloads/20140003460.pdf",
+      "table": 1,
+      "center_of_mass_source_body_frame_m": [
+        0,
+        0,
+        0
+      ],
+      "outer_wheel_contact_points_source_body_frame_m": [
+        [
+          0.8944,
+          -1.0625,
+          1.165
+        ],
+        [
+          0.8944,
+          -1.0625,
+          -1.095
+        ],
+        [
+          0.8944,
+          1.0625,
+          1.165
+        ],
+        [
+          0.8944,
+          1.0625,
+          -1.095
+        ]
+      ],
+      "scope": "Whole-rover touchdown simulation inputs, not a per-link flight mass model. Source axes differ from ROVER_NAV; X is vertical inferred from four equal X wheel contacts; longitudinal axis Z. Requires audited axis mapping before direct use. Products of inertia not provided."
+    },
+    "excluded_from_surface_rover": [
+      "MEDLI heat-shield entry instrumentation",
+      "cruise/descent-stage IMU and antennas"
+    ],
+    "limitations": [
+      "No public source reviewed provides all flight link masses/inertias; analytic partition remains an explicitly labeled modeling assumption.",
+      "No lidar fitted. No GPS receiver fitted.",
+      "Science instrument interfaces do not claim chemical/radiation/weather sensor physics.",
+      "Payload cameras follow historical calibration reference configurations, not mission-state health in 2026."
+    ]
+  },
+  "rendering_overrides": {
+    "mastcam_left": {
+      "render_clipping_range_m": [
+        0.18,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "MastCam",
+        "mast_03.001"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "MastCam": [
+          0.09257939375129516,
+          0.1648666459111579
+        ],
+        "mast_03.001": [
+          0.07834318197727917,
+          0.08742459063998591
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 0,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "mastcam_right": {
+      "render_clipping_range_m": [
+        0.07,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "MastCam"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "MastCam": [
+          0.04029431096738491,
+          0.06207088045865472
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 0,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "navcam_left_a": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "MastCam"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "MastCam": [
+          0.009419894929304028,
+          0.015517751601899433
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 0,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "navcam_left_b": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "MastCam"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "Dust Removal Tool": [
+          1.2194379135873044,
+          1.2945429726100675
+        ],
+        "MastCam": [
+          0.010753503028591571,
+          0.015619469679423152
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 2,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "hazcam_rear_left_a": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "lens_covers_rear",
+        "HazCam - rear"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "lens_covers_rear": [
+          0.001034258654775913,
+          0.007939378448209503
+        ],
+        "HazCam - rear": [
+          0.0011604101790535844,
+          0.004723421877992122
+        ],
+        "wheel_03_L": [
+          0.22411860643014253,
+          0.704941856840267
+        ],
+        "suspension_steer_B_L": [
+          0.15144931599121708,
+          0.3433865599963362
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 31,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "hazcam_rear_right_a": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "lens_covers_rear",
+        "HazCam - rear"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "lens_covers_rear": [
+          0.0005265912098179144,
+          0.007357205054295891
+        ],
+        "HazCam - rear": [
+          0.0006283690508567218,
+          0.004309285124743552
+        ],
+        "wheel_03_L": [
+          0.2027457230523088,
+          0.6855750822292148
+        ],
+        "suspension_steer_B_L": [
+          0.14934378723811675,
+          0.3608513242418565
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 43,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "hazcam_rear_left_b": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "lens_covers_rear",
+        "HazCam - rear"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "lens_covers_rear": [
+          0.0016546512156703805,
+          0.007995522959960087
+        ],
+        "HazCam - rear": [
+          0.0017487204847190874,
+          0.005121662272204498
+        ],
+        "wheel_03_R": [
+          0.20022041100121882,
+          0.6768375580962933
+        ],
+        "suspension_steer_B_R": [
+          0.14510794752529363,
+          0.2720338456490434
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 43,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "hazcam_rear_right_b": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "lens_covers_rear",
+        "HazCam - rear"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "lens_covers_rear": [
+          0.0018903904391022821,
+          0.00888422005824968
+        ],
+        "HazCam - rear": [
+          0.0020315933358387053,
+          0.005694216283635894
+        ],
+        "wheel_03_R": [
+          0.22634063208212216,
+          0.6966136106465624
+        ],
+        "suspension_steer_B_R": [
+          0.14740930119896928,
+          0.3928346357550423
+        ],
+        "wheel_03_L": [
+          0.6634202257377061,
+          0.675577738242051
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 41,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "chemcam_rmi": {
+      "render_clipping_range_m": [
+        0.05,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "ChemCam"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "ChemCam": [
+          0.032315198432036785,
+          0.03457023552864207
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 0,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "mardi": {
+      "render_clipping_range_m": [
+        0.05,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "MARDI.001"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "MARDI.001": [
+          0.019361409216874827,
+          0.023086955213909254
+        ],
+        "wheel_01_L": [
+          0.38237560021794015,
+          0.6956649844632444
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 16,
+      "other_rover_intersections_inside_near_clip": 0
+    }
+  },
+  "articulated_camera_mounts": {
+    "mastcam_left": {
+      "parent_link": "Body_MastTilt",
+      "local_translation": [
+        -0.03724899999999998,
+        0.125691,
+        0.06554800000000016
+      ],
+      "usd_camera_rotation_matrix": [
+        [
+          -0.02386443924602788,
+          0.006175847780580002,
+          -0.9996961275525997
+        ],
+        [
+          -0.9996962387833459,
+          -0.006306875347892982,
+          0.023825479759653156
+        ],
+        [
+          -0.0061578163259505825,
+          0.9999610403548418,
+          0.006324481841116336
+        ]
+      ]
+    },
+    "mastcam_right": {
+      "parent_link": "Body_MastTilt",
+      "local_translation": [
+        0.06846600000000003,
+        -0.11780800000000002,
+        0.06483100000000008
+      ],
+      "usd_camera_rotation_matrix": [
+        [
+          0.02536656230082679,
+          0.006477766093285042,
+          -0.9996572292858583
+        ],
+        [
+          -0.9996530648274391,
+          0.007257868963865932,
+          -0.025319425728312805
+        ],
+        [
+          0.007091367861453868,
+          0.9999526798226727,
+          0.0066596259136306735
+        ]
+      ]
+    },
+    "navcam_left_a": {
+      "parent_link": "Body_MastTilt",
+      "local_translation": [
+        0.11517699999999997,
+        0.214144,
+        0.08112500000000011
+      ],
+      "usd_camera_rotation_matrix": [
+        [
+          -0.01746296924400914,
+          0.015092421589890437,
+          -0.9997335962723949
+        ],
+        [
+          -0.9998235571639453,
+          0.006657602579537403,
+          0.017565046767032466
+        ],
+        [
+          0.006920928060447529,
+          0.9998639383128316,
+          0.014973497131136826
+        ]
+      ]
+    },
+    "navcam_right_a": {
+      "parent_link": "Body_MastTilt",
+      "local_translation": [
+        0.11409599999999998,
+        -0.20945000000000003,
+        0.08096500000000018
+      ],
+      "usd_camera_rotation_matrix": [
+        [
+          -0.0072267532977849935,
+          0.020396855597008323,
+          -0.9997658437446879
+        ],
+        [
+          -0.9999690518482071,
+          -0.003256403510326855,
+          0.007161786228005784
+        ],
+        [
+          -0.0031095630835658583,
+          0.9997866593018396,
+          0.020419757576832342
+        ]
+      ]
+    },
+    "navcam_left_b": {
+      "parent_link": "Body_MastTilt",
+      "local_translation": [
+        0.11500500000000002,
+        0.214034,
+        0.033056000000000196
+      ],
+      "usd_camera_rotation_matrix": [
+        [
+          -0.004710205383789745,
+          0.008920164270690978,
+          -0.9999491210229783
+        ],
+        [
+          -0.9999888094600643,
+          0.0003994683871935134,
+          0.004713955838933748
+        ],
+        [
+          0.0004414973230990049,
+          0.9999601347525771,
+          0.008918182871088254
+        ]
+      ]
+    },
+    "navcam_right_b": {
+      "parent_link": "Body_MastTilt",
+      "local_translation": [
+        0.11470400000000003,
+        -0.20956600000000003,
+        0.033287999999999984
+      ],
+      "usd_camera_rotation_matrix": [
+        [
+          -0.003723993393774938,
+          0.00804120053642432,
+          -0.9999607347126868
+        ],
+        [
+          -0.9999801933521559,
+          0.005043857013300124,
+          0.0037646261187963548
+        ],
+        [
+          0.005073931078371285,
+          0.9999549482853528,
+          0.008022257977000291
+        ]
+      ]
+    },
+    "chemcam_rmi": {
+      "parent_link": "Body_MastTilt",
+      "local_translation": [
+        0.07627600000000001,
+        0.111701,
+        0.21324600000000027
+      ],
+      "usd_camera_rotation_matrix": [
+        [
+          -0.0017225883065383751,
+          0.009753185538762699,
+          -0.9999509528278739
+        ],
+        [
+          -0.9999965644891884,
+          0.0019588864030148923,
+          0.0017417732001555053
+        ],
+        [
+          0.0019757781623640502,
+          0.9999505178437116,
+          0.009749777676776539
+        ]
+      ]
+    },
+    "mahli": {
+      "parent_link": "Body_ArmTurret",
+      "local_translation": [
+        -0.1222488367557526,
+        -0.22623779495557148,
+        0.1464529285331566
+      ],
+      "usd_camera_rotation_matrix": [
+        [
+          -0.7546025066261504,
+          -0.3652366763219337,
+          0.5451396401499691
+        ],
+        [
+          0.4812244165917924,
+          0.2567564311133991,
+          0.8381522510605095
+        ],
+        [
+          -0.44609205089243614,
+          0.8948062948768394,
+          -0.01798824002960764
+        ]
+      ]
+    }
+  },
+  "visual_pose_retargets": {
+    "mahli": {
+      "reason": "Official CAHVOR camera pose refers to a different arm pose. Current mount is derived from NASA visualization MAHLI LED aperture geometry, not a flight-calibrated extrinsic.",
+      "method": "Optical center estimated by mean of four LED disk centroids; boresight is the common disk PCA normal oriented away from camera body; camera up follows paired LED row direction.",
+      "original_calibration_position_ground_flu_m": [
+        2.30587,
+        0.404252,
+        1.883873
+      ],
+      "original_calibration_usd_rotation_matrix_flu": [
+        [
+          0.1193142389722469,
+          -0.07752388261846371,
+          -0.9898253179234366
+        ],
+        [
+          0.86760421188713,
+          0.49285849569082435,
+          0.065980563358385
+        ],
+        [
+          0.4827287477395414,
+          -0.8666490355669567,
+          0.12606508341597972
+        ]
+      ],
+      "derived_position_ground_flu_m": [
+        1.9623443400859832,
+        0.2092694330215454,
+        1.913305879831314
+      ],
+      "derived_usd_rotation_matrix_flu": [
+        [
+          -0.7546025066261504,
+          -0.3652366763219337,
+          0.5451396401499691
+        ],
+        [
+          0.4812244165917924,
+          0.2567564311133991,
+          0.8381522510605095
+        ],
+        [
+          -0.44609205089243614,
+          0.8948062948768394,
+          -0.01798824002960764
+        ]
+      ],
+      "source_objects": [
+        "MAHLI_LED_01",
+        "MAHLI_LED_02",
+        "MAHLI_LED_03",
+        "MAHLI_LED_04"
+      ],
+      "source_sha256": "77fe6665223e38972728af404f1a277f0b0ab467fce5cc0aed6eba93488b74e2"
+    }
+  }
+}

@@ -25,6 +25,15 @@ def check_rover_config(rover: RoverConfig) -> None:
 
 
 def _check_lidar_profiles(rover: RoverConfig) -> None:
+    profiles = []
+    if rover.sensors.lidar_3d is not None:
+        profiles.append(
+            ("lidar_3d", rover.sensors.lidar_3d.profile_name, rover.sensors.lidar_3d.variant)
+        )
+    if rover.sensors.lidar_2d is not None:
+        profiles.append(("lidar_2d", "Example_Rotary_2D", None))
+    if not profiles:
+        return
     isaac_root = Path(os.environ.get("ISAAC_SIM_PATH", str(Path.home() / "isaacsim")))
     catalog_path = (
         isaac_root
@@ -36,10 +45,6 @@ def _check_lidar_profiles(rover: RoverConfig) -> None:
             "set ISAAC_SIM_PATH to the supported Isaac Sim installation"
         )
     catalog = runpy.run_path(str(catalog_path))["SUPPORTED_LIDAR_CONFIGS"]
-    profiles = (
-        ("lidar_3d", rover.sensors.lidar_3d.profile_name, rover.sensors.lidar_3d.variant),
-        ("lidar_2d", "Example_Rotary_2D", None),
-    )
     for sensor_name, profile, variant in profiles:
         for model_path, variants in catalog.items():
             path = Path(model_path)

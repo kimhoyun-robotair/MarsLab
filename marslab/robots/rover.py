@@ -240,13 +240,15 @@ def apply_suspension_damping_split(
     stage: Any,
     chassis_path: str,
     suspension_cfg: SuspensionConfig,
+    *,
+    joints_prim_name: str = "joints",
 ) -> dict[str, bool]:
     """Apply rocker / bogie damping separately to the suspension joints."""
     rocker_names = suspension_cfg.rocker_joint_names
     bogie_names = suspension_cfg.bogie_joint_names
     rocker_damping = suspension_cfg.rocker_damping
     bogie_damping = suspension_cfg.bogie_damping
-    joints_scope = f"{chassis_path}/joints"
+    joints_scope = f"{chassis_path}/{joints_prim_name}"
 
     results: dict[str, bool] = {}
     for jname in rocker_names:
@@ -301,7 +303,7 @@ def _spawn_rover_usd(
     """Attach the USD reference, set the spawn pose, and locate the rigid body."""
     load_rover_usd(rover.usd_path, rover.prim_path)
     apply_spawn_pose(stage, rover.prim_path, spawn_xyz, rover.spawn.orientation_rpy)
-    chassis_path = f"{rover.prim_path}/Body_Chassis"
+    chassis_path = f"{rover.prim_path}/{rover.chassis.container_prim_name}"
     return find_rigid_body_path(stage, chassis_path, rover.chassis.rigid_body_prim_name)
 
 
@@ -310,14 +312,19 @@ def _apply_rover_articulation_physics(
     rover: RoverConfig,
 ) -> None:
     """Validate and apply wheel contact and suspension overrides."""
-    chassis_path = f"{rover.prim_path}/Body_Chassis"
+    chassis_path = f"{rover.prim_path}/{rover.chassis.container_prim_name}"
     apply_wheel_physics(
         stage,
         chassis_path,
         rover.wheels.link_names,
         rover.wheels,
     )
-    suspension_results = apply_suspension_damping_split(stage, chassis_path, rover.suspension)
+    suspension_results = apply_suspension_damping_split(
+        stage,
+        chassis_path,
+        rover.suspension,
+        joints_prim_name=rover.chassis.joints_prim_name,
+    )
     missing = [name for name, applied in suspension_results.items() if not applied]
     if missing:
         raise RuntimeError(f"physics override targets missing from rover USD: {missing}")
@@ -342,6 +349,6 @@ def spawn_rover(
 
     return SpawnedRover(
         prim_path=prim_path,
-        chassis_path=f"{prim_path}/Body_Chassis",
+        chassis_path=f"{prim_path}/{rover.chassis.container_prim_name}",
         rigid_body_path=rigid_body_path,
     )

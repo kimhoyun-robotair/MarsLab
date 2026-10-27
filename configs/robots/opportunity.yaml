@@ -1,0 +1,255 @@
+# Opportunity: MarsLab-authored simulation model from NASA visual/source data.
+# This is not a NASA-issued URDF, flight dynamic model, or flight gain set.
+# Provenance: ../../LICENSE-NASA-3D-RESOURCES.txt
+# Sensor evidence: ../../assets/robots/opportunity/sensors.json; ../../LICENSE-NAIF.txt
+# Model derivations: ../../assets/robots/opportunity/
+# Camera calibration: NASA/JPL NAIF instrument kernels; individual URLs below.
+# Camera poses are chassis-relative FLU for ROS; USD optical transforms remain authored.
+# Images use a pinhole approximation; no CAHVOR/E distortion or detector physics.
+# Clip ranges, dynamics gains, angular caps, contact, and damping are simulation tuning.
+# Selected camera near clips skip measured opaque NASA visualization housing surfaces.
+# This render-only workaround preserves calibrated poses; it is not a flight near-plane specification.
+# Measured housing geometry and per-camera overrides: ../../assets/robots/opportunity/DERIVATION.md
+# IMU at chassis reference and zero sensor/encoder noise are idealizations.
+# Real mission LiDAR and direct depth cameras are absent; synthetic depth is disabled.
+# Speed/wheel diameter: https://pds.nasa.gov/data/pds4/context-pds4/instrument_host/spacecraft.mer2_1.0.xml
+# MER 8 Hz uses documented accumulated IMU cadence, not a certified surface rate.
+# IMU: https://pds.nasa.gov/ds-view/pds/viewContext.jsp?identifier=urn:nasa:pds:context:instrument:imu.mer2&version=1.2
+# navcam_left: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer1_nl_20040125_c196.ti
+# navcam_right: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer1_nr_20040125_c197.ti
+# pancam_left: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer1_pl_f2_20040125_c199.ti
+# pancam_right: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer1_pr_f2_20040125_c207.ti
+# hazcam_front_left: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer1_fl_20040125_c33.ti
+# hazcam_front_right: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer1_fr_20040125_c34.ti
+# hazcam_rear_left: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer1_rl_20040125_c35.ti
+# hazcam_rear_right: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer1_rr_20040125_c36.ti
+# microscopic_imager: https://naif.jpl.nasa.gov/pub/naif/MER/kernels/ik/mer1_mi_f2_20040125_c194.ti
+# MI mount is a geometry-derived fixed stowed-arm proxy; NASA kernel supplies optical calibration. See assets/robots/opportunity/sensors.json pose_source.
+rover:
+  name: opportunity
+  usd_path: ../../assets/robots/opportunity/opportunity.usda
+  urdf_source_path: ../../assets/robots/opportunity/opportunity.urdf
+  prim_path: /World/Rover
+  spawn:
+    mode: dem_center
+    xy: [0.0, 0.0]
+    z_offset: 0.1
+    orientation_rpy: [0.0, 0.0, 0.0]
+  angular_damping: 12.0
+  linear_damping: 0.5
+  chassis:
+    rigid_body_prim_name: Body_Chassis
+    container_prim_name: Body_Chassis
+    joints_prim_name: joints
+  wheels:
+    link_names: [Body_WheelLeftFront, Body_WheelLeftMiddle, Body_WheelLeftRear, Body_WheelRightFront,
+      Body_WheelRightMiddle, Body_WheelRightRear]
+    friction_static: 0.6
+    friction_dynamic: 0.5
+    restitution: 0.0
+  suspension:
+    rocker_damping: 75.0
+    bogie_damping: 50.0
+    rocker_joint_names: [LEFT_DIFFERENTIAL, RIGHT_DIFFERENTIAL]
+    bogie_joint_names: [LEFT_BOGIE, RIGHT_BOGIE]
+    differential_joint_names: [LEFT_DIFFERENTIAL, RIGHT_DIFFERENTIAL]
+  ros2:
+    namespace: rover
+    topics:
+      cmd_vel: cmd_vel
+      imu: imu
+      imu_noisy: imu_noisy
+      odom: odom
+      gt_trajectory: GT_Trajectory
+      rgb: rgb/image_raw
+      depth: depth/image_raw
+      points: depth/points
+      camera_info: rgb/camera_info
+      lidar: lidar/points
+      scan: scan
+      joint_states: joint_states
+    odom_publisher:
+      frame_id: odom
+      child_frame_id: base_link
+      queue_size: 10
+    sensor_parent_frame_id: Body_Chassis
+  sensors:
+    seed: 42
+    camera:
+      prim_path: Sensors/navcam_left
+      local_translation: [0.4648766963356724, 0.06113156828839758, 1.5415835129461481]
+      local_orientation_rpy_deg: [0.035440478434781805, 0.3831497539378138, 0.04187452018225175]
+      resolution: [1024, 1024]
+      focal_length_mm: 14.67
+      horizontal_fov_deg: 45.3326082
+      clipping_range: [0.06, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    cameras:
+    - name: navcam_right
+      prim_path: Sensors/navcam_right
+      local_translation: [0.4654579098127498, -0.13898417540673472, 1.5412674540304694]
+      local_orientation_rpy_deg: [-0.06826299116582041, 0.4015224399095034, -0.024580246592588593]
+      resolution: [1024, 1024]
+      focal_length_mm: 14.67
+      horizontal_fov_deg: 45.75031956
+      clipping_range: [0.06, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: pancam_left
+      prim_path: Sensors/pancam_left
+      local_translation: [0.48534962918889235, 0.10984971537098955, 1.5414561778508857]
+      local_orientation_rpy_deg: [-0.17206572195055694, 0.021982658611692758, -1.1196798373817332]
+      resolution: [1024, 1024]
+      focal_length_mm: 42.97
+      horizontal_fov_deg: 16.04858871
+      clipping_range: [0.06, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: pancam_right
+      prim_path: Sensors/pancam_right
+      local_translation: [0.4849536569146074, -0.18780281391372697, 1.5416623898024924]
+      local_orientation_rpy_deg: [-0.17476604244183935, -0.03607863012930357, 0.936004287554233]
+      resolution: [1024, 1024]
+      focal_length_mm: 42.97
+      horizontal_fov_deg: 16.03090104
+      clipping_range: [0.06, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_front_left
+      prim_path: Sensors/hazcam_front_left
+      local_translation: [0.609331, 0.041064, 0.523849]
+      local_orientation_rpy_deg: [-1.7840507269622845, 45.40388070279844, -2.3475396339441583]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 125.50017711
+      clipping_range: [0.05, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_front_right
+      prim_path: Sensors/hazcam_front_right
+      local_translation: [0.609774, -0.060081, 0.524332]
+      local_orientation_rpy_deg: [-1.9096780751724938, 45.44849732469538, -2.3350243274145894]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 124.46678343
+      clipping_range: [0.05, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_rear_left
+      prim_path: Sensors/hazcam_rear_left
+      local_translation: [-0.352486, -0.029107, 0.509509]
+      local_orientation_rpy_deg: [0.025807532401835233, 35.39620709122722, 179.25012419723728]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 125.28307605
+      clipping_range: [0.01, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_rear_right
+      prim_path: Sensors/hazcam_rear_right
+      local_translation: [-0.352347, 0.071376, 0.508263]
+      local_orientation_rpy_deg: [-0.2733123634941577, 35.58659592351936, 179.22656224976092]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 125.13087411
+      clipping_range: [0.01, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: microscopic_imager
+      prim_path: Sensors/microscopic_imager
+      local_translation: [0.5124521963424407, 0.08843081744597046, 0.38960254197268984]
+      local_orientation_rpy_deg: [-3.4730787239876225e-06, -5.332252849175707e-05, -30.00007441144694]
+      resolution: [1024, 1024]
+      focal_length_mm: 20.13
+      horizontal_fov_deg: 24.27949326
+      clipping_range: [0.01, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    lidar_2d: null
+    lidar_3d: null
+    imu:
+      sampling_frequency_hz: 8
+      local_translation: [0.0, 0.0, 0.0]
+      local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+      sigma_lin_acc: 0.0
+      sigma_ang_vel: 0.0
+  control:
+    wheel_radius: 0.13
+    wheelbase: 1.2120322799310088
+    steering_axle_offset: 0.10577812464907765
+    track_steer: 1.0609725341200829
+    track_middle: 0.9500002264976501
+    max_linear_velocity: 0.05
+    max_angular_velocity: 0.07
+    command_timeout: 0.5
+    drive_joint_names: [LF_DRIVE, LM_DRIVE, LR_DRIVE, RF_DRIVE, RM_DRIVE, RR_DRIVE]
+    steer_joint_names: [LF_STEER, LR_STEER, RF_STEER, RR_STEER]
+    drive_damping: 1000.0
+    drive_max_force: 1000000.0
+    brake_stiffness: 50000.0
+    # MER simulation tuning for static tire-scrub alignment; not a NASA flight gain.
+    steer_stiffness: 200000.0
+    steer_damping: 5000.0
+    steer_max_force: 100000.0
+    drive_type: acceleration
+    negate_steer: false
+    max_wheel_accel_rate: 0.5
+    max_steer_angle: 1.2
+    steering_alignment_tolerance: 0.02
+    steering_stop_speed: 0.05
+    steer_ramp_rate: 2.0
+    decel_multiplier: 3.0
+    debug_logging: false
+  wheel_odometry:
+    enabled: true
+    left_wheel_joints: [LF_DRIVE, LM_DRIVE, LR_DRIVE]
+    right_wheel_joints: [RF_DRIVE, RM_DRIVE, RR_DRIVE]
+    slip_left: 0.0
+    slip_right: 0.0
+    sigma_omega: 0.0

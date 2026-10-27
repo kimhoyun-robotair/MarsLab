@@ -1,9 +1,8 @@
 # Track runtime files, user documentation, and the project page.
 /*
 !/.gitignore
-!/.gitmodules
 !/CONFIGURATION_GUIDE.md
-!/pyproject.toml
+!/requirements.txt
 !/README.md
 !/assets/
 !/configs/
@@ -13,7 +12,7 @@
 
 # Keep rover assets and atmosphere references; scenes are external downloads.
 /assets/*
-!/assets/m2020-urdf-models/
+!/assets/nasa-rover-models/
 !/assets/mars_sky/
 !/assets/robots/
 !/assets/atmosphere/
@@ -22,6 +21,7 @@
 # Keep the runtime configuration and both ROS companion files.
 /configs/*
 !/configs/config.yaml
+!/configs/robots/
 /launch/*
 !/launch/rover_state_publisher.launch.py
 !/launch/companion_urdf.py

@@ -1,0 +1,1703 @@
+{
+  "rover": "curiosity",
+  "author": "MarsLab",
+  "source_family": "curiosity",
+  "source_sha256": "77fe6665223e38972728af404f1a277f0b0ab467fce5cc0aed6eba93488b74e2",
+  "source_frame": 180,
+  "source_to_ground_flu": {
+    "rotation": [
+      [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "translation": [
+      0.08899986743927002,
+      0.0023094316323598227,
+      0.007220959911743791
+    ]
+  },
+  "kinematics": {
+    "wheel_radius": 0.25,
+    "wheelbase": 2.26,
+    "steering_axle_offset": 0.05399986743926999,
+    "track_steer": 2.125,
+    "track_middle": 2.3825056850910187,
+    "negate_steer": false,
+    "nasa_ground_to_chassis_translation": [
+      0,
+      0,
+      0
+    ]
+  },
+  "wheel_centers": {
+    "Body_WheelLeftFront": [
+      1.18399986743927,
+      1.0625,
+      0.25
+    ],
+    "Body_WheelLeftMiddle": [
+      0.0,
+      1.1912528425455093,
+      0.25
+    ],
+    "Body_WheelLeftRear": [
+      -1.07600013256073,
+      1.0625,
+      0.25
+    ],
+    "Body_WheelRightFront": [
+      1.18399986743927,
+      -1.0625,
+      0.25
+    ],
+    "Body_WheelRightMiddle": [
+      0.0,
+      -1.1912528425455093,
+      0.25
+    ],
+    "Body_WheelRightRear": [
+      -1.07600013256073,
+      -1.0625,
+      0.25
+    ]
+  },
+  "aggregate_mass_kg": 899.18,
+  "aggregate_com_m": [
+    0.08728785426954584,
+    0.03712356786555233,
+    1.035039596960991
+  ],
+  "aggregate_inertia_kg_m2": [
+    [
+      360.204957122644,
+      -66.36607769437897,
+      -32.10453276783466
+    ],
+    [
+      -66.36607769437896,
+      1001.5769574351837,
+      -2.5089020827869515
+    ],
+    [
+      -32.10453276783466,
+      -2.5089020827869533,
+      1115.2966269509345
+    ]
+  ],
+  "nasa_reference_target": {
+    "mass": 899.18,
+    "com": [
+      0.08899986743927002,
+      0.0,
+      0.8944
+    ],
+    "inertia": [
+      [
+        405.09,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        571.41,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        774.84
+      ]
+    ],
+    "comparison_only": true
+  },
+  "link_properties": {
+    "Body_Chassis": {
+      "origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mass": 674.18,
+      "center_of_mass_local": [
+        -0.16764966599547412,
+        0.007110338592623133,
+        1.0482206523420845
+      ],
+      "inertia": [
+        [
+          143.81752793813246,
+          -4.770047877834285,
+          45.929189563103954
+        ],
+        [
+          -4.7700478778342825,
+          479.8472694093037,
+          2.514853397025263
+        ],
+        [
+          45.929189563103954,
+          2.5148533970252647,
+          549.5593696282122
+        ]
+      ],
+      "principal_inertia": [
+        138.6095493183448,
+        479.86929374226355,
+        554.74532391504
+      ]
+    },
+    "Body_RockerLeft": {
+      "origin": [
+        0.300496906042099,
+        0.7972160478432974,
+        0.8893821003536383
+      ],
+      "mass": 18.0,
+      "center_of_mass_local": [
+        0.08048355185376865,
+        0.02526595182764957,
+        -0.050878368513468275
+      ],
+      "inertia": [
+        [
+          0.5683246135085394,
+          -0.6807878601658777,
+          0.09516019964899924
+        ],
+        [
+          -0.6807878601658777,
+          3.674705602487132,
+          0.1793809514590876
+        ],
+        [
+          0.09516019964899924,
+          0.1793809514590876,
+          3.698992679663035
+        ]
+      ],
+      "principal_inertia": [
+        0.42051505318848253,
+        3.594865173684693,
+        3.926642668785529
+      ]
+    },
+    "Body_BogieLeft": {
+      "origin": [
+        -0.4510035514831543,
+        0.9895259042580923,
+        0.6505558254818121
+      ],
+      "mass": 12.0,
+      "center_of_mass_local": [
+        -0.06340647059555937,
+        -0.035191558856244254,
+        -0.05657517368340015
+      ],
+      "inertia": [
+        [
+          0.33881203549338657,
+          0.19185993094430875,
+          0.5653779070843015
+        ],
+        [
+          0.19185993094430875,
+          1.915508293693806,
+          -0.02460075131414685
+        ],
+        [
+          0.5653779070843015,
+          -0.02460075131414685,
+          1.7439947189456513
+        ]
+      ],
+      "principal_inertia": [
+        0.11965115247901122,
+        1.8988028960627026,
+        1.9798609995911287
+      ]
+    },
+    "Body_WheelLeftFront": {
+      "origin": [
+        1.18399986743927,
+        1.0625,
+        0.25
+      ],
+      "mass": 7.0,
+      "center_of_mass_local": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inertia": [
+        [
+          0.20026499576806808,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.21875,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.20026499576806808
+        ]
+      ],
+      "principal_inertia": [
+        0.20026499576806808,
+        0.20026499576806808,
+        0.21875
+      ]
+    },
+    "Body_SteerLeftFront": {
+      "origin": [
+        1.18399986743927,
+        1.0625,
+        0.6472190382579962
+      ],
+      "mass": 3.0,
+      "center_of_mass_local": [
+        -0.004761117614217714,
+        -0.19824996795013394,
+        -0.1382170877497031
+      ],
+      "inertia": [
+        [
+          0.09593619042258483,
+          -0.0010311885285430034,
+          -2.4735212323379052e-05
+        ],
+        [
+          -0.001031188528541671,
+          0.0400426141705289,
+          -0.0199420722977528
+        ],
+        [
+          -2.4735212323379052e-05,
+          -0.0199420722977528,
+          0.0679853872406263
+        ]
+      ],
+      "principal_inertia": [
+        0.0296518109603472,
+        0.07835153476925238,
+        0.09596084610414048
+      ]
+    },
+    "Body_WheelLeftMiddle": {
+      "origin": [
+        0.0,
+        1.1912528425455093,
+        0.25
+      ],
+      "mass": 7.0,
+      "center_of_mass_local": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inertia": [
+        [
+          0.20026499576806808,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.21875,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.20026499576806808
+        ]
+      ],
+      "principal_inertia": [
+        0.20026499576806808,
+        0.20026499576806808,
+        0.21875
+      ]
+    },
+    "Body_WheelLeftRear": {
+      "origin": [
+        -1.07600013256073,
+        1.0625,
+        0.25
+      ],
+      "mass": 7.0,
+      "center_of_mass_local": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inertia": [
+        [
+          0.20026494087007496,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.21875,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.20026494087007496
+        ]
+      ],
+      "principal_inertia": [
+        0.20026494087007496,
+        0.20026494087007496,
+        0.21875
+      ]
+    },
+    "Body_SteerLeftRear": {
+      "origin": [
+        -1.07600013256073,
+        1.0625,
+        0.6499555471042792
+      ],
+      "mass": 3.0,
+      "center_of_mass_local": [
+        0.0009066254207159563,
+        -0.16639594677897485,
+        -0.11938399200453143
+      ],
+      "inertia": [
+        [
+          0.09326494781703104,
+          -6.790855850613564e-05,
+          0.00010100453111427932
+        ],
+        [
+          -6.790855850613564e-05,
+          0.046543594419712175,
+          -0.015299193017012713
+        ],
+        [
+          0.00010100453111427932,
+          -0.015299193017012713,
+          0.05949525811482259
+        ]
+      ],
+      "principal_inertia": [
+        0.03640612721257,
+        0.0696320985208436,
+        0.09326557461815224
+      ]
+    },
+    "Body_RockerRight": {
+      "origin": [
+        0.30300000309944153,
+        -0.7968534330526987,
+        0.8921190264324347
+      ],
+      "mass": 18.0,
+      "center_of_mass_local": [
+        0.07899141292627115,
+        -0.02420161675901622,
+        -0.052563971884615146
+      ],
+      "inertia": [
+        [
+          0.5716937979661039,
+          0.6838397560030319,
+          0.0881302405252905
+        ],
+        [
+          0.6838397560030319,
+          3.6870007118855765,
+          -0.1798788588043294
+        ],
+        [
+          0.0881302405252905,
+          -0.1798788588043294,
+          3.7194835524044
+        ]
+      ],
+      "principal_inertia": [
+        0.4235794291143424,
+        3.610736313412408,
+        3.943862319729329
+      ]
+    },
+    "Body_BogieRight": {
+      "origin": [
+        -0.4510037899017334,
+        -0.9897101024786631,
+        0.6505583288768927
+      ],
+      "mass": 12.0,
+      "center_of_mass_local": [
+        -0.06340657122553484,
+        0.035194051589704456,
+        -0.056577704047892086
+      ],
+      "inertia": [
+        [
+          0.3388129057385565,
+          -0.19185998955293204,
+          0.5653789815367092
+        ],
+        [
+          -0.19185998955293204,
+          1.915508933829966,
+          0.024600875370823783
+        ],
+        [
+          0.5653789815367092,
+          0.02460087537082245,
+          1.7439945746345356
+        ]
+      ],
+      "principal_inertia": [
+        0.11965122844324942,
+        1.8988035181369194,
+        1.9798616676228893
+      ]
+    },
+    "Body_WheelRightFront": {
+      "origin": [
+        1.18399986743927,
+        -1.0625,
+        0.25
+      ],
+      "mass": 7.0,
+      "center_of_mass_local": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inertia": [
+        [
+          0.20026491342108463,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.21875,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.20026491342108463
+        ]
+      ],
+      "principal_inertia": [
+        0.20026491342108463,
+        0.20026491342108463,
+        0.21875
+      ]
+    },
+    "Body_SteerRightFront": {
+      "origin": [
+        1.18399986743927,
+        -1.0625,
+        0.6499560835460821
+      ],
+      "mass": 3.0,
+      "center_of_mass_local": [
+        -0.0022581412850426474,
+        0.1986128843048861,
+        -0.13821689345498467
+      ],
+      "inertia": [
+        [
+          0.09593610977199263,
+          0.0010311553032611442,
+          -2.4713372924090038e-05
+        ],
+        [
+          0.0010311553032611442,
+          0.04004258946830963,
+          0.019941984916029443
+        ],
+        [
+          -2.4713372924423105e-05,
+          0.019941984916029443,
+          0.06798533416679531
+        ]
+      ],
+      "principal_inertia": [
+        0.029651852849182335,
+        0.07835141602979236,
+        0.09596076452812284
+      ]
+    },
+    "Body_WheelRightMiddle": {
+      "origin": [
+        0.0,
+        -1.1912528425455093,
+        0.25
+      ],
+      "mass": 7.0,
+      "center_of_mass_local": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inertia": [
+        [
+          0.20026491342108463,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.21875,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.20026491342108463
+        ]
+      ],
+      "principal_inertia": [
+        0.20026491342108463,
+        0.20026491342108463,
+        0.21875
+      ]
+    },
+    "Body_WheelRightRear": {
+      "origin": [
+        -1.07600013256073,
+        -1.0625,
+        0.25
+      ],
+      "mass": 7.0,
+      "center_of_mass_local": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inertia": [
+        [
+          0.20026494087007496,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.21875,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.20026494087007496
+        ]
+      ],
+      "principal_inertia": [
+        0.20026494087007496,
+        0.20026494087007496,
+        0.21875
+      ]
+    },
+    "Body_SteerRightRear": {
+      "origin": [
+        -1.07600013256073,
+        -1.0625,
+        0.6499557259182135
+      ],
+      "mass": 3.0,
+      "center_of_mass_local": [
+        0.0005148558557706018,
+        0.16621431113961727,
+        -0.11938403434958211
+      ],
+      "inertia": [
+        [
+          0.09326501846300411,
+          0.00015961799381436492,
+          -1.8002084367529925e-05
+        ],
+        [
+          0.00015961799381436492,
+          0.04654289049519017,
+          0.015299226918185083
+        ],
+        [
+          -1.8002084367529925e-05,
+          0.015299226918184416,
+          0.059494680111739195
+        ]
+      ],
+      "principal_inertia": [
+        0.03640507084856785,
+        0.06963191363765578,
+        0.09326560458370982
+      ]
+    },
+    "Body_MastPan": {
+      "origin": [
+        0.8044,
+        -0.5594,
+        1.9061
+      ],
+      "mass": 4.0,
+      "center_of_mass_local": [
+        -0.0014122680154462497,
+        0.008942824098768565,
+        -0.13813981254587704
+      ],
+      "inertia": [
+        [
+          0.04055844135326048,
+          -1.0414041422546205e-06,
+          -2.5833331251945424e-06
+        ],
+        [
+          -1.0414041422546205e-06,
+          0.037586180908417255,
+          0.0022726258818446254
+        ],
+        [
+          -2.5833331251945424e-06,
+          0.0022726258818441814,
+          0.029566200353587924
+        ]
+      ],
+      "principal_inertia": [
+        0.028966976556205296,
+        0.038185403106748,
+        0.04055844295231238
+      ]
+    },
+    "Body_MastTilt": {
+      "origin": [
+        0.8044,
+        -0.5594,
+        1.9061
+      ],
+      "mass": 16.0,
+      "center_of_mass_local": [
+        0.0012532958665057992,
+        0.07574260325028143,
+        0.10586705995556756
+      ],
+      "inertia": [
+        [
+          0.6092459883637527,
+          0.0018104398205016636,
+          0.012904092733812433
+        ],
+        [
+          0.0018104398205016636,
+          0.311481224246851,
+          0.07151630234597306
+        ],
+        [
+          0.012904092733812433,
+          0.07151630234597306,
+          0.5233713569796126
+        ]
+      ],
+      "principal_inertia": [
+        0.2895893392331071,
+        0.5427597791830867,
+        0.6117494511740225
+      ]
+    },
+    "Body_ArmShoulderAzimuth": {
+      "origin": [
+        1.2018507719039917,
+        0.4538093109925588,
+        1.005270993957917
+      ],
+      "mass": 20.0,
+      "center_of_mass_local": [
+        0.08415454125034172,
+        -0.02299595732012094,
+        -0.1611482121369877
+      ],
+      "inertia": [
+        [
+          0.1895605400973449,
+          0.006087154358822566,
+          -0.007340481431414858
+        ],
+        [
+          0.006087154358822566,
+          0.22397455431623525,
+          -0.004189701219463604
+        ],
+        [
+          -0.007340481431414858,
+          -0.004189701219463604,
+          0.2566030313881479
+        ]
+      ],
+      "principal_inertia": [
+        0.1878887323621441,
+        0.2241617960252424,
+        0.2580875974143417
+      ]
+    },
+    "Body_ArmShoulderElevation": {
+      "origin": [
+        1.362350583076477,
+        0.44996662934621173,
+        0.8396256330112616
+      ],
+      "mass": 18.0,
+      "center_of_mass_local": [
+        0.546290811183282,
+        -0.1423651520753081,
+        0.018912689157760343
+      ],
+      "inertia": [
+        [
+          0.20319573547946881,
+          -0.258275303004309,
+          0.044723927665581975
+        ],
+        [
+          -0.258275303004309,
+          1.4851890968858321,
+          0.016926410255817093
+        ],
+        [
+          0.044723927665581975,
+          0.016926410255817093,
+          1.6220690200705008
+        ]
+      ],
+      "principal_inertia": [
+        0.15160820348663526,
+        1.534529437350257,
+        1.6243162115989103
+      ]
+    },
+    "Body_ArmElbow": {
+      "origin": [
+        2.187127470970154,
+        0.5204654236634573,
+        0.840207493553559
+      ],
+      "mass": 15.0,
+      "center_of_mass_local": [
+        0.01928777849761154,
+        -0.07377255960993784,
+        0.4656545154368409
+      ],
+      "inertia": [
+        [
+          1.2026413692197575,
+          -0.0012035190526321626,
+          0.03486618858215662
+        ],
+        [
+          -0.0012035190526321626,
+          1.1933693765921782,
+          0.026234919431621373
+        ],
+        [
+          0.03486618858215662,
+          0.026234919431621373,
+          0.06368338686540922
+        ]
+      ],
+      "principal_inertia": [
+        0.062007554533104574,
+        1.1939623820040783,
+        1.2037241961401621
+      ]
+    },
+    "Body_ArmWrist": {
+      "origin": [
+        2.185860514640808,
+        0.3612095018227895,
+        1.622873521099488
+      ],
+      "mass": 8.0,
+      "center_of_mass_local": [
+        -0.13276056528664482,
+        0.06698713647799759,
+        0.10479457875899034
+      ],
+      "inertia": [
+        [
+          0.07776514755526076,
+          -0.0003013441297383679,
+          -0.008997353662255847
+        ],
+        [
+          -0.0003013441297383679,
+          0.08578076610406882,
+          0.002972625516743932
+        ],
+        [
+          -0.0089973536622594,
+          0.002972625516743932,
+          0.06514735086925594
+        ]
+      ],
+      "principal_inertia": [
+        0.06022207712347599,
+        0.08181426819708033,
+        0.08665691920802913
+      ]
+    },
+    "Body_ArmTurret": {
+      "origin": [
+        2.084593176841736,
+        0.4355072279771169,
+        1.7668529512981574
+      ],
+      "mass": 30.0,
+      "center_of_mass_local": [
+        -0.008472817918888875,
+        0.03863812293194824,
+        0.15923120486153763
+      ],
+      "inertia": [
+        [
+          0.6521397721172759,
+          -0.07811752607488343,
+          0.0010194001762053873
+        ],
+        [
+          -0.07811752607488343,
+          0.5282298069130009,
+          -0.03699989202756493
+        ],
+        [
+          0.0010194001762053873,
+          -0.03699989202756493,
+          1.007827237514066
+        ]
+      ],
+      "principal_inertia": [
+        0.4883954969914922,
+        0.6889952750948665,
+        1.0108060444579845
+      ]
+    }
+  },
+  "mesh_assignment": {
+    "antenna_HG_01": "Body_Chassis",
+    "antenna_HG_03": "Body_Chassis",
+    "antenna_LG": "Body_Chassis",
+    "antenna_UHF": "Body_Chassis",
+    "APXS": "Body_ArmTurret",
+    "arm_01.001": "Body_ArmShoulderAzimuth",
+    "arm_02.001": "Body_ArmShoulderElevation",
+    "arm_03.001": "Body_ArmElbow",
+    "arm_04.001": "Body_ArmWrist",
+    "arm_05_head.001": "Body_ArmTurret",
+    "bit_01.001": "Body_ArmTurret",
+    "bit_02": "Body_Chassis",
+    "bit_03": "Body_Chassis",
+    "body": "Body_Chassis",
+    "body.001": "Body_Chassis",
+    "Chassis": "Body_Chassis",
+    "ChemCam": "Body_MastTilt",
+    "CheMin": "Body_Chassis",
+    "CHIMERA": "Body_ArmTurret",
+    "cover_01": "Body_Chassis",
+    "cover_02": "Body_Chassis",
+    "cover_03": "Body_Chassis",
+    "DAN_L": "Body_Chassis",
+    "DAN_R": "Body_Chassis",
+    "Drill": "Body_ArmTurret",
+    "Dust Removal Tool": "Body_ArmTurret",
+    "HazCam - front": "Body_Chassis",
+    "HazCam - rear": "Body_Chassis",
+    "lens_covers_front": "Body_Chassis",
+    "lens_covers_rear": "Body_Chassis",
+    "MAHLI": "Body_ArmTurret",
+    "MAHLI_cal_target": "Body_ArmShoulderAzimuth",
+    "MAHLI_LED_01": "Body_ArmTurret",
+    "MAHLI_LED_02": "Body_ArmTurret",
+    "MAHLI_LED_03": "Body_ArmTurret",
+    "MAHLI_LED_04": "Body_ArmTurret",
+    "MAHLI_lens_cover": "Body_ArmTurret",
+    "MARDI.001": "Body_Chassis",
+    "mast_01.000": "Body_Chassis",
+    "mast_01.001": "Body_Chassis",
+    "mast_02.001": "Body_MastPan",
+    "mast_03.001": "Body_MastTilt",
+    "MastCam": "Body_MastTilt",
+    "NavCam": "Body_MastTilt",
+    "RAD": "Body_Chassis",
+    "radiators": "Body_Chassis",
+    "REMS": "Body_Chassis",
+    "RTG": "Body_Chassis",
+    "SAM": "Body_Chassis",
+    "sundial": "Body_Chassis",
+    "suspension_arm_B2_L": "Body_BogieLeft",
+    "suspension_arm_B2_R": "Body_BogieRight",
+    "suspension_arm_B_L": "Body_RockerLeft",
+    "suspension_arm_B_R": "Body_RockerRight",
+    "suspension_arm_F_L": "Body_RockerLeft",
+    "suspension_arm_F_R": "Body_RockerRight",
+    "suspension_axel_L": "Body_RockerLeft",
+    "suspension_axel_L2": "Body_RockerLeft",
+    "suspension_axel_R": "Body_RockerRight",
+    "suspension_axel_R2": "Body_RockerRight",
+    "suspension_rod_L": "Body_RockerLeft",
+    "suspension_rod_R": "Body_RockerRight",
+    "suspension_steer_B_L": "Body_SteerLeftRear",
+    "suspension_steer_B_R": "Body_SteerRightRear",
+    "suspension_steer_F_L": "Body_SteerLeftFront",
+    "suspension_steer_F_R": "Body_SteerRightFront",
+    "suspension_xmember": "Body_Chassis",
+    "wheel_01_L": "Body_WheelLeftFront",
+    "wheel_01_R": "Body_WheelRightFront",
+    "wheel_02_L": "Body_WheelLeftMiddle",
+    "wheel_02_R": "Body_WheelRightMiddle",
+    "wheel_03_L": "Body_WheelLeftRear",
+    "wheel_03_R": "Body_WheelRightRear"
+  },
+  "excluded_source_objects": {
+    "_HazCam_F": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_HazCam_rear_L": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_HazCam_rear_R": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_Hemi_1": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_Hemi_2": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_MAHLI_cam": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_MARDI": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_MastCam_L": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_MastCam_R": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_NavCam_top_L": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_NavCam_top_R": "Non-mesh source object; mission sensors are authored from calibration.",
+    "_root_p": "Source pivot-material rig helper.",
+    "antenna_HG_02_p": "Source pivot-material rig helper.",
+    "Cube_01_p": "Source pivot-material rig helper.",
+    "Cube_02_p": "Source pivot-material rig helper.",
+    "Cube_03_p": "Source pivot-material rig helper.",
+    "Cube_04_p": "Source pivot-material rig helper.",
+    "HazCam_F": "Named camera transform helper; calibrated camera authored separately.",
+    "HazCam_rear_L": "Named camera transform helper; calibrated camera authored separately.",
+    "HazCam_rear_R": "Named camera transform helper; calibrated camera authored separately.",
+    "MAHLI_cam": "Named camera transform helper; calibrated camera authored separately.",
+    "MAHLI_lens_cover_p": "Source pivot-material rig helper.",
+    "MARDI": "Named camera transform helper; calibrated camera authored separately.",
+    "mast_p": "Source pivot-material rig helper.",
+    "MastCam_L": "Named camera transform helper; calibrated camera authored separately.",
+    "MastCam_R": "Named camera transform helper; calibrated camera authored separately.",
+    "NavCam_top_L": "Named camera transform helper; calibrated camera authored separately.",
+    "NavCam_top_R": "Named camera transform helper; calibrated camera authored separately.",
+    "shadow_arm": "Source rendering-only shadow plane.",
+    "suspension_arm_B_L_p": "Source pivot-material rig helper.",
+    "suspension_arm_B_R_p": "Source pivot-material rig helper.",
+    "suspension_arm_F_L_p": "Source pivot-material rig helper.",
+    "suspension_arm_F_R_p": "Source pivot-material rig helper."
+  },
+  "source_triangle_count": 48384,
+  "sensor_helper_attached": true,
+  "rendering_overrides": {
+    "mastcam_left": {
+      "render_clipping_range_m": [
+        0.18,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "MastCam",
+        "mast_03.001"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "MastCam": [
+          0.09257939375129516,
+          0.1648666459111579
+        ],
+        "mast_03.001": [
+          0.07834318197727917,
+          0.08742459063998591
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 0,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "mastcam_right": {
+      "render_clipping_range_m": [
+        0.07,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "MastCam"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "MastCam": [
+          0.04029431096738491,
+          0.06207088045865472
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 0,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "navcam_left_a": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "MastCam"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "MastCam": [
+          0.009419894929304028,
+          0.015517751601899433
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 0,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "navcam_left_b": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "MastCam"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "Dust Removal Tool": [
+          1.2194379135873044,
+          1.2945429726100675
+        ],
+        "MastCam": [
+          0.010753503028591571,
+          0.015619469679423152
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 2,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "hazcam_rear_left_a": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "lens_covers_rear",
+        "HazCam - rear"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "lens_covers_rear": [
+          0.001034258654775913,
+          0.007939378448209503
+        ],
+        "HazCam - rear": [
+          0.0011604101790535844,
+          0.004723421877992122
+        ],
+        "wheel_03_L": [
+          0.22411860643014253,
+          0.704941856840267
+        ],
+        "suspension_steer_B_L": [
+          0.15144931599121708,
+          0.3433865599963362
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 31,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "hazcam_rear_right_a": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "lens_covers_rear",
+        "HazCam - rear"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "lens_covers_rear": [
+          0.0005265912098179144,
+          0.007357205054295891
+        ],
+        "HazCam - rear": [
+          0.0006283690508567218,
+          0.004309285124743552
+        ],
+        "wheel_03_L": [
+          0.2027457230523088,
+          0.6855750822292148
+        ],
+        "suspension_steer_B_L": [
+          0.14934378723811675,
+          0.3608513242418565
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 43,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "hazcam_rear_left_b": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "lens_covers_rear",
+        "HazCam - rear"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "lens_covers_rear": [
+          0.0016546512156703805,
+          0.007995522959960087
+        ],
+        "HazCam - rear": [
+          0.0017487204847190874,
+          0.005121662272204498
+        ],
+        "wheel_03_R": [
+          0.20022041100121882,
+          0.6768375580962933
+        ],
+        "suspension_steer_B_R": [
+          0.14510794752529363,
+          0.2720338456490434
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 43,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "hazcam_rear_right_b": {
+      "render_clipping_range_m": [
+        0.03,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "lens_covers_rear",
+        "HazCam - rear"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "lens_covers_rear": [
+          0.0018903904391022821,
+          0.00888422005824968
+        ],
+        "HazCam - rear": [
+          0.0020315933358387053,
+          0.005694216283635894
+        ],
+        "wheel_03_R": [
+          0.22634063208212216,
+          0.6966136106465624
+        ],
+        "suspension_steer_B_R": [
+          0.14740930119896928,
+          0.3928346357550423
+        ],
+        "wheel_03_L": [
+          0.6634202257377061,
+          0.675577738242051
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 41,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "chemcam_rmi": {
+      "render_clipping_range_m": [
+        0.05,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "ChemCam"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "ChemCam": [
+          0.032315198432036785,
+          0.03457023552864207
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 0,
+      "other_rover_intersections_inside_near_clip": 0
+    },
+    "mardi": {
+      "render_clipping_range_m": [
+        0.05,
+        200.0
+      ],
+      "limitation": "Rendering-only near clipping bypasses opaque lens/camera-housing surfaces in the NASA visualization mesh while preserving calibrated optical centers and orientations. Objects inside the near plane cannot be rendered. This is not a measured flight optical near limit. Full calibrated lens distortion and detector response are not simulated.",
+      "ray_grid": [
+        9,
+        9
+      ],
+      "housing_source_objects": [
+        "MARDI.001"
+      ],
+      "measured_forward_depth_ranges_m": {
+        "MARDI.001": [
+          0.019361409216874827,
+          0.023086955213909254
+        ],
+        "wheel_01_L": [
+          0.38237560021794015,
+          0.6956649844632444
+        ]
+      },
+      "housing_intersections_remaining_after_near_clip": 0,
+      "other_rover_intersections_retained": 16,
+      "other_rover_intersections_inside_near_clip": 0
+    }
+  },
+  "articulation": {
+    "rigid_body_count": 22,
+    "joint_count": 21,
+    "mast_arm_neutral_pose": "NASA visual source frame180; all new joint coordinates zero, not NASA telemetry zero",
+    "additional_joints": [
+      {
+        "name": "MAST_PAN",
+        "parent_link": "Body_Chassis",
+        "child_link": "Body_MastPan",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "limits_rad": [
+          -3.141592653589793,
+          3.141592653589793
+        ],
+        "neutral_rad": 0,
+        "safe_smoke_amplitude_rad": 0.1,
+        "pivot_ground_flu_m": [
+          0.8044,
+          -0.5594,
+          1.9061
+        ]
+      },
+      {
+        "name": "MAST_TILT",
+        "parent_link": "Body_MastPan",
+        "child_link": "Body_MastTilt",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "limits_rad": [
+          -1.2,
+          1.2
+        ],
+        "neutral_rad": 0,
+        "safe_smoke_amplitude_rad": 0.1,
+        "pivot_ground_flu_m": [
+          0.8044,
+          -0.5594,
+          1.9061
+        ]
+      },
+      {
+        "name": "ARM_SHOULDER_AZIMUTH",
+        "parent_link": "Body_Chassis",
+        "child_link": "Body_ArmShoulderAzimuth",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "limits_rad": [
+          -1.0,
+          1.0
+        ],
+        "neutral_rad": 0,
+        "safe_smoke_amplitude_rad": 0.05,
+        "pivot_ground_flu_m": [
+          1.2018507719039917,
+          0.4538093109925588,
+          1.005270993957917
+        ]
+      },
+      {
+        "name": "ARM_SHOULDER_ELEVATION",
+        "parent_link": "Body_ArmShoulderAzimuth",
+        "child_link": "Body_ArmShoulderElevation",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "limits_rad": [
+          -1.0,
+          1.0
+        ],
+        "neutral_rad": 0,
+        "safe_smoke_amplitude_rad": 0.05,
+        "pivot_ground_flu_m": [
+          1.362350583076477,
+          0.44996662934621173,
+          0.8396256330112616
+        ]
+      },
+      {
+        "name": "ARM_ELBOW",
+        "parent_link": "Body_ArmShoulderElevation",
+        "child_link": "Body_ArmElbow",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "limits_rad": [
+          -1.0,
+          1.0
+        ],
+        "neutral_rad": 0,
+        "safe_smoke_amplitude_rad": 0.05,
+        "pivot_ground_flu_m": [
+          2.187127470970154,
+          0.5204654236634573,
+          0.840207493553559
+        ]
+      },
+      {
+        "name": "ARM_WRIST",
+        "parent_link": "Body_ArmElbow",
+        "child_link": "Body_ArmWrist",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "limits_rad": [
+          -1.0,
+          1.0
+        ],
+        "neutral_rad": 0,
+        "safe_smoke_amplitude_rad": 0.05,
+        "pivot_ground_flu_m": [
+          2.185860514640808,
+          0.3612095018227895,
+          1.622873521099488
+        ]
+      },
+      {
+        "name": "ARM_TURRET",
+        "parent_link": "Body_ArmWrist",
+        "child_link": "Body_ArmTurret",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "limits_rad": [
+          -3.141592653589793,
+          3.141592653589793
+        ],
+        "neutral_rad": 0,
+        "safe_smoke_amplitude_rad": 0.05,
+        "pivot_ground_flu_m": [
+          2.084593176841736,
+          0.4355072279771169,
+          1.7668529512981574
+        ]
+      }
+    ],
+    "camera_mounts": {
+      "mastcam_left": {
+        "parent_link": "Body_MastTilt",
+        "local_translation": [
+          -0.03724899999999998,
+          0.125691,
+          0.06554800000000016
+        ],
+        "usd_camera_rotation_matrix": [
+          [
+            -0.02386443924602788,
+            0.006175847780580002,
+            -0.9996961275525997
+          ],
+          [
+            -0.9996962387833459,
+            -0.006306875347892982,
+            0.023825479759653156
+          ],
+          [
+            -0.0061578163259505825,
+            0.9999610403548418,
+            0.006324481841116336
+          ]
+        ]
+      },
+      "mastcam_right": {
+        "parent_link": "Body_MastTilt",
+        "local_translation": [
+          0.06846600000000003,
+          -0.11780800000000002,
+          0.06483100000000008
+        ],
+        "usd_camera_rotation_matrix": [
+          [
+            0.02536656230082679,
+            0.006477766093285042,
+            -0.9996572292858583
+          ],
+          [
+            -0.9996530648274391,
+            0.007257868963865932,
+            -0.025319425728312805
+          ],
+          [
+            0.007091367861453868,
+            0.9999526798226727,
+            0.0066596259136306735
+          ]
+        ]
+      },
+      "navcam_left_a": {
+        "parent_link": "Body_MastTilt",
+        "local_translation": [
+          0.11517699999999997,
+          0.214144,
+          0.08112500000000011
+        ],
+        "usd_camera_rotation_matrix": [
+          [
+            -0.01746296924400914,
+            0.015092421589890437,
+            -0.9997335962723949
+          ],
+          [
+            -0.9998235571639453,
+            0.006657602579537403,
+            0.017565046767032466
+          ],
+          [
+            0.006920928060447529,
+            0.9998639383128316,
+            0.014973497131136826
+          ]
+        ]
+      },
+      "navcam_right_a": {
+        "parent_link": "Body_MastTilt",
+        "local_translation": [
+          0.11409599999999998,
+          -0.20945000000000003,
+          0.08096500000000018
+        ],
+        "usd_camera_rotation_matrix": [
+          [
+            -0.0072267532977849935,
+            0.020396855597008323,
+            -0.9997658437446879
+          ],
+          [
+            -0.9999690518482071,
+            -0.003256403510326855,
+            0.007161786228005784
+          ],
+          [
+            -0.0031095630835658583,
+            0.9997866593018396,
+            0.020419757576832342
+          ]
+        ]
+      },
+      "navcam_left_b": {
+        "parent_link": "Body_MastTilt",
+        "local_translation": [
+          0.11500500000000002,
+          0.214034,
+          0.033056000000000196
+        ],
+        "usd_camera_rotation_matrix": [
+          [
+            -0.004710205383789745,
+            0.008920164270690978,
+            -0.9999491210229783
+          ],
+          [
+            -0.9999888094600643,
+            0.0003994683871935134,
+            0.004713955838933748
+          ],
+          [
+            0.0004414973230990049,
+            0.9999601347525771,
+            0.008918182871088254
+          ]
+        ]
+      },
+      "navcam_right_b": {
+        "parent_link": "Body_MastTilt",
+        "local_translation": [
+          0.11470400000000003,
+          -0.20956600000000003,
+          0.033287999999999984
+        ],
+        "usd_camera_rotation_matrix": [
+          [
+            -0.003723993393774938,
+            0.00804120053642432,
+            -0.9999607347126868
+          ],
+          [
+            -0.9999801933521559,
+            0.005043857013300124,
+            0.0037646261187963548
+          ],
+          [
+            0.005073931078371285,
+            0.9999549482853528,
+            0.008022257977000291
+          ]
+        ]
+      },
+      "chemcam_rmi": {
+        "parent_link": "Body_MastTilt",
+        "local_translation": [
+          0.07627600000000001,
+          0.111701,
+          0.21324600000000027
+        ],
+        "usd_camera_rotation_matrix": [
+          [
+            -0.0017225883065383751,
+            0.009753185538762699,
+            -0.9999509528278739
+          ],
+          [
+            -0.9999965644891884,
+            0.0019588864030148923,
+            0.0017417732001555053
+          ],
+          [
+            0.0019757781623640502,
+            0.9999505178437116,
+            0.009749777676776539
+          ]
+        ]
+      },
+      "mahli": {
+        "parent_link": "Body_ArmTurret",
+        "local_translation": [
+          -0.1222488367557526,
+          -0.22623779495557148,
+          0.1464529285331566
+        ],
+        "usd_camera_rotation_matrix": [
+          [
+            -0.7546025066261504,
+            -0.3652366763219337,
+            0.5451396401499691
+          ],
+          [
+            0.4812244165917924,
+            0.2567564311133991,
+            0.8381522510605095
+          ],
+          [
+            -0.44609205089243614,
+            0.8948062948768394,
+            -0.01798824002960764
+          ]
+        ]
+      }
+    },
+    "arm_mass_anchor": {
+      "mechanism_kg": 67.0,
+      "turret_instruments_kg": 24.0,
+      "total_kg": 91.0,
+      "source_url": "https://www-robotics.jpl.nasa.gov/media/documents/rankin-2540-arm-kinematics-2021-0102.pdf",
+      "source_table": 2,
+      "link_partition": "Estimated20,18,15,8,30kg; turret30 includes estimated6kgmechanism+published24kginstruments."
+    },
+    "mast_mass_estimate_kg": 20.0,
+    "space_ros_reference_only": "https://github.com/space-ros/simulation/tree/13226b067d921ca88f40cd643a7b3ce4ae8de903/models/curiosity_path/urdf",
+    "new_collision_geometry": "None: manipulation links visual/rigid-body only; existing chassis and wheel contact unchanged."
+  },
+  "previous_landing_reference_aggregate": {
+    "com_m": [
+      0.08899986743927002,
+      1.9755297486601688e-18,
+      0.8944000000000001
+    ],
+    "inertia_kg_m2": [
+      [
+        405.09,
+        1.7763568394002505e-15,
+        -1.3322676295501878e-15
+      ],
+      [
+        1.7763568394002505e-15,
+        571.4099999999999,
+        -7.771561172376096e-16
+      ],
+      [
+        4.440892098500626e-16,
+        -1.4432899320127035e-15,
+        774.84
+      ]
+    ],
+    "status": "Comparison reference only: incompatible with91kgarm in currentdeployedvisualpose under a physical chassis residual."
+  },
+  "chassis_inertia_method": "Uniform thin shell over retained fixed NASA visual triangles; NASA POST2 landing aggregate is comparison only."
+}

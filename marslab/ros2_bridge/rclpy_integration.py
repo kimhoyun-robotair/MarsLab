@@ -19,11 +19,12 @@ from marslab.ros2_bridge.rclpy_publishers import (
     create_wheel_odometry_setup,
     resolve_qos_bundle,
 )
+from marslab.ros2_bridge.tf_broadcaster import SensorFrameSpec
 
 
 def init_rclpy_side(
     ros2_cfg: dict[str, Any],
-    sensor_frames: Iterable[tuple[str, Any]],
+    sensor_frames: Iterable[SensorFrameSpec],
     node_name: str = "marslab_stage3_runtime",
     *,
     wheel_odom_params: dict[str, Any] | None = None,
