@@ -475,12 +475,13 @@ rendered outputs requires separate verification.
 Planned improvements include:
 
 - [x] Add 2D LiDAR.
+- [x] Support four heterogeneous Mars rovers: Perseverance, Curiosity, Opportunity, and Spirit.
+- [ ] Support Aerial Robots like Ingenuity.
+- [ ] Support Simultaneous Simulation of Multiple Robots.
 - [ ] Integrate evaluation workflows for TUM, path planning, and SLAM.
-- [ ] Integrate Nav2.
 - [ ] Extend the existing Gaussian noise with sensor bias and time-varying drift models.
 - [ ] Resolve vibration issues during runtime rendering.
 - [ ] Improve the realism of sky and light rendering.
 - [ ] Add photorealistic scene generation.
-- [ ] Add wheel traces.
-- [ ] Add support for multiple and heterogeneous robots.
+- [ ] Add wheel traces (more sophisticated wheel-soil interaction).
 - [ ] Dockerize MarsLab.
