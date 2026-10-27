@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import importlib.util
-import os
 from pathlib import Path
+from types import ModuleType
 
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 from launch import LaunchDescription
 
 
-def _build_robot_description(urdf_path: str) -> str:
+def _load_companion_helper() -> ModuleType:
     """Load the sibling helper when ROS loads this launch file by absolute path."""
     helper_path = Path(__file__).resolve().with_name("companion_urdf.py")
     spec = importlib.util.spec_from_file_location("marslab_companion_urdf", helper_path)
@@ -21,18 +22,26 @@ def _build_robot_description(urdf_path: str) -> str:
         raise ImportError(f"Cannot load companion URDF helper at {helper_path}")
     helper = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(helper)
-    return helper.build_robot_description(urdf_path)
+    return helper
 
 
 def _launch_setup(context, *args, **kwargs) -> list[Node]:
     """Resolve launch arguments and create the URDF and identity nodes."""
-    urdf_path = LaunchConfiguration("urdf_path").perform(context)
-    namespace = LaunchConfiguration("namespace").perform(context)
     publish_frequency = float(LaunchConfiguration("publish_frequency").perform(context))
 
-    robot_description = _build_robot_description(urdf_path)
+    helper = _load_companion_helper()
+    settings = helper.resolve_companion_settings(
+        LaunchConfiguration("config").perform(context),
+        robot=LaunchConfiguration("robot").perform(context),
+        urdf_path=LaunchConfiguration("urdf_path").perform(context),
+        namespace=LaunchConfiguration("namespace").perform(context),
+        joint_states_topic=LaunchConfiguration("joint_states_topic").perform(context),
+    )
+    namespace = settings["namespace"]
+    robot_description = helper.build_robot_description(settings["urdf_path"])
+    root_frame = helper.robot_root_link(robot_description)
 
-    return [
+    nodes = [
         Node(
             package="robot_state_publisher",
             executable="robot_state_publisher",
@@ -40,12 +49,17 @@ def _launch_setup(context, *args, **kwargs) -> list[Node]:
             output="screen",
             parameters=[
                 {
-                    "robot_description": robot_description,
+                    "robot_description": ParameterValue(robot_description, value_type=str),
                     "use_sim_time": True,
                     "publish_frequency": publish_frequency,
                 }
             ],
+            remappings=[("joint_states", settings["joint_states_topic"])],
         ),
+    ]
+    if root_frame == "base_link":
+        return nodes
+    nodes.append(
         Node(
             package="tf2_ros",
             executable="static_transform_publisher",
@@ -68,34 +82,44 @@ def _launch_setup(context, *args, **kwargs) -> list[Node]:
                 "--frame-id",
                 "base_link",
                 "--child-frame-id",
-                "Body_Chassis",
+                root_frame,
             ],
-        ),
-    ]
+        )
+    )
+    return nodes
 
 
 def generate_launch_description() -> LaunchDescription:
-    default_urdf = os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "assets",
-            "robots",
-            "rover",
-            "m2020_lidar.urdf",
-        )
-    )
+    default_config = str(Path(__file__).resolve().parents[1] / "configs" / "config.yaml")
     return LaunchDescription(
         [
             DeclareLaunchArgument(
+                "config",
+                default_value=default_config,
+                description="Scenario YAML; use the same --config as marslab/main.py.",
+            ),
+            DeclareLaunchArgument(
+                "robot",
+                default_value="",
+                description="Rover profile override; empty follows the scenario's robot selector.",
+            ),
+            DeclareLaunchArgument(
                 "urdf_path",
-                default_value=default_urdf,
-                description="Absolute path to the M2020 URDF with mounted LiDAR housings.",
+                default_value="",
+                description="Optional URDF override; defaults to the selected rover profile.",
             ),
             DeclareLaunchArgument(
                 "namespace",
-                default_value="rover",
-                description="ROS namespace; match rover.ros2.namespace in configs/config.yaml.",
+                default_value="",
+                description="Optional ROS namespace override; defaults to rover.ros2.namespace.",
+            ),
+            DeclareLaunchArgument(
+                "joint_states_topic",
+                default_value="",
+                description=(
+                    "Optional joint-state topic override; "
+                    "defaults to rover.ros2.topics.joint_states."
+                ),
             ),
             DeclareLaunchArgument(
                 "publish_frequency",

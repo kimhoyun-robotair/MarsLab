@@ -4,6 +4,7 @@ No Isaac graph binding is imported at module load."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Dict, List, Tuple
 
 from marslab.config.schema.rover_ros2 import resolve_ros_topic
@@ -23,7 +24,56 @@ def _validate_prim_path(name: str, value: str) -> None:
         )
 
 
-def _build_create_nodes() -> List[Tuple[str, str]]:
+def _disabled_sensor_nodes(lidar_enabled: bool, depth_enabled: bool) -> set[str]:
+    return (set() if lidar_enabled else {"Lidar3DHelper"}) | (
+        set() if depth_enabled else {"CamDepth", "CamPCL"}
+    )
+
+
+def _build_additional_camera_graph(
+    namespace: str,
+    camera_render_products: Mapping[str, str],
+    sensor_qos_preset: str,
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]], list[tuple[str, Any]]]:
+    """Publish each named camera from its existing shared render product.
+
+    These camera optical frames are authored by ``build_sensor_frames`` and
+    ``publish_static_sensor_tfs``. The selected primary camera remains on the
+    existing configurable primary topics and is not duplicated here.
+    """
+    nodes: list[tuple[str, str]] = []
+    edges: list[tuple[str, str]] = []
+    values: list[tuple[str, Any]] = []
+    for name, product_path in camera_render_products.items():
+        if not name.isidentifier() or not name.isascii():
+            raise ValueError(f"Invalid camera graph identifier: {name!r}")
+        _validate_prim_path(f"camera {name} render product", product_path)
+        rgb = f"Camera_{name}_RGB"
+        info = f"Camera_{name}_Info"
+        nodes.extend(
+            [
+                (rgb, "isaacsim.ros2.bridge.ROS2CameraHelper"),
+                (info, "isaacsim.ros2.bridge.ROS2CameraInfoHelper"),
+            ]
+        )
+        values.append((f"{rgb}.inputs:type", "rgb"))
+        for node, topic in ((rgb, "image_raw"), (info, "camera_info")):
+            edges.append(("OnTick.outputs:tick", f"{node}.inputs:execIn"))
+            values.extend(
+                [
+                    (f"{node}.inputs:topicName", _ns_topic(namespace, f"cameras/{name}/{topic}")),
+                    (f"{node}.inputs:frameId", f"{name}_camera_optical_frame"),
+                    (f"{node}.inputs:qosProfile", sensor_qos_preset),
+                    (f"{node}.inputs:renderProductPath", product_path),
+                    (f"{node}.inputs:resetSimulationTimeOnStop", True),
+                ]
+            )
+    return nodes, edges, values
+
+
+def _build_create_nodes(
+    *, lidar_enabled: bool = True, depth_enabled: bool = True
+) -> List[Tuple[str, str]]:
     """List of ``(node_name, node_type)`` tuples for the rover graph."""
     nodes: List[Tuple[str, str]] = [
         ("OnTick", "omni.graph.action.OnPlaybackTick"),
@@ -38,10 +88,13 @@ def _build_create_nodes() -> List[Tuple[str, str]]:
         ("CamInfo", "isaacsim.ros2.bridge.ROS2CameraInfoHelper"),
         ("Lidar3DHelper", "isaacsim.ros2.bridge.ROS2RtxLidarHelper"),
     ]
-    return nodes
+    disabled = _disabled_sensor_nodes(lidar_enabled, depth_enabled)
+    return [node for node in nodes if node[0] not in disabled]
 
 
-def _build_connections() -> List[Tuple[str, str]]:
+def _build_connections(
+    *, lidar_enabled: bool = True, depth_enabled: bool = True
+) -> List[Tuple[str, str]]:
     """List of ``(src_attr, dst_attr)`` pairs describing graph edges."""
     edges: List[Tuple[str, str]] = [
         ("OnTick.outputs:tick", "PubClock.inputs:execIn"),
@@ -58,19 +111,21 @@ def _build_connections() -> List[Tuple[str, str]]:
         ("OnTick.outputs:tick", "CamInfo.inputs:execIn"),
         ("OnTick.outputs:tick", "Lidar3DHelper.inputs:execIn"),
     ]
-    return edges
+    disabled = _disabled_sensor_nodes(lidar_enabled, depth_enabled)
+    return [edge for edge in edges if edge[1].split(".", 1)[0] not in disabled]
 
 
 def _build_set_values(
     ns: str,
     topics: Dict[str, str],
     camera_render_product_path: str,
-    lidar_3d_render_product_path: str,
+    lidar_3d_render_product_path: str | None,
     *,
     articulation_root_prim_path: str,
     sensor_qos_preset: str = "SensorData",
     joint_state_qos_preset: str = "SystemDefault",
     depth_noise_enabled: bool = False,
+    depth_output_enabled: bool = True,
 ) -> List[Tuple[str, Any]]:
     """List of ``(attr, value)`` pairs applied via SET_VALUES."""
     _validate_prim_path("articulation_root_prim_path", articulation_root_prim_path)
@@ -120,10 +175,14 @@ def _build_set_values(
         ("Lidar3DHelper.inputs:qosProfile", sensor_qos_preset),
         ("Lidar3DHelper.inputs:renderProductPath", lidar_3d_render_product_path),
     ]
-    return values
+    disabled = _disabled_sensor_nodes(
+        lidar_3d_render_product_path is not None, depth_output_enabled
+    )
+    return [value for value in values if value[0].split(".", 1)[0] not in disabled]
 
 
 __all__ = [
+    "_build_additional_camera_graph",
     "_build_create_nodes",
     "_build_connections",
     "_build_set_values",

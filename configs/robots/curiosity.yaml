@@ -1,0 +1,386 @@
+# Mast camera poses are relative to Body_MastTilt; MAHLI is relative to Body_ArmTurret.
+# MAHLI mount is approximated from NASA visual LED aperture geometry; official raw
+# calibration and reference pose are documented in techreport/curiosity.md.
+# Curiosity: MarsLab-authored simulation model from NASA visual/source data.
+# Camera calibration: NASA/JPL NAIF instrument kernels; individual URLs below.
+# Camera poses use mount-relative FLU for ROS; the default mount is the chassis.
+# Images use a pinhole approximation; no CAHVOR/E distortion or detector physics.
+# Clip ranges, dynamics gains, angular caps, contact, and damping are simulation tuning.
+# Selected camera near clips skip measured opaque NASA visualization housing surfaces.
+# Near clipping preserves the selected mount pose; MAHLI uses the documented visual-pose retarget.
+# IMU at chassis reference and zero sensor/encoder noise are idealizations.
+# Real mission LiDAR and direct depth cameras are absent; synthetic depth is disabled.
+# Flight speed reference and 8 Hz IMU: https://robotics.jpl.nasa.gov/media/documents/ROB-20-0040_R3.pdf
+# navcam_left_a: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_nla_20120731_c04.ti
+# mastcam_left: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_ml_20120731_c03.ti
+# mastcam_right: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_mr_20120731_c03.ti
+# navcam_right_a: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_nra_20120731_c04.ti
+# navcam_left_b: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_nlb_20130530_c05.ti
+# navcam_right_b: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_nrb_20130530_c05.ti
+# hazcam_front_left_a: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hfla_20120731_c03.ti
+# hazcam_front_right_a: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hfra_20120731_c03.ti
+# hazcam_front_left_b: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hflb_20120731_c03.ti
+# hazcam_front_right_b: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hfrb_20120731_c03.ti
+# hazcam_rear_left_a: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hbla_20120731_c03.ti
+# hazcam_rear_right_a: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hbra_20120731_c03.ti
+# hazcam_rear_left_b: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hblb_20120731_c03.ti
+# hazcam_rear_right_b: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_hbrb_20120731_c03.ti
+# chemcam_rmi: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_chrmi_20120731_c03.ti
+# mahli: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_mahli_20120731_c02.ti
+# mardi: https://naif.jpl.nasa.gov/pub/naif/MSL/kernels/ik/msl_mardi_20120731_c02.ti
+rover:
+  name: curiosity
+  usd_path: ../../assets/robots/curiosity/curiosity.usda
+  urdf_source_path: ../../assets/robots/curiosity/curiosity.urdf
+  prim_path: /World/Rover
+  spawn:
+    mode: dem_center
+    xy: [0.0, 0.0]
+    z_offset: 0.1
+    orientation_rpy: [0.0, 0.0, 0.0]
+  angular_damping: 12.0
+  linear_damping: 0.5
+  chassis:
+    rigid_body_prim_name: Body_Chassis
+    container_prim_name: Body_Chassis
+    joints_prim_name: joints
+  wheels:
+    link_names: [Body_WheelLeftFront, Body_WheelLeftMiddle, Body_WheelLeftRear, Body_WheelRightFront,
+      Body_WheelRightMiddle, Body_WheelRightRear]
+    friction_static: 0.6
+    friction_dynamic: 0.5
+    restitution: 0.0
+  suspension:
+    rocker_damping: 75.0
+    bogie_damping: 50.0
+    rocker_joint_names: [LEFT_DIFFERENTIAL, RIGHT_DIFFERENTIAL]
+    bogie_joint_names: [LEFT_BOGIE, RIGHT_BOGIE]
+    differential_joint_names: [LEFT_DIFFERENTIAL, RIGHT_DIFFERENTIAL]
+  ros2:
+    namespace: rover
+    topics:
+      cmd_vel: cmd_vel
+      imu: imu
+      imu_noisy: imu_noisy
+      odom: odom
+      gt_trajectory: GT_Trajectory
+      rgb: rgb/image_raw
+      depth: depth/image_raw
+      points: depth/points
+      camera_info: rgb/camera_info
+      lidar: lidar/points
+      scan: scan
+      joint_states: joint_states
+    odom_publisher:
+      frame_id: odom
+      child_frame_id: base_link
+      queue_size: 10
+    sensor_parent_frame_id: Body_Chassis
+  sensors:
+    seed: 42
+    camera:
+      parent_link: Body_MastTilt
+      prim_path: Sensors/navcam_left_a
+      local_translation: [0.11517699999999997, 0.214144, 0.08112500000000011]
+      local_orientation_rpy_deg: [-0.39658759569175994, 0.8579502517463693, -1.00656766195055]
+      resolution: [1024, 1024]
+      focal_length_mm: 14.67
+      horizontal_fov_deg: 45.27706953
+      clipping_range: [0.03, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    cameras:
+    - name: mastcam_left
+      parent_link: Body_MastTilt
+      prim_path: Sensors/mastcam_left
+      local_translation: [-0.03724899999999998, 0.125691, 0.06554800000000016]
+      local_orientation_rpy_deg: [0.35282617277741074, 0.36236853286456155, -1.3652559286057564]
+      resolution: [1648, 1200]
+      focal_length_mm: 34.0
+      horizontal_fov_deg: 20.2215366
+      clipping_range: [0.18, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: mastcam_right
+      parent_link: Body_MastTilt
+      prim_path: Sensors/mastcam_right
+      local_translation: [0.06846600000000003, -0.11780800000000002, 0.06483100000000008]
+      local_orientation_rpy_deg: [-0.4063178653355237, 0.38157127850939776, 1.4508834601249005]
+      resolution: [1648, 1200]
+      focal_length_mm: 100.0
+      horizontal_fov_deg: 7.00805088
+      clipping_range: [0.07, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: navcam_right_a
+      parent_link: Body_MastTilt
+      prim_path: Sensors/navcam_right_a
+      local_translation: [0.11409599999999998, -0.20945000000000003, 0.08096500000000018]
+      local_orientation_rpy_deg: [0.17820228412795108, 1.1700472491920177, -0.4104292105260988]
+      resolution: [1024, 1024]
+      focal_length_mm: 14.67
+      horizontal_fov_deg: 45.67308306
+      clipping_range: [0.01, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: navcam_left_b
+      parent_link: Body_MastTilt
+      prim_path: Sensors/navcam_left_b
+      local_translation: [0.11500500000000002, 0.214034, 0.033056000000000196]
+      local_orientation_rpy_deg: [-0.025296940104973038, 0.5109810129846323, -0.2701015161047367]
+      resolution: [1024, 1024]
+      focal_length_mm: 14.67
+      horizontal_fov_deg: 45.32356488
+      clipping_range: [0.03, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: navcam_right_b
+      parent_link: Body_MastTilt
+      prim_path: Sensors/navcam_right_b
+      local_translation: [0.11470400000000003, -0.20956600000000003, 0.033287999999999984]
+      local_orientation_rpy_deg: [-0.29072543902802284, 0.4596464545527855, -0.2157046387020198]
+      resolution: [1024, 1024]
+      focal_length_mm: 14.67
+      horizontal_fov_deg: 45.474375540000004
+      clipping_range: [0.01, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_front_left_a
+      prim_path: Sensors/hazcam_front_left_a
+      local_translation: [1.032819, 0.088715, 0.708463]
+      local_orientation_rpy_deg: [-0.6067454794091249, 43.473376511436584, -1.039624993798721]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 125.71466952
+      clipping_range: [0.01, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_front_right_a
+      prim_path: Sensors/hazcam_front_right_a
+      local_translation: [1.032635, -0.077859, 0.708165]
+      local_orientation_rpy_deg: [0.026232545226835016, 43.76004606188093, 0.025937254482672242]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 125.98468014
+      clipping_range: [0.01, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_front_left_b
+      prim_path: Sensors/hazcam_front_left_b
+      local_translation: [1.033039, 0.17145, 0.707908]
+      local_orientation_rpy_deg: [-1.7193505609953201, 44.48670661322416, -1.8155759824842563]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 125.95418450999999
+      clipping_range: [0.01, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_front_right_b
+      prim_path: Sensors/hazcam_front_right_b
+      local_translation: [1.033137, 0.004912, 0.708098]
+      local_orientation_rpy_deg: [-0.6676624455097445, 44.84207863527255, -0.4957901768002166]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 126.11626863000001
+      clipping_range: [0.01, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_rear_left_a
+      prim_path: Sensors/hazcam_rear_left_a
+      local_translation: [-0.976174, 0.455344, 0.779765]
+      local_orientation_rpy_deg: [-2.0210545727951725, 44.90986872605299, 177.43064129257908]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 126.79688076000001
+      clipping_range: [0.03, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_rear_right_a
+      prim_path: Sensors/hazcam_rear_right_a
+      local_translation: [-0.976811, 0.555458, 0.779633]
+      local_orientation_rpy_deg: [-1.575977472553252, 43.526626493761405, 177.9569534431277]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 126.43239609
+      clipping_range: [0.03, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_rear_left_b
+      prim_path: Sensors/hazcam_rear_left_b
+      local_translation: [-0.975657, -0.552157, 0.780044]
+      local_orientation_rpy_deg: [-0.5401928237103696, 44.55012902074753, 179.44407502105997]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 125.2986768
+      clipping_range: [0.03, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: hazcam_rear_right_b
+      prim_path: Sensors/hazcam_rear_right_b
+      local_translation: [-0.975248, -0.451863, 0.780144]
+      local_orientation_rpy_deg: [-0.3153273339702016, 46.3480455463625, -179.35358324050844]
+      resolution: [1024, 1024]
+      focal_length_mm: 5.58
+      horizontal_fov_deg: 126.60257213999999
+      clipping_range: [0.03, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: chemcam_rmi
+      parent_link: Body_MastTilt
+      prim_path: Sensors/chemcam_rmi
+      local_translation: [0.07627600000000001, 0.111701, 0.21324600000000027]
+      local_orientation_rpy_deg: [-0.11320920447441538, 0.5586299626983972, -0.09980104726757823]
+      resolution: [1024, 1024]
+      focal_length_mm: 717.0
+      horizontal_fov_deg: 1.1571152999999998
+      clipping_range: [0.05, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: mahli
+      parent_link: Body_ArmTurret
+      prim_path: Sensors/mahli
+      local_translation: [-0.1222488367557526, -0.22623779495557148, 0.1464529285331566]
+      local_orientation_rpy_deg: [26.497850650847873, -1.0307058250736068, -123.04023608056788]
+      resolution: [1648, 1200]
+      focal_length_mm: 20.0
+      horizontal_fov_deg: 32.27294853
+      clipping_range: [0.01, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    - name: mardi
+      prim_path: Sensors/mardi
+      local_translation: [0.761636, 0.648275, 0.701654]
+      local_orientation_rpy_deg: [-149.53591348374823, 89.29849794602625, 30.62005773133457]
+      resolution: [1648, 1200]
+      focal_length_mm: 9.7
+      horizontal_fov_deg: 72.65307339
+      clipping_range: [0.05, 200.0]
+      depth_sensor:
+        enabled: false
+        min_distance_m: 0.01
+        max_distance_m: 200.0
+        noise_mean: 0.0
+        noise_sigma: 0.0
+      depth_output: false
+    lidar_2d: null
+    lidar_3d: null
+    imu:
+      sampling_frequency_hz: 8
+      local_translation: [0.0, 0.0, 0.0]
+      local_orientation_rpy_deg: [0.0, 0.0, 0.0]
+      sigma_lin_acc: 0.0
+      sigma_ang_vel: 0.0
+  control:
+    wheel_radius: 0.25
+    wheelbase: 2.26
+    steering_axle_offset: 0.05399986743926999
+    track_steer: 2.125
+    track_middle: 2.3825056850910187
+    # Shared MarsLab command cap; not the flight rover's maximum speed.
+    max_linear_velocity: 4.0
+    max_angular_velocity: 0.7
+    command_timeout: 0.5
+    drive_joint_names: [LF_DRIVE, LM_DRIVE, LR_DRIVE, RF_DRIVE, RM_DRIVE, RR_DRIVE]
+    steer_joint_names: [LF_STEER, LR_STEER, RF_STEER, RR_STEER]
+    drive_damping: 1000.0
+    drive_max_force: 1000000.0
+    brake_stiffness: 50000.0
+    steer_stiffness: 50000.0
+    steer_damping: 5000.0
+    steer_max_force: 100000.0
+    drive_type: acceleration
+    negate_steer: false
+    max_wheel_accel_rate: 0.5
+    max_steer_angle: 1.2
+    steering_alignment_tolerance: 0.02
+    steering_stop_speed: 0.05
+    steer_ramp_rate: 2.0
+    decel_multiplier: 3.0
+    debug_logging: false
+  wheel_odometry:
+    enabled: true
+    left_wheel_joints: [LF_DRIVE, LM_DRIVE, LR_DRIVE]
+    right_wheel_joints: [RF_DRIVE, RM_DRIVE, RR_DRIVE]
+    slip_left: 0.0
+    slip_right: 0.0
+    sigma_omega: 0.0

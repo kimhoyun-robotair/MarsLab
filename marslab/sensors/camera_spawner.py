@@ -14,6 +14,7 @@ import numpy as np
 
 from marslab.config.schema.rover_sensors import CameraConfig
 from marslab.quaternion import rpy_deg_to_quat
+from marslab.sensors.camera_mount import resolve_camera_mount_path, validate_authored_camera_pose
 from marslab.sensors.depth_noise import DepthNoise, DepthSample
 
 _LOG = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ _DEPTH_TIME_ANNOTATOR = "MarsLabDepthSimulationTime"
 
 
 class _StageHandle(Protocol):
-    pass
+    def GetPrimAtPath(self, path: str): ...
 
 
 class _CameraHandle(Protocol):
@@ -34,9 +35,11 @@ class _CameraHandle(Protocol):
 
     def get_intrinsics_matrix(self) -> np.ndarray: ...
 
+    def get_render_product_path(self) -> str: ...
+
 
 class _AnnotatorHandle(Protocol):
-    def attach(self, products: Sequence["_RenderProductHandle"]) -> None: ...
+    def attach(self, products: Sequence[str]) -> None: ...
 
     def get_data(self) -> np.ndarray: ...
 
@@ -51,6 +54,13 @@ class _TimeAnnotatorHandle(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class _RenderProductReference:
+    """Identity of the render product owned by the Isaac Camera handle."""
+
+    path: str
+
+
+@dataclass(frozen=True, slots=True)
 class CameraSpawnHandles:
     """Live camera and shared acquisition handles returned by ``spawn_camera``."""
 
@@ -59,7 +69,7 @@ class CameraSpawnHandles:
     render_product: _RenderProductHandle
     render_product_path: str
     rgb_annotator: _AnnotatorHandle
-    depth_annotator: _AnnotatorHandle
+    depth_annotator: _AnnotatorHandle | None
     depth_time_annotator: _TimeAnnotatorHandle | None
     depth_noise: DepthNoise | None
 
@@ -67,13 +77,21 @@ class CameraSpawnHandles:
     def depth_noise_enabled(self) -> bool:
         return self.depth_noise is not None
 
+    @property
+    def depth_output_enabled(self) -> bool:
+        return self.depth_annotator is not None
+
     def reset_depth_noise(self) -> None:
         if self.depth_noise is not None:
             self.depth_noise.reset()
 
     def read_depth_sample(self) -> DepthSample | None:
         """Read the shared render product's depth and acquisition timestamp."""
-        if self.depth_noise is None or self.depth_time_annotator is None:
+        if (
+            self.depth_noise is None
+            or self.depth_time_annotator is None
+            or self.depth_annotator is None
+        ):
             return None
         from isaacsim.core.simulation_manager import SimulationManager
 
@@ -95,6 +113,8 @@ class CameraSpawnHandles:
         return self.depth_noise.apply(depth, stamp_ns)
 
     def read_depth(self) -> np.ndarray:
+        if self.depth_annotator is None:
+            return np.array([], dtype=np.float32)
         if self.depth_noise_enabled:
             sample = self.read_depth_sample()
             return np.array([] if sample is None else sample.depth_m, dtype=np.float32)
@@ -108,38 +128,47 @@ def spawn_camera(
     chassis_path: str,
     *,
     seed: int | None,
+    name: str = "camera",
 ) -> CameraSpawnHandles:
-    """Create one configured Camera prim and its RGB/depth acquisition handles."""
+    """Acquire one camera, preserving the pose of a configured existing USD prim."""
     import omni.replicator.core as rep
     from isaacsim.sensors.camera import Camera
     from pxr import Gf, UsdGeom
 
+    mount_path = resolve_camera_mount_path(stage, camera_cfg, chassis_path)
     camera_orientation = camera_cfg.local_orientation_rpy_deg
     has_orientation = any(abs(value) > 0.01 for value in camera_orientation)
-    if has_orientation:
+    if camera_cfg.prim_path is not None:
+        camera_prim_path = (
+            camera_cfg.prim_path
+            if camera_cfg.prim_path.startswith("/")
+            else f"{mount_path}/{camera_cfg.prim_path}"
+        )
+        validate_authored_camera_pose(stage, camera_cfg, mount_path, camera_prim_path)
+        camera_translation = None
+    elif has_orientation:
         cam_qw, cam_qx, cam_qy, cam_qz = rpy_deg_to_quat(camera_orientation)
-        camera_xform_path = f"{chassis_path}/camera_xform"
+        camera_xform_path = f"{mount_path}/{name}_xform"
         camera_xform = UsdGeom.Xform.Define(stage, camera_xform_path)
         camera_xform.ClearXformOpOrder()
         camera_xform.AddTranslateOp().Set(Gf.Vec3d(*map(float, camera_cfg.local_translation)))
         camera_xform.AddOrientOp().Set(Gf.Quatf(cam_qw, cam_qx, cam_qy, cam_qz))
-        camera_prim_path = f"{camera_xform_path}/camera"
+        camera_prim_path = f"{camera_xform_path}/{name}"
         camera_translation = None
         _LOG.info("Camera parent Xform: %s rpy_deg=%s", camera_xform_path, camera_orientation)
     else:
-        camera_prim_path = f"{chassis_path}/camera"
+        camera_prim_path = f"{mount_path}/{name}"
         camera_translation = np.asarray(camera_cfg.local_translation, dtype=np.float32)
 
     camera = Camera(
         prim_path=camera_prim_path,
+        name=name,
         resolution=tuple(camera_cfg.resolution),
         translation=camera_translation,
     )
     camera.initialize()
     if camera_cfg.horizontal_fov_deg is None:
-        camera.set_focal_length(
-            float(camera_cfg.focal_length_mm) / _MM_PER_ISAAC_FOCAL_LENGTH_UNIT
-        )
+        camera.set_focal_length(float(camera_cfg.focal_length_mm) / _MM_PER_ISAAC_FOCAL_LENGTH_UNIT)
     else:
         # Isaac exposes aperture and focal length in the same native units.
         aperture = camera.get_horizontal_aperture()
@@ -159,14 +188,18 @@ def spawn_camera(
         camera_cfg.clipping_range,
     )
 
-    render_product = rep.create.render_product(camera_prim_path, tuple(camera_cfg.resolution))
+    # Camera.initialize owns a render product already. Reuse it for all consumers
+    # so a multi-camera rover does not render each view twice.
+    render_product = _RenderProductReference(camera.get_render_product_path())
     rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
-    depth_annotator = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
-    rgb_annotator.attach([render_product])
-    depth_annotator.attach([render_product])
+    rgb_annotator.attach([render_product.path])
+    depth_annotator = None
+    if camera_cfg.depth_output:
+        depth_annotator = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+        depth_annotator.attach([render_product.path])
     depth_time_annotator = None
     depth_noise = None
-    if camera_cfg.depth_sensor.enabled:
+    if camera_cfg.depth_sensor.enabled and depth_annotator is not None:
         from omni.syntheticdata import SyntheticData
 
         # ROS helper teardown must not detach the acquisition's time node.
@@ -190,7 +223,7 @@ def spawn_camera(
             )
         depth_time_annotator = rep.AnnotatorRegistry.get_annotator(_DEPTH_TIME_ANNOTATOR)
         depth_time_annotator.initialize(resetOnStop=True)
-        depth_time_annotator.attach([render_product])
+        depth_time_annotator.attach([render_product.path])
         depth_noise = DepthNoise(camera_cfg.depth_sensor, seed)
         _LOG.info(
             "Depth post-processing: Gaussian mean=%s m sigma=%s m seed=%s; shared RGB product %s",

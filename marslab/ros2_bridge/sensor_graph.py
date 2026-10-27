@@ -4,13 +4,16 @@ Isaac graph imports occur only during graph construction."""
 
 from __future__ import annotations
 
+import logging
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
 import numpy as np
 
 from marslab.ros2_bridge.sensor_graph_builder import (
+    _build_additional_camera_graph,
     _build_connections,
     _build_create_nodes,
     _build_set_values,
@@ -21,6 +24,7 @@ from marslab.sensors.imu_spawner import IMUSpawnHandles
 from marslab.sensors.lidar_3d_spawner import Lidar3DSpawnHandles
 
 GRAPH_PATH = "/World/Stage3ROS2Graph"
+_LOG = logging.getLogger(__name__)
 
 
 @dataclass
@@ -93,9 +97,11 @@ def _resolve_ros2_bridge_options(ros2_cfg: Dict[str, Any]) -> Any:
 def build_sensor_graph(
     ros2_cfg: Dict[str, Any],
     camera_acquisition: CameraSpawnHandles,
-    lidar_3d_acquisition: Lidar3DSpawnHandles,
+    lidar_3d_acquisition: Lidar3DSpawnHandles | None,
     imu_acquisition: IMUSpawnHandles,
     articulation_root_prim_path: str,
+    *,
+    additional_cameras: Mapping[str, CameraSpawnHandles] | None = None,
 ) -> SensorGraphHandle:
     """Build the rover ROS2 OmniGraph."""
     import omni.graph.core as og  # noqa: PLC0415  -- Isaac Sim runtime dependency, deferred to function scope
@@ -110,24 +116,45 @@ def build_sensor_graph(
         raise ValueError("Camera render-product path must be non-empty")
     if not imu_acquisition.imu_prim_path:
         raise ValueError("IMU prim path must be non-empty")
+    sensor_options = {
+        "lidar_enabled": lidar_3d_acquisition is not None,
+        "depth_enabled": camera_acquisition.depth_output_enabled,
+    }
+    camera_products = {
+        name: camera.render_product_path for name, camera in (additional_cameras or {}).items()
+    }
+    camera_nodes, camera_edges, camera_values = _build_additional_camera_graph(
+        ns, camera_products, sensor_preset
+    )
 
     keys = og.Controller.Keys
     graph_handle, _, _, _ = og.Controller.edit(
         {"graph_path": graph_path, "evaluator_name": "execution"},
         {
-            keys.CREATE_NODES: _build_create_nodes(),
-            keys.CONNECT: _build_connections(),
+            keys.CREATE_NODES: _build_create_nodes(**sensor_options) + camera_nodes,
+            keys.CONNECT: _build_connections(**sensor_options) + camera_edges,
             keys.SET_VALUES: _build_set_values(
                 ns=ns,
                 topics=topics,
                 camera_render_product_path=camera_render_product_path,
-                lidar_3d_render_product_path=lidar_3d_acquisition.render_product_path,
+                lidar_3d_render_product_path=(
+                    lidar_3d_acquisition.render_product_path if lidar_3d_acquisition else None
+                ),
                 articulation_root_prim_path=articulation_root_prim_path,
                 sensor_qos_preset=sensor_preset,
                 joint_state_qos_preset=joint_state_preset,
                 depth_noise_enabled=camera_acquisition.depth_noise_enabled,
-            ),
+                depth_output_enabled=camera_acquisition.depth_output_enabled,
+            )
+            + camera_values,
         },
+    )
+
+    _LOG.info(
+        "ROS camera images: primary=%s; %d additional cameras under /%s/cameras/<name>/image_raw",
+        _ns_topic(ns, topics["rgb"]),
+        len(camera_products),
+        ns,
     )
 
     raw_imu_graph_path = f"{graph_path}RawIMU"

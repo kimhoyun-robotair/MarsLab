@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from marslab.config import ROBOT_NAMES
 from marslab.runtime.assembly import assemble_pre_reset
 from marslab.runtime.atmosphere_boot import prepare_atmosphere
 from marslab.runtime.lifecycle import CleanupResources, cleanup_phase, run_with_cleanup
@@ -24,10 +25,18 @@ def main() -> int:
         allow_abbrev=False,
     )
     parser.add_argument("--config", required=True, help="Path to the MarsLab config YAML.")
-    config_path = parser.parse_args().config
+    parser.add_argument(
+        "--robot",
+        choices=ROBOT_NAMES,
+        help="Rover profile from configs/robots (overrides the config's robot selector).",
+    )
+    args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(levelname)s: %(message)s")
 
-    config = prepare_config(config_path)
+    config = prepare_config(args.config, robot=args.robot)
+    logging.getLogger("marslab.main").info(
+        "Selected rover: %s (USD: %s)", config.rover.name, config.rover.usd_path
+    )
     mars = config.mars_env
     atmosphere = prepare_atmosphere(config)
     simulation_app = boot_simulation_app(config.runtime)

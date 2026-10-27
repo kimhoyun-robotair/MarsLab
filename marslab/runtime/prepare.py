@@ -15,12 +15,12 @@ def _require_file(path: Path, label: str) -> None:
         raise FileNotFoundError(f"{label} file not found: {path}")
 
 
-def prepare_config(config_path: str | Path) -> MarsLabConfig:
+def prepare_config(config_path: str | Path, *, robot: str | None = None) -> MarsLabConfig:
     """Load the resolved config and verify its required file inputs."""
     input_path = Path(config_path)
     _require_file(input_path, "Config")
 
-    config = load_config(input_path)
+    config = load_config(input_path, robot=robot)
     _require_file(config.scene.usdz_path, "Scene USDZ")
     check_rover_config(config.rover)
     return config
