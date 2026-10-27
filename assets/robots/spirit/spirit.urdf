@@ -1,0 +1,339 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="spirit">
+  <!--MarsLab authored derivative; NASA provides cited visualization meshes, not this URDF. Link masses are estimates; see DERIVATION.md.-->
+  <link name="Body_Chassis">
+    <inertial>
+      <origin xyz="0.101524464665 0.018145873436 0.694502162512" rpy="0 0 0" />
+      <mass value="158.8" />
+      <inertia ixx="39.24171144180523" ixy="0.7053872464771085" ixz="-2.683968455902145" iyy="30.8514115343005" iyz="-0.07447931930157761" izz="51.503542565817945" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_Chassis.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.05 0 0.48" rpy="0 0 0" />
+      <geometry>
+        <box size="1 0.7 0.35" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="Body_RockerLeft">
+    <inertial>
+      <origin xyz="0.0562261823111 -0.00610918760585 -0.0244341850884" rpy="0 0 0" />
+      <mass value="4.0" />
+      <inertia ixx="0.03420255485000018" ixy="-0.032421066152354516" ixz="0.06185048436172913" iyy="0.3719923073581094" iyz="0.010061129856562101" izz="0.3569276371185565" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_RockerLeft.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="Body_BogieLeft">
+    <inertial>
+      <origin xyz="-0.0280667204987 0.0483483614339 -0.0465686990499" rpy="0 0 0" />
+      <mass value="3.0" />
+      <inertia ixx="0.02615619304134699" ixy="0.009033455162128487" ixz="0.005940648093727005" iyy="0.14183182803181077" iyz="0.010653904955182161" izz="0.14170821827999025" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_BogieLeft.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="Body_WheelLeftFront">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.009618299360667165" ixy="0.0" ixz="0.0" iyy="0.012675000000000002" iyz="0.0" izz="0.009618299360667165" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_WheelLeftFront.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <cylinder radius="0.13" length="0.1620073914527893" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="Body_SteerLeftFront">
+    <inertial>
+      <origin xyz="2.78673810677e-05 -0.00563386253031 -0.0208301551272" rpy="0 0 0" />
+      <mass value="0.8" />
+      <inertia ixx="0.0012156075968744323" ixy="-1.2543687346600053e-07" ixz="1.374248543850598e-07" iyy="0.0011538448721667288" iyz="-0.00013992035455464568" izz="0.001800420714213713" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_SteerLeftFront.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="Body_WheelLeftMiddle">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.009537505817415975" ixy="0.0" ixz="0.0" iyy="0.012675000000000002" iyz="0.0" izz="0.009537505817415975" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_WheelLeftMiddle.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <cylinder radius="0.13" length="0.16000014543533325" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="Body_WheelLeftRear">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.009537510585793668" ixy="0.0" ixz="0.0" iyy="0.012675000000000002" iyz="0.0" izz="0.009537510585793668" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_WheelLeftRear.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <cylinder radius="0.13" length="0.1600002646446228" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="Body_SteerLeftRear">
+    <inertial>
+      <origin xyz="3.2679903319e-06 -0.005666036365 -0.00815952900312" rpy="0 0 0" />
+      <mass value="0.8" />
+      <inertia ixx="0.001216024105004135" ixy="1.96170990562905e-09" ixz="5.6040641172039333e-08" iyy="0.0011543636539482454" iyz="-0.00013997225791440027" izz="0.0018009134187842335" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_SteerLeftRear.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="Body_RockerRight">
+    <inertial>
+      <origin xyz="0.0562579531268 0.0060979276294 -0.0244479541416" rpy="0 0 0" />
+      <mass value="4.0" />
+      <inertia ixx="0.03421491488132511" ixy="0.0324243456411728" ixz="0.06188232492931106" iyy="0.37219329910110305" iyz="-0.010062631092439545" izz="0.35711677466567143" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_RockerRight.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="Body_BogieRight">
+    <inertial>
+      <origin xyz="-0.0280667785994 -0.0483482883327 -0.0465686974691" rpy="0 0 0" />
+      <mass value="3.0" />
+      <inertia ixx="0.02615616724788096" ixy="-0.009033311064962038" ixz="0.005940638397530534" iyy="0.14183186266797393" iyz="-0.010653909873715117" izz="0.14170821862944177" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_BogieRight.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="Body_WheelRightFront">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.009609554090103894" ixy="0.0" ixz="0.0" iyy="0.012675000000000002" iyz="0.0" izz="0.009609554090103894" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_WheelRightFront.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <cylinder radius="0.13" length="0.16179132461547852" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="Body_SteerRightFront">
+    <inertial>
+      <origin xyz="2.73690742084e-05 0.00566733739701 -0.0207934497125" rpy="0 0 0" />
+      <mass value="0.8" />
+      <inertia ixx="0.0012162725388197794" ixy="1.2522014345428544e-07" ixz="1.3740548283625033e-07" iyy="0.00115466201059527" iyz="0.00013997687030704588" izz="0.001801216568359987" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_SteerRightFront.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="Body_WheelRightMiddle">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.009537505817415975" ixy="0.0" ixz="0.0" iyy="0.012675000000000002" iyz="0.0" izz="0.009537505817415975" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_WheelRightMiddle.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <cylinder radius="0.13" length="0.16000014543533325" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="Body_WheelRightRear">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.009537504625322107" ixy="0.0" ixz="0.0" iyy="0.012675000000000002" iyz="0.0" izz="0.009537504625322107" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_WheelRightRear.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <cylinder radius="0.13" length="0.16000011563301086" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="Body_SteerRightRear">
+    <inertial>
+      <origin xyz="-2.28460730622e-06 0.00566328548944 -0.0208003460713" rpy="0 0 0" />
+      <mass value="0.8" />
+      <inertia ixx="0.001216143977255671" ixy="-2.0106474707404234e-09" ixz="5.617602554242041e-08" iyy="0.0011545100043741901" iyz="0.00013998180467083012" izz="0.0018010565463952412" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Body_SteerRightRear.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="LEFT_DIFFERENTIAL" type="revolute">
+    <parent link="Body_Chassis" />
+    <child link="Body_RockerLeft" />
+    <origin xyz="0.220036037266 0.365735766788 0.363962841817" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="LEFT_BOGIE" type="revolute">
+    <parent link="Body_RockerLeft" />
+    <child link="Body_BogieLeft" />
+    <origin xyz="-0.446908086538 -0.026789098978 -0.0675369203091" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="LF_STEER" type="revolute">
+    <parent link="Body_RockerLeft" />
+    <child link="Body_SteerLeftFront" />
+    <origin xyz="0.491758227348 0.164750500272 -0.19204840064" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.2" upper="1.2" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="LF_DRIVE" type="continuous">
+    <parent link="Body_SteerLeftFront" />
+    <child link="Body_WheelLeftFront" />
+    <origin xyz="0 0 -0.0419144411765" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="LM_DRIVE" type="continuous">
+    <parent link="Body_BogieLeft" />
+    <child link="Body_WheelLeftMiddle" />
+    <origin xyz="0.226872049272 0.136053445439 -0.166425921508" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="LR_STEER" type="revolute">
+    <parent link="Body_BogieLeft" />
+    <child link="Body_SteerLeftRear" />
+    <origin xyz="-0.273365966044 0.19153959925 -0.137158215046" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.2" upper="1.2" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="LR_DRIVE" type="continuous">
+    <parent link="Body_SteerLeftRear" />
+    <child link="Body_WheelLeftRear" />
+    <origin xyz="0 0 -0.029267706462" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="RIGHT_DIFFERENTIAL" type="revolute">
+    <parent link="Body_Chassis" />
+    <child link="Body_RockerRight" />
+    <origin xyz="0.220035620034 -0.365743341545 0.363962812015" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+    <mimic joint="LEFT_DIFFERENTIAL" multiplier="-1" offset="0" />
+  </joint>
+  <joint name="RIGHT_BOGIE" type="revolute">
+    <parent link="Body_RockerRight" />
+    <child link="Body_BogieRight" />
+    <origin xyz="-0.446908086538 0.0267897248268 -0.0675368309021" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="RF_STEER" type="revolute">
+    <parent link="Body_RockerRight" />
+    <child link="Body_SteerRightFront" />
+    <origin xyz="0.491758644581 -0.164742925515 -0.192048177123" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.2" upper="1.2" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="RF_DRIVE" type="continuous">
+    <parent link="Body_SteerRightFront" />
+    <child link="Body_WheelRightFront" />
+    <origin xyz="0 0 -0.0419146348916" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="RM_DRIVE" type="continuous">
+    <parent link="Body_BogieRight" />
+    <child link="Body_WheelRightMiddle" />
+    <origin xyz="0.226872466505 -0.13604649653 -0.166425981113" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="RR_STEER" type="revolute">
+    <parent link="Body_BogieRight" />
+    <child link="Body_SteerRightRear" />
+    <origin xyz="-0.273365548812 -0.191532650342 -0.124510884285" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.2" upper="1.2" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+  <joint name="RR_DRIVE" type="continuous">
+    <parent link="Body_SteerRightRear" />
+    <child link="Body_WheelRightRear" />
+    <origin xyz="0 0 -0.0419150968276" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="200" velocity="10" />
+    <dynamics damping="5" friction="0" />
+  </joint>
+</robot>

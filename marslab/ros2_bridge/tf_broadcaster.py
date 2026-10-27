@@ -1,4 +1,4 @@
-"""Publish static TF for chassis-mounted sensor frames.
+"""Publish static TF for sensor frames on chassis or articulated rigid links.
 Camera optical orientation is represented explicitly in transforms.
 ROS and NumPy dependencies stay deferred where runtime-only."""
 
@@ -9,8 +9,9 @@ from typing import Any, Iterable, List, Optional, Sequence, Tuple, Union
 SensorFrameSpec = Union[
     Tuple[str, Sequence[float]],
     Tuple[str, Sequence[float], Sequence[float]],
+    Tuple[str, Sequence[float], Sequence[float], str],
 ]
-"""``(child_frame_id, xyz)`` or ``(child_frame_id, xyz, rpy_deg)`` tuple."""
+"""``(child, xyz[, rpy_deg[, parent]])``; omitted parent uses the chassis default."""
 
 
 def build_static_sensor_transforms(
@@ -30,14 +31,17 @@ def build_static_sensor_transforms(
 
     out: List[Any] = []
     for spec in sensor_frames:
+        frame_parent = parent_frame_id
         if len(spec) == 2:
             child_frame, local_t = spec
             rpy_deg: Sequence[float] = (0.0, 0.0, 0.0)
         elif len(spec) == 3:
             child_frame, local_t, rpy_deg = spec
+        elif len(spec) == 4:
+            child_frame, local_t, rpy_deg, frame_parent = spec
         else:
             raise ValueError(
-                f"sensor frame spec must be 2- or 3-tuple, got length {len(spec)}: {spec!r}"
+                f"sensor frame spec must be 2-, 3-, or 4-tuple, got length {len(spec)}: {spec!r}"
             )
         if len(local_t) != 3:
             raise ValueError(
@@ -46,7 +50,7 @@ def build_static_sensor_transforms(
         if len(rpy_deg) != 3:
             raise ValueError(f"rpy_deg for {child_frame} must have 3 elements, got {len(rpy_deg)}")
         msg = TransformStamped()
-        msg.header.frame_id = parent_frame_id
+        msg.header.frame_id = frame_parent
         msg.child_frame_id = child_frame
         msg.transform.translation.x = float(local_t[0])
         msg.transform.translation.y = float(local_t[1])
@@ -106,7 +110,15 @@ def publish_static_sensor_tfs(
     else:
         broadcaster = StaticTransformBroadcaster(node)
     msgs = build_static_sensor_transforms(sensor_frames, parent_frame_id)
-    if any(m.child_frame_id == "camera_link" for m in msgs):
-        msgs.append(build_camera_optical_frame_transform("camera_link", "camera_optical_frame"))
+    optical_transforms = []
+    for message in msgs:
+        frame = message.child_frame_id
+        if frame == "camera_link" or frame.endswith("_camera_link"):
+            optical_transforms.append(
+                build_camera_optical_frame_transform(
+                    frame, frame.removesuffix("_link") + "_optical_frame"
+                )
+            )
+    msgs.extend(optical_transforms)
     broadcaster.sendTransform(msgs)
     return broadcaster

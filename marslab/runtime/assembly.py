@@ -323,7 +323,13 @@ def assemble_pre_reset(
         rover=rover,
     )
     spawned_rover = spawn_rover(stage, rover, spawn_xyz)
-    configure_rocker_differential(stage, spawned_rover.chassis_path)
+    configure_rocker_differential(
+        stage,
+        spawned_rover.chassis_path,
+        joint_names=rover.suspension.differential_joint_names,
+        rigid_body_prim_name=rover.chassis.rigid_body_prim_name,
+        joints_prim_name=rover.chassis.joints_prim_name,
+    )
     spawn_xyz = resolve_spawn_clearance(
         stage,
         _TERRAIN_PRIM_PATH,
@@ -345,12 +351,18 @@ def assemble_pre_reset(
         sensor_graph = build_sensor_graph(
             ros2_cfg=ros2_config,
             camera_acquisition=sensor_handles.camera_acquisition,
+            additional_cameras=sensor_handles.cameras,
             lidar_3d_acquisition=sensor_handles.lidar_3d_acquisition,
             imu_acquisition=sensor_handles.imu_acquisition,
-            articulation_root_prim_path=f"{spawned_rover.chassis_path}/Body_Chassis",
+            articulation_root_prim_path=spawned_rover.rigid_body_path,
         )
 
-    configure_drives(stage, spawned_rover.chassis_path, rover.control)
+    configure_drives(
+        stage,
+        spawned_rover.chassis_path,
+        rover.control,
+        joints_prim_name=rover.chassis.joints_prim_name,
+    )
     articulation = articulation_factory(prim_path=spawned_rover.prim_path)
     validate_world_physics(stage, world_scene_path, atmosphere_init.gravity)
     world.reset()

@@ -78,7 +78,7 @@ class Ros2BridgeConfig(StrictConfigModel):
     namespace: NonEmptyString
     topics: RosTopicsConfig
     odom_publisher: OdomPublisherConfig
-    sensor_parent_frame_id: Literal["Body_Chassis"]
+    sensor_parent_frame_id: NonEmptyString
     graph_path: NonEmptyString = "/World/Stage3ROS2Graph"
     cmd_vel_queue_size: PositiveInt = Field(default=10, le=1000)
     cmd_vel_qos: QoSProfileConfig = QoSProfileConfig(

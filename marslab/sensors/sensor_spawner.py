@@ -1,11 +1,11 @@
-"""Coordinate mandatory camera, 2-D/3-D LiDAR, and IMU spawners.
+"""Coordinate mission cameras, optional 2-D/3-D LiDAR, and IMU spawners.
 One SensorHandles value exposes stable acquisition readers.
 ROS graph construction remains a separate concern."""
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -30,23 +30,32 @@ class SensorHandles:
     lidar_3d: Any
     imu: Any
     camera_prim_path: str
-    lidar_2d_prim_path: str
-    lidar_3d_prim_path: str
+    lidar_2d_prim_path: str | None
+    lidar_3d_prim_path: str | None
     imu_prim_path: str
     camera_acquisition: CameraSpawnHandles
-    lidar_2d_acquisition: Lidar2DSpawnHandles
-    lidar_3d_acquisition: Lidar3DSpawnHandles
+    lidar_2d_acquisition: Lidar2DSpawnHandles | None
+    lidar_3d_acquisition: Lidar3DSpawnHandles | None
     imu_acquisition: IMUSpawnHandles
     gravity: float
+    cameras: dict[str, CameraSpawnHandles] = field(default_factory=dict)
 
-    def read_camera_rgb(self) -> npt.NDArray[np.uint8]:
+    def read_camera_rgb(self, name: str | None = None) -> npt.NDArray[np.uint8]:
         """Read an RGBA image, returning an empty array before a frame exists."""
-        data = self.camera.get_rgba() if self.camera is not None else None
+        acquisition = self.camera_acquisition if name is None else self.cameras[name]
+        data = acquisition.rgb_annotator.get_data()
         return np.array([] if data is None else data, dtype=np.uint8)
 
-    def read_camera_depth(self) -> npt.NDArray[np.float32]:
-        """Read a depth image, returning an empty array before a frame exists."""
-        return self.camera_acquisition.read_depth()
+    def read_camera_depth(self, name: str | None = None) -> npt.NDArray[np.float32]:
+        """Read simulator depth; empty if unavailable or disabled for this camera."""
+        acquisition = self.camera_acquisition if name is None else self.cameras[name]
+        return acquisition.read_depth()
+
+    def reset_depth_acquisitions(self) -> None:
+        """Reset each independent camera noise stream at an episode boundary."""
+        self.camera_acquisition.reset_depth_noise()
+        for acquisition in self.cameras.values():
+            acquisition.reset_depth_noise()
 
     def read_lidar_3d_point_cloud(self) -> npt.NDArray[np.float32]:
         """Read the current 3D LiDAR point cloud on demand."""
@@ -58,7 +67,7 @@ class SensorHandles:
         return np.array(pc, dtype=np.float32).reshape(-1, 3)
 
     def read_lidar_2d_scan(self) -> Any:
-        return self.lidar_2d_acquisition.read_scan()
+        return self.lidar_2d_acquisition.read_scan() if self.lidar_2d_acquisition else {}
 
     def read_imu(self) -> dict[str, list[float]]:
         """Read the current IMU sample and warn when Mars gravity drifts."""
@@ -107,23 +116,45 @@ def spawn_sensors(
         else None
     )
     camera_handles = spawn_camera(stage, sensors_cfg.camera, rigid_body_path, seed=depth_seed)
-    lidar_2d_handles = spawn_lidar_2d(stage, sensors_cfg.lidar_2d, rigid_body_path)
-    lidar_handles = spawn_lidar_3d(stage, sensors_cfg.lidar_3d, rigid_body_path)
+    cameras = {}
+    camera_paths = {camera_handles.camera_prim_path}
+    for index, config in enumerate(sensors_cfg.cameras):
+        seed = (
+            int(np.random.SeedSequence(sensors_cfg.seed, spawn_key=(3, index)).generate_state(1)[0])
+            if sensors_cfg.seed is not None
+            else None
+        )
+        handles = spawn_camera(stage, config, rigid_body_path, seed=seed, name=config.name)
+        if handles.camera_prim_path in camera_paths:
+            raise ValueError(f"Duplicate camera prim: {handles.camera_prim_path}")
+        camera_paths.add(handles.camera_prim_path)
+        cameras[config.name] = handles
+    lidar_2d_handles = (
+        spawn_lidar_2d(stage, sensors_cfg.lidar_2d, rigid_body_path)
+        if sensors_cfg.lidar_2d is not None
+        else None
+    )
+    lidar_handles = (
+        spawn_lidar_3d(stage, sensors_cfg.lidar_3d, rigid_body_path)
+        if sensors_cfg.lidar_3d is not None
+        else None
+    )
     imu_handles = spawn_imu(stage, sensors_cfg.imu, rigid_body_path, gravity)
     return SensorHandles(
         camera=camera_handles.camera,
-        lidar_2d=lidar_2d_handles.lidar,
-        lidar_3d=lidar_handles.lidar,
+        lidar_2d=lidar_2d_handles.lidar if lidar_2d_handles else None,
+        lidar_3d=lidar_handles.lidar if lidar_handles else None,
         imu=imu_handles.imu,
         camera_prim_path=camera_handles.camera_prim_path,
-        lidar_2d_prim_path=lidar_2d_handles.lidar_prim_path,
-        lidar_3d_prim_path=lidar_handles.lidar_prim_path,
+        lidar_2d_prim_path=lidar_2d_handles.lidar_prim_path if lidar_2d_handles else None,
+        lidar_3d_prim_path=lidar_handles.lidar_prim_path if lidar_handles else None,
         imu_prim_path=imu_handles.imu_prim_path,
         camera_acquisition=camera_handles,
         lidar_2d_acquisition=lidar_2d_handles,
         lidar_3d_acquisition=lidar_handles,
         imu_acquisition=imu_handles,
         gravity=gravity,
+        cameras=cameras,
     )
 
 

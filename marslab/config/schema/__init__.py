@@ -22,6 +22,7 @@ from marslab.config.schema.rover_sensors import (
     DepthSensorConfig,
     IMUConfig,
     Lidar3DConfig,
+    NamedCameraConfig,
     SensorsConfig,
 )
 from marslab.config.schema.runtime import RuntimeConfig, WheelOdomConfig
@@ -45,6 +46,7 @@ __all__ = [
     "FogConfig",
     "IMUConfig",
     "Lidar3DConfig",
+    "NamedCameraConfig",
     "MarsEnvConfig",
     "MarsLabConfig",
     "OdomPublisherConfig",

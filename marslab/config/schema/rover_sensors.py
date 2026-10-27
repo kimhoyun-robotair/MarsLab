@@ -1,10 +1,11 @@
-"""Define validated camera, IMU sampling, and 2-D/3-D LiDAR settings.
-Acquisition is mandatory and separate from ROS transport.
+"""Define validated mission cameras, IMU, and optional LiDAR settings.
+Acquisition is separate from ROS transport.
 Isaac handles are created only by runtime spawners."""
 
 from pathlib import Path
+from typing import Annotated
 
-from pydantic import Field, model_validator
+from pydantic import Field, StringConstraints, model_validator
 
 from marslab.config.schema.common import (
     FiniteFloat,
@@ -32,6 +33,15 @@ class DepthSensorConfig(StrictConfigModel):
 
 
 class CameraConfig(StrictConfigModel):
+    # A sibling rigid link's USD/URDF name; None selects the chassis link.
+    parent_link: Annotated[str, StringConstraints(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")] | None = (
+        None
+    )
+    # An existing USD Camera, relative to parent_link or absolute below it.
+    # Authored pose is preserved and checked against local_* before acquisition.
+    prim_path: NonEmptyString | None = None
+    # Relative to the selected parent link. Orientation describes a camera mount
+    # with +X forward/+Y left/+Z up, not USD's +X right/+Y up/-Z forward axes.
     local_translation: Vec3
     local_orientation_rpy_deg: Vec3
     resolution: tuple[PositiveInt, PositiveInt]
@@ -39,12 +49,26 @@ class CameraConfig(StrictConfigModel):
     horizontal_fov_deg: PositiveFloat | None = Field(default=None, lt=180.0)
     clipping_range: tuple[PositiveFloat, PositiveFloat]
     depth_sensor: DepthSensorConfig
+    # Synthetic renderer depth is a simulation aid, not a flight camera output.
+    depth_output: bool = True
 
     @model_validator(mode="after")
     def check_clipping_range(self) -> "CameraConfig":
         if self.clipping_range[1] <= self.clipping_range[0]:
             raise ValueError("camera clipping far plane must exceed near plane")
+        if not self.depth_output and self.depth_sensor.enabled:
+            raise ValueError("depth_sensor noise requires depth_output=true")
+        if self.prim_path is not None:
+            path = self.prim_path.removeprefix("/")
+            if not path or any(
+                not part.isidentifier() or not part.isascii() for part in path.split("/")
+            ):
+                raise ValueError("camera prim_path must contain valid USD prim names")
         return self
+
+
+class NamedCameraConfig(CameraConfig):
+    name: Annotated[str, StringConstraints(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")]
 
 
 class Lidar2DConfig(StrictConfigModel):
@@ -108,9 +132,24 @@ class IMUConfig(StrictConfigModel):
 class SensorsConfig(StrictConfigModel):
     seed: int | None = Field(ge=0)
     camera: CameraConfig
-    lidar_2d: Lidar2DConfig
-    lidar_3d: Lidar3DConfig
+    cameras: list[NamedCameraConfig] = Field(default_factory=list)
+    lidar_2d: Lidar2DConfig | None = None
+    lidar_3d: Lidar3DConfig | None = None
     imu: IMUConfig
+
+    @model_validator(mode="after")
+    def check_camera_identities(self) -> "SensorsConfig":
+        names = [camera.name for camera in self.cameras]
+        if "primary" in names or len(names) != len(set(names)):
+            raise ValueError("additional camera names must be unique and cannot be 'primary'")
+        authored_paths = [
+            (None if camera.prim_path.startswith("/") else camera.parent_link, camera.prim_path)
+            for camera in [self.camera, *self.cameras]
+            if camera.prim_path is not None
+        ]
+        if len(authored_paths) != len(set(authored_paths)):
+            raise ValueError("camera prim_path values must be unique")
+        return self
 
 
 __all__ = [
@@ -119,5 +158,6 @@ __all__ = [
     "IMUConfig",
     "Lidar2DConfig",
     "Lidar3DConfig",
+    "NamedCameraConfig",
     "SensorsConfig",
 ]

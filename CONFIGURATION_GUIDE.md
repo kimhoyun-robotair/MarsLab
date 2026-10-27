@@ -1,8 +1,9 @@
 # Configuration and Tuning Guide
 
-MarsLab uses one runtime configuration file:
-[`configs/config.yaml`](configs/config.yaml). Relative asset paths are
-resolved from the directory containing that file, so the repository can be
+MarsLab combines a scenario such as [`configs/config.yaml`](configs/config.yaml)
+with the rover profile selected by its `robot` field. Profiles live in
+[`configs/robots/`](configs/robots/). Relative asset paths resolve from the
+directory containing the YAML that declares them, so the repository can be
 cloned anywhere without changing paths for a particular computer.
 
 Runtime loads a prebuilt scene through `scene.usdz_path`. Terrain generation,
@@ -27,28 +28,87 @@ assets, and incompatible option combinations stop the launch early.
 marslab/isaac_python.sh marslab/main.py --config configs/config.yaml
 ```
 
-The values written in `configs/config.yaml` are the active values for the
-supplied scenario. Additional optional fields use defaults declared in
+The supplied scenario selects `robot: perseverance`; its existing M2020 values
+are preserved in [`configs/robots/perseverance.yaml`](configs/robots/perseverance.yaml).
+Additional optional fields use defaults declared in
 `marslab/config/schema/`. When a field is omitted, inspect its schema before
 assuming that the feature is disabled; omission normally selects a validated
 default rather than removing the subsystem.
+
+## Rover selection and overrides
+
+Use `--robot` to override the scenario's selector for one run:
+
+```bash
+marslab/isaac_python.sh marslab/main.py --config configs/config.yaml --robot perseverance
+```
+
+The accepted names are `perseverance`, `spirit`, `opportunity`, and `curiosity`.
+The selected `configs/robots/<name>.yaml` and its USD/URDF inputs must exist;
+missing files fail before Isaac starts. Each profile contains one `rover`
+mapping with a matching `name`. The controller, differential setup, and wheel
+odometry consume that profile's geometry and joint names.
+
+For example, run Curiosity with:
+
+```bash
+marslab/isaac_python.sh marslab/main.py --config configs/config.yaml --robot curiosity
+```
+
+| Profile | USD / companion URDF | Camera acquisition |
+| --- | --- | --- |
+| [perseverance.yaml](configs/robots/perseverance.yaml) | `assets/robots/perseverance/m2020_lidar.usda` / `m2020_lidar.urdf` | Existing single research camera, synthetic depth and LiDAR |
+| [spirit.yaml](configs/robots/spirit.yaml) | `assets/robots/spirit/spirit.usda` / `spirit.urdf` | 9 camera models with NASA-derived intrinsics; primary left Navcam |
+| [opportunity.yaml](configs/robots/opportunity.yaml) | `assets/robots/opportunity/opportunity.usda` / `opportunity.urdf` | 9 camera models with NASA-derived intrinsics; primary left Navcam |
+| [curiosity.yaml](configs/robots/curiosity.yaml) | `assets/robots/curiosity/curiosity.usda` / `curiosity.urdf` | 17 camera models with NASA-derived intrinsics; primary left Navcam A |
+
+These mission models use pinhole rendering of the retained calibration data.
+Their camera positions and intrinsics differ by mission; Spirit and Opportunity
+share a mobility geometry model. All four profiles default to
+`control.max_linear_velocity: 4.0` m/s as a shared simulation command cap.
+
+To override a profile value for a scenario, add only the relevant values to the
+scenario's `rover` mapping:
+
+```yaml
+robot: perseverance
+rover:
+  spawn:
+    z_offset: 0.15
+  control:
+    max_linear_velocity: 0.2
+```
+
+Mappings merge recursively; lists and scalar values replace the corresponding
+profile value. Scenario overrides still apply when `--robot` selects another
+profile, so keep robot-specific geometry in the profile. A relative path in a
+profile is anchored to `configs/robots/`; a relative path in the scenario is
+anchored to the scenario's own directory. The current working directory does
+not change these asset paths.
+
+Legacy configurations containing the complete `rover` mapping and no `robot`
+selector remain supported. If `--robot` is supplied for such a file, the selected
+profile replaces that old rover mapping in full, preventing dimensions or asset
+paths from the legacy model from carrying into the selected rover.
 
 ## Top-level sections
 
 | Section | What it controls | Good first adjustment |
 | --- | --- | --- |
+| `robot` | Rover profile selector | Choose the profile whose assets are installed. |
 | `scene` | Terrain USDZ input | Select a supplied scene. |
 | `runtime` | GUI/headless, ROS 2, atmosphere | Disable optional systems while diagnosing startup. |
 | `mars_env` | Gravity, dust, sunlight, sol timing | Adjust dust and solar position for a scenario. |
 | `rendering` | Renderer, sky, sun, fog | Choose speed or image quality. |
-| `rover` | Spawn, physics, sensors, control, ROS | Tune only the relevant subsection. |
+| `rover` | Optional profile overrides in a scenario | Tune only the relevant subsection. |
 | `wheel_odom` | Dynamic odometry TF ownership | Decide whether MarsLab or an external estimator owns TF. |
 
 ## Scene selection and rover spawn
 
 ### `scene.usdz_path`
 
-Selects the supplied Mars scene. A relative path is resolved from `configs/`.
+Selects the supplied Mars scene. A relative path resolves from the declaring
+scenario's directory (`configs/` for the supplied scenario).
 The path must point to an existing USDZ file before Isaac starts.
 
 Download the scene assets as described in the [README](README.md#2-download-the-mars-scene-assets).
@@ -232,33 +292,34 @@ inertia, and center of mass. Configuration owns chassis damping, wheel contact
 materials, and joint drives without rewriting the source asset. Mass, inertia,
 and center-of-mass override keys are not accepted in the configuration.
 
-The source rover's rigid-body masses total 951.64 kg. The 20 links with visual meshes
+The default Perseverance source rover's rigid-body masses total 951.64 kg.
+Its 20 links with visual meshes
 use uniform-density solid convex hulls to estimate their link-local centers of
 mass and full inertia tensors. These are geometry-based approximations, not
 measured flight-rover mass distributions. The supplied URDF and USD physics
 layers contain the authored mass properties. The active rover also includes
 the LiDAR attachment masses described below.
 
-The passive rocker differential constrains `LEFT_DIFFERENTIAL +
-RIGHT_DIFFERENTIAL = 0` through PhysX mimic coupling. Both rocker position
-stiffnesses remain zero; damping is configurable. Startup validates this
-coupling before physics begins.
+The passive rocker differential uses the two joints in
+`rover.suspension.differential_joint_names`. Runtime inspects their authored axes
+to determine the sign of the PhysX mimic coupling. In the default profile this
+constrains `LEFT_DIFFERENTIAL + RIGHT_DIFFERENTIAL = 0`. Both rocker position
+stiffnesses remain zero; damping is configurable. Startup validates the coupling
+before physics begins. `chassis.container_prim_name`, `rigid_body_prim_name`, and
+`joints_prim_name` identify the selected asset's hierarchy.
 
-### Supplied rover and LiDAR assets
+### Default Perseverance rover and LiDAR assets
 
-`rover.usd_path` selects `assets/robots/rover/m2020_lidar.usda`, which composes
+`rover.usd_path` selects `assets/robots/perseverance/m2020_lidar.usda`, which composes
 the base `m2020.usd` and both sensor USD assets. Preserve the base rover's
 configuration layers and textures alongside it. `rover.urdf_source_path` selects
-`assets/robots/rover/m2020_lidar.urdf`; its mesh references use the rover
-submodule and the sensor OBJ/MTL files.
+`assets/robots/perseverance/m2020_lidar.urdf`; its mesh references use the local files in
+`assets/robots/perseverance/meshes/` and the sensor OBJ/MTL files.
 
 The attachments add **5.688155 kg**, bringing the authored rover mass to
 **957.328155 kg**. Their mass is merged into the chassis rigid body.
-The [sensor asset guide](assets/robots/sensors/README.md) and
-[mass-property record](assets/robots/sensors/mass_properties.json) describe the
-construction assumptions and resulting COM/inertia. Retained Blender sources,
-JSON records, and previews document the supplied assets; runtime reads the
-authored USD/URDF. Asset generation and rebuild commands are outside this
+Runtime reads the authored USD/URDF; design records are not runtime inputs. Blender
+working files, asset generation, and rebuild commands are outside this
 distribution.
 
 ### Physics tuning
@@ -282,7 +343,9 @@ the values read back from USD.
 ## Rover control
 
 `rover.control` defines rover geometry, velocity limits, joint ownership, and
-command ramping.
+command ramping in each profile. The shared six-wheel controller supports the
+four steerable corner wheels and the two fixed middle wheels; it has no rover
+name switch. Wheel odometry uses the same dimensions and ordering.
 
 `drive_type` supports:
 
@@ -319,16 +382,16 @@ Ordinary driving reduces excessive yaw rate before computing both steering and
 wheel rates, so they describe the same feasible arc. A command with zero linear
 speed and nonzero yaw rate selects a pivot turn: the four corner wheels point
 along tangents around the middle axle, and the two wheel banks counter-rotate.
-The canonical `max_steer_angle` is `0.9` rad (51.57 degrees). Configuration must
+The default Perseverance `max_steer_angle` is `0.9` rad (51.57 degrees). Each profile must
 allow the pivot angles required by its geometry; insufficient steering travel
 fails preflight. Before physics reset, startup also checks this configured
 travel against each steering joint's USD limits without changing those limits.
 
 `steering_axle_offset` is the forward displacement of the front/rear axle
 midpoint from the nonsteering middle axle, in meters. It defaults to zero; the
-supplied rover uses `0.05502`, matching its USD wheel centers. Front and rear
+Perseverance profile uses `0.05502`, matching its USD wheel centers. Front and rear
 wheel positions are therefore `wheelbase/2 + offset` and `-wheelbase/2 + offset`,
-with middle wheels at zero. The canonical pivot angles are approximately
+with middle wheels at zero. The default Perseverance pivot angles are approximately
 48.12 degrees at the front and 45.33 degrees at the rear. Control and wheel
 odometry use this same geometry.
 
@@ -341,11 +404,41 @@ so acceleration and braking preserve the commanded wheel-speed ratios.
 
 ## Sensors
 
+The numeric examples below describe the default Perseverance research profile.
+Its LiDAR attachments and synthetic depth are simulation additions. Historical
+mission profiles can set `lidar_2d: null` and `lidar_3d: null` to omit LiDAR
+acquisition and publication.
+
+Science instrument metadata does not imply that the simulator reproduces spectra,
+radiation, chemistry, detector response, or a complete flight engineering telemetry
+system.
+
 ### Camera and depth
 
 Camera resolution, focal length, clipping range, and local pose configure the
-single shared Camera render product used by RGB, raw depth, depth PointCloud2,
-and CameraInfo.
+primary `rover.sensors.camera` render product used by RGB, raw depth, depth
+PointCloud2, and CameraInfo. `rover.sensors.cameras` accepts additional named
+camera definitions. An optional `parent_link` selects the camera's USD/URDF
+mounting link; omitting it uses the chassis. Local translation and orientation
+are relative to that link. An optional `prim_path` attaches acquisition to an
+existing USD camera; relative prim paths resolve below the mounting link.
+The existing camera's authored pose must agree with the YAML pose. Startup
+rejects a mismatch so the rendered view and ROS TF cannot silently diverge.
+To reposition an existing camera, update its USD transform and matching YAML
+pose together. These settings are loaded at startup, not reloaded live.
+
+When ROS is enabled, the primary camera publishes to the configured `topics.rgb`
+and `topics.camera_info` (normally `/rover/rgb/image_raw` and
+`/rover/rgb/camera_info`). Every additional named camera publishes RGB and
+CameraInfo at `/<namespace>/cameras/<name>/image_raw` and
+`/<namespace>/cameras/<name>/camera_info`, with
+`<name>_camera_optical_frame` matching its static TF. All consumers share each
+camera's existing render product. Additional camera publication does not create
+a second renderer or invent mission depth measurements.
+
+Set `depth_output: false` on mission cameras to disable synthetic depth and
+point-cloud outputs. This is distinct from `depth_sensor.enabled`, which only
+controls added noise. The default profile retains `depth_output: true`.
 
 `horizontal_fov_deg` optionally sets the pinhole horizontal field of view and
 overrides `focal_length_mm`; null preserves the focal-length setting. The
@@ -364,7 +457,8 @@ depth. `noise_mean` and `noise_sigma` are in metres; min/max distance mask
 unusable pixels. Noise uses a child of the configured sensor seed and the
 acquisition timestamp. The depth image and organized XYZ cloud use the same
 noisy sample, frame and timestamp. RGB and CameraInfo keep the shared Camera
-product. When disabled, native raw depth/point-cloud helpers remain active.
+product. When noise is disabled and `depth_output: true`, native raw
+depth/point-cloud helpers remain active.
 The old stereo baseline/confidence/disparity keys are rejected because those
 renderer-only settings did not affect the retained ROS measurements.
 
@@ -445,33 +539,45 @@ relative names and must not start or end with `/`.
 
 ### Companion launch
 
-For the robot description and articulation TF chain, run the companion from the
-repository root in a separate ROS terminal:
+For the robot description and articulation TF chain, first prepare the `.venv`
+environment described in [the installation guide](README.md#3-install-the-python-dependencies).
+Run the companion from the repository root in a separate ROS terminal:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-ros2 launch launch/rover_state_publisher.launch.py
+.venv/bin/python /opt/ros/jazzy/bin/ros2 launch launch/rover_state_publisher.launch.py \
+  config:=configs/config.yaml robot:=curiosity
 ```
 
 The launch file reads its sibling [companion_urdf.py](launch/companion_urdf.py).
-This helper prepares the URDF text with `Body_Chassis` as its root, handles the
-source floating joints, and resolves relative mesh filenames to absolute file
+This helper discovers the selected URDF's root link, handles source floating
+joints, and resolves relative mesh filenames to absolute file
 URIs. It leaves the source URDF unchanged. Keep both Python files in `launch/`.
 
-The companion does not read `configs/config.yaml`. Its default `urdf_path` is
-`assets/robots/rover/m2020_lidar.urdf` and its default namespace is `rover`.
-When changing `rover.urdf_source_path` or `rover.ros2.namespace`, supply matching
-`urdf_path:=<absolute-path>` or `namespace:=<name>` launch arguments. Its
-`publish_frequency` argument controls robot_state_publisher cadence, not the
-Isaac physics or sensor sampling rate.
+Pass the same `config` and `robot` used by the simulator. The companion uses
+MarsLab's pure configuration loader, including profile merging and YAML-relative
+asset paths, without importing Isaac. Its defaults are the repository's
+`configs/config.yaml` and that scenario's robot selector. The selected profile
+supplies `rover.urdf_source_path`, `rover.ros2.namespace`, and
+`rover.ros2.topics.joint_states`. PyYAML and Pydantic 2 are declared in
+[requirements.txt](requirements.txt) and must be installed into the Python
+environment used for this command.
+
+Optional `urdf_path:=<path>`, `namespace:=<name>`, and
+`joint_states_topic:=<topic>` launch arguments override the selected settings.
+Its `publish_frequency` argument controls robot_state_publisher cadence, not the
+Isaac physics or sensor sampling rate. This is one shared launch file for all
+rovers, not a separate launch file per model.
 
 ### Ownership and QoS
 
 Keep these ownership rules intact:
 
-- The companion owns identity `base_link` to `Body_Chassis`, the URDF
+- The companion owns identity `base_link` to the selected URDF root (`Body_Chassis`
+  by default), the URDF
   articulation chain and the retained `/rover/robot_description` topic.
-- MarsLab owns static sensor frames below `Body_Chassis`.
+- MarsLab owns static sensor frames below `rover.ros2.sensor_parent_frame_id`
+  (`Body_Chassis` by default).
 - Ground truth uses `map` / `base_link_gt` and publishes no TF.
 - Wheel odometry uses `odom` / `base_link`.
 - `wheel_odom.publish_tf` is the only MarsLab switch for dynamic odometry TF.
@@ -487,6 +593,18 @@ QoS profiles support:
 
 Use best-effort/volatile QoS for high-rate sensors unless a consumer requires
 reliable delivery. Keep static and latched data transient-local where supported.
+The supplied camera publishers are best-effort, so a subscriber requesting
+reliable delivery will not match them. In RViz, set the Image display's
+Reliability Policy to **Best Effort**. To inspect a live primary image header
+without printing its pixel array:
+
+```bash
+ros2 topic echo /rover/rgb/image_raw --qos-reliability best_effort --once --no-arr
+```
+
+The simulator, companion, and viewers must share `ROS_DOMAIN_ID` and compatible
+DDS discovery settings. `robot_state_publisher` publishes description and TF;
+camera messages are published by the Isaac bridge and do not require that node.
 
 ## Wheel odometry
 
