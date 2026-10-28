@@ -55,14 +55,35 @@ def pin_articulation_root_pose(
 
 
 def zero_steer_joints(articulation: Any, steer_indices: Sequence[int]) -> None:
-    """Zero every steering joint so PD gains land on a sane reference."""
-    try:
-        articulation.set_joint_positions(
-            np.zeros(len(steer_indices), dtype=np.float32),
-            joint_indices=np.asarray(list(steer_indices)),
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.error("[articulation_setup] Could not init steer joints: %s", exc)
+    """Zero steering while preserving all other joints' authored position targets.
+
+    Isaac's indexed ``set_joint_positions`` also replaces the full target vector
+    with measured positions. Restore the other targets so an arm or mast does
+    not adopt its gravity-deflected pose as its new commanded reference.
+    """
+    steering = np.asarray(list(steer_indices), dtype=np.int32)
+    if steering.size == 0:
+        return
+    actions = articulation.get_applied_actions(clone=True)
+    if actions is None or actions.joint_positions is None:
+        raise RuntimeError("Steering initialization requires live joint position targets")
+    targets = np.asarray(actions.joint_positions).copy()
+    if targets.ndim not in (1, 2) or not np.isfinite(targets).all():
+        raise RuntimeError("Steering initialization received invalid joint position targets")
+    if np.any(steering < 0) or np.any(steering >= targets.shape[-1]):
+        raise ValueError("Steering joint index is outside the articulation target vector")
+    other = np.setdiff1d(np.arange(targets.shape[-1], dtype=np.int32), steering)
+    zeros = np.zeros(len(steering), dtype=np.float32)
+    articulation.set_joint_positions(zeros, joint_indices=steering)
+    articulation.set_joint_position_targets(zeros, joint_indices=steering)
+    if other.size:
+        articulation.set_joint_position_targets(targets[..., other], joint_indices=other)
+
+    expected = targets.copy()
+    expected[..., steering] = 0.0
+    applied = articulation.get_applied_actions(clone=True)
+    if applied is None or not np.array_equal(applied.joint_positions, expected):
+        raise RuntimeError("Steering initialization failed to preserve joint position targets")
 
 
 __all__ = [

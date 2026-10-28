@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from marslab.config import ROBOT_NAMES
 from marslab.runtime.assembly import assemble_pre_reset
 from marslab.runtime.atmosphere_boot import prepare_atmosphere
 from marslab.runtime.lifecycle import CleanupResources, cleanup_phase, run_with_cleanup
@@ -24,17 +25,18 @@ def main() -> int:
         allow_abbrev=False,
     )
     parser.add_argument("--config", required=True, help="Path to the MarsLab config YAML.")
-    vehicle = parser.add_mutually_exclusive_group()
-    vehicle.add_argument("--rover", dest="robot", action="store_const", const="rover",
-                         help="Spawn the Perseverance-like rover (default).")
-    vehicle.add_argument("--drone", dest="robot", action="store_const", const="drone",
-                         help="Spawn the Ingenuity-like Mars drone.")
-    parser.set_defaults(robot="rover")
+    parser.add_argument(
+        "--robot",
+        choices=ROBOT_NAMES,
+        help="Rover profile from configs/robots (overrides the config's robot selector).",
+    )
     args = parser.parse_args()
-    config_path = args.config
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(levelname)s: %(message)s")
 
-    config = prepare_config(config_path, robot=args.robot)
+    config = prepare_config(args.config, robot=args.robot)
+    logging.getLogger("marslab.main").info(
+        "Selected rover: %s (USD: %s)", config.rover.name, config.rover.usd_path
+    )
     mars = config.mars_env
     atmosphere = prepare_atmosphere(config)
     if args.robot == "drone":

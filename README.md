@@ -41,8 +41,8 @@
 <br />
 
 > **MarsLab** is a configuration-driven NVIDIA Isaac Sim 5.x platform for
-> controlled planetary-robotics autonomy and navigation research. It combines
-> Martian terrain, an M2020 rover or Ingenuity-like drone, vehicle sensors, atmospheric
+> controlled planetary-rover autonomy and navigation research. It combines
+> Martian terrain, selectable Mars rovers, physically grounded sensors, atmospheric
 > rendering, vehicle control, evaluation ground truth, wheel odometry, and an
 > optional ROS 2 Jazzy bridge in one runtime.
 
@@ -60,10 +60,12 @@
 
 ## 🧭 Overview
 
-Every run is defined by one validated configuration document,
-[`configs/config.yaml`](configs/config.yaml). MarsLab validates the configuration
-and required assets before Isaac Sim starts, loads the selected scene, spawns
-one selected vehicle, runs the simulation loop, and releases runtime resources in reverse
+Each run combines a scenario such as [`configs/config.yaml`](configs/config.yaml)
+with its selected rover profile from [`configs/robots/`](configs/robots/).
+The supplied scenario selects `perseverance` and preserves the existing M2020
+behavior. MarsLab validates the composed configuration and required assets
+before Isaac Sim starts, loads the selected scene, spawns
+the rover, runs the simulation loop, and releases runtime resources in reverse
 order at shutdown.
 
 This repository provides rover and drone runtimes for prebuilt USDZ environments.
@@ -73,15 +75,12 @@ interfaces below.
 
 ```mermaid
 flowchart LR
-    CFG["⚙️ configs/config.yaml"] --> CORE["🚀 MarsLab Runtime"]
+    CFG["⚙️ Scenario YAML"] --> CORE["🚀 MarsLab Runtime"]
+    PROFILE["🛞 configs/robots/ profile"] --> CORE
     CORE --> ISAAC["NVIDIA Isaac Sim 5.x"]
 
     ISAAC --> ENV["🏜️ Mars Environment"]
-    ISAAC --> ROVER["🛞 M2020 Rover"]
-    ISAAC --> DRONE["Ingenuity-like Drone (--drone)"]
-    DRONE --> AIRSENSOR["Navcam / RTE / IMU / Laser Range"]
-    AIRSENSOR --> FLIGHT["ROS 2 Navigation and Flight Control"]
-    FLIGHT --> DRONE
+    ISAAC --> ROVER["🛞 Selected Rover"]
 
     ROVER --> SENSOR["📡 RGB / Depth / LiDAR / IMU"]
     ROVER --> ODOM["🧭 Wheel Odometry"]
@@ -97,7 +96,7 @@ flowchart LR
 
 - 🏜️ **Configurable Martian environments** — select supplied USDZ scenes and tune
   gravity, sunlight, atmospheric dust, fog, and sky-dome appearance.
-- 🛞 **M2020 rover dynamics** — retain link masses with geometry-based CoM/inertia
+- 🛞 **Rover dynamics** — retain authored link masses with geometry-based CoM/inertia
   estimates and a passive rocker differential; configure chassis damping, wheel
   contact, rocker-bogie damping, steering, drive gains, control limits, and spawn
   behavior. The controller supports curved driving and pivot turns.
@@ -112,8 +111,9 @@ flowchart LR
   robot description, QoS profiles, static sensor frames, and odometry TF control.
 - 🧭 **Evaluation-ready motion outputs** — independent ground-truth and wheel
   odometry streams with distinct frames and ownership.
-- 🔁 **One runtime configuration** — all active runtime settings live in one
-  strict YAML document validated before Kit creation.
+- 🔁 **Scenario and rover profiles** — reuse scenes, rocker-bogie control, and
+  odometry with profile-specific geometry and joint names. The composed settings
+  are strictly validated before Kit creation.
 - 🖥️ **GUI and headless modes** — use the same configuration for interactive
   atmosphere studies or unattended simulation.
 
@@ -180,7 +180,7 @@ illumination changes, and dust are available on the
 | **ROS 2** | Jazzy, optional and required only for ROS interfaces |
 | **Python** | 3.11+ for offline configuration and utility work |
 | **GPU** | NVIDIA GPU supported by the selected Isaac Sim renderer |
-| **Rover assets** | M2020 URDF and meshes from the required git submodule |
+| **Rover assets** | Runtime USD, URDF, meshes, and textures included in this repository |
 | **Scene asset** | A downloaded Mars scene referenced by `scene.usdz_path` |
 
 > [!IMPORTANT]
@@ -191,25 +191,17 @@ illumination changes, and dust are available on the
 
 ## ⚙️ Installation
 
-### 1. Clone MarsLab and its rover submodule
+### 1. Clone MarsLab
 
 ```bash
-git clone --recursive https://github.com/kimhoyun-robotair/MarsLab.git
+git clone https://github.com/kimhoyun-robotair/MarsLab.git
 cd MarsLab
 ```
 
-If the repository was cloned without `--recursive`, initialize the required
-M2020 URDF submodule afterward:
-
-```bash
-git submodule update --init --recursive
-```
-
-The submodule is installed at:
-
-```text
-assets/m2020-urdf-models
-```
+The Perseverance USD and companion URDF are included under
+`assets/robots/perseverance/`, alongside the URDF's meshes and textures in
+`meshes/`. Their source and rights are recorded in
+[the M2020 notice](assets/robots/perseverance/LICENSE.md).
 
 ### 2. Download the Mars scene assets
 
@@ -229,18 +221,11 @@ Other downloaded environments can be stored beside `jezero_plain`. Select one
 by changing `scene.usdz_path` in `configs/config.yaml`. MarsLab consumes these
 assets as inputs; it does not generate or convert terrain during startup.
 
-### 3. Optional: install the offline Python package
+### 3. Install the Python dependencies
 
-For configuration validation, environment calculations, and CPU-safe utility
-work, install MarsLab in a regular Python environment:
-
-```bash
-python3 -m pip install -e .
-```
-
-> [!NOTE]
-> Isaac Sim provides the Python interpreter used by the simulator. Installing
-> the package above does not replace the Isaac Sim installation.
+Run MarsLab from this checkout. [requirements.txt](requirements.txt) declares
+the Python dependencies for the simulator, configuration tools, and ROS
+companion. Install them into each Python environment you use.
 
 By default, the launcher looks for Isaac Sim at `$HOME/isaacsim`. If Isaac Sim
 is installed elsewhere, set its installation directory for the current shell:
@@ -248,6 +233,25 @@ is installed elsewhere, set its installation directory for the current shell:
 ```bash
 export ISAAC_SIM_PATH=/path/to/isaacsim
 ```
+
+In the Isaac terminal, install the dependencies using its bundled Python:
+
+```bash
+marslab/isaac_python.sh -m pip install -r requirements.txt
+```
+
+For the ROS companion or offline configuration tools, create a separate virtual
+environment using the system Python. The `python3-venv` OS package is required.
+System packages remain visible so the environment can use the installed ROS 2
+Jazzy packages:
+
+```bash
+/usr/bin/python3 -m venv --system-site-packages .venv
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+The ROS commands below explicitly use this environment's Python. Installing
+dependencies there does not install them into Isaac Sim's bundled Python.
 
 ---
 
@@ -306,6 +310,9 @@ marslab/isaac_python.sh \
 
 The wrapper starts Isaac Sim's bundled Python and supplies its bundled Jazzy
 bridge libraries to the child process.
+An explicit `--robot perseverance` selects the same default profile. Select
+another supplied profile with `--robot spirit`, `--robot opportunity`, or
+`--robot curiosity`.
 
 </td>
 <td width="50%" valign="top">
@@ -316,33 +323,51 @@ Use with `runtime.ros2_enabled: true`.
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-ros2 launch \
+.venv/bin/python /opt/ros/jazzy/bin/ros2 launch \
   launch/rover_state_publisher.launch.py
 ```
 
-The companion uses the `rover` namespace by default and consumes the runtime's
-joint states.
+The companion reads the same scenario and rover profile to select the URDF,
+namespace, and joint-state topic. The supplied profiles use the `rover` namespace.
 
 </td>
 </tr>
 </table>
 
 > [!TIP]
-> Set `urdf_path:=...` or `namespace:=...` only when the corresponding URDF path
-> or namespace in `configs/config.yaml` is changed as well.
+> Pass the same configuration and robot selection to both terminals. For example,
+> `--config configs/config.yaml --robot curiosity` in Isaac corresponds to
+> `config:=configs/config.yaml robot:=curiosity` in the ROS launch command.
+> With no robot argument, both follow the scenario's `robot` selector.
 
 Keep both files in `launch/`. The launch file loads
-[`companion_urdf.py`](launch/companion_urdf.py) to prepare a `Body_Chassis`-rooted
-URDF and resolve relative mesh paths for ROS. It then starts
-`robot_state_publisher` and the identity `base_link → Body_Chassis` connector.
+[`companion_urdf.py`](launch/companion_urdf.py) to prepare the selected URDF and
+resolve relative mesh paths for ROS. It then starts `robot_state_publisher`
+and connects `base_link` to the URDF root when they differ (`Body_Chassis` for
+the default profile).
+
+For Curiosity, the ROS terminal command is:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+.venv/bin/python /opt/ros/jazzy/bin/ros2 launch launch/rover_state_publisher.launch.py \
+  config:=configs/config.yaml robot:=curiosity
+```
+
+The primary navigation image remains `/rover/rgb/image_raw`, with CameraInfo at
+`/rover/rgb/camera_info`. Every additional configured camera publishes
+`/rover/cameras/<name>/image_raw` and `/rover/cameras/<name>/camera_info`;
+for example, `/rover/cameras/mastcam_left/image_raw`. These are best-effort
+sensor topics in the supplied profiles; set RViz Image reliability to
+**Best Effort**. All ROS processes must use the same `ROS_DOMAIN_ID`.
 
 ### Startup sequence
 
-1. Load and strictly validate `configs/config.yaml`.
-2. Resolve configuration-relative asset paths and check required files.
+1. Compose the scenario and selected robot profile, then strictly validate them.
+2. Resolve asset paths relative to each declaring YAML and check required files.
 3. Start Isaac Sim and create the Mars world.
 4. Reference the selected terrain and rover USD assets.
-5. Apply YAML-owned rover physics and create Camera, IMU, and 2-D/3-D LiDAR sensors.
+5. Apply YAML-owned rover physics and create the configured camera, IMU, and optional LiDAR sensors.
 6. Initialize optional atmosphere GUI and ROS 2 interfaces.
 7. Enter the simulation, control, sensing, and publication loop.
 
@@ -355,20 +380,39 @@ The input assets remain unchanged.
 
 ## 🔧 Configuration
 
-[`configs/config.yaml`](configs/config.yaml) is the **only active runtime input**.
+[`configs/config.yaml`](configs/config.yaml) holds the scenario. Its `robot`
+selector loads [`configs/robots/perseverance.yaml`](configs/robots/perseverance.yaml)
+by default. `--robot <name>` overrides that selector without changing the file.
+Rover dimensions, joint and link names, drive gains, and sensor settings belong
+to the rover profile, so the same controller and wheel-odometry code can be
+reused across models.
+
+```bash
+marslab/isaac_python.sh marslab/main.py --config configs/config.yaml --robot curiosity
+```
+
+| Robot | Profile |
+|:---|:---|
+| Perseverance (default) | [perseverance.yaml](configs/robots/perseverance.yaml) |
+| Spirit | [spirit.yaml](configs/robots/spirit.yaml) |
+| Opportunity | [opportunity.yaml](configs/robots/opportunity.yaml) |
+| Curiosity | [curiosity.yaml](configs/robots/curiosity.yaml) |
 
 | Section | Purpose |
 |:---|:---|
+| `robot` | Select `configs/robots/<name>.yaml` |
 | `scene` | Downloaded Scene USDZ path |
 | `runtime` | GUI/headless, ROS 2, and atmosphere switches |
 | `mars_env` | Gravity, dust, sunlight, sol timing, and dynamic atmosphere |
 | `rendering` | Ray/path tracing, sky dome, sun, and fog |
-| `rover` | Assets, spawn, physics, control, sensors, ROS names, and QoS |
+| `rover` | Optional scenario overrides for the selected profile |
 | `wheel_odom` | Dynamic `odom → base_link` TF ownership gate |
 
 Selected settings from the supplied configuration:
 
 ```yaml
+robot: perseverance
+
 scene:
   usdz_path: ../assets/scene/jezero_plain/jezero_plain.usdz
 
@@ -379,10 +423,45 @@ runtime:
 
 rendering:
   mode: ray_tracing
+  ray_tracing:
+    antialiasing_op: 4  # DLAA; use 3 for DLSS
 
 wheel_odom:
   publish_tf: true
 ```
+
+Inline `rover` overrides merge nested mappings and replace whole lists. Each
+relative asset path is resolved from the YAML that declares it: `../assets/`
+in the scenario, `../../assets/` in the supplied rover profiles. Complete legacy
+one-file configurations still load without a selector. Selecting `--robot` for
+such a legacy file replaces its original rover settings with the chosen profile.
+
+### Choosing DLSS or DLAA
+
+MarsLab defaults to **DLAA**. DLSS prioritizes a balance between performance and
+image quality by reconstructing a higher-resolution image from a lower-resolution
+render, but may cause viewport-edge shimmering or flickering in some setups.
+DLAA renders at native resolution and eliminated the observed edge flicker in
+our Isaac Sim 5.1 / RTX 5090 tests. It may increase GPU resource usage, including
+VRAM consumption, compared with DLSS; the actual cost depends on the scene,
+resolution, and hardware.
+
+To switch modes, edit `rendering.ray_tracing.antialiasing_op` in the scenario YAML
+passed to `--config`, normally [`configs/config.yaml`](configs/config.yaml).
+Update these fields within its existing `rendering` block, then restart MarsLab:
+
+```yaml
+rendering:
+  mode: ray_tracing
+  ray_tracing:
+    antialiasing_op: 4  # 4 = DLAA (default), 3 = DLSS
+    dlss_exec_mode: 1  # DLSS only: 1 = Balanced
+```
+
+Use `3` for DLSS or `4` for DLAA. `dlss_exec_mode` selects the DLSS quality mode
+and does not select DLAA. If `antialiasing_op` is omitted, `RayTracingConfig` in
+[`marslab/config/schema/scenario.py`](marslab/config/schema/scenario.py) supplies
+the default value `4`; an explicit YAML value takes precedence.
 
 For renderer modes, scene and spawn selection, atmosphere tuning, rover physics,
 sensor profiles, ROS QoS, frame ownership, and odometry parameters, read the
@@ -437,24 +516,19 @@ surface response, and scene geometry. See the sensor sections in the
 flowchart TD
     MAP["map"] -. "ground-truth topic only" .-> GT["base_link_gt"]
     ODOM["odom"] -->|"wheel_odom.publish_tf"| BASE["base_link"]
-    BASE -->|"companion: identity TF"| BODY["Body_Chassis"]
+    BASE -->|"companion: identity TF"| BODY["Selected URDF root"]
     BODY -->|"robot_state_publisher"| JOINTS["Rover articulation"]
     BODY -->|"MarsLab static TF"| CAMERA["camera_link / optical"]
     BODY -->|"MarsLab static TF"| LIDAR["lidar_link / lidar_2d_link"]
     BODY -->|"MarsLab static TF"| IMU["imu_link"]
 ```
 
-- The ROS companion owns identity `base_link → Body_Chassis` and the URDF
+- The ROS companion owns identity `base_link` to the selected URDF root and the URDF
   articulation chain.
-- MarsLab owns retained sensor static frames below `Body_Chassis`.
+- MarsLab owns retained sensor static frames below `rover.ros2.sensor_parent_frame_id`
+  (`Body_Chassis` in the default profile).
 - Ground truth is an evaluation stream and owns no TF.
 - Wheel odometry is the operational estimate and may own dynamic odometry TF.
-
-The default rover references `m2020_lidar.usda`; its companion uses
-`m2020_lidar.urdf`. Both add modeled sensor housings and mounts to the preserved
-rover asset, with merged chassis mass, COM and inertia. These are research
-attachments, not flight Perseverance instruments. See
-[mount assumptions and mass properties](assets/robots/sensors/mass_properties.json).
 
 ---
 
@@ -468,13 +542,13 @@ MarsLab/
 ├── README.md
 ├── CONFIGURATION_GUIDE.md
 ├── configs/
-│   └── config.yaml                 # Canonical runtime configuration
+│   ├── config.yaml                 # Scenario and robot selector
+│   └── robots/                     # Rover geometry, dynamics, and sensor profiles
 ├── assets/
 │   ├── scene/                      # Downloaded Mars terrain USDZ inputs
-│   ├── robots/                     # Rover USD and physics layers
+│   ├── robots/                     # Rover USD, URDF, meshes, and physics layers
 │   ├── mars_sky/                   # Sky-dome image assets
-│   ├── atmosphere/                 # Model references and scope
-│   └── m2020-urdf-models/           # Required URDF git submodule
+│   └── atmosphere/                 # Model references and scope
 ├── launch/
 │   ├── rover_state_publisher.launch.py
 │   └── companion_urdf.py           # Companion URDF preparation
@@ -491,25 +565,10 @@ MarsLab/
 │   ├── runtime/                    # Assembly, loop, and cleanup lifecycle
 │   ├── sensors/                    # Camera, IMU, and 2-D/3-D LiDAR
 │   └── sim/                        # SimulationApp and world bootstrapping
-└── pyproject.toml                  # Package and tooling metadata
+└── requirements.txt                # Python dependencies for runtime and companion tools
 ```
 
 </details>
-
----
-
-## ✅ Validation Boundary
-
-Offline checks can validate YAML structure, asset paths, schemas, and pure
-computation. Isaac GUI appearance, rover physics, live sensor data, ROS topics,
-QoS and TF, AtmospherePanel behavior, and shutdown cleanup must be verified in
-the user's Isaac Sim and ROS installation.
-
-For a chosen configuration, observe sensor messages, frame ownership, actual
-rover steering, and Pause/Stop/Play behavior. Record the configuration, input
-assets, and actual observations when reporting runtime results. A shared seed
-controls MarsLab's custom noise streams; repeatability of complete physics and
-rendered outputs requires separate verification.
 
 ---
 
@@ -518,12 +577,14 @@ rendered outputs requires separate verification.
 Planned improvements include:
 
 - [x] Add 2D LiDAR.
+- [x] Support four heterogeneous Mars rovers: Perseverance, Curiosity, Opportunity, and Spirit.
+- [x] Mitigate DLSS-related viewport edge flickering by defaulting to DLAA.
+- [ ] Support Aerial Robots like Ingenuity.
+- [ ] Support Simultaneous Simulation of Multiple Robots.
+- [ ] Support Rock Distribution for customizable Mars Scene.
 - [ ] Integrate evaluation workflows for TUM, path planning, and SLAM.
-- [ ] Integrate Nav2.
 - [ ] Extend the existing Gaussian noise with sensor bias and time-varying drift models.
-- [ ] Resolve vibration issues during runtime rendering.
 - [ ] Improve the realism of sky and light rendering.
 - [ ] Add photorealistic scene generation.
-- [ ] Add wheel traces.
-- [ ] Add support for multiple and heterogeneous robots.
+- [ ] Add wheel traces (more sophisticated wheel-soil interaction).
 - [ ] Dockerize MarsLab.

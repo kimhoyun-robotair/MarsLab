@@ -8,10 +8,6 @@ convention, matching:
 * URDF / ROS ZYX intrinsic RPY convention for
   :func:`rpy_to_quat` and :func:`quat_to_rpy`.
 
-Every function is deterministic, side-effect free, and NumPy-only so
-``tests/unit/`` can validate the module headlessly (offline-first
-testing principle).
-
 This module is the single source of truth for quaternion helpers:
 
 * ``marslab.ros2_bridge.odometry_math`` (quat_inverse / quat_multiply /

@@ -65,6 +65,8 @@ def configure_drives(
     stage: Any,
     chassis_path: str,
     control_cfg: ControlConfig,
+    *,
+    joints_prim_name: str = "joints",
 ) -> None:
     """Apply DriveAPI attributes to the actively controlled joints."""
     from pxr import UsdPhysics
@@ -79,7 +81,7 @@ def configure_drives(
     steer_max_force = float(control_cfg.steer_max_force)
     drive_type = str(control_cfg.drive_type)
 
-    joints_scope = f"{chassis_path}/joints"
+    joints_scope = f"{chassis_path}/{joints_prim_name}"
     missing: list[str] = []
 
     requested_limit_deg = degrees(float(control_cfg.max_steer_angle))

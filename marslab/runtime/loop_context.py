@@ -120,7 +120,7 @@ def build_loop_context(
         render_config=config.rendering,
         ackermann_fn=import_module("marslab.robots.rover_control").ackermann_command,
         reset_articulation=reset_articulation,
-        reset_depth_acquisition=pre_reset.sensors.camera_acquisition.reset_depth_noise,
+        reset_depth_acquisition=pre_reset.sensors.reset_depth_acquisitions,
         read_imu_sample=pre_reset.sensors.imu_acquisition.read_sample,
         publish_raw_imu=(
             pre_reset.sensor_graph.publish_raw_imu if pre_reset.sensor_graph is not None else None

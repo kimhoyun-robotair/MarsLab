@@ -3,10 +3,6 @@
 Computes sky appearance parameters as a function of dust optical depth.
 At low tau the Mars sky is the iconic butterscotch color; at high tau
 the sky brightens and shifts toward uniform haze.
-
-Reference:
-    Bell et al. (2006). Chromaticity of the Martian sky as observed by
-    the Mars Exploration Rover Pancam instruments. JGR Planets.
 """
 
 import os

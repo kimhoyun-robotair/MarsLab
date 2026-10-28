@@ -215,10 +215,11 @@ def assemble_post_reset(
         bridge.depth_publisher = depth_module.create_depth_publisher(
             bridge.node, pre_reset.sensors.camera_acquisition, rover.ros2
         )
-        lidar_scan_module = import_module("marslab.ros2_bridge.lidar_scan_publisher")
-        bridge.lidar_scan_publisher = lidar_scan_module.create_lidar_scan_publisher(
-            bridge.node, pre_reset.sensors.lidar_2d_acquisition, rover.ros2
-        )
+        if pre_reset.sensors.lidar_2d_acquisition is not None:
+            lidar_scan_module = import_module("marslab.ros2_bridge.lidar_scan_publisher")
+            bridge.lidar_scan_publisher = lidar_scan_module.create_lidar_scan_publisher(
+                bridge.node, pre_reset.sensors.lidar_2d_acquisition, rover.ros2
+            )
     return PostResetAssembly(
         articulation=articulation,
         drive_indices=drive_indices,
