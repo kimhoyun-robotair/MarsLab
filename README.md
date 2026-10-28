@@ -352,16 +352,12 @@ reused across models.
 marslab/isaac_python.sh marslab/main.py --config configs/config.yaml --robot curiosity
 ```
 
-| Robot | Profile | Model and source notes |
-|:---|:---|:---|
-| Perseverance (default) | [perseverance.yaml](configs/robots/perseverance.yaml) | [Technical report](techreport/perseverance_like.md) |
-| Spirit | [spirit.yaml](configs/robots/spirit.yaml) | [Technical report](techreport/spirit.md) |
-| Opportunity | [opportunity.yaml](configs/robots/opportunity.yaml) | [Technical report](techreport/opportunity.md) |
-| Curiosity | [curiosity.yaml](configs/robots/curiosity.yaml) | [Technical report](techreport/curiosity.md) |
-
-All four profiles use a **4 m/s linear command cap**. This is a shared MarsLab
-simulation setting; the reports retain the much lower flight-speed references
-separately. Scenario overrides can change this cap.
+| Robot | Profile |
+|:---|:---|
+| Perseverance (default) | [perseverance.yaml](configs/robots/perseverance.yaml) |
+| Spirit | [spirit.yaml](configs/robots/spirit.yaml) |
+| Opportunity | [opportunity.yaml](configs/robots/opportunity.yaml) |
+| Curiosity | [curiosity.yaml](configs/robots/curiosity.yaml) |
 
 | Section | Purpose |
 |:---|:---|
@@ -400,57 +396,6 @@ relative asset path is resolved from the YAML that declares it: `../assets/`
 in the scenario, `../../assets/` in the supplied rover profiles. Complete legacy
 one-file configurations still load without a selector. Selecting `--robot` for
 such a legacy file replaces its original rover settings with the chosen profile.
-
-NASA visual-source provenance and rights information are recorded in
-[LICENSE-NASA-3D-RESOURCES.txt](LICENSE-NASA-3D-RESOURCES.txt), with sensor-data
-sources in [LICENSE-NAIF.txt](LICENSE-NAIF.txt). These visual models do not
-constitute NASA-issued URDFs or measured flight mass/inertia distributions.
-
-The mission models acquire 17 Curiosity cameras and 9 cameras on each MER rover,
-plus an ideal IMU. Cameras use pinhole projections from published calibration;
-the source coefficients are preserved. Science instruments and their subcomponents
-are represented by sourced USD inventory and interface metadata: spectra, chemistry,
-weather, and radiation measurements are not simulated. Per-link mass allocation,
-collision shapes, and controller gains are documented simulation approximations.
-
-Spirit and Opportunity's Microscopic Imager is mounted at the visible stowed
-arm's optics housing. Its original NASA calibration reference pose is retained
-separately; the stowed mounting pose is derived from the NASA visualization
-geometry, not a flight calibration. USD cameras and their ROS TF use the same
-mounting pose. Startup rejects a camera configuration that disagrees with its
-authored USD pose; see the corresponding technical report for the source and limits.
-
-Curiosity has 22 rigid links and 21 movable joints, including five arm joints and
-mast pan/tilt. Its seven mast cameras follow `Body_MastTilt`; MAHLI follows
-`Body_ArmTurret` with a visualization-derived mounting pose. The common
-`robot_state_publisher` launch loads the corresponding URDF and publishes these
-links from the simulator's joint states. The added drives hold their neutral
-pose by default; `cmd_vel` still controls mobility, and no arm trajectory
-controller is supplied. Space ROS was consulted for comparison, while the
-runtime geometry and joint derivation use the documented NASA sources. The
-articulated model uses estimated link inertias rather than forcing the older
-NASA landing-test aggregate onto the deployed arm configuration; numerical
-values and source distinctions are in [Curiosity's technical report](techreport/curiosity.md).
-
-On 2026-10-23, the current mission assets each passed a separate 600-second
-wall-clock run in Isaac Sim 5.1 on an RTX 5090, with the full Jezero plain,
-atmosphere, ROS and all cameras at native resolution. Physics advanced 262.617
-seconds for Spirit, 261.733 for Opportunity and 125.050 for Curiosity. The runs
-covered forward/reverse, both turning and pivot directions, and stops. Separate
-ROS 2 Jazzy subscribers verified all 35 Image/CameraInfo streams, selected
-robot descriptions, joint states, clock, IMU and complete link/camera TF chains.
-Final native error counts were zero; physics states and memory remained stable.
-
-Curiosity additionally exercised all seven added joints while comparing actual
-PhysX body and rendered-camera poses with URDF forward kinematics and external
-TF. Small test excursions were ±0.10 rad for the mast and ±0.05 rad for the arm;
-this does not certify full-range manipulation. An isolated actual Stop/Play
-test invoking the production reset owner verified target preservation and
-restoration. A short Perseverance regression also passed. The installed RViz
-mesh loader decoded all 52 mission DAE files and 187 texture bindings without
-errors. Generation tools, test code, raw logs and execution-hash reports stay
-under the ignored `tmp/` directory, including `tmp/stress_articulation/` and
-`tmp/texture_fix/`.
 
 ### Choosing DLSS or DLAA
 
@@ -546,12 +491,6 @@ flowchart TD
 - Ground truth is an evaluation stream and owns no TF.
 - Wheel odometry is the operational estimate and may own dynamic odometry TF.
 
-The default rover references `m2020_lidar.usda`; its companion uses
-`m2020_lidar.urdf`. Both add modeled sensor housings and mounts to the preserved
-rover asset, with merged chassis mass, COM and inertia. These are research
-attachments, not flight Perseverance instruments. See
-[mount assumptions and mass properties in the Perseverance-like report](techreport/perseverance_like.md).
-
 ---
 
 ## 📂 Project Structure
@@ -591,43 +530,6 @@ MarsLab/
 ```
 
 </details>
-
----
-
-## Third-party assets and notices
-
-The root notices record each source, its credits, MarsLab's adaptations, and
-the available rights information. They do not relicense third-party material.
-
-| Asset or source | Notice |
-| --- | --- |
-| M2020 / Perseverance geometry and textures | [LICENSE-M2020.txt](LICENSE-M2020.txt) |
-| NASA-3D-Resources Curiosity and MER visualization sources | [LICENSE-NASA-3D-RESOURCES.txt](LICENSE-NASA-3D-RESOURCES.txt) |
-| NASA NAIF sensor and coordinate data | [LICENSE-NAIF.txt](LICENSE-NAIF.txt) |
-| Three.js and browser-demo addons | [LICENSE-THREEJS.txt](LICENSE-THREEJS.txt) |
-| COMIMART atmospheric reference | [LICENSE-COMIMART.txt](LICENSE-COMIMART.txt) |
-| Mars Rocks visualization asset | [LICENSE-MARS-ROCKS.txt](LICENSE-MARS-ROCKS.txt) |
-| HiRISE terrain and imagery sources | [LICENSE-HIRISE.txt](LICENSE-HIRISE.txt) |
-| NOSA 1.3 reference agreement cited by NASA-3D-Resources metadata | [NASA-Open-Source-Agreement-1.3.pdf](NASA-Open-Source-Agreement-1.3.pdf) |
-
-The browser demo also retains [its Three.js MIT notice](docs/demo/vendor/THREE-LICENSE.txt)
-inside `docs/` for deployments of that directory alone. The NASA-3D-Resources
-notice explains the scope and unresolved applicability of the NOSA reference.
-
----
-
-## ✅ Validation Boundary
-
-Offline checks can validate YAML structure, asset paths, schemas, and pure
-computation. Isaac GUI appearance, rover physics, live sensor data, ROS topics,
-QoS and TF, AtmospherePanel behavior, and shutdown cleanup must be verified in
-the user's Isaac Sim and ROS installation.
-
-For a chosen configuration, observe sensor messages, frame ownership, actual
-rover steering, and Pause/Stop/Play behavior. Record the configuration, input
-assets, and actual observations when reporting runtime results. A shared seed
-controls MarsLab's custom noise streams; repeatability of complete physics and
-rendered outputs requires separate verification.
 
 ---
 
