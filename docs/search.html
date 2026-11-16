@@ -1,0 +1,18 @@
+---
+layout: doc
+title: Search documentation
+description: Find MarsLab guides, robot profiles and technical reference.
+permalink: /search/
+edit: false
+---
+<div id="doc-search" data-index="{{ '/search.json' | relative_url }}">
+  <p>Search the user guide, robot profiles and technical reference.</p>
+  <form id="search-form" role="search" method="get">
+    <label for="search-query">Search terms</label>
+    <div class="search-input-row"><input id="search-query" type="search" name="q" placeholder="For example: wheel odometry" autocomplete="off" /><button type="submit">Search</button></div>
+  </form>
+  <p id="search-status" role="status" aria-live="polite">Enter a setting, topic or robot name.</p>
+  <ol id="search-results"></ol>
+</div>
+<noscript>Search needs JavaScript. You can still use the sidebar or the <a href="{{ '/reference/' | relative_url }}">technical reference index</a> to find a topic.</noscript>
+<script src="{{ '/search.js' | relative_url }}" defer></script>

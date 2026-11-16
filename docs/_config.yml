@@ -1,0 +1,53 @@
+title: MarsLab
+description: Guides and technical reference for the MarsLab planetary robotics simulator.
+url: https://kimhoyun-robotair.github.io
+baseurl: /MarsLab
+repository: kimhoyun-robotair/MarsLab
+source_branch: main
+
+# GitHub Pages' built-in Jekyll renderer. No remote theme or custom plugins.
+theme: null
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  hard_wrap: false
+  syntax_highlighter: rouge
+optional_front_matter:
+  enabled: false
+
+# Jekyll otherwise ignores directories named vendor, including the demo's Three.js.
+include:
+  - demo/vendor
+exclude:
+  - README.md
+  - scripts
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+
+defaults:
+  - scope:
+      path: guide
+    values:
+      layout: doc
+      section: guide
+      searchable: true
+  - scope:
+      path: robots
+    values:
+      layout: doc
+      section: robots
+      searchable: true
+  - scope:
+      path: reference
+    values:
+      layout: doc
+      section: reference
+      searchable: true
+  - scope:
+      path: development
+    values:
+      layout: doc
+      section: development
+      searchable: true

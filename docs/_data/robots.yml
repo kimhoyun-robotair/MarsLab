@@ -1,0 +1,20 @@
+- name: Perseverance
+  slug: perseverance
+  mission: MARS 2020
+  detail: The default research profile. RGB-D, two LiDARs and IMU.
+  tag: Research sensors
+- name: Spirit
+  slug: spirit
+  mission: MARS EXPLORATION ROVER · MER-2
+  detail: Nine camera models, a six-wheel chassis and passive suspension.
+  tag: 9 cameras
+- name: Opportunity
+  slug: opportunity
+  mission: MARS EXPLORATION ROVER · MER-1
+  detail: Shared MER mobility, with its own camera calibration.
+  tag: 9 cameras
+- name: Curiosity
+  slug: curiosity
+  mission: MARS SCIENCE LABORATORY
+  detail: Seventeen camera models across mast, body and arm mounts.
+  tag: 17 cameras

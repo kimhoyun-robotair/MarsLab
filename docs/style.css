@@ -732,3 +732,5 @@ footer a {
 .atmosphere-equation[src$="solar.svg"] {width:210px}.atmosphere-equation[src$="dust.svg"] {width:350px}
 
 .rover-drive-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;margin-top:40px}@media(max-width:600px){.rover-drive-grid {grid-template-columns:1fr;gap:24px}}
+
+.research-scope {max-width: 650px; margin: 1.5rem auto; color: var(--muted); font-size: .9rem;}

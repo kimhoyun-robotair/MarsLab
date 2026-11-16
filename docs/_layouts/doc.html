@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ page.title | escape }} | {{ site.title | escape }}</title>
+  <meta name="description" content="{{ page.description | default: site.description | escape }}" />
+  <link rel="canonical" href="{{ page.url | absolute_url }}" />
+  <link rel="icon" type="image/svg+xml" href="{{ '/favicon.svg' | relative_url }}" />
+  <link rel="stylesheet" href="{{ '/docs.css' | relative_url }}" />
+  <script>
+    document.documentElement.classList.add('js');
+    try {
+      const preference = localStorage.getItem('marslab-theme') || 'auto';
+      document.documentElement.dataset.theme = preference === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : preference;
+    } catch (_) { /* Use the default light palette when storage is unavailable. */ }
+  </script>
+  <script src="{{ '/docs.js' | relative_url }}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="docs-header">
+    <a class="brand" href="{{ '/' | relative_url }}" aria-label="MarsLab project home">
+      <svg width="29" height="29" viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="13" stroke="currentColor" stroke-width="1.5"/><path d="m5 21 8-12 6 9 4-6 5 9M9 25h14" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      <span>Mars<span class="oxide">Lab</span></span><small>/ docs</small>
+    </a>
+    <form class="header-search" role="search" action="{{ '/search/' | relative_url }}" method="get">
+      <label class="sr-only" for="header-query">Search documentation</label>
+      <input id="header-query" type="search" name="q" placeholder="Search documentation…" autocomplete="off" />
+      <button type="submit" aria-label="Search">↗</button>
+    </form>
+    <div class="header-tools">
+      <a href="https://github.com/{{ site.repository }}">GitHub ↗</a>
+      <label class="theme-control">Theme <select id="theme" aria-label="Color theme"><option value="auto">Auto</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="docs-sidebar">Menu</button>
+    </div>
+  </header>
+  <div class="docs-grid">
+    <aside id="docs-sidebar" class="docs-sidebar">{% include sidebar.html %}</aside>
+    <main id="main" class="doc-main" tabindex="-1">
+      <header class="doc-heading"><p class="section-label">{% if page.section %}{{ page.section | replace: '-', ' ' | escape }}{% else %}Documentation{% endif %}</p><h1>{{ page.title | escape }}</h1></header>
+      <article class="doc-content">{{ content }}</article>
+      {% unless page.edit == false %}
+      <footer class="doc-footer"><a href="https://github.com/{{ site.repository }}/edit/{{ site.source_branch }}/docs/{{ page.path }}">Edit this page ↗</a><a href="#main">Back to top ↑</a></footer>
+      {% endunless %}
+    </main>
+    <aside class="page-toc" aria-label="On this page" hidden><h2>On this page</h2><ol id="page-toc"></ol></aside>
+  </div>
+</body>
+</html>

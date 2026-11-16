@@ -1,0 +1,15 @@
+<nav aria-label="Documentation">
+  <a class="sidebar-home" href="{{ '/' | relative_url }}">← Project home</a>
+  {% for group in site.data.navigation %}
+  <details class="nav-group"{% if group.id == page.section or group.id == 'guide' or group.id == 'robots' %} open{% endif %}>
+    <summary>{{ group.title | escape }}</summary>
+    <ul>
+      {% for item in group.items %}
+      <li><a href="{{ item.url | relative_url }}"{% if page.url == item.url %} aria-current="page"{% endif %}>{{ item.title | escape }}{% if item.status %} <span class="nav-status">{{ item.status | escape }}</span>{% endif %}</a></li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endfor %}
+  <a class="sidebar-extra" href="{{ '/research/' | relative_url }}">Paper and benchmarks</a>
+  <a class="sidebar-extra" href="{{ '/demo/' | relative_url }}">Interactive demo ↗</a>
+</nav>

@@ -1,0 +1,63 @@
+- id: guide
+  title: Start here
+  items:
+    - title: Welcome
+      url: /guide/
+    - title: Installation
+      url: /guide/installation/
+    - title: First run
+      url: /guide/quickstart/
+    - title: Troubleshooting
+      url: /guide/troubleshooting/
+- id: robots
+  title: Robots
+  items:
+    - title: Compare profiles
+      url: /robots/
+    - title: Perseverance
+      url: /robots/perseverance/
+    - title: Spirit
+      url: /robots/spirit/
+    - title: Opportunity
+      url: /robots/opportunity/
+    - title: Curiosity
+      url: /robots/curiosity/
+    - title: Ingenuity
+      url: /robots/ingenuity/
+      status: In development
+- id: reference
+  title: Technical reference
+  items:
+    - title: Overview
+      url: /reference/
+    - title: Configuration
+      url: /reference/configuration/
+    - title: Scenes and spawning
+      url: /reference/scenes/
+    - title: Runtime modes
+      url: /reference/runtime/
+    - title: Atmosphere
+      url: /reference/atmosphere/
+    - title: Rendering
+      url: /reference/rendering/
+    - title: Rover physics
+      url: /reference/physics/
+    - title: Rover control
+      url: /reference/control/
+    - title: Sensors
+      url: /reference/sensors/
+    - title: ROS 2 and TF
+      url: /reference/ros2/
+    - title: Wheel odometry
+      url: /reference/odometry/
+    - title: Model assumptions
+      url: /reference/model-assumptions/
+- id: development
+  title: Development
+  items:
+    - title: Architecture
+      url: /development/
+    - title: Adding a rover
+      url: /development/adding-a-rover/
+    - title: Roadmap
+      url: /development/roadmap/

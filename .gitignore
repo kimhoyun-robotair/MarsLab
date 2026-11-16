@@ -1,7 +1,6 @@
 # Track runtime files, user documentation, and the project page.
 /*
 !/.gitignore
-!/CONFIGURATION_GUIDE.md
 !/requirements.txt
 !/README.md
 !/UPDATE_LOG.md
